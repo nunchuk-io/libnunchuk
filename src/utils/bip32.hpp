@@ -1,0 +1,102 @@
+// Copyright (c) 2020 Enigmo
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#ifndef NUNCHUK_BIP32_H
+#define NUNCHUK_BIP32_H
+
+#include <nunchuk.h>
+
+#include <boost/format.hpp>
+#include <iomanip>
+#include <regex>
+#include <string>
+#include <vector>
+
+namespace {
+
+static const int SINGLESIG_BIP48_CACHE_NUMBER = 1;
+static const int SINGLESIG_BIP49_CACHE_NUMBER = 1;
+static const int SINGLESIG_BIP84_CACHE_NUMBER = 3;
+static const int MULTISIG_CACHE_NUMBER = 10;
+static const int ESCROW_CACHE_NUMBER = 5;
+static const int TOTAL_CACHE_NUMBER =
+    SINGLESIG_BIP48_CACHE_NUMBER + SINGLESIG_BIP49_CACHE_NUMBER +
+    SINGLESIG_BIP84_CACHE_NUMBER + MULTISIG_CACHE_NUMBER + ESCROW_CACHE_NUMBER;
+
+static const std::string TESTNET_HEALTH_CHECK_PATH = "m/45'/1'/0'/1/0";
+static const std::string MAINNET_HEALTH_CHECK_PATH = "m/45'/0'/0'/1/0";
+
+std::string GetBip32Path(nunchuk::Chain chain,
+                         const nunchuk::WalletType& wallet_type,
+                         const nunchuk::AddressType& address_type, int index) {
+  using namespace nunchuk;
+
+  int coin_type = chain == Chain::TESTNET ? 1 : 0;
+  switch (wallet_type) {
+    case WalletType::SINGLE_SIG:
+      switch (address_type) {
+        case AddressType::LEGACY:
+          // Single-sig BIP44 Wallets: m/44h/ch/xh, c = coin, x = index
+          return boost::str(boost::format{"m/44h/%dh/%dh"} % coin_type % index);
+        case AddressType::NESTED_SEGWIT:
+          // Single-sig BIP49 Wallets: m/49h/ch/yh, c = coin, y = index
+          return boost::str(boost::format{"m/49h/%dh/%dh"} % coin_type % index);
+        case AddressType::NATIVE_SEGWIT:
+          // Single-sig BIP84 Wallets: m/84h/ch/zh, c = coin, z = index
+          return boost::str(boost::format{"m/84h/%dh/%dh"} % coin_type % index);
+        default:
+          throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
+                                 "invalid address type");
+      }
+      break;
+    case WalletType::MULTI_SIG:
+      if (index == 0)
+        throw NunchukException(
+            NunchukException::INVALID_PARAMETER,
+            "multisig account index 0 is reserved for escrow wallets");
+      // Multi-sig BIP48 Wallets: m/48h/ch/ph, c = coin, p = index, p != 0
+      return boost::str(boost::format{"m/48h/%dh/%dh"} % coin_type % index);
+    case WalletType::ESCROW:
+      // Multi-sig Escrow Wallets: m/48h/ch/0h/qh, c = coin, q = index
+      return boost::str(boost::format{"m/48h/%dh/0h/%dh"} % coin_type % index);
+  }
+  throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                         "invalid wallet type");
+}
+
+std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
+                         const nunchuk::AddressType& address_type) {
+  using namespace nunchuk;
+
+  switch (wallet_type) {
+    case WalletType::SINGLE_SIG:
+      switch (address_type) {
+        case AddressType::LEGACY:
+          return "bip44";
+        case AddressType::NESTED_SEGWIT:
+          return "bip49";
+        case AddressType::NATIVE_SEGWIT:
+          return "bip84";
+        default:
+          throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
+                                 "invalid address type");
+      }
+      break;
+    case WalletType::MULTI_SIG:
+      return "bip48";
+    case WalletType::ESCROW:
+      return "escrow";
+  }
+  throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                         "invalid wallet type");
+}
+
+int GetIndexFromPath(const std::string& path) {
+  std::size_t last = path.find_last_of("/");
+  return std::stoi(path.substr(last + 1));
+}
+
+}  // namespace
+
+#endif  //  NUNCHUK_BIP32_H

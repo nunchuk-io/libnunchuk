@@ -1,0 +1,13 @@
+// Copyright (c) 2020 Enigmo
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#ifndef NUNCHUK_CONFIG_INCLUDE_H
+#define NUNCHUK_CONFIG_INCLUDE_H
+
+#define CLIENT_VER "@PROJECT_VERSION@"
+#define CLIENT_MAJOR "@PROJECT_VERSION_MAJOR@"
+#define CLIENT_MINOR "@PROJECT_VERSION_MINOR@"
+#define CLIENT_PATCH "@PROJECT_VERSION_PATCH@"
+
+#endif  // NUNCHUK_CONFIG_INCLUDE_H
