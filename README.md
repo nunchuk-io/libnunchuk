@@ -13,7 +13,7 @@ Why does libnunchuk reuse [Bitcoin Core](https://github.com/bitcoin/bitcoin) cod
 * Bitcoin Core is the most peer-reviewed and battle-tested in all of Bitcoin.
 * Bitcoin Core has important protocol upgrades coming, such as Schnorr signatures and Taproot.
 
-By leveraging Core, libnunchuk is able to kill two birds with one stone: gaining access to powerful and reliable Bitcoin tools, while staying lean and cutting down on the number of dependencies.
+By leveraging Core, libnunchuk can gain access to powerful and reliable Bitcoin tools, while staying lean and cutting down on the number of dependencies.
 
 ## Usage
 
@@ -82,7 +82,7 @@ auto wallet = nunchuk.get()->CreateWallet("wallet_name", 2, 2,
     {signer0, signer1}, address_type, false);
 ```
 
-libnunchuk also exposes several convenient utils through `nunchuk::Utils`.
+Convenient util methods are also available in `nunchuk::Utils`.
 
 ```c++
 auto xpub = Utils::SanitizeBIP32Input(Ypub, "xpub");
@@ -181,7 +181,7 @@ The Nunchuk Desktop app is available at https://nunchuk.io.
 
 Read about our design philosophy at:
 * [Introducing Nunchuk](https://nunchuk.medium.com/introducing-nunchuk-multisig-made-easy-30d3144d0e09)
-* [Introducing libnunchuk]()
+* [Introducing libnunchuk](https://nunchuk.medium.com/announcing-libnunchuk-a-lean-cross-platform-multisig-library-powered-by-bitcoin-core-a2f6e26c54df)
 
 ##  License
 
