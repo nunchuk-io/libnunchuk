@@ -4,6 +4,7 @@
 
 #include "electrumclient.h"
 #include <utils/loguru.hpp>
+#include <boost/algorithm/string.hpp>
 
 using namespace boost::asio;
 namespace nunchuk {
@@ -11,11 +12,10 @@ namespace nunchuk {
 static std::string DEFAULT_SERVER = "127.0.0.1:50001";
 
 ElectrumClient::ElectrumClient(const AppSettings& appsettings,
-                                 const std::function<void()> on_disconnect)
+                               const std::function<void()> on_disconnect)
     : io_thread_(),
       signal_thread_(),
       interval_(60),
-      socket_(io_service_),
       timer_(io_service_, interval_),
       signal_worker_(make_work_guard(signal_service_)) {
   disconnect_signal_.connect(on_disconnect);
@@ -36,9 +36,20 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
     throw NunchukException(NunchukException::INVALID_CHAIN,
                            "chain not supported");
   }
-  size_t colon = server_url.find_first_of(":");
-  host_ = server_url.substr(0, colon);
-  port_ = std::stoi(server_url.substr(colon + 1));
+  size_t colonDoubleSlash = server_url.find("://");
+  if (colonDoubleSlash != std::string::npos) {
+    protocol_ = server_url.substr(0, colonDoubleSlash);
+    server_url = server_url.substr(colonDoubleSlash + 3);
+  }
+  size_t colon = server_url.find(":");
+  if (colon != std::string::npos) {
+    host_ = server_url.substr(0, colon);
+    std::string portStr = server_url.substr(colon + 1);
+    port_ = portStr.empty() ? 50001 : std::stoi(portStr);
+    if (port_ < 0 || port_ > 65353) port_ = 50001;
+  } else {
+    host_ = server_url;
+  }
   use_proxy_ = appsettings.use_proxy();
   if (use_proxy_) {
     proxy_host_ = appsettings.get_proxy_host();
@@ -46,14 +57,32 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
     proxy_username_ = appsettings.get_proxy_username();
     proxy_password_ = appsettings.get_proxy_password();
   }
+
+  is_secure_ = boost::iequals(protocol_, "ssl");
+  if (is_secure_) {
+    ssl::context ctx(ssl::context::tls);
+    ctx.set_verify_mode(ssl::verify_peer);
+    ctx.load_verify_file(appsettings.get_certificate_file());
+    secure_socket_ = std::unique_ptr<ssl::stream<ip::tcp::socket>>(
+        new ssl::stream<ip::tcp::socket>(io_service_, ctx));
+  } else {
+    socket_ =
+        std::unique_ptr<ip::tcp::socket>(new ip::tcp::socket(io_service_));
+  }
   socket_connect();
   start();
 }
 
-ElectrumClient::~ElectrumClient() { stop(); }
+ElectrumClient::~ElectrumClient() {
+  try {
+    stop();
+  } catch (...) {
+    LOG_F(ERROR, "ElectrumClient::~ElectrumClient");
+  }
+}
 
 void ElectrumClient::handle_error(const std::string& where,
-                                   const std::string& message) {
+                                  const std::string& message) {
   LOG_F(ERROR, "%s: %s", where.c_str(), message.c_str());
   stopped_ = true;
   for (auto&& i : callback_) {
@@ -63,7 +92,7 @@ void ElectrumClient::handle_error(const std::string& where,
 }
 
 void ElectrumClient::subscribe(const std::string& method,
-                                const NotifySignal::slot_type& lis) {
+                               const NotifySignal::slot_type& lis) {
   sigmap_[method].connect(lis);
 }
 
@@ -73,7 +102,7 @@ void ElectrumClient::scripthash_add_listener(
 }
 
 json ElectrumClient::call_method(const std::string& method,
-                                  const json& params) {
+                                 const json& params) {
   if (stopped_) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
@@ -144,15 +173,24 @@ json ElectrumClient::blockchain_transaction_get(const std::string& tx_hash) {
 }
 
 void ElectrumClient::start() {
-  io_thread_ = std::thread([&]() { io_service_.run(); });
-  signal_thread_ = std::thread([&]() { signal_service_.run(); });
+  io_thread_ = std::thread([&]() {
+    try {
+      io_service_.run();
+    } catch (std::exception& e) {
+      LOG_F(ERROR, "ElectrumClient::io_thread_ %s", e.what());
+    }
+  });
+  signal_thread_ = std::thread([&]() {
+    try {
+      signal_service_.run();
+    } catch (std::exception& e) {
+      LOG_F(ERROR, "ElectrumClient::signal_thread_ %s", e.what());
+    }
+  });
 }
 
 void ElectrumClient::stop() {
   stopped_ = true;
-  for (auto&& i : callback_) {
-    i.second.set_value({{"error", {{"code", 1}, {"message", "Disconnected"}}}});
-  }
   signal_worker_.reset();
   io_service_.stop();
   signal_thread_.join();
@@ -178,23 +216,36 @@ void ElectrumClient::socket_connect() {
     return handle_error("socket_connect", "can not resolve host");
   }
   async_connect(
-      socket_.lowest_layer(), resolve_rs,
+      is_secure_ ? secure_socket_->next_layer() : socket_->lowest_layer(),
+      resolve_rs,
       boost::bind(&ElectrumClient::handle_connect, this, placeholders::error));
 }
 
 void ElectrumClient::socket_read() {
-  async_read_until(
-      socket_, receive_buffer_, "\n",
-      boost::bind(&ElectrumClient::handle_read, this, placeholders::error));
+  if (is_secure_) {
+    async_read_until(
+        *secure_socket_, receive_buffer_, "\n",
+        boost::bind(&ElectrumClient::handle_read, this, placeholders::error));
+  } else {
+    async_read_until(
+        *socket_, receive_buffer_, "\n",
+        boost::bind(&ElectrumClient::handle_read, this, placeholders::error));
+  }
 }
 
 void ElectrumClient::socket_write() {
   if (request_queue_.empty() || !connected_) {
     return;
   }
-  async_write(
-      socket_, buffer(request_queue_.front() + "\n"),
-      boost::bind(&ElectrumClient::handle_write, this, placeholders::error));
+  if (is_secure_) {
+    async_write(
+        *secure_socket_, buffer(request_queue_.front() + "\n"),
+        boost::bind(&ElectrumClient::handle_write, this, placeholders::error));
+  } else {
+    async_write(
+        *socket_, buffer(request_queue_.front() + "\n"),
+        boost::bind(&ElectrumClient::handle_write, this, placeholders::error));
+  }
 }
 
 void ElectrumClient::ping(const boost::system::error_code& error) {
@@ -211,6 +262,20 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
   }
   if (!handle_socks5()) {
     return handle_error("handle_connect", "handle socks5 error");
+  }
+
+  if (is_secure_) {
+    secure_socket_->lowest_layer().set_option(ip::tcp::no_delay(true));
+    secure_socket_->set_verify_mode(ssl::verify_peer);
+    secure_socket_->set_verify_callback(
+        [](bool preverified, ssl::verify_context& ctx) {
+          char subject_name[256];
+          X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
+          X509_NAME_oneline(X509_get_subject_name(cert), subject_name, 256);
+          LOG_F(INFO, "Verifying %s", subject_name);
+          return preverified;
+        });
+    secure_socket_->handshake(ssl::stream_base::client);
   }
 
   connected_ = true;
@@ -257,9 +322,17 @@ void ElectrumClient::handle_write(const boost::system::error_code& error) {
   socket_write();
 }
 
+// Reference: https://tools.ietf.org/html/rfc1928
 bool ElectrumClient::handle_socks5() {
   if (!use_proxy_) return true;
   bool auth = !proxy_username_.empty() && !proxy_password_.empty();
+
+  auto my_write = [&](const std::vector<uint8_t>& req) {
+    write(is_secure_ ? secure_socket_->next_layer() : *socket_, buffer(req));
+  };
+  auto my_read = [&](uint8_t* res, int i) {
+    read(is_secure_ ? secure_socket_->next_layer() : *socket_, buffer(res, i));
+  };
 
   std::vector<uint8_t> auth_req{0x05};
   if (auth) {
@@ -270,23 +343,24 @@ bool ElectrumClient::handle_socks5() {
     auth_req.push_back(0x01);
     auth_req.push_back(0x00);
   }
-  write(socket_, buffer(auth_req));
+  my_write(auth_req);
   uint8_t authen_reply[2];
-  read(socket_, buffer(authen_reply, 2));
+  my_read(authen_reply, 2);
   if (authen_reply[0] != 0x05) {
     LOG_F(ERROR, "Proxy failed to initialize");
     return false;
   }
 
   if (auth && authen_reply[1] == 0x02) {
+    // Reference: https://tools.ietf.org/html/rfc1929
     std::vector<uint8_t> up_req{0x01};
     up_req.push_back(proxy_username_.length());
     up_req.insert(up_req.end(), proxy_username_.begin(), proxy_username_.end());
     up_req.push_back(proxy_password_.length());
     up_req.insert(up_req.end(), proxy_password_.begin(), proxy_password_.end());
-    write(socket_, boost::asio::buffer(up_req));
+    my_write(up_req);
     uint8_t up_reply[2];
-    read(socket_, buffer(up_reply, 2));
+    my_read(up_reply, 2);
     if (up_reply[0] != 0x01 || up_reply[1] != 0x00) {
       LOG_F(ERROR, "Authentication unsuccessful");
       return false;
@@ -301,13 +375,32 @@ bool ElectrumClient::handle_socks5() {
   connect_req.insert(connect_req.end(), host_.begin(), host_.end());
   connect_req.push_back((port_ >> 8) & 0xff);
   connect_req.push_back(port_ & 0xff);
-  write(socket_, boost::asio::buffer(connect_req));
+  my_write(connect_req);
   uint8_t connect_reply[4];
-  read(socket_, buffer(connect_reply, 4));
-  if (connect_reply[0] != 0x05 || connect_reply[1] != 0x00) {
+  my_read(connect_reply, 4);
+  if (connect_reply[0] != 0x05 || connect_reply[1] != 0x00 ||
+      connect_reply[2] != 0x00) {
     LOG_F(ERROR, "Connect socks5 failed: %02x", connect_reply[1]);
     return false;
   }
+
+  uint8_t resp[256];
+  switch (connect_reply[3]) {
+    case 0x01:  // IP V4
+      my_read(resp, 4);
+      break;
+    case 0x04:  // IP V6
+      my_read(resp, 16);
+      break;
+    case 0x03:  // DOMAINNAME
+      my_read(resp, 1);
+      my_read(resp, resp[0]);
+      break;
+    default:
+      LOG_F(ERROR, "Error: malformed proxy response");
+      return false;
+  }
+  my_read(resp, 2);
   return true;
 }
 

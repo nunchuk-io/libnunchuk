@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(Boost_USE_STATIC_LIBS ON)
+set(OPENSSL_USE_STATIC_LIBS ON)
 
 # Fetch HWI binary from github releases
 include(FetchContent)
@@ -22,22 +23,22 @@ else()
     set(HWI_URL_HASH "SHA256=93386f83de3e09113b4fa2d5c326efa651c30281fa2c87034a6a9cab36634210")
 endif()
 
-FetchContent_Populate(
-    hwi
-    URL ${HWI_URL}
-    URL_HASH ${HWI_URL_HASH}
-    SOURCE_DIR bin
-)
+# FetchContent_Populate(
+#     hwi
+#     URL ${HWI_URL}
+#     URL_HASH ${HWI_URL_HASH}
+#     SOURCE_DIR bin
+# )
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
+find_package(OpenSSL REQUIRED)
 
 if(WIN32)
-    find_package(OpenSSL REQUIRED)
     add_library(sqlcipher STATIC IMPORTED)
     set_target_properties(sqlcipher PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/libsqlcipher.lib")
 else()
-    find_library(sqlcipher_lib NAMES sqlcipher PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)
+    find_library(sqlcipher_lib NAMES libsqlcipher.a PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)
     if (NOT sqlcipher_lib)
         message(FATAL_ERROR "sqlcipher not found")
     endif()
@@ -47,7 +48,7 @@ endif()
 
 add_subdirectory(embedded)
 
-add_library("${PROJECT_NAME}"  
+add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
@@ -70,13 +71,14 @@ add_library("${PROJECT_NAME}"
 set(PROJECT_LIBRARIES
     embedded
     sqlcipher
+    OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
 )
                             
 if(WIN32)
     target_compile_options("${PROJECT_NAME}" PUBLIC /MT)
     target_link_options("${PROJECT_NAME}" PUBLIC /INCREMENTAL:NO /NODEFAULTLIB:MSVCRT)
-    set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto crypt32 ws2_32)
+    set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} crypt32 ws2_32)
 elseif(UNIX AND NOT APPLE)
     set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} dl)
 endif()
@@ -86,6 +88,7 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/include"
     ${Boost_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIR}
     "${PROJECT_SOURCE_DIR}/contrib"
     "${PROJECT_BINARY_DIR}"
 )

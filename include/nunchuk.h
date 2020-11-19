@@ -382,6 +382,7 @@ class NUNCHUK_EXPORT AppSettings {
   int get_proxy_port() const;
   std::string get_proxy_username() const;
   std::string get_proxy_password() const;
+  std::string get_certificate_file() const;
 
   void set_chain(Chain value);
   void set_mainnet_servers(const std::vector<std::string>& value);
@@ -393,6 +394,7 @@ class NUNCHUK_EXPORT AppSettings {
   void set_proxy_port(int value);
   void set_proxy_username(const std::string& value);
   void set_proxy_password(const std::string& value);
+  void set_certificate_file(const std::string& value);
 
  private:
   Chain chain_;
@@ -405,6 +407,7 @@ class NUNCHUK_EXPORT AppSettings {
   int proxy_port_;
   std::string proxy_username_;
   std::string proxy_password_;
+  std::string certificate_file_;
 };
 
 class NUNCHUK_EXPORT Nunchuk {

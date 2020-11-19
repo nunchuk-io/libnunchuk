@@ -18,6 +18,8 @@
 
 namespace nunchuk {
 
+const int ESTIMATE_FEE_CACHE_SIZE = 3;
+
 class BlockSynchronizer {
  public:
   BlockSynchronizer(NunchukStorage* storage);
@@ -81,8 +83,8 @@ class BlockSynchronizer {
   // Cache
   bool first_run_ = true;
   std::atomic<int> chain_tip_;
-  time_t estimate_fee_cached_time_[3];
-  Amount estimate_fee_cached_value_[3];
+  time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
+  Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
   std::map<std::string, std::pair<std::string, std::string>>
       scripthash_to_wallet_address_;
 };

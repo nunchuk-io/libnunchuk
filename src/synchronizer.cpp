@@ -17,7 +17,15 @@ BlockSynchronizer::BlockSynchronizer(NunchukStorage* storage)
     : storage_(storage),
       sync_thread_(),
       sync_worker_(make_work_guard(io_service_)) {
-  sync_thread_ = std::thread([&]() { io_service_.run(); });
+  sync_thread_ = std::thread([&]() {
+    for (;;) {
+      try {
+        io_service_.run();
+        break;  // exited normally
+      } catch (...) {
+      }
+    }
+  });
 }
 
 BlockSynchronizer::~BlockSynchronizer() {
@@ -63,7 +71,6 @@ void BlockSynchronizer::Run(const AppSettings& appsettings) {
   }
   app_settings_ = appsettings;
   Connect();
-  WaitForReady();
 }
 
 void BlockSynchronizer::WaitForReady() {
@@ -75,19 +82,18 @@ void BlockSynchronizer::WaitForReady() {
 
 void BlockSynchronizer::Connect() {
   {
-    std::unique_lock<std::mutex> lock_(status_mutex_);
-    status_cv_.wait(lock_, [&]() {
-      return status_ == Status::UNINITIALIZED || status_ == Status::READY ||
-             status_ == Status::STOPPED;
-    });
+    std::lock_guard<std::mutex> guard(status_mutex_);
     if (status_ == Status::STOPPED) return;
     status_ = Status::CONNECTING;
+    status_cv_.notify_all();
   }
   // Clear cache
   chain_tip_ = 0;
   scripthash_to_wallet_address_.clear();
-  std::fill(estimate_fee_cached_time_, estimate_fee_cached_time_ + 3, 0);
-  std::fill(estimate_fee_cached_value_, estimate_fee_cached_value_ + 3, 0);
+  std::fill(estimate_fee_cached_time_,
+            estimate_fee_cached_time_ + ESTIMATE_FEE_CACHE_SIZE, 0);
+  std::fill(estimate_fee_cached_value_,
+            estimate_fee_cached_value_ + ESTIMATE_FEE_CACHE_SIZE, 0);
 
   io_service_.post([&]() {
     try {
@@ -107,6 +113,7 @@ void BlockSynchronizer::Connect() {
     }
     {
       std::lock_guard<std::mutex> guard(status_mutex_);
+      if (status_ != Status::CONNECTING) return;
       status_ = Status::SYNCING;
       status_cv_.notify_all();
     }
@@ -117,6 +124,7 @@ void BlockSynchronizer::Connect() {
       // storage and CoreUtils chain-switch may cause exeption here
     }
     std::lock_guard<std::mutex> guard(status_mutex_);
+    if (status_ != Status::SYNCING) return;
     status_ = Status::READY;
     status_cv_.notify_all();
   });
@@ -243,7 +251,7 @@ Amount BlockSynchronizer::EstimateFee(int conf_target) {
       cached_index = 2;
       break;
   }
-  if (cached_index >= 0 &&
+  if (cached_index >= 0 && cached_index < ESTIMATE_FEE_CACHE_SIZE &&
       current_time - estimate_fee_cached_time_[cached_index] <= CACHE_SECOND) {
     return estimate_fee_cached_value_[cached_index];
   }

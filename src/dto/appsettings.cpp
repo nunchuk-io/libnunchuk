@@ -22,6 +22,9 @@ std::string AppSettings::get_proxy_host() const { return proxy_host_; }
 int AppSettings::get_proxy_port() const { return proxy_port_; }
 std::string AppSettings::get_proxy_username() const { return proxy_username_; }
 std::string AppSettings::get_proxy_password() const { return proxy_password_; }
+std::string AppSettings::get_certificate_file() const {
+  return certificate_file_;
+}
 
 void AppSettings::set_chain(Chain value) { chain_ = value; }
 void AppSettings::set_mainnet_servers(const std::vector<std::string>& value) {
@@ -44,6 +47,9 @@ void AppSettings::set_proxy_username(const std::string& value) {
 }
 void AppSettings::set_proxy_password(const std::string& value) {
   proxy_password_ = value;
+}
+void AppSettings::set_certificate_file(const std::string& value) {
+  certificate_file_ = value;
 }
 
 }  // namespace nunchuk

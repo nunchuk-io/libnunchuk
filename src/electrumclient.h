@@ -7,6 +7,7 @@
 
 #include <nunchuk.h>
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/bind.hpp>
 #include <boost/signals2.hpp>
 #include <utils/json.hpp>
@@ -25,7 +26,7 @@ namespace nunchuk {
 class ElectrumClient {
  public:
   ElectrumClient(const nunchuk::AppSettings& appsettings,
-                  const std::function<void()> on_disconnect);
+                 const std::function<void()> on_disconnect);
   ~ElectrumClient();
 
   void subscribe(const std::string& method, const NotifySignal::slot_type& lis);
@@ -57,8 +58,10 @@ class ElectrumClient {
   bool handle_socks5();
   void handle_error(const std::string& where, const std::string& message);
 
+  std::string protocol_ = "tcp";
   std::string host_;
-  int port_;
+  int port_ = 50001;
+  bool is_secure_;
   bool use_proxy_;
   std::string proxy_host_ = "";
   int proxy_port_ = -1;
@@ -70,7 +73,9 @@ class ElectrumClient {
   boost::asio::io_service signal_service_;
   boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
       signal_worker_;
-  boost::asio::ip::tcp::socket socket_;
+  std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
+  std::unique_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>
+      secure_socket_;
   std::atomic<bool> connected_{false};
   std::atomic<bool> stopped_{false};
   std::atomic<int> id_{0};
