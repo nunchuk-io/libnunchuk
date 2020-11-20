@@ -42,7 +42,7 @@ namespace nunchuk {
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
                      const std::string& passphrase)
-    : chain_(chain), id_(id), db_file_name_(file_name) {
+    : id_(id), chain_(chain), db_file_name_(file_name) {
   SQLCHECK(sqlite3_open(db_file_name_.c_str(), &db_));
   if (!passphrase.empty()) {
     const char* key = passphrase.c_str();
@@ -617,11 +617,9 @@ bool NunchukWalletDb::UpdatePsbtTxId(const std::string& old_id,
   sqlite3_step(stmt);
   if (sqlite3_column_text(stmt, 0)) {
     std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
-    int height = sqlite3_column_int(stmt, 2);
     int fee = sqlite3_column_int(stmt, 3);
     std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
     int change_pos = sqlite3_column_int(stmt, 5);
-    time_t blocktime = sqlite3_column_int64(stmt, 6);
     std::string extra;
     if (sqlite3_column_text(stmt, 7)) {
       extra = std::string((char*)sqlite3_column_text(stmt, 7));

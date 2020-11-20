@@ -237,6 +237,7 @@ class NUNCHUK_EXPORT MasterSigner {
   std::string get_id() const;
   std::string get_name() const;
   Device get_device() const;
+  time_t get_last_health_check() const;
   void set_name(const std::string& value);
 
  private:

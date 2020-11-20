@@ -17,10 +17,10 @@ Device::Device(const std::string &type, const std::string &path,
       path_(path),
       model_(model),
       master_fingerprint_(master_fingerprint),
+      connected_(true),
       needs_pass_phrase_sent_(needs_pass_phrase_sent),
       needs_pin_sent_(needs_pin_sent),
-      initialized_(initialized),
-      connected_(true) {}
+      initialized_(initialized) {}
 
 std::string Device::get_type() const { return type_; }
 std::string Device::get_path() const { return path_; }

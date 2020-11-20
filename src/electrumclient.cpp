@@ -15,9 +15,9 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
                                const std::function<void()> on_disconnect)
     : io_thread_(),
       signal_thread_(),
+      signal_worker_(make_work_guard(signal_service_)),
       interval_(60),
-      timer_(io_service_, interval_),
-      signal_worker_(make_work_guard(signal_service_)) {
+      timer_(io_service_, interval_) {
   disconnect_signal_.connect(on_disconnect);
   std::string server_url;
   if (appsettings.get_chain() == Chain::TESTNET) {
@@ -117,7 +117,6 @@ json ElectrumClient::call_method(const std::string& method,
   enqueue_message(req.dump());
   json resp = callback_[id].get_future().get();
   if (resp["error"] != nullptr) {
-    int code = resp["error"]["code"];
     std::string message = resp["error"]["message"];
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, message);
   }
