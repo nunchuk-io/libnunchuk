@@ -16,7 +16,7 @@
 
 namespace {
 
-PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
+inline PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
   using namespace nunchuk;
   PartiallySignedTransaction psbtx;
   std::string error;
@@ -26,17 +26,17 @@ PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
   return psbtx;
 }
 
-std::string EncodePsbt(const PartiallySignedTransaction& psbtx) {
+inline std::string EncodePsbt(const PartiallySignedTransaction& psbtx) {
   CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
   ssTx << psbtx;
   return EncodeBase64(MakeUCharSpan(ssTx));
 }
 
-std::string GetTxIdFromPsbt(const std::string& base64_psbt) {
+inline std::string GetTxIdFromPsbt(const std::string& base64_psbt) {
   return DecodePsbt(base64_psbt).tx.get().GetHash().GetHex();
 }
 
-CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
+inline CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
   using namespace nunchuk;
   CMutableTransaction mtx;
   if (!DecodeHexTx(mtx, hex_tx, true, true)) {
@@ -46,7 +46,7 @@ CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
   return mtx;
 }
 
-nunchuk::Transaction GetTransactionFromCMutableTransaction(
+inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
     const CMutableTransaction& mtx, int height) {
   using namespace nunchuk;
 
@@ -70,7 +70,7 @@ nunchuk::Transaction GetTransactionFromCMutableTransaction(
   return tx;
 }
 
-nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
+inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const PartiallySignedTransaction& psbtx, int m) {
   using namespace nunchuk;
   Transaction tx = GetTransactionFromCMutableTransaction(psbtx.tx.get(), -1);

@@ -18,8 +18,8 @@ SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
       public_key_(public_key),
       derivation_path_(derivation_path),
       master_fingerprint_(master_fingerprint),
-      last_health_check_(last_health_check),
-      master_signer_id_(master_signer_id) {}
+      master_signer_id_(master_signer_id),
+      last_health_check_(last_health_check) {}
 
 std::string SingleSigner::get_name() const { return name_; }
 std::string SingleSigner::get_xpub() const { return xpub_; }

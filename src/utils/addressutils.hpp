@@ -17,7 +17,7 @@
 
 namespace {
 
-std::string AddressToScriptPubKey(const std::string& address) {
+inline std::string AddressToScriptPubKey(const std::string& address) {
   using namespace nunchuk;
   CTxDestination dest = DecodeDestination(address);
   if (!IsValidDestination(dest)) {
@@ -28,7 +28,7 @@ std::string AddressToScriptPubKey(const std::string& address) {
   return HexStr(scriptPubKey);
 }
 
-std::string ScriptPubKeyToAddress(const CScript& script) {
+inline std::string ScriptPubKeyToAddress(const CScript& script) {
   std::vector<std::vector<unsigned char>> solns;
   TxoutType type = Solver(script, solns);
   CTxDestination address;
@@ -38,14 +38,14 @@ std::string ScriptPubKeyToAddress(const CScript& script) {
   return "";
 }
 
-std::string ScriptPubKeyToAddress(const std::string& script_pub_key) {
+inline std::string ScriptPubKeyToAddress(const std::string& script_pub_key) {
   CScript script;
   auto spk = ParseHex(script_pub_key);
   script.insert(script.end(), spk.begin(), spk.end());
   return ScriptPubKeyToAddress(script);
 }
 
-std::string AddressToScriptHash(const std::string& address) {
+inline std::string AddressToScriptHash(const std::string& address) {
   CSHA256 hasher;
   auto stream = ParseHex(AddressToScriptPubKey(address));
   hasher.Write((unsigned char*)&(*stream.begin()),

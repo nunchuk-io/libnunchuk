@@ -14,6 +14,9 @@ MasterSigner::MasterSigner(const std::string& id, const Device& device,
 std::string MasterSigner::get_id() const { return id_; }
 std::string MasterSigner::get_name() const { return name_; }
 Device MasterSigner::get_device() const { return device_; }
+time_t MasterSigner::get_last_health_check() const {
+  return last_health_check_;
+}
 void MasterSigner::set_name(const std::string& value) { name_ = value; }
 
 }  // namespace nunchuk

@@ -27,7 +27,7 @@ static const int TOTAL_CACHE_NUMBER =
 static const std::string TESTNET_HEALTH_CHECK_PATH = "m/45'/1'/0'/1/0";
 static const std::string MAINNET_HEALTH_CHECK_PATH = "m/45'/0'/0'/1/0";
 
-std::string GetBip32Path(nunchuk::Chain chain,
+inline std::string GetBip32Path(nunchuk::Chain chain,
                          const nunchuk::WalletType& wallet_type,
                          const nunchuk::AddressType& address_type, int index) {
   using namespace nunchuk;
@@ -65,7 +65,7 @@ std::string GetBip32Path(nunchuk::Chain chain,
                          "invalid wallet type");
 }
 
-std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
+inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
                          const nunchuk::AddressType& address_type) {
   using namespace nunchuk;
 
@@ -92,7 +92,7 @@ std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
                          "invalid wallet type");
 }
 
-int GetIndexFromPath(const std::string& path) {
+inline int GetIndexFromPath(const std::string& path) {
   std::size_t last = path.find_last_of("/");
   return std::stoi(path.substr(last + 1));
 }
