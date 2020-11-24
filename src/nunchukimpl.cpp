@@ -12,7 +12,6 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem.hpp>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -46,12 +45,8 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::string& description) {
   Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
                                         address_type, is_escrow, description);
-  std::string descriptor =
-      storage_.GetDescriptor(chain_, wallet.get_id(), false);
-  int index = is_escrow ? -1 : 0;
-  auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
-  storage_.AddAddress(chain_, wallet.get_id(), address, index, false);
-  synchronizer_.SubscribeAddress(wallet.get_id(), address);
+  ScanNewWallet(wallet.get_id(), wallet.is_escrow());
+  wallet.set_balance(storage_.GetBalance(chain_, wallet.get_id()));
   return wallet;
 }
 
@@ -108,22 +103,65 @@ Wallet NunchukImpl::ImportWalletDb(const std::string& file_path) {
   return GetWallet(id);
 }
 
-Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path) {
+Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
+                                           const std::string& name,
+                                           const std::string& description) {
   std::string descs = trim_copy(storage_.LoadFile(file_path));
   AddressType address_type;
   WalletType wallet_type;
   int m;
   int n;
   std::vector<SingleSigner> signers;
-  if (ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
-    boost::filesystem::path path(file_path);
-    std::string name = path.stem().string();
-    if (name.find("-") > 0) name = name.substr(0, name.find("-"));
-    return CreateWallet(name, m, n, signers, address_type,
-                        wallet_type == WalletType::ESCROW);
+  if (!ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Could not parse descriptor");
   }
-  throw NunchukException(NunchukException::INVALID_PARAMETER,
-                         "Could not parse descriptor");
+  return CreateWallet(name, m, n, signers, address_type,
+                      wallet_type == WalletType::ESCROW, description);
+}
+
+void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
+  int index = is_escrow ? -1 : 0;
+  std::string address;
+  if (is_escrow) {
+    synchronizer_.LookAhead(chain_, wallet_id, address, index, false);
+    auto descriptor = storage_.GetDescriptor(chain_, wallet_id, false);
+    address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+  } else {
+    int change_index = 0;
+    GetUnusedAddress(wallet_id, change_index, true);  // scan change address
+    address = GetUnusedAddress(wallet_id, index, false);
+  }
+
+  // auto create an unused external address
+  storage_.AddAddress(chain_, wallet_id, address, index, false);
+}
+
+std::string NunchukImpl::GetUnusedAddress(const std::string wallet_id,
+                                          int& index, bool internal) {
+  auto descriptor = storage_.GetDescriptor(chain_, wallet_id, internal);
+  int consecutive_unused = 0;
+  std::vector<std::string> unused_addresses;
+  while (true) {
+    auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    bool used =
+        synchronizer_.LookAhead(chain_, wallet_id, address, index, internal);
+    if (used) {
+      for (auto&& a : unused_addresses) {
+        storage_.AddAddress(chain_, wallet_id, a, index, internal);
+      }
+      unused_addresses.clear();
+      consecutive_unused = 0;
+    } else {
+      unused_addresses.push_back(address);
+      consecutive_unused++;
+    }
+    index++;
+    if (consecutive_unused == 20) {
+      index = index - 20;
+      return unused_addresses[0];
+    }
+  }
 }
 
 std::vector<Device> NunchukImpl::GetDevices() { return hwi_.Enumerate(); }
@@ -337,10 +375,14 @@ std::string NunchukImpl::NewAddress(const std::string& wallet_id,
                                     bool internal) {
   std::string descriptor = storage_.GetDescriptor(chain_, wallet_id, internal);
   int index = storage_.GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
-  auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
-  storage_.AddAddress(chain_, wallet_id, address, index, internal);
-  synchronizer_.SubscribeAddress(wallet_id, address);
-  return address;
+  while (true) {
+    auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    if (!synchronizer_.LookAhead(chain_, wallet_id, address, index, internal)) {
+      storage_.AddAddress(chain_, wallet_id, address, index, internal);
+      return address;
+    }
+    index++;
+  }
 }
 
 std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
