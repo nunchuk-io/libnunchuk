@@ -31,11 +31,10 @@ class BlockSynchronizer {
   Amount EstimateFee(int conf_target);
   Amount RelayFee();
   int GetChainTip();
+  bool LookAhead(Chain chain, const std::string& wallet_id,
+                 const std::string& address, int index, bool internal);
 
   void Run(const AppSettings& appsettings);
-  std::string SubscribeAddress(const std::string& wallet_id,
-                               const std::string& address);
-
   void AddBalanceListener(std::function<void(std::string, Amount)> listener);
   void AddBlockListener(std::function<void(int, std::string)> listener);
   void AddTransactionListener(
@@ -56,6 +55,8 @@ class BlockSynchronizer {
   void UpdateTransactions(Chain chain, const std::string& wallet_id,
                           const json& history);
   void OnScripthashStatusChange(Chain chain, const json& notification);
+  std::string SubscribeAddress(const std::string& wallet_id,
+                               const std::string& address);
   void BlockchainSync(Chain chain);
   void Connect();
   void WaitForReady();

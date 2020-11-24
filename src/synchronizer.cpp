@@ -284,6 +284,23 @@ int BlockSynchronizer::GetChainTip() {
   return rs;
 }
 
+bool BlockSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
+                                  const std::string& address, int index,
+                                  bool internal) {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) return false;
+  if (chain != app_settings_.get_chain()) return false;
+
+  auto scripthash = SubscribeAddress(wallet_id, address);
+  json history = client_.get()->blockchain_scripthash_get_history(scripthash);
+  if (!history.is_array() || history.empty()) return false;
+  storage_->AddAddress(chain, wallet_id, address, index, internal);
+  UpdateTransactions(chain, wallet_id, history);
+  json utxo = client_.get()->blockchain_scripthash_listunspent(scripthash);
+  storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
+  return true;
+}
+
 void BlockSynchronizer::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {
   balance_listener_.connect(listener);

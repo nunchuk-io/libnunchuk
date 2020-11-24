@@ -422,11 +422,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet CreateWallet(const std::string& name, int m, int n,
                               const std::vector<SingleSigner>& signers,
                               AddressType address_type, bool is_escrow,
-                              const std::string& desc = {}) = 0;
+                              const std::string& description = {}) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
                                   const std::vector<SingleSigner>& signers,
                                   AddressType address_type, bool is_escrow,
-                                  const std::string& desc = {}) = 0;
+                                  const std::string& description = {}) = 0;
   virtual std::vector<Wallet> GetWallets() = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;
@@ -435,7 +435,9 @@ class NUNCHUK_EXPORT Nunchuk {
                             const std::string& file_path,
                             ExportFormat format) = 0;
   virtual Wallet ImportWalletDb(const std::string& file_path) = 0;
-  virtual Wallet ImportWalletDescriptor(const std::string& file_path) = 0;
+  virtual Wallet ImportWalletDescriptor(const std::string& file_path,
+                                        const std::string& name,
+                                        const std::string& description = {}) = 0;
 
   virtual std::vector<Device> GetDevices() = 0;
   virtual MasterSigner CreateMasterSigner(

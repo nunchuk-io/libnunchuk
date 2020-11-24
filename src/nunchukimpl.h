@@ -38,7 +38,9 @@ class NunchukImpl : public Nunchuk {
   bool ExportWallet(const std::string& wallet_id, const std::string& file_path,
                     ExportFormat format) override;
   Wallet ImportWalletDb(const std::string& file_path) override;
-  Wallet ImportWalletDescriptor(const std::string& file_path) override;
+  Wallet ImportWalletDescriptor(const std::string& file_path,
+                                const std::string& name,
+                                const std::string& description = {}) override;
 
   std::vector<Device> GetDevices() override;
   MasterSigner CreateMasterSigner(
@@ -148,6 +150,10 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput> inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
+  void ScanNewWallet(const std::string wallet_id, bool is_escrow);
+  // Find the first unused address that the next 19 addresses are unused too
+  std::string GetUnusedAddress(const std::string wallet_id, int& index,
+                               bool internal);
 
   AppSettings app_settings_;
   NunchukStorage storage_;
