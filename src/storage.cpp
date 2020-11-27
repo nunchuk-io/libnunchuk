@@ -992,12 +992,15 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
   } catch (StorageException& se) {
     if (se.code() != StorageException::TX_NOT_FOUND) throw;
   }
-  auto address = prev_out.first;
-  if (is_my_address(address)) {
+  auto input_address = prev_out.first;
+  if (is_my_address(input_address)) {
     Amount send_amount(tx.get_fee());
-    for (auto&& output : tx.get_outputs()) {
+    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
+      auto output = tx.get_outputs()[i];
       if (!is_my_address(output.first)) {
         send_amount += output.second;
+      } else if (tx.get_change_index() < 0) {
+        tx.set_change_index(i);
       }
     }
     tx.set_receive(false);
