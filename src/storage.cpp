@@ -985,24 +985,32 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     return (std::find(addresses.begin(), addresses.end(), address) !=
             addresses.end());
   };
-  auto input = tx.get_inputs()[0];
-  TxOutput prev_out;
-  try {
-    prev_out = GetTransaction(input.first).get_outputs()[input.second];
-  } catch (StorageException& se) {
-    if (se.code() != StorageException::TX_NOT_FOUND) throw;
+  Amount total_amount = 0;
+  bool is_send_tx = false;
+  for (auto&& input : tx.get_inputs()) {
+    TxOutput prev_out;
+    try {
+      prev_out = GetTransaction(input.first).get_outputs()[input.second];
+    } catch (StorageException& se) {
+      if (se.code() != StorageException::TX_NOT_FOUND) throw;
+    }
+    if (is_my_address(prev_out.first)) {
+      total_amount += prev_out.second;
+      is_send_tx = true;
+    }
   }
-  auto input_address = prev_out.first;
-  if (is_my_address(input_address)) {
+  if (is_send_tx) {
     Amount send_amount(tx.get_fee());
     for (size_t i = 0; i < tx.get_outputs().size(); i++) {
       auto output = tx.get_outputs()[i];
+      total_amount -= output.second;
       if (!is_my_address(output.first)) {
         send_amount += output.second;
       } else if (tx.get_change_index() < 0) {
         tx.set_change_index(i);
       }
     }
+    tx.set_fee(total_amount);
     tx.set_receive(false);
     tx.set_sub_amount(send_amount);
   } else {
