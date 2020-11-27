@@ -46,8 +46,7 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
   Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
                                         address_type, is_escrow, description);
   ScanNewWallet(wallet.get_id(), wallet.is_escrow());
-  wallet.set_balance(storage_.GetBalance(chain_, wallet.get_id()));
-  return wallet;
+  return GetWallet(wallet.get_id());
 }
 
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
