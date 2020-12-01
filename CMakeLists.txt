@@ -10,33 +10,12 @@ set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(Boost_USE_STATIC_LIBS ON)
 set(OPENSSL_USE_STATIC_LIBS ON)
 
-# Fetch HWI binary from github releases
-include(FetchContent)
-if(APPLE)
-    set(HWI_URL "https://github.com/bitcoin-core/HWI/releases/download/1.2.0/hwi-1.2.0-mac-amd64.tar.gz")
-    set(HWI_URL_HASH "SHA256=659c030f2c9a0be83823c17fe2ef2bac6ac90d95752f9c2eae51c8136ee77a10")
-elseif(UNIX)
-    set(HWI_URL "https://github.com/bitcoin-core/HWI/releases/download/1.2.0/hwi-1.2.0-linux-amd64.tar.gz")
-    set(HWI_URL_HASH "SHA256=de02bc1acccbcf4d1592179835bc9ad0f8b9d81e1e615b0703db0608e9d2f063")
-else()
-    set(HWI_URL "https://github.com/bitcoin-core/HWI/releases/download/1.2.0/hwi-1.2.0-windows-amd64.zip")
-    set(HWI_URL_HASH "SHA256=93386f83de3e09113b4fa2d5c326efa651c30281fa2c87034a6a9cab36634210")
-endif()
-
-# FetchContent_Populate(
-#     hwi
-#     URL ${HWI_URL}
-#     URL_HASH ${HWI_URL_HASH}
-#     SOURCE_DIR bin
-# )
-
 find_package(Threads REQUIRED)
 find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
 find_package(OpenSSL REQUIRED)
 
 if(WIN32)
-    add_library(sqlcipher STATIC IMPORTED)
-    set_target_properties(sqlcipher PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/libsqlcipher.lib")
+    find_package(sqlcipher CONFIG REQUIRED)
 else()
     find_library(sqlcipher_lib NAMES libsqlcipher.a PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)
     if (NOT sqlcipher_lib)
@@ -70,7 +49,6 @@ add_library("${PROJECT_NAME}" STATIC
 
 set(PROJECT_LIBRARIES
     embedded
-    sqlcipher
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
 )
@@ -78,9 +56,11 @@ set(PROJECT_LIBRARIES
 if(WIN32)
     target_compile_options("${PROJECT_NAME}" PUBLIC /MT)
     target_link_options("${PROJECT_NAME}" PUBLIC /INCREMENTAL:NO /NODEFAULTLIB:MSVCRT)
-    set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} crypt32 ws2_32)
-elseif(UNIX AND NOT APPLE)
-    set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} dl)
+    set(PROJECT_LIBRARIES sqlcipher::sqlcipher ${PROJECT_LIBRARIES} crypt32 ws2_32)
+elseif(APPLE)
+    set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES})
+elseif(UNIX)
+    set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} dl)
 endif()
 
 target_link_libraries("${PROJECT_NAME}" PUBLIC ${PROJECT_LIBRARIES})
