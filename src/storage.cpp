@@ -793,14 +793,16 @@ Amount NunchukWalletDb::GetBalance() const {
 
 std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
     bool remove_locked) const {
-  std::vector<Transaction> transactions;
-  if (remove_locked) transactions = GetTransactions();
+  std::vector<Transaction> transactions = GetTransactions();
   auto input_str = [](std::string tx_id, int vout) {
     return boost::str(boost::format{"%s:%d"} % tx_id % vout);
   };
   std::set<std::string> locked_utxos;
+  std::map<std::string, std::string> memo_map;
   for (auto&& tx : transactions) {
+    memo_map[tx.get_txid()] = tx.get_memo();
     if (tx.get_height() != 0) continue;
+    if (!remove_locked) continue;
     // remove UTXOs of unconfirmed transactions
     for (auto&& input : tx.get_inputs()) {
       locked_utxos.insert(input_str(input.first, input.second));
@@ -829,6 +831,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
       utxo.set_address(address);
       utxo.set_amount(item["value"]);
       utxo.set_height(item["height"]);
+      utxo.set_memo(memo_map[item["tx_hash"]]);
       rs.push_back(utxo);
     }
     sqlite3_step(stmt);
@@ -843,15 +846,6 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
   std::string sql = "SELECT * FROM VTX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
-
-  auto utxos = GetUnspentOutputs(false);
-  auto is_valid_input = [utxos](const TxInput& input) {
-    for (auto&& utxo : utxos) {
-      if (input.first == utxo.get_txid() && input.second == utxo.get_vout())
-        return true;
-    }
-    return false;
-  };
 
   std::vector<Transaction> rs;
   while (sqlite3_column_text(stmt, 0)) {
@@ -870,21 +864,6 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
                                  DecodePsbt(value), m)
                            : GetTransactionFromCMutableTransaction(
                                  DecodeRawTransaction(value), height);
-    if (height == -1) {
-      // remove invalid, out-of-date Send transactions
-      bool is_valid = true;
-      for (auto&& input : tx.get_inputs()) {
-        if (!is_valid_input(input)) {
-          is_valid = false;
-          break;
-        }
-      }
-      if (!is_valid) {
-        sqlite3_step(stmt);
-        continue;
-      }
-    }
-
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
@@ -1669,6 +1648,28 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   boost::shared_lock<boost::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto vtx = db.GetTransactions(count, skip);
+
+  // remove invalid, out-of-date Send transactions
+  auto utxos = db.GetUnspentOutputs(false);
+  auto is_valid_input = [utxos](const TxInput& input) {
+    for (auto&& utxo : utxos) {
+      if (input.first == utxo.get_txid() && input.second == utxo.get_vout())
+        return true;
+    }
+    return false;
+  };
+  auto end = std::remove_if(vtx.begin(), vtx.end(), [&](const Transaction& tx) {
+    if (tx.get_height() == -1) {
+      for (auto&& input : tx.get_inputs()) {
+        if (!is_valid_input(input)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+  vtx.erase(end, vtx.end());
+
   for (auto&& tx : vtx) {
     db.FillSendReceiveData(tx);
   }

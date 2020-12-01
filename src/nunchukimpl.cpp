@@ -12,6 +12,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/io/detail/quoted_manip.hpp>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -365,6 +366,22 @@ std::vector<Transaction> NunchukImpl::GetTransactionHistory(
   return storage_.GetTransactions(chain_, wallet_id, count, skip);
 }
 
+bool NunchukImpl::ExportTransactionHistory(const std::string& wallet_id,
+                                           const std::string& file_path,
+                                           ExportFormat format) {
+  if (format != ExportFormat::CSV) return false;
+  std::stringstream value;
+  auto txs = GetTransactionHistory(wallet_id, 10000, 0);
+  value << "txid,fee,amount,height,memo" << std::endl;
+  for (auto tx : txs) {
+    value << tx.get_txid() << "," << tx.get_fee() << ","
+          << ((tx.is_receive() ? 1 : -1) * tx.get_sub_amount()) << ","
+          << tx.get_height() << "," << boost::io::quoted(tx.get_memo())
+          << std::endl;
+  }
+  return storage_.WriteFile(file_path, value.str());
+}
+
 std::vector<std::string> NunchukImpl::GetAddresses(const std::string& wallet_id,
                                                    bool used, bool internal) {
   return storage_.GetAddresses(chain_, wallet_id, used, internal);
@@ -387,6 +404,21 @@ std::string NunchukImpl::NewAddress(const std::string& wallet_id,
 std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
     const std::string& wallet_id) {
   return storage_.GetUnspentOutputs(chain_, wallet_id);
+}
+
+bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
+                                       const std::string& file_path,
+                                       ExportFormat format) {
+  if (format != ExportFormat::CSV) return false;
+  std::stringstream value;
+  auto utxos = GetUnspentOutputs(wallet_id);
+  value << "txid,vout,amount,height,memo" << std::endl;
+  for (auto utxo : utxos) {
+    value << utxo.get_txid() << "," << utxo.get_vout() << ","
+          << utxo.get_amount() << "," << utxo.get_height() << ","
+          << boost::io::quoted(utxo.get_memo()) << std::endl;
+  }
+  return storage_.WriteFile(file_path, value.str());
 }
 
 Transaction NunchukImpl::CreateTransaction(

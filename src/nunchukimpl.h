@@ -79,6 +79,9 @@ class NunchukImpl : public Nunchuk {
 
   std::vector<Transaction> GetTransactionHistory(const std::string& wallet_id,
                                                  int count, int skip) override;
+  bool ExportTransactionHistory(const std::string& wallet_id,
+                                const std::string& file_path,
+                                ExportFormat format) override;
   AppSettings GetAppSettings() override;
   AppSettings UpdateAppSettings(const AppSettings& app_settings) override;
 
@@ -89,6 +92,9 @@ class NunchukImpl : public Nunchuk {
                          bool internal = false) override;
   std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) override;
+  bool ExportUnspentOutputs(const std::string& wallet_id,
+                            const std::string& file_path,
+                            ExportFormat format) override;
   Transaction CreateTransaction(const std::string& wallet_id,
                                 const std::map<std::string, Amount> outputs,
                                 const std::string& memo = {},
