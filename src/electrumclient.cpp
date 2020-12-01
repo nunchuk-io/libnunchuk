@@ -61,8 +61,12 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
   is_secure_ = boost::iequals(protocol_, "ssl");
   if (is_secure_) {
     ssl::context ctx(ssl::context::tls);
-    ctx.set_verify_mode(ssl::verify_peer);
-    ctx.load_verify_file(appsettings.get_certificate_file());
+    if (!appsettings.get_certificate_file().empty()) {
+      ctx.set_verify_mode(ssl::verify_peer);
+      ctx.load_verify_file(appsettings.get_certificate_file());
+    } else {
+      ctx.set_verify_mode(ssl::verify_none);
+    }
     secure_socket_ = std::unique_ptr<ssl::stream<ip::tcp::socket>>(
         new ssl::stream<ip::tcp::socket>(io_service_, ctx));
   } else {
@@ -265,7 +269,6 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
 
   if (is_secure_) {
     secure_socket_->lowest_layer().set_option(ip::tcp::no_delay(true));
-    secure_socket_->set_verify_mode(ssl::verify_peer);
     secure_socket_->set_verify_callback(
         [](bool preverified, ssl::verify_context& ctx) {
           char subject_name[256];
