@@ -69,6 +69,7 @@ enum class ExportFormat {
   DB,
   DESCRIPTOR,
   COLDCARD,
+  CSV,
 };
 
 enum class Unit {
@@ -290,12 +291,14 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::string get_address() const;
   Amount get_amount() const;
   int get_height() const;
+  std::string get_memo() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
   void set_address(const std::string& value);
   void set_amount(const Amount& value);
   void set_height(int value);
+  void set_memo(const std::string& value);
 
  private:
   std::string txid_;
@@ -303,6 +306,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::string address_;
   Amount amount_;
   int height_;
+  std::string memo_;
 };
 
 // Class that represents a Transaction
@@ -435,9 +439,9 @@ class NUNCHUK_EXPORT Nunchuk {
                             const std::string& file_path,
                             ExportFormat format) = 0;
   virtual Wallet ImportWalletDb(const std::string& file_path) = 0;
-  virtual Wallet ImportWalletDescriptor(const std::string& file_path,
-                                        const std::string& name,
-                                        const std::string& description = {}) = 0;
+  virtual Wallet ImportWalletDescriptor(
+      const std::string& file_path, const std::string& name,
+      const std::string& description = {}) = 0;
 
   virtual std::vector<Device> GetDevices() = 0;
   virtual MasterSigner CreateMasterSigner(
@@ -476,6 +480,9 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual std::vector<Transaction> GetTransactionHistory(
       const std::string& wallet_id, int count, int skip) = 0;
+  virtual bool ExportTransactionHistory(
+      const std::string& wallet_id, const std::string& file_path,
+      ExportFormat format = ExportFormat::CSV) = 0;
   virtual AppSettings GetAppSettings() = 0;
   virtual AppSettings UpdateAppSettings(const AppSettings& appSettings) = 0;
 
@@ -486,6 +493,9 @@ class NUNCHUK_EXPORT Nunchuk {
                                  bool internal = false) = 0;
   virtual std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) = 0;
+  virtual bool ExportUnspentOutputs(
+      const std::string& wallet_id, const std::string& file_path,
+      ExportFormat format = ExportFormat::CSV) = 0;
   virtual Transaction CreateTransaction(
       const std::string& wallet_id, const std::map<std::string, Amount> outputs,
       const std::string& memo = {},
