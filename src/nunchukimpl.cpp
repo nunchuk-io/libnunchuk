@@ -11,8 +11,8 @@
 #include <utils/addressutils.hpp>
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
+#include <utils/quote.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/io/detail/quoted_manip.hpp>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -376,8 +376,7 @@ bool NunchukImpl::ExportTransactionHistory(const std::string& wallet_id,
   for (auto tx : txs) {
     value << tx.get_txid() << "," << tx.get_fee() << ","
           << ((tx.is_receive() ? 1 : -1) * tx.get_sub_amount()) << ","
-          << tx.get_height() << "," << boost::io::quoted(tx.get_memo())
-          << std::endl;
+          << tx.get_height() << "," << quoted(tx.get_memo()) << std::endl;
   }
   return storage_.WriteFile(file_path, value.str());
 }
@@ -416,7 +415,7 @@ bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
   for (auto utxo : utxos) {
     value << utxo.get_txid() << "," << utxo.get_vout() << ","
           << utxo.get_amount() << "," << utxo.get_height() << ","
-          << boost::io::quoted(utxo.get_memo()) << std::endl;
+          << quoted(utxo.get_memo()) << std::endl;
   }
   return storage_.WriteFile(file_path, value.str());
 }
