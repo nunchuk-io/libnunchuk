@@ -54,6 +54,7 @@ class NunchukDb {
   bool PutInt(int key, int64_t value);
   std::string GetString(int key) const;
   int64_t GetInt(int key) const;
+  bool TableExists(const std::string &table_name) const;
   sqlite3 *db_;
   std::string id_;
   Chain chain_;
@@ -79,9 +80,6 @@ class NunchukWalletDb : public NunchukDb {
   void DeleteWallet();
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
-  bool SetSignerName(const SingleSigner &signer, const std::string &value);
-  bool SetSignerMasterId(const SingleSigner &signer, const std::string &value);
-  bool SetSignerLastHealthCheck(const SingleSigner &signer, time_t value);
   bool AddAddress(const std::string &address, int index, bool internal);
   bool UseAddress(const std::string &address);
   Wallet GetWallet() const;
@@ -146,6 +144,19 @@ class NunchukSignerDb : public NunchukDb {
   std::string GetName() const;
   time_t GetLastHealthCheck() const;
   std::vector<SingleSigner> GetSingleSigners() const;
+  bool IsMaster() const;
+  void InitRemote();
+  bool AddRemote(const std::string &name, const std::string &xpub,
+                 const std::string &public_key,
+                 const std::string &derivation_path, bool used = false);
+  SingleSigner GetRemoteSigner(const std::string &derivation_path) const;
+  bool DeleteRemoteSigner(const std::string &derivation_path);
+  bool UseRemote(const std::string &derivation_path);
+  bool SetRemoteName(const std::string &derivation_path,
+                     const std::string &value);
+  bool SetRemoteLastHealthCheck(const std::string &derivation_path,
+                                time_t value);
+  std::vector<SingleSigner> GetRemoteSigners() const;
 
  private:
   friend class NunchukStorage;
@@ -183,6 +194,11 @@ class NunchukStorage {
                       const std::string &description);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const std::string &fingerprint);
+  SingleSigner CreateSingleSigner(Chain chain, const std::string &name,
+                                  const std::string &xpub,
+                                  const std::string &public_key,
+                                  const std::string &derivation_path,
+                                  const std::string &master_fingerprint);
   SingleSigner GetSignerFromMasterSigner(Chain chain,
                                          const std::string &mastersigner_id,
                                          const WalletType &wallet_type,
@@ -195,8 +211,8 @@ class NunchukStorage {
   Wallet GetWallet(Chain chain, const std::string &id);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
 
-  bool UpdateWallet(Chain chain, Wallet &wallet);
-  bool UpdateMasterSigner(Chain chain, MasterSigner &mastersigner);
+  bool UpdateWallet(Chain chain, const Wallet &wallet);
+  bool UpdateMasterSigner(Chain chain, const MasterSigner &mastersigner);
 
   bool DeleteWallet(Chain chain, const std::string &id);
   bool DeleteMasterSigner(Chain chain, const std::string &id);
@@ -279,6 +295,12 @@ class NunchukStorage {
   std::string GetSelectedWallet(Chain chain);
   bool SetSelectedWallet(Chain chain, const std::string &wallet_id);
 
+  std::vector<SingleSigner> GetRemoteSigners(Chain chain);
+  bool DeleteRemoteSigner(Chain chain, const std::string &master_fingerprint,
+                          const std::string &derivation_path);
+  bool UpdateRemoteSigner(Chain chain, const SingleSigner &remotesigner);
+  bool IsMasterSigner(Chain chain, const std::string &id);
+
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
@@ -292,7 +314,6 @@ class NunchukStorage {
   boost::filesystem::path GetDefaultDataDir() const;
   boost::filesystem::path datadir_;
   std::string passphrase_;
-  std::map<std::string, std::string> single_wallet_;
   boost::shared_mutex access_;
 };
 

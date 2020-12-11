@@ -164,6 +164,17 @@ int64_t NunchukDb::GetInt(int key) const {
   return value;
 }
 
+bool NunchukDb::TableExists(const std::string& table_name) const {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, table_name.c_str(), table_name.size(), NULL);
+  int rc = sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rc == SQLITE_ROW;
+}
+
 void NunchukWalletDb::InitWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
                                  AddressType address_type, bool is_escrow,
@@ -249,48 +260,6 @@ bool NunchukWalletDb::AddSigner(const SingleSigner& signer) {
   sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
   sqlite3_bind_text(stmt, 3, master_id.c_str(), master_id.size(), NULL);
   sqlite3_bind_int64(stmt, 4, signer.get_last_health_check());
-  sqlite3_step(stmt);
-  bool updated = (sqlite3_changes(db_) == 1);
-  SQLCHECK(sqlite3_finalize(stmt));
-  return updated;
-}
-
-bool NunchukWalletDb::SetSignerName(const SingleSigner& signer,
-                                    const std::string& value) {
-  sqlite3_stmt* stmt;
-  std::string sql = "UPDATE SIGNER SET NAME = ?1 WHERE KEY = ?2;";
-  std::string key = GetSingleSignerKey(signer);
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, value.c_str(), value.size(), NULL);
-  sqlite3_bind_text(stmt, 2, key.c_str(), key.size(), NULL);
-  sqlite3_step(stmt);
-  bool updated = (sqlite3_changes(db_) == 1);
-  SQLCHECK(sqlite3_finalize(stmt));
-  return updated;
-}
-
-bool NunchukWalletDb::SetSignerMasterId(const SingleSigner& signer,
-                                        const std::string& value) {
-  sqlite3_stmt* stmt;
-  std::string sql = "UPDATE SIGNER SET MASTER_ID = ?1 WHERE KEY = ?2;";
-  std::string key = GetSingleSignerKey(signer);
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, value.c_str(), value.size(), NULL);
-  sqlite3_bind_text(stmt, 2, key.c_str(), key.size(), NULL);
-  sqlite3_step(stmt);
-  bool updated = (sqlite3_changes(db_) == 1);
-  SQLCHECK(sqlite3_finalize(stmt));
-  return updated;
-}
-
-bool NunchukWalletDb::SetSignerLastHealthCheck(const SingleSigner& signer,
-                                               time_t value) {
-  sqlite3_stmt* stmt;
-  std::string sql = "UPDATE SIGNER SET LAST_HEALTHCHECK = ?1 WHERE KEY = ?2;";
-  std::string key = GetSingleSignerKey(signer);
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_int64(stmt, 3, value);
-  sqlite3_bind_text(stmt, 4, key.c_str(), key.size(), NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
@@ -1020,6 +989,7 @@ void NunchukSignerDb::InitSigner(const std::string& name,
 }
 
 void NunchukSignerDb::DeleteSigner() {
+  SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS REMOTE;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS BIP32;", NULL, 0, NULL));
   DropTable();
 }
@@ -1137,6 +1107,141 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
   return GetInt(DbKeys::LAST_HEALTH_CHECK);
 }
 
+bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
+
+void NunchukSignerDb::InitRemote() {
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS REMOTE("
+                        "PATH VARCHAR(20) PRIMARY KEY     NOT NULL,"
+                        "XPUB                     TEXT,"
+                        "PUBKEY                   TEXT,"
+                        "NAME                     TEXT    NOT NULL,"
+                        "LAST_HEALTHCHECK         INT     NOT NULL,"
+                        "USED                     INT);",
+                        NULL, 0, NULL));
+}
+
+bool NunchukSignerDb::AddRemote(const std::string& name,
+                                const std::string& xpub,
+                                const std::string& public_key,
+                                const std::string& path, bool used) {
+  InitRemote();
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "INSERT INTO REMOTE(PATH, XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED)"
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6);";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
+  sqlite3_bind_text(stmt, 2, xpub.c_str(), xpub.size(), NULL);
+  sqlite3_bind_text(stmt, 3, public_key.c_str(), public_key.size(), NULL);
+  sqlite3_bind_text(stmt, 4, name.c_str(), name.size(), NULL);
+  sqlite3_bind_int64(stmt, 5, 0);
+  sqlite3_bind_int(stmt, 6, used ? 1 : -1);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "SELECT XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED FROM REMOTE WHERE "
+      "PATH = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
+  sqlite3_step(stmt);
+  if (sqlite3_column_text(stmt, 0)) {
+    std::string xpub = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string pubkey = std::string((char*)sqlite3_column_text(stmt, 1));
+    std::string name = std::string((char*)sqlite3_column_text(stmt, 2));
+    time_t last_health_check = sqlite3_column_int64(stmt, 3);
+    bool used = sqlite3_column_int(stmt, 4) == 1;
+    SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
+                        used);
+    SQLCHECK(sqlite3_finalize(stmt));
+    return signer;
+  } else {
+    SQLCHECK(sqlite3_finalize(stmt));
+    throw StorageException(StorageException::SIGNER_NOT_FOUND,
+                           "signer not found!");
+  }
+}
+
+bool NunchukSignerDb::DeleteRemoteSigner(const std::string& path) {
+  sqlite3_stmt* stmt;
+  std::string sql = "DELETE FROM REMOTE WHERE PATH = ? AND USED = -1;";
+  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+bool NunchukSignerDb::UseRemote(const std::string& path) {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "UPDATE REMOTE SET USED = ?1 WHERE PATH = ?2 AND USED = -1;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, 1);
+  sqlite3_bind_text(stmt, 2, path.c_str(), path.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+bool NunchukSignerDb::SetRemoteName(const std::string& path,
+                                    const std::string& value) {
+  sqlite3_stmt* stmt;
+  std::string sql = "UPDATE REMOTE SET NAME = ?1 WHERE PATH = ?2;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, value.c_str(), value.size(), NULL);
+  sqlite3_bind_text(stmt, 2, path.c_str(), path.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+bool NunchukSignerDb::SetRemoteLastHealthCheck(const std::string& path,
+                                               time_t value) {
+  sqlite3_stmt* stmt;
+  std::string sql = "UPDATE REMOTE SET LAST_HEALTHCHECK = ?1 WHERE PATH = ?2;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_int64(stmt, 1, value);
+  sqlite3_bind_text(stmt, 2, path.c_str(), path.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
+  if (IsMaster()) return {};
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "SELECT PATH, XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED FROM REMOTE;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_step(stmt);
+  std::vector<SingleSigner> signers;
+  while (sqlite3_column_text(stmt, 0)) {
+    std::string path = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
+    std::string pubkey = std::string((char*)sqlite3_column_text(stmt, 2));
+    std::string name = std::string((char*)sqlite3_column_text(stmt, 3));
+    time_t last_health_check = sqlite3_column_int64(stmt, 4);
+    bool used = sqlite3_column_int(stmt, 5) == 1;
+    SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
+                        used);
+    signers.push_back(signer);
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return signers;
+}
+
 void NunchukAppStateDb::Init() { CreateTable(); }
 
 int NunchukAppStateDb::GetChainTip() const { return GetInt(DbKeys::CHAIN_TIP); }
@@ -1167,7 +1272,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners() const {
     std::string path = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
     SingleSigner signer(name, xpub, "", path, master_fingerprint,
-                        last_health_check, id_);
+                        last_health_check, id_, true);
     signers.push_back(signer);
     sqlite3_step(stmt);
   }
@@ -1400,6 +1505,9 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
       if (!usable) {
         throw StorageException(StorageException::SIGNER_USED, "signer used!");
       }
+    } else {
+      GetSignerDb(chain, signer.get_master_fingerprint())
+          .UseRemote(signer.get_derivation_path());
     }
   }
   std::string external_desc =
@@ -1429,6 +1537,24 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
                             passphrase_};
   signer_db.InitSigner(name, fingerprint);
   return id;
+}
+
+SingleSigner NunchukStorage::CreateSingleSigner(
+    Chain chain, const std::string& name, const std::string& xpub,
+    const std::string& public_key, const std::string& derivation_path,
+    const std::string& master_fingerprint) {
+  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::string id = master_fingerprint;
+  NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
+                            passphrase_};
+  if (signer_db.IsMaster()) {
+    throw StorageException(StorageException::SIGNER_EXISTS, "signer exists");
+  }
+  if (!signer_db.AddRemote(name, xpub, public_key, derivation_path)) {
+    throw StorageException(StorageException::SIGNER_EXISTS, "signer exists");
+  }
+  return SingleSigner(name, xpub, public_key, derivation_path,
+                      master_fingerprint, 0);
 }
 
 SingleSigner NunchukStorage::GetSignerFromMasterSigner(
@@ -1516,19 +1642,28 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id) {
   std::vector<SingleSigner> signers;
 
   for (auto&& signer : wallet.get_signers()) {
-    single_wallet_[NunchukWalletDb::GetSingleSignerKey(signer)] = id;
     std::string name = signer.get_name();
     std::string master_id = signer.get_master_fingerprint();
     time_t last_health_check = signer.get_last_health_check();
-    try {
-      auto signer_db = GetSignerDb(chain, master_id);
+    NunchukSignerDb signer_db{
+        chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+    if (signer_db.IsMaster()) {
       name = signer_db.GetName();
       last_health_check = signer_db.GetLastHealthCheck();
-    } catch (StorageException& se) {
-      if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
-        master_id = "";
-      } else {
-        throw;
+    } else {
+      master_id = "";
+      try {
+        auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
+        name = remote.get_name();
+        last_health_check = remote.get_last_health_check();
+      } catch (StorageException& se) {
+        if (se.code() == StorageException::SIGNER_NOT_FOUND) {
+          signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                              signer.get_public_key(),
+                              signer.get_derivation_path(), true);
+        } else {
+          throw;
+        }
       }
     }
     SingleSigner true_signer(name, signer.get_xpub(), signer.get_public_key(),
@@ -1555,14 +1690,15 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
   return signer;
 }
 
-bool NunchukStorage::UpdateWallet(Chain chain, Wallet& wallet) {
+bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
   return wallet_db.SetName(wallet.get_name()) &&
          wallet_db.SetDescription(wallet.get_description());
 }
 
-bool NunchukStorage::UpdateMasterSigner(Chain chain, MasterSigner& signer) {
+bool NunchukStorage::UpdateMasterSigner(Chain chain,
+                                        const MasterSigner& signer) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   return GetSignerDb(chain, signer.get_id()).SetName(signer.get_name());
 }
@@ -1588,11 +1724,8 @@ bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
 bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
                                            const SingleSigner& signer) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
-  std::string signer_key = NunchukWalletDb::GetSingleSignerKey(signer);
-  if (single_wallet_.find(signer_key) == single_wallet_.end()) return false;
-  std::string wallet_id = single_wallet_[signer_key];
-  return GetWalletDb(chain, wallet_id)
-      .SetSignerLastHealthCheck(signer, std::time(0));
+  return GetSignerDb(chain, signer.get_master_fingerprint())
+      .SetRemoteLastHealthCheck(signer.get_derivation_path(), std::time(0));
 }
 
 std::string NunchukStorage::GetDescriptor(Chain chain,
@@ -1794,6 +1927,38 @@ std::string NunchukStorage::GetSelectedWallet(Chain chain) {
 bool NunchukStorage::SetSelectedWallet(Chain chain, const std::string& value) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   return GetAppStateDb(chain).SetSelectedWallet(value);
+}
+
+std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {
+  auto signers = ListMasterSigners(chain);
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::vector<SingleSigner> rs;
+  for (auto&& signer_id : signers) {
+    auto remote = GetSignerDb(chain, signer_id).GetRemoteSigners();
+    rs.insert(rs.end(), remote.begin(), remote.end());
+  }
+  return rs;
+}
+
+bool NunchukStorage::DeleteRemoteSigner(Chain chain,
+                                        const std::string& master_fingerprint,
+                                        const std::string& derivation_path) {
+  boost::unique_lock<boost::shared_mutex> lock(access_);
+  return GetSignerDb(chain, master_fingerprint)
+      .DeleteRemoteSigner(derivation_path);
+}
+
+bool NunchukStorage::UpdateRemoteSigner(Chain chain,
+                                        const SingleSigner& remotesigner) {
+  boost::unique_lock<boost::shared_mutex> lock(access_);
+  return GetSignerDb(chain, remotesigner.get_master_fingerprint())
+      .SetRemoteName(remotesigner.get_derivation_path(),
+                     remotesigner.get_name());
+}
+
+bool NunchukStorage::IsMasterSigner(Chain chain, const std::string& id) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetSignerDb(chain, id).IsMaster();
 }
 
 }  // namespace nunchuk

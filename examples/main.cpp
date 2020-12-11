@@ -45,13 +45,17 @@ inline void print_list_devices(const std::vector<Device>& devices) {
   }
 }
 
-inline void print_list_master_signers(
-    const std::vector<MasterSigner>& signers) {
+inline void print_list_signers(const std::vector<MasterSigner>& master,
+                               const std::vector<SingleSigner>& remote) {
   int i = 0;
   std::cout << std::endl;
-  for (auto&& signer : signers) {
+  for (auto&& signer : master) {
     std::cout << i++ << ": [" << signer.get_id() << "] " << signer.get_name()
               << std::endl;
+  }
+  for (auto&& signer : remote) {
+    std::cout << i++ << ": [" << signer.get_master_fingerprint() << "] "
+              << signer.get_name() << " (remote)" << std::endl;
   }
 }
 
@@ -67,11 +71,23 @@ inline void print_list_wallets(const std::vector<Wallet>& wallets) {
 
 void listdevices() { print_list_devices(nu.get()->GetDevices()); }
 
-void listsigners() { print_list_master_signers(nu.get()->GetMasterSigners()); }
+void listsigners() {
+  print_list_signers(nu.get()->GetMasterSigners(),
+                     nu.get()->GetRemoteSigners());
+}
 
 void listwallets() { print_list_wallets(nu.get()->GetWallets()); }
 
-void newsigner() {
+void newremotesigner() {
+  auto name = input_string("Enter signer name");
+  auto xpub = input_string("Enter xpub");
+  auto path = input_string("Enter derivation path");
+  auto xfp = input_string("Enter master fingerprint");
+  auto remote_signer = nu.get()->CreateSigner(name, xpub, {}, path, xfp);
+  std::cout << "\nRemote signer create success." << std::endl;
+}
+
+void newmastersigner() {
   auto devices = nu.get()->GetDevices();
   if (devices.empty()) {
     throw std::runtime_error("Please plug-in your device and retry");
@@ -85,14 +101,23 @@ void newsigner() {
   }
   auto device_xfp = devices[device_idx].get_master_fingerprint();
   auto master_signer = nu.get()->CreateMasterSigner(
-      "signer_name", {device_xfp}, [](int percent) { return true; });
-  std::cout << "\nSigner create success. Signer id: " << master_signer.get_id()
-            << std::endl;
+      name, {device_xfp}, [](int percent) { return true; });
+  std::cout << "\nMaster signer create success." << std::endl;
+}
+
+void newsigner() {
+  auto is_remote = input_bool("Is it remote signer");
+  if (is_remote) {
+    newremotesigner();
+  } else {
+    newmastersigner();
+  }
 }
 
 void newwallet() {
   auto master_signers = nu.get()->GetMasterSigners();
-  if (master_signers.empty()) {
+  auto remote_signers = nu.get()->GetRemoteSigners();
+  if (master_signers.empty() && remote_signers.empty()) {
     throw std::runtime_error("Please create signer first");
   }
 
@@ -109,15 +134,22 @@ void newwallet() {
 
   std::vector<SingleSigner> signers;
   for (int i = 0; i < n; i++) {
-    print_list_master_signers(master_signers);
+    print_list_signers(master_signers, remote_signers);
     int signer_idx = input_int("Choose a singer to add");
-    if (signer_idx < 0 || signer_idx > master_signers.size()) {
+    if (signer_idx >= 0 && signer_idx < master_signers.size()) {
+      auto signer = nu.get()->GetUnusedSignerFromMasterSigner(
+          master_signers[signer_idx].get_id(), wallet_type, address_type);
+      signers.push_back(signer);
+      master_signers.erase(master_signers.begin() + signer_idx);
+    } else if (signer_idx >= master_signers.size() &&
+               signer_idx < master_signers.size() + remote_signers.size()) {
+      auto signer = remote_signers[signer_idx - master_signers.size()];
+      signers.push_back(signer);
+      remote_signers.erase(remote_signers.begin() + signer_idx -
+                           master_signers.size());
+    } else {
       throw std::runtime_error("Invalid signer");
     }
-    auto signer = nu.get()->GetUnusedSignerFromMasterSigner(
-        master_signers[signer_idx].get_id(), wallet_type, address_type);
-    signers.push_back(signer);
-    master_signers.erase(master_signers.begin() + signer_idx);
   }
 
   auto wallet =

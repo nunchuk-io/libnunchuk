@@ -88,7 +88,7 @@ bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
   return storage_.DeleteWallet(chain_, wallet_id);
 }
 
-bool NunchukImpl::UpdateWallet(Wallet& wallet) {
+bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
   return storage_.UpdateWallet(chain_, wallet);
 }
 
@@ -229,8 +229,8 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
                            "invalid master fingerprint");
   }
   std::string name = trim_copy(raw_name);
-  return SingleSigner(name, sanitized_xpub, public_key, derivation_path,
-                      master_fingerprint, 0);
+  return storage_.CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
+                                     derivation_path, master_fingerprint);
 }
 
 int NunchukImpl::GetCurrentIndexFromMasterSigner(
@@ -267,7 +267,9 @@ std::vector<MasterSigner> NunchukImpl::GetMasterSigners() {
   auto mastersigner_ids = storage_.ListMasterSigners(chain_);
   std::vector<MasterSigner> mastersigners;
   for (auto&& id : mastersigner_ids) {
-    mastersigners.push_back(GetMasterSigner(id));
+    if (storage_.IsMasterSigner(chain_, id)) {
+      mastersigners.push_back(GetMasterSigner(id));
+    }
   }
   return mastersigners;
 }
@@ -280,8 +282,22 @@ bool NunchukImpl::DeleteMasterSigner(const std::string& mastersigner_id) {
   return storage_.DeleteMasterSigner(chain_, mastersigner_id);
 }
 
-bool NunchukImpl::UpdateMasterSigner(MasterSigner& mastersigner) {
+bool NunchukImpl::UpdateMasterSigner(const MasterSigner& mastersigner) {
   return storage_.UpdateMasterSigner(chain_, mastersigner);
+}
+
+std::vector<SingleSigner> NunchukImpl::GetRemoteSigners() {
+  return storage_.GetRemoteSigners(chain_);
+}
+
+bool NunchukImpl::DeleteRemoteSigner(const std::string& master_fingerprint,
+                                     const std::string& derivation_path) {
+  return storage_.DeleteRemoteSigner(chain_, master_fingerprint,
+                                     derivation_path);
+}
+
+bool NunchukImpl::UpdateRemoteSigner(const SingleSigner& remotesigner) {
+  return storage_.UpdateRemoteSigner(chain_, remotesigner);
 }
 
 std::string NunchukImpl::GetHealthCheckPath() {
