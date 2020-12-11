@@ -124,6 +124,8 @@ class NUNCHUK_EXPORT StorageException : public BaseException {
   static const int INVALID_DATADIR = -2006;
   static const int SQL_ERROR = -2007;
   static const int WALLET_EXISTED = -2008;
+  static const int SIGNER_EXISTS = -2009;
+  static const int SIGNER_NOT_FOUND = -2010;
   using BaseException::BaseException;
 };
 
@@ -208,7 +210,7 @@ class NUNCHUK_EXPORT SingleSigner {
                const std::string& public_key,
                const std::string& derivation_path,
                const std::string& master_fingerprint, time_t last_health_check,
-               const std::string& master_signer_id = {});
+               const std::string& master_signer_id = {}, bool used = false);
 
   std::string get_name() const;
   std::string get_xpub() const;
@@ -216,9 +218,11 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string get_derivation_path() const;
   std::string get_master_fingerprint() const;
   std::string get_master_signer_id() const;
+  bool is_used() const;
   bool has_master_signer() const;
   time_t get_last_health_check() const;
   void set_name(const std::string& value);
+  void set_used(bool value);
 
  private:
   std::string name_;
@@ -228,6 +232,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string master_fingerprint_;
   std::string master_signer_id_;
   time_t last_health_check_;
+  bool used_;
 };
 
 class NUNCHUK_EXPORT MasterSigner {
@@ -434,7 +439,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<Wallet> GetWallets() = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;
-  virtual bool UpdateWallet(Wallet& wallet) = 0;
+  virtual bool UpdateWallet(const Wallet& wallet) = 0;
   virtual bool ExportWallet(const std::string& wallet_id,
                             const std::string& file_path,
                             ExportFormat format) = 0;
@@ -468,7 +473,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<MasterSigner> GetMasterSigners() = 0;
   virtual MasterSigner GetMasterSigner(const std::string& mastersigner_id) = 0;
   virtual bool DeleteMasterSigner(const std::string& mastersigner_id) = 0;
-  virtual bool UpdateMasterSigner(MasterSigner& mastersigner) = 0;
+  virtual bool UpdateMasterSigner(const MasterSigner& mastersigner) = 0;
+  virtual std::vector<SingleSigner> GetRemoteSigners() = 0;
+  virtual bool DeleteRemoteSigner(const std::string& master_fingerprint,
+                                  const std::string& derivation_path) = 0;
+  virtual bool UpdateRemoteSigner(const SingleSigner& remotesigner) = 0;
   virtual std::string GetHealthCheckPath() = 0;
   virtual HealthStatus HealthCheckMasterSigner(const std::string& fingerprint,
                                                std::string& message,

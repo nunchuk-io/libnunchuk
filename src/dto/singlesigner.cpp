@@ -12,14 +12,15 @@ SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
                            const std::string& derivation_path,
                            const std::string& master_fingerprint,
                            time_t last_health_check,
-                           const std::string& master_signer_id)
+                           const std::string& master_signer_id, bool used)
     : name_(name),
       xpub_(xpub),
       public_key_(public_key),
       derivation_path_(derivation_path),
       master_fingerprint_(master_fingerprint),
       master_signer_id_(master_signer_id),
-      last_health_check_(last_health_check) {}
+      last_health_check_(last_health_check),
+      used_(used) {}
 
 std::string SingleSigner::get_name() const { return name_; }
 std::string SingleSigner::get_xpub() const { return xpub_; }
@@ -33,6 +34,7 @@ std::string SingleSigner::get_master_fingerprint() const {
 std::string SingleSigner::get_master_signer_id() const {
   return master_signer_id_;
 }
+bool SingleSigner::is_used() const { return used_; }
 bool SingleSigner::has_master_signer() const {
   return !master_signer_id_.empty();
 }
@@ -40,5 +42,6 @@ time_t SingleSigner::get_last_health_check() const {
   return last_health_check_;
 }
 void SingleSigner::set_name(const std::string& value) { name_ = value; }
+void SingleSigner::set_used(bool value) { used_ = value; }
 
 }  // namespace nunchuk

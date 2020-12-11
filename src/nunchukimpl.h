@@ -34,7 +34,7 @@ class NunchukImpl : public Nunchuk {
   std::vector<Wallet> GetWallets() override;
   Wallet GetWallet(const std::string& wallet_id) override;
   bool DeleteWallet(const std::string& wallet_id) override;
-  bool UpdateWallet(Wallet& wallet) override;
+  bool UpdateWallet(const Wallet& wallet) override;
   bool ExportWallet(const std::string& wallet_id, const std::string& file_path,
                     ExportFormat format) override;
   Wallet ImportWalletDb(const std::string& file_path) override;
@@ -67,7 +67,11 @@ class NunchukImpl : public Nunchuk {
   std::vector<MasterSigner> GetMasterSigners() override;
   MasterSigner GetMasterSigner(const std::string& mastersigner_id) override;
   bool DeleteMasterSigner(const std::string& mastersigner_id) override;
-  bool UpdateMasterSigner(MasterSigner& mastersigner_id) override;
+  bool UpdateMasterSigner(const MasterSigner& mastersigner_id) override;
+  std::vector<SingleSigner> GetRemoteSigners() override;
+  bool DeleteRemoteSigner(const std::string& master_fingerprint,
+                          const std::string& derivation_path) override;
+  bool UpdateRemoteSigner(const SingleSigner& remotesigner) override;
   std::string GetHealthCheckPath() override;
   HealthStatus HealthCheckMasterSigner(const std::string& fingerprint,
                                        std::string& message,
