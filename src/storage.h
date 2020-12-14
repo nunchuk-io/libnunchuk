@@ -5,7 +5,7 @@
 #ifndef NUNCHUK_STORAGE_H
 #define NUNCHUK_STORAGE_H
 #define SQLITE_HAS_CODEC
-#define STORAGE_VER 2
+#define STORAGE_VER 3
 #define HAVE_CONFIG_H
 #ifdef NDEBUG
 #undef NDEBUG
@@ -171,6 +171,8 @@ class NunchukAppStateDb : public NunchukDb {
   bool SetChainTip(int value);
   std::string GetSelectedWallet() const;
   bool SetSelectedWallet(const std::string &value);
+  int64_t GetStorageVersion() const;
+  bool SetStorageVersion(int64_t value);
 
  private:
   friend class NunchukStorage;
@@ -208,7 +210,8 @@ class NunchukStorage {
   std::vector<std::string> ListWallets(Chain chain);
   std::vector<std::string> ListMasterSigners(Chain chain);
 
-  Wallet GetWallet(Chain chain, const std::string &id);
+  Wallet GetWallet(Chain chain, const std::string &id,
+                   bool create_signers_if_not_exist = false);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
 
   bool UpdateWallet(Chain chain, const Wallet &wallet);
