@@ -1107,6 +1107,10 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
   return GetInt(DbKeys::LAST_HEALTH_CHECK);
 }
 
+// NunchukSignerDb only creates a BIP32 table if the signer is a master signer.
+// When user adds a master signer whose fingerprint matches the master fingerprint
+// of an existing remote signer, a BIP32 table will be added to the existing signer Db. 
+// The remote signer will become a master signer.
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 
 void NunchukSignerDb::InitRemote() {
@@ -1256,6 +1260,14 @@ std::string NunchukAppStateDb::GetSelectedWallet() const {
 
 bool NunchukAppStateDb::SetSelectedWallet(const std::string& value) {
   return PutString(DbKeys::SELECTED_WALLET, value);
+}
+
+int64_t NunchukAppStateDb::GetStorageVersion() const {
+  return GetInt(DbKeys::VERSION);
+}
+
+bool NunchukAppStateDb::SetStorageVersion(int64_t value) {
+  return PutInt(DbKeys::VERSION, value);
 }
 
 std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners() const {
@@ -1635,7 +1647,8 @@ std::vector<std::string> NunchukStorage::ListMasterSigners(Chain chain) {
   return ids;
 }
 
-Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id) {
+Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
+                                 bool create_signers_if_not_exist) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
   Wallet wallet = wallet_db.GetWallet();
@@ -1651,13 +1664,15 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id) {
       name = signer_db.GetName();
       last_health_check = signer_db.GetLastHealthCheck();
     } else {
+      // master_id is used by the caller to check if the signer is master or remote
       master_id = "";
       try {
         auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
         name = remote.get_name();
         last_health_check = remote.get_last_health_check();
       } catch (StorageException& se) {
-        if (se.code() == StorageException::SIGNER_NOT_FOUND) {
+        if (se.code() == StorageException::SIGNER_NOT_FOUND &&
+            create_signers_if_not_exist) {
           signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
                               signer.get_public_key(),
                               signer.get_derivation_path(), true);
@@ -1902,10 +1917,24 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
   static std::once_flag flag;
   std::call_once(flag, [&] {
     auto wallets = ListWallets(chain);
-    boost::unique_lock<boost::shared_mutex> lock(access_);
-    for (auto&& wallet_id : wallets) {
-      GetWalletDb(chain, wallet_id).MaybeMigrate();
+    {
+      boost::unique_lock<boost::shared_mutex> lock(access_);
+      for (auto&& wallet_id : wallets) {
+        GetWalletDb(chain, wallet_id).MaybeMigrate();
+      }
     }
+
+    // migrate app state
+    auto appstate = GetAppStateDb(chain);
+    int64_t current_ver = appstate.GetStorageVersion();
+    if (current_ver == STORAGE_VER) return;
+    if (current_ver < 3) {
+      for (auto&& wallet_id : wallets) {
+        GetWallet(chain, wallet_id, true);
+      }
+    }
+    DLOG_F(INFO, "NunchukAppStateDb migrate to version %d", STORAGE_VER);
+    appstate.SetStorageVersion(STORAGE_VER);
   });
 }
 

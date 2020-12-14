@@ -47,7 +47,7 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
   Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
                                         address_type, is_escrow, description);
   ScanNewWallet(wallet.get_id(), wallet.is_escrow());
-  return GetWallet(wallet.get_id());
+  return storage_.GetWallet(chain_, wallet.get_id(), true);
 }
 
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
@@ -100,7 +100,7 @@ bool NunchukImpl::ExportWallet(const std::string& wallet_id,
 
 Wallet NunchukImpl::ImportWalletDb(const std::string& file_path) {
   std::string id = storage_.ImportWalletDb(chain_, file_path);
-  return GetWallet(id);
+  return storage_.GetWallet(chain_, id, true);
 }
 
 Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
