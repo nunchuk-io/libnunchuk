@@ -473,6 +473,9 @@ bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
 Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
                                            const std::string& file_path) {
   std::string psbt = storage_.LoadFile(file_path);
+  if (boost::starts_with(psbt, "psbt")) {
+    psbt = EncodeBase64(MakeUCharSpan(psbt));
+  }
   boost::trim(psbt);
   std::string tx_id = GetTxIdFromPsbt(psbt);
   std::string existed_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
@@ -700,6 +703,14 @@ void NunchukImpl::DisplayAddressOnDevice(
     hwi_.DisplayAddress(Device{device_fingerprint}, desc);
   }
 }
+SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
+                                           const std::string& json_info) {}
+std::vector<std::string> NunchukImpl::ExportCoboTransaction(
+    const std::string& wallet_id, const std::string& tx_id) {
+  std::string psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+}
+Transaction NunchukImpl::ImportCoboTransaction(
+    const std::string& wallet_id, const std::vector<std::string>& qr_data) {}
 
 void NunchukImpl::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {

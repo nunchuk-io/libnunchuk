@@ -69,6 +69,7 @@ enum class ExportFormat {
   DB,
   DESCRIPTOR,
   COLDCARD,
+  COBO,
   CSV,
 };
 
@@ -537,6 +538,14 @@ class NUNCHUK_EXPORT Nunchuk {
                                 const std::vector<TxInput>& inputs) = 0;
   virtual std::string GetSelectedWallet() = 0;
   virtual bool SetSelectedWallet(const std::string& wallet_id) = 0;
+
+  virtual SingleSigner CreateCoboSigner(const std::string& name,
+                                        const std::string& json_info) = 0;
+  virtual std::vector<std::string> ExportCoboTransaction(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual Transaction ImportCoboTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

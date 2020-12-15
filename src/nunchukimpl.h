@@ -150,6 +150,14 @@ class NunchukImpl : public Nunchuk {
   void PromtPinOnDevice(const Device& device) override;
   void SendPinToDevice(const Device& device, const std::string& pin) override;
 
+  SingleSigner CreateCoboSigner(const std::string& name,
+                                const std::string& json_info) override;
+  std::vector<std::string> ExportCoboTransaction(
+      const std::string& wallet_id, const std::string& tx_id) override;
+  Transaction ImportCoboTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) override;
+
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
   void AddBlockListener(
