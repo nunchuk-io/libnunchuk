@@ -175,6 +175,7 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput> inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
+  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt);
   void ScanNewWallet(const std::string wallet_id, bool is_escrow);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const std::string wallet_id, int& index,

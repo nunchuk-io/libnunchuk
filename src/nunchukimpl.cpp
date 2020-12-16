@@ -13,6 +13,7 @@
 #include <utils/loguru.hpp>
 #include <utils/quote.hpp>
 #include <boost/algorithm/string.hpp>
+#include <ur.h>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -470,13 +471,9 @@ bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
   return storage_.WriteFile(file_path, psbt);
 }
 
-Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
-                                           const std::string& file_path) {
-  std::string psbt = storage_.LoadFile(file_path);
-  if (boost::starts_with(psbt, "psbt")) {
-    psbt = EncodeBase64(MakeUCharSpan(psbt));
-  }
-  boost::trim(psbt);
+Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
+                                    const std::string& base64_psbt) {
+  std::string psbt = boost::trim_copy(base64_psbt);
   std::string tx_id = GetTxIdFromPsbt(psbt);
   std::string existed_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
   if (!existed_psbt.empty()) {
@@ -486,6 +483,15 @@ Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
     return GetTransaction(wallet_id, tx_id);
   }
   return storage_.CreatePsbt(chain_, wallet_id, psbt);
+}
+
+Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
+                                           const std::string& file_path) {
+  std::string psbt = storage_.LoadFile(file_path);
+  if (boost::starts_with(psbt, "psbt")) {
+    psbt = EncodeBase64(MakeUCharSpan(psbt));
+  }
+  return ImportPsbt(wallet_id, psbt);
 }
 
 Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
@@ -704,13 +710,37 @@ void NunchukImpl::DisplayAddressOnDevice(
   }
 }
 SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
-                                           const std::string& json_info) {}
+                                           const std::string& json_info) {
+  json info = json::parse(json_info);
+  std::string xfp, xpub, path;
+  if (info["xfp"] == nullptr) {
+    xfp = info["MasterFingerprint"];
+    xpub = info["ExtPubKey"];
+    path = "m/" + info["AccountKeyPath"].get<std::string>();
+  } else {
+    xfp = info["xfp"];
+    xpub = info["xpub"];
+    path = info["path"];
+  }
+  return CreateSigner(name, xpub, {}, path, xfp);
+}
+
 std::vector<std::string> NunchukImpl::ExportCoboTransaction(
     const std::string& wallet_id, const std::string& tx_id) {
-  std::string psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  bool invalid;
+  auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
+  if (invalid) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+  }
+  return nunchuk::bcr::EncodeUniformResource(psbt);
 }
+
 Transaction NunchukImpl::ImportCoboTransaction(
-    const std::string& wallet_id, const std::vector<std::string>& qr_data) {}
+    const std::string& wallet_id, const std::vector<std::string>& qr_data) {
+  auto psbt = nunchuk::bcr::DecodeUniformResource(qr_data);
+  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
+}
 
 void NunchukImpl::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {
