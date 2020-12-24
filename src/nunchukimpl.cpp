@@ -725,6 +725,13 @@ SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
   return CreateSigner(name, xpub, {}, path, xfp);
 }
 
+std::vector<std::string> NunchukImpl::ExportCoboWallet(
+    const std::string& wallet_id) {
+  auto content = storage_.GetMultisigFile(chain_, wallet_id);
+  std::vector<uint8_t> data(content.begin(), content.end());
+  return nunchuk::bcr::EncodeUniformResource(data);
+}
+
 std::vector<std::string> NunchukImpl::ExportCoboTransaction(
     const std::string& wallet_id, const std::string& tx_id) {
   std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);

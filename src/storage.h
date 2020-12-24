@@ -309,6 +309,7 @@ class NunchukStorage {
                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);
+  std::string GetMultisigFile(Chain chain, const std::string &wallet_id);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);

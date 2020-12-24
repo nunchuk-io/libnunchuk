@@ -152,6 +152,8 @@ class NunchukImpl : public Nunchuk {
 
   SingleSigner CreateCoboSigner(const std::string& name,
                                 const std::string& json_info) override;
+  std::vector<std::string> ExportCoboWallet(
+      const std::string& wallet_id) override;
   std::vector<std::string> ExportCoboTransaction(
       const std::string& wallet_id, const std::string& tx_id) override;
   Transaction ImportCoboTransaction(

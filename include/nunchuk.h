@@ -541,6 +541,8 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual SingleSigner CreateCoboSigner(const std::string& name,
                                         const std::string& json_info) = 0;
+  virtual std::vector<std::string> ExportCoboWallet(
+      const std::string& wallet_id) = 0;
   virtual std::vector<std::string> ExportCoboTransaction(
       const std::string& wallet_id, const std::string& tx_id) = 0;
   virtual Transaction ImportCoboTransaction(

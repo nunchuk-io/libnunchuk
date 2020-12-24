@@ -2032,4 +2032,9 @@ Amount NunchukStorage::GetAddressBalance(Chain chain,
   return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
+std::string NunchukStorage::GetMultisigFile(Chain chain,
+                                            const std::string& wallet_id) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetColdcardFile();
+}
 }  // namespace nunchuk
