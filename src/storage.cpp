@@ -383,6 +383,17 @@ int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
   return index;
 }
 
+Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
+  auto utxos = GetUnspentOutputs(true);
+  Amount balance = 0;
+  for (auto&& utxo : utxos) {
+    // Only include confirmed Receive amount
+    if (utxo.get_height() > 0 && utxo.get_address() == address)
+      balance += utxo.get_amount();
+  }
+  return balance;
+}
+
 std::vector<std::string> NunchukWalletDb::GetAllAddresses() const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT ADDR FROM ADDRESS;";
@@ -2012,6 +2023,13 @@ int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
     throw StorageException(StorageException::ADDRESS_NOT_FOUND,
                            "address not found");
   return index;
+}
+
+Amount NunchukStorage::GetAddressBalance(Chain chain,
+                                         const std::string& wallet_id,
+                                         const std::string& address) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
 }  // namespace nunchuk

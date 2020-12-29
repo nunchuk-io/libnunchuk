@@ -114,6 +114,7 @@ class NunchukWalletDb : public NunchukDb {
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
   int GetAddressIndex(const std::string &address) const;
+  Amount GetAddressBalance(const std::string &address) const;
 
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
@@ -306,6 +307,8 @@ class NunchukStorage {
   bool IsMasterSigner(Chain chain, const std::string &id);
   int GetAddressIndex(Chain chain, const std::string &wallet_id,
                       const std::string &address);
+  Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
+                           const std::string &address);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
