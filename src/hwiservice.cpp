@@ -166,4 +166,17 @@ std::string HWIService::SignMessage(const Device &device,
   return rs["signature"];
 }
 
+std::string HWIService::DisplayAddress(const Device &device,
+                                       const std::string &desc) const {
+  ValidateDevice(device);
+  std::string quoted_desc = "\"" + desc + "\"";
+  std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
+                                       "displayaddress", "--desc", quoted_desc};
+  if (testnet_) {
+    cmd_args.insert(cmd_args.begin(), "--testnet");
+  }
+  json rs = ParseResponse(RunCmd(cmd_args));
+  return rs["address"];
+}
+
 }  // namespace nunchuk

@@ -82,6 +82,50 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   return desc_with_checksum;
 }
 
+std::string GetDescriptorForSignersAtIndex(
+    const std::vector<SingleSigner>& signers, int m, bool internal,
+    AddressType address_type, WalletType wallet_type, int index) {
+  std::stringstream desc;
+  if (wallet_type == WalletType::SINGLE_SIG) {
+    const SingleSigner& signer = signers[0];
+    std::string path = signer.get_derivation_path();
+    if (path.rfind("m", 0) == 0) path.erase(0, 1);  // Remove leading m
+    std::replace(path.begin(), path.end(), 'h', '\'');
+    desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
+    desc << (address_type == AddressType::LEGACY ? "pkh" : "wpkh");
+    desc << "([" << signer.get_master_fingerprint() << path << "]"
+         << signer.get_xpub() << "/" << (internal ? 1 : 0) << "/" << index
+         << ")";
+    desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+  } else {
+    desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
+    desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");
+    desc << "(sortedmulti(" << m;
+    for (auto&& signer : signers) {
+      std::stringstream p;
+      p << signer.get_derivation_path() << "/" << (internal ? 1 : 0) << "/"
+        << index;
+      std::string path = p.str();
+      if (path.rfind("m", 0) == 0) path.erase(0, 1);  // Remove leading m
+      std::replace(path.begin(), path.end(), 'h', '\'');
+      // displayaddress only takes pubkeys as inputs, not xpubs
+      auto xpub = DecodeExtPubKey(signer.get_xpub());
+      xpub.Derive(xpub, (internal ? 1 : 0));
+      xpub.Derive(xpub, index);
+      std::string pubkey = HexStr(xpub.pubkey);
+      desc << ",[" << signer.get_master_fingerprint() << path << "]" << pubkey;
+    }
+    desc << "))";
+    desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+  }
+
+  std::string desc_with_checksum = AddChecksum(desc.str());
+  DLOG_F(INFO, "GetDescriptorForSignersAtIndex(): '%s'",
+         desc_with_checksum.c_str());
+
+  return desc_with_checksum;
+}
+
 std::string GetPkhDescriptor(const std::string& address) {
   std::stringstream desc_without_checksum;
   desc_without_checksum << "pkh(" << address << ")";

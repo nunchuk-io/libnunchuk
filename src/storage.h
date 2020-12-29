@@ -113,6 +113,7 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetColdcardFile() const;
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
+  int GetAddressIndex(const std::string &address) const;
 
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
@@ -303,6 +304,8 @@ class NunchukStorage {
                           const std::string &derivation_path);
   bool UpdateRemoteSigner(Chain chain, const SingleSigner &remotesigner);
   bool IsMasterSigner(Chain chain, const std::string &id);
+  int GetAddressIndex(Chain chain, const std::string &wallet_id,
+                      const std::string &address);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);

@@ -370,6 +370,19 @@ std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
   return addresses;
 }
 
+int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT IDX FROM ADDRESS WHERE ADDR = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
+  int index = -1;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    index = sqlite3_column_int(stmt, 0);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return index;
+}
+
 std::vector<std::string> NunchukWalletDb::GetAllAddresses() const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT ADDR FROM ADDRESS;";
@@ -1108,9 +1121,9 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
 }
 
 // NunchukSignerDb only creates a BIP32 table if the signer is a master signer.
-// When user adds a master signer whose fingerprint matches the master fingerprint
-// of an existing remote signer, a BIP32 table will be added to the existing signer Db. 
-// The remote signer will become a master signer.
+// When user adds a master signer whose fingerprint matches the master
+// fingerprint of an existing remote signer, a BIP32 table will be added to the
+// existing signer Db. The remote signer will become a master signer.
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 
 void NunchukSignerDb::InitRemote() {
@@ -1664,7 +1677,8 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
       name = signer_db.GetName();
       last_health_check = signer_db.GetLastHealthCheck();
     } else {
-      // master_id is used by the caller to check if the signer is master or remote
+      // master_id is used by the caller to check if the signer is master or
+      // remote
       master_id = "";
       try {
         auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
@@ -1988,6 +2002,16 @@ bool NunchukStorage::UpdateRemoteSigner(Chain chain,
 bool NunchukStorage::IsMasterSigner(Chain chain, const std::string& id) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
   return GetSignerDb(chain, id).IsMaster();
+}
+
+int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
+                                    const std::string& address) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  int index = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
+  if (index < 0)
+    throw StorageException(StorageException::ADDRESS_NOT_FOUND,
+                           "address not found");
+  return index;
 }
 
 }  // namespace nunchuk

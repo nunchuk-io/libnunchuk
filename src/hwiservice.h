@@ -28,6 +28,8 @@ class HWIService {
                      const std::string &base64_psbt) const;
   std::string SignMessage(const Device &device, const std::string &message,
                           const std::string &derivation_path) const;
+  std::string DisplayAddress(const Device &device,
+                             const std::string &desc) const;
 
  private:
   std::string RunCmd(const std::vector<std::string> &) const;
