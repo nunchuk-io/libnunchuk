@@ -126,6 +126,7 @@ class NUNCHUK_EXPORT StorageException : public BaseException {
   static const int WALLET_EXISTED = -2008;
   static const int SIGNER_EXISTS = -2009;
   static const int SIGNER_NOT_FOUND = -2010;
+  static const int ADDRESS_NOT_FOUND = -2011;
   using BaseException::BaseException;
 };
 
@@ -448,10 +449,6 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& file_path, const std::string& name,
       const std::string& description = {}) = 0;
 
-  virtual std::vector<Device> GetDevices() = 0;
-  virtual MasterSigner CreateMasterSigner(
-      const std::string& name, const Device& device,
-      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type, int index) = 0;
@@ -479,10 +476,6 @@ class NUNCHUK_EXPORT Nunchuk {
                                   const std::string& derivation_path) = 0;
   virtual bool UpdateRemoteSigner(const SingleSigner& remotesigner) = 0;
   virtual std::string GetHealthCheckPath() = 0;
-  virtual HealthStatus HealthCheckMasterSigner(const std::string& fingerprint,
-                                               std::string& message,
-                                               std::string& signature,
-                                               std::string& path) = 0;
   virtual HealthStatus HealthCheckSingleSigner(
       const SingleSigner& signer, const std::string& message,
       const std::string& signature) = 0;
@@ -515,9 +508,6 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& file_path) = 0;
   virtual Transaction ImportTransaction(const std::string& wallet_id,
                                         const std::string& file_path) = 0;
-  virtual Transaction SignTransaction(const std::string& wallet_id,
-                                      const std::string& tx_id,
-                                      const Device& device) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
@@ -539,10 +529,6 @@ class NUNCHUK_EXPORT Nunchuk {
                                         const std::string& file_path) = 0;
   virtual std::string ImportHealthCheckSignature(
       const std::string& file_path) = 0;
-
-  virtual void CacheMasterSignerXPub(
-      const std::string& mastersigner_id,
-      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
   virtual Amount EstimateFee(int conf_target = 6) = 0;
   virtual int GetChainTip() = 0;
   virtual Amount GetTotalAmount(const std::string& wallet_id,
@@ -550,6 +536,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::string GetSelectedWallet() = 0;
   virtual bool SetSelectedWallet(const std::string& wallet_id) = 0;
 
+  // Add listener methods
   virtual void AddBalanceListener(
       std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>
           listener) = 0;
@@ -564,6 +551,28 @@ class NUNCHUK_EXPORT Nunchuk {
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus)> listener) = 0;
+
+  // The following methods use HWI to interact with the devices. They might take
+  // a long time or require user inputs on device. Depending on the platform,
+  // client should handle them accordingly (perhaps in a background thread if
+  // necessary).
+  virtual std::vector<Device> GetDevices() = 0;
+  virtual MasterSigner CreateMasterSigner(
+      const std::string& name, const Device& device,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual HealthStatus HealthCheckMasterSigner(const std::string& fingerprint,
+                                               std::string& message,
+                                               std::string& signature,
+                                               std::string& path) = 0;
+  virtual Transaction SignTransaction(const std::string& wallet_id,
+                                      const std::string& tx_id,
+                                      const Device& device) = 0;
+  virtual void CacheMasterSignerXPub(
+      const std::string& mastersigner_id,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual void DisplayAddressOnDevice(
+      const std::string& wallet_id, const std::string& address,
+      const std::string& device_fingerprint = {}) = 0;
 
  protected:
   Nunchuk() = default;

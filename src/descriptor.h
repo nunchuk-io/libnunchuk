@@ -32,6 +32,11 @@ std::string GetDescriptorForSigners(
     AddressType address_type = AddressType::LEGACY,
     WalletType wallet_type = WalletType::MULTI_SIG);
 
+// TODO (bakaoh): merge this method into GetDescriptorForSigners
+std::string GetDescriptorForSignersAtIndex(
+    const std::vector<SingleSigner>& signers, int m, bool internal,
+    AddressType address_type, WalletType wallet_type, int index);
+
 std::string GetPkhDescriptor(const std::string& address);
 
 SingleSigner ParseSignerString(const std::string& signer_str);

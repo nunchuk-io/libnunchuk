@@ -651,6 +651,42 @@ bool NunchukImpl::SetSelectedWallet(const std::string& wallet_id) {
   return storage_.SetSelectedWallet(chain_, wallet_id);
 }
 
+void NunchukImpl::DisplayAddressOnDevice(
+    const std::string& wallet_id, const std::string& address,
+    const std::string& device_fingerprint) {
+  Wallet wallet = storage_.GetWallet(chain_, wallet_id);
+  WalletType wallet_type =
+      wallet.get_n() == 1
+          ? WalletType::SINGLE_SIG
+          : (wallet.is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG);
+  std::string desc{};
+  bool internal = false;
+  if (wallet_type == WalletType::ESCROW) {
+    desc =
+        GetDescriptorForSigners(wallet.get_signers(), wallet.get_m(), internal,
+                                wallet.get_address_type(), wallet_type);
+  } else {
+    int index = storage_.GetAddressIndex(chain_, wallet_id, address);
+    desc = GetDescriptorForSignersAtIndex(wallet.get_signers(), wallet.get_m(),
+                                          internal, wallet.get_address_type(),
+                                          wallet_type, index);
+  }
+
+  if (device_fingerprint.empty()) {
+    auto devices = GetDevices();
+    for (auto&& device : devices) {
+      for (auto&& signer : wallet.get_signers()) {
+        if (signer.get_master_fingerprint() ==
+            device.get_master_fingerprint()) {
+          hwi_.DisplayAddress(device, desc);
+        }
+      }
+    }
+  } else {
+    hwi_.DisplayAddress(Device{device_fingerprint}, desc);
+  }
+}
+
 void NunchukImpl::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {
   synchronizer_.AddBalanceListener(listener);
