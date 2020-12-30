@@ -493,6 +493,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                                 bool internal = false) = 0;
   virtual std::string NewAddress(const std::string& wallet_id,
                                  bool internal = false) = 0;
+  virtual Amount GetAddressBalance(const std::string& wallet_id,
+                                   const std::string& address) = 0;
   virtual std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) = 0;
   virtual bool ExportUnspentOutputs(

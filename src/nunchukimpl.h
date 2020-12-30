@@ -94,6 +94,8 @@ class NunchukImpl : public Nunchuk {
                                         bool internal = false) override;
   std::string NewAddress(const std::string& wallet_id,
                          bool internal = false) override;
+  Amount GetAddressBalance(const std::string& wallet_id,
+                           const std::string& address) override;
   std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) override;
   bool ExportUnspentOutputs(const std::string& wallet_id,
@@ -142,9 +144,9 @@ class NunchukImpl : public Nunchuk {
                         const std::vector<TxInput>& inputs) override;
   std::string GetSelectedWallet() override;
   bool SetSelectedWallet(const std::string& wallet_id) override;
-  void DisplayAddressOnDevice(const std::string& wallet_id,
-                              const std::string& address,
-                              const std::string& device_fingerprint = {}) override;
+  void DisplayAddressOnDevice(
+      const std::string& wallet_id, const std::string& address,
+      const std::string& device_fingerprint = {}) override;
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
   void AddBlockListener(
