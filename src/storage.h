@@ -109,7 +109,7 @@ class NunchukWalletDb : public NunchukDb {
                                            int skip = 0) const;
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance() const;
-  std::string FillPsbt(const std::string &psbt);
+  std::string FillPsbt(const std::string &psbt, bool xpubs = true);
   std::string GetColdcardFile() const;
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
