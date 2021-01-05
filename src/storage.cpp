@@ -746,7 +746,7 @@ std::string NunchukWalletDb::GetColdcardFile() const {
           << std::endl
           << std::endl;
   for (auto&& signer : wallet.get_signers()) {
-    content << "# derivation: " << signer.get_derivation_path() << std::endl
+    content << "Derivation: " << signer.get_derivation_path() << std::endl
             << signer.get_master_fingerprint() << ": " << signer.get_xpub()
             << std::endl
             << std::endl;
