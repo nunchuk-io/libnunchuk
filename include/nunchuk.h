@@ -113,6 +113,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_CHAIN = -1016;
   static const int INVALID_PARAMETER = -1017;
   static const int CREATE_DUMMY_SIGNATURE_ERROR = -1018;
+  static const int INVALID_FORMAT = -1019;
   using BaseException::BaseException;
 };
 
@@ -449,6 +450,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportWalletDescriptor(
       const std::string& file_path, const std::string& name,
       const std::string& description = {}) = 0;
+  virtual Wallet ImportWalletConfigFile(
+      const std::string& file_path, const std::string& description = {}) = 0;
 
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -548,6 +551,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction ImportCoboTransaction(
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) = 0;
+  virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
+                                  const std::string& description = {}) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

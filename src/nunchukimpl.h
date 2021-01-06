@@ -41,6 +41,8 @@ class NunchukImpl : public Nunchuk {
   Wallet ImportWalletDescriptor(const std::string& file_path,
                                 const std::string& name,
                                 const std::string& description = {}) override;
+  Wallet ImportWalletConfigFile(const std::string& file_path,
+                                const std::string& description = {}) override;
 
   std::vector<Device> GetDevices() override;
   MasterSigner CreateMasterSigner(
@@ -159,6 +161,8 @@ class NunchukImpl : public Nunchuk {
   Transaction ImportCoboTransaction(
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) override;
+  Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
+                          const std::string& description = {}) override;
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
@@ -178,6 +182,8 @@ class NunchukImpl : public Nunchuk {
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
   Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt);
+  Wallet ImportWalletFromConfig(const std::string& config,
+                                const std::string& description);
   void ScanNewWallet(const std::string wallet_id, bool is_escrow);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const std::string wallet_id, int& index,

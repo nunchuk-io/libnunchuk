@@ -110,7 +110,7 @@ class NunchukWalletDb : public NunchukDb {
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance() const;
   std::string FillPsbt(const std::string &psbt);
-  std::string GetColdcardFile() const;
+  std::string GetMultisigConfig(bool is_cobo = false) const;
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
   int GetAddressIndex(const std::string &address) const;
@@ -309,7 +309,8 @@ class NunchukStorage {
                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);
-  std::string GetMultisigFile(Chain chain, const std::string &wallet_id);
+  std::string GetMultisigConfig(Chain chain, const std::string &wallet_id,
+                                bool is_cobo);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);

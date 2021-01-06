@@ -12,6 +12,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/quote.hpp>
+#include <utils/multisigconfig.hpp>
 #include <boost/algorithm/string.hpp>
 #include <ur.h>
 
@@ -119,6 +120,28 @@ Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
   }
   return CreateWallet(name, m, n, signers, address_type,
                       wallet_type == WalletType::ESCROW, description);
+}
+
+Wallet NunchukImpl::ImportWalletConfigFile(const std::string& file_path,
+                                           const std::string& description) {
+  std::string config = storage_.LoadFile(file_path);
+  return ImportWalletFromConfig(config, description);
+}
+
+Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
+                                           const std::string& description) {
+  std::string name;
+  AddressType address_type;
+  WalletType wallet_type;
+  int m;
+  int n;
+  std::vector<SingleSigner> signers;
+  if (!ParseConfig(chain_, config, name, address_type, wallet_type, m, n,
+                   signers)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Could not parse multisig config");
+  }
+  return CreateWallet(name, m, n, signers, address_type, false, description);
 }
 
 void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
@@ -727,7 +750,7 @@ SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
 
 std::vector<std::string> NunchukImpl::ExportCoboWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigFile(chain_, wallet_id);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
   std::vector<uint8_t> data(content.begin(), content.end());
   return nunchuk::bcr::EncodeUniformResource(data);
 }
@@ -747,6 +770,13 @@ Transaction NunchukImpl::ImportCoboTransaction(
     const std::string& wallet_id, const std::vector<std::string>& qr_data) {
   auto psbt = nunchuk::bcr::DecodeUniformResource(qr_data);
   return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
+}
+
+Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
+                                     const std::string& description) {
+  auto config = nunchuk::bcr::DecodeUniformResource(qr_data);
+  std::string config_str(config.begin(), config.end());
+  return ImportWalletFromConfig(config_str, description);
 }
 
 void NunchukImpl::AddBalanceListener(
