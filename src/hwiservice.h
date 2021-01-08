@@ -30,6 +30,8 @@ class HWIService {
                           const std::string &derivation_path) const;
   std::string DisplayAddress(const Device &device,
                              const std::string &desc) const;
+  void PromptPin(const Device &device) const;
+  void SendPin(const Device &device, const std::string &pin) const;
 
  private:
   std::string RunCmd(const std::vector<std::string> &) const;

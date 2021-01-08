@@ -166,6 +166,15 @@ std::string NunchukImpl::GetUnusedAddress(const std::string wallet_id,
 
 std::vector<Device> NunchukImpl::GetDevices() { return hwi_.Enumerate(); }
 
+void NunchukImpl::PromtPinOnDevice(const Device& device) {
+  hwi_.PromptPin(device);
+}
+
+void NunchukImpl::SendPinToDevice(const Device& device,
+                                  const std::string& pin) {
+  hwi_.SendPin(device, pin);
+}
+
 MasterSigner NunchukImpl::CreateMasterSigner(
     const std::string& raw_name, const Device& device,
     std::function<bool(int)> progress) {

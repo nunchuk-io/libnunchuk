@@ -575,6 +575,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void DisplayAddressOnDevice(
       const std::string& wallet_id, const std::string& address,
       const std::string& device_fingerprint = {}) = 0;
+  virtual void PromtPinOnDevice(const Device& device) = 0;
+  virtual void SendPinToDevice(const Device& device,
+                               const std::string& pin) = 0;
 
  protected:
   Nunchuk() = default;
