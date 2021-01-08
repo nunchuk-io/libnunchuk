@@ -30,8 +30,10 @@ namespace bp = boost::process;
 namespace nunchuk {
 
 static void ValidateDevice(const Device &device) {
-  if (device.get_master_fingerprint().empty()) {
-    throw HWIException(HWIException::MISSING_ARGUMENTS, "empty fingerprint");
+  if (device.get_master_fingerprint().empty() &&
+      (device.get_type().empty() || device.get_path().empty())) {
+    throw HWIException(HWIException::MISSING_ARGUMENTS,
+                       "Device type or fingerprint must be specified");
   }
 }
 
@@ -177,6 +179,26 @@ std::string HWIService::DisplayAddress(const Device &device,
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["address"];
+}
+
+void HWIService::PromptPin(const Device &device) const {
+  ValidateDevice(device);
+  std::vector<std::string> cmd_args = {"-t", device.get_type(), "-p",
+                                       device.get_path(), "promptpin"};
+  if (testnet_) {
+    cmd_args.insert(cmd_args.begin(), "--testnet");
+  }
+  ParseResponse(RunCmd(cmd_args));
+}
+
+void HWIService::SendPin(const Device &device, const std::string &pin) const {
+  ValidateDevice(device);
+  std::vector<std::string> cmd_args = {
+      "-t", device.get_type(), "-p", device.get_path(), "sendpin", pin};
+  if (testnet_) {
+    cmd_args.insert(cmd_args.begin(), "--testnet");
+  }
+  ParseResponse(RunCmd(cmd_args));
 }
 
 }  // namespace nunchuk

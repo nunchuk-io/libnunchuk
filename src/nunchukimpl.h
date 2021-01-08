@@ -147,6 +147,9 @@ class NunchukImpl : public Nunchuk {
   void DisplayAddressOnDevice(
       const std::string& wallet_id, const std::string& address,
       const std::string& device_fingerprint = {}) override;
+  void PromtPinOnDevice(const Device& device) override;
+  void SendPinToDevice(const Device& device, const std::string& pin) override;
+
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
   void AddBlockListener(
