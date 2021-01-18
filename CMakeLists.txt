@@ -32,6 +32,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/coreutils.cpp
     src/descriptor.cpp
     src/electrumclient.cpp
+    src/rpcclient.cpp
     src/coinselector.cpp
     src/storage.cpp
     src/nunchukimpl.cpp
