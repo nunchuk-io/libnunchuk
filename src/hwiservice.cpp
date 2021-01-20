@@ -97,7 +97,10 @@ std::vector<Device> HWIService::Enumerate() const {
 
   std::vector<Device> rs{};
   for (auto &el : enumerate.items()) {
-    if (el.value()["error"] != nullptr && el.value()["code"] != -18) {
+    if (el.value()["error"] != nullptr &&
+        el.value()["code"] != -18 &&  // device not initialized
+        el.value()["code"] != -12     // device not ready
+    ) {
       continue;
     }
     auto fingerprint = el.value()["fingerprint"];
