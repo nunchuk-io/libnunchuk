@@ -31,8 +31,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
-    src/electrumclient.cpp
-    src/rpcclient.cpp
+    src/backend/electrum/electrumclient.cpp
+    src/backend/corerpc/corerpcclient.cpp
     src/coinselector.cpp
     src/storage.cpp
     src/nunchukimpl.cpp

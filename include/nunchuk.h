@@ -36,6 +36,11 @@ enum class Chain {
   REGTEST,
 };
 
+enum class BackendType {
+  ELECTRUM,
+  CORERPC,
+};
+
 enum class WalletType {
   SINGLE_SIG,
   MULTI_SIG,
@@ -135,9 +140,11 @@ class NUNCHUK_EXPORT RPCException : public BaseException {
   // Error codes from contrib/bitcoin/src/rpc/protocol.h
   static const int RPC_MISC_ERROR = -3001;
   static const int RPC_TYPE_ERROR = -3003;
+  static const int RPC_WALLET_EXISTS = -3004;
   static const int RPC_INVALID_ADDRESS_OR_KEY = -3005;
   static const int RPC_OUT_OF_MEMORY = -3007;
   static const int RPC_INVALID_PARAMETER = -3008;
+  static const int RPC_WALLET_NOT_FOUND = -3018;
   static const int RPC_DATABASE_ERROR = -3020;
   static const int RPC_DESERIALIZATION_ERROR = -3022;
   static const int RPC_VERIFY_ERROR = -3025;
@@ -385,6 +392,7 @@ class NUNCHUK_EXPORT AppSettings {
   AppSettings();
 
   Chain get_chain() const;
+  BackendType get_backend_type() const;
   std::vector<std::string> get_mainnet_servers() const;
   std::vector<std::string> get_testnet_servers() const;
   std::string get_hwi_path() const;
@@ -395,8 +403,13 @@ class NUNCHUK_EXPORT AppSettings {
   std::string get_proxy_username() const;
   std::string get_proxy_password() const;
   std::string get_certificate_file() const;
+  std::string get_corerpc_host() const;
+  int get_corerpc_port() const;
+  std::string get_corerpc_username() const;
+  std::string get_corerpc_password() const;
 
   void set_chain(Chain value);
+  void set_backend_type(BackendType value);
   void set_mainnet_servers(const std::vector<std::string>& value);
   void set_testnet_servers(const std::vector<std::string>& value);
   void set_hwi_path(const std::string& value);
@@ -407,9 +420,14 @@ class NUNCHUK_EXPORT AppSettings {
   void set_proxy_username(const std::string& value);
   void set_proxy_password(const std::string& value);
   void set_certificate_file(const std::string& value);
+  void set_corerpc_host(const std::string& value);
+  void set_corerpc_port(int value);
+  void set_corerpc_username(const std::string& value);
+  void set_corerpc_password(const std::string& value);
 
  private:
   Chain chain_;
+  BackendType backend_type_;
   std::vector<std::string> mainnet_servers_;
   std::vector<std::string> testnet_servers_;
   std::string hwi_path_;
@@ -420,6 +438,10 @@ class NUNCHUK_EXPORT AppSettings {
   std::string proxy_username_;
   std::string proxy_password_;
   std::string certificate_file_;
+  std::string corerpc_host_;
+  int corerpc_port_;
+  std::string corerpc_username_;
+  std::string corerpc_password_;
 };
 
 class NUNCHUK_EXPORT Nunchuk {

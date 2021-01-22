@@ -10,7 +10,6 @@
 #include <nunchuk.h>
 #include <coreutils.h>
 #include <storage.h>
-#include <electrumclient.h>
 #include <synchronizer.h>
 
 namespace nunchuk {

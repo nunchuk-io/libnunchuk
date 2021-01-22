@@ -2,31 +2,33 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef NUNCHUK_RPC_CLIENT_H
-#define NUNCHUK_RPC_CLIENT_H
+#ifndef NUNCHUK_CORERPC_CLIENT_H
+#define NUNCHUK_CORERPC_CLIENT_H
 
 #include <nunchuk.h>
+#include <utils/json.hpp>
 
 namespace nunchuk {
 
-class RpcClient {
+class CoreRpcClient {
  public:
-  RpcClient(const nunchuk::AppSettings &appsettings);
-  ~RpcClient();
+  CoreRpcClient(const nunchuk::AppSettings &appsettings);
+  ~CoreRpcClient();
 
   void Broadcast(const std::string &raw_tx);
   Amount EstimateFee(int conf_target);
   Amount RelayFee();
-  int GetChainTip();
 
   // Creates and loads a new wallet.
   void ImportDescriptors(const std::string &descriptors);
   void CreateWallet();
   void LoadWallet();
-  void GetWalletInfo();
-  void ListTransactions();
-  void ListUnspent();
-  void GetTransaction(const std::string &tx_id);
+  nlohmann::json GetBlockchainInfo();
+  nlohmann::json GetWalletInfo();
+  nlohmann::json GetAddressInfo(const std::string &address);
+  nlohmann::json ListTransactions();
+  nlohmann::json ListUnspent();
+  nlohmann::json GetTransaction(const std::string &tx_id);
 
  private:
   std::string SendRequest(const std::string &path, const std::string &body);
@@ -40,4 +42,4 @@ class RpcClient {
 
 }  // namespace nunchuk
 
-#endif  // NUNCHUK_RPC_CLIENT_H
+#endif  // NUNCHUK_CORERPC_CLIENT_H

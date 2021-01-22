@@ -13,7 +13,7 @@ static int CACHE_SECOND = 600;  // 10 minutes
 static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 100;
 
-BlockSynchronizer::BlockSynchronizer(NunchukStorage* storage)
+Synchronizer::Synchronizer(NunchukStorage* storage)
     : storage_(storage),
       sync_thread_(),
       sync_worker_(make_work_guard(io_service_)) {
@@ -28,14 +28,21 @@ BlockSynchronizer::BlockSynchronizer(NunchukStorage* storage)
   });
 }
 
-BlockSynchronizer::~BlockSynchronizer() {
-  {
-    std::lock_guard<std::mutex> guard(status_mutex_);
-    status_ = Status::STOPPED;
-    status_cv_.notify_all();
-  }
+Synchronizer::~Synchronizer() {
+  std::cout << "~Synchronizer" << std::endl;
+
   sync_worker_.reset();
   sync_thread_.join();
+}
+
+BlockSynchronizer::~BlockSynchronizer() {
+  std::lock_guard<std::mutex> guard(status_mutex_);
+  status_ = Status::STOPPED;
+  status_cv_.notify_all();
+}
+
+RpcSynchronizer::~RpcSynchronizer() {
+  std::cout << "~RpcSynchronizer" << std::endl;
 }
 
 bool BlockSynchronizer::NeedUpdateClient(const AppSettings& new_settings) {
@@ -301,24 +308,180 @@ bool BlockSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   return true;
 }
 
-void BlockSynchronizer::AddBalanceListener(
+void Synchronizer::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {
   balance_listener_.connect(listener);
 }
 
-void BlockSynchronizer::AddBlockListener(
+void Synchronizer::AddBlockListener(
     std::function<void(int, std::string)> listener) {
   block_listener_.connect(listener);
 }
 
-void BlockSynchronizer::AddTransactionListener(
+void Synchronizer::AddTransactionListener(
     std::function<void(std::string, TransactionStatus)> listener) {
   transaction_listener_.connect(listener);
 }
 
-void BlockSynchronizer::AddBlockchainConnectionListener(
+void Synchronizer::AddBlockchainConnectionListener(
     std::function<void(ConnectionStatus)> listener) {
   connection_listener_.connect(listener);
+}
+
+void RpcSynchronizer::Run(const AppSettings& appsettings) {
+  app_settings_ = appsettings;
+  client_ = std::unique_ptr<CoreRpcClient>(new CoreRpcClient(app_settings_));
+  timer_.async_wait(
+      boost::bind(&RpcSynchronizer::BlockchainSync, this, placeholders::error));
+}
+
+void RpcSynchronizer::Broadcast(const std::string& raw_tx) {
+  client_->Broadcast(raw_tx);
+}
+
+Amount RpcSynchronizer::EstimateFee(int conf_target) {
+  return client_->EstimateFee(conf_target);
+}
+
+Amount RpcSynchronizer::RelayFee() { return client_->RelayFee(); }
+
+int RpcSynchronizer::GetChainTip() {
+  int rs = chain_tip_;
+  if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain());
+  return rs;
+}
+
+bool RpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
+                                const std::string& address, int index,
+                                bool internal) {
+  return false;
+}
+
+bool RpcSynchronizer::IsRpcReady() {
+  try {
+    auto info = client_->GetWalletInfo();
+    if (info["scanning"].is_boolean() && !info["scanning"].get<bool>()) {
+      return true;
+    } else {
+      connection_listener_(ConnectionStatus::SYNCING);
+      return false;
+    }
+  } catch (RPCException& re) {
+    if (re.code() != RPCException::RPC_WALLET_NOT_FOUND) throw;
+    CreateOrLoadWallet();
+    return IsRpcReady();
+  }
+}
+
+void RpcSynchronizer::CreateOrLoadWallet() {
+  try {
+    client_->CreateWallet();
+  } catch (RPCException& re) {
+    if (re.code() != RPCException::RPC_WALLET_EXISTS) throw;
+    client_->LoadWallet();
+  }
+}
+
+void RpcSynchronizer::BlockchainSync(const boost::system::error_code& error) {
+  timer_.expires_at(timer_.expires_at() + interval_);
+  timer_.async_wait(
+      boost::bind(&RpcSynchronizer::BlockchainSync, this, placeholders::error));
+
+  if (!IsRpcReady()) return;
+
+  auto chain = app_settings_.get_chain();
+  auto blockchain_info = client_->GetBlockchainInfo();
+  if (chain_tip_ != blockchain_info["blocks"].get<int>()) {
+    chain_tip_ = blockchain_info["blocks"].get<int>();
+    storage_->SetChainTip(chain, chain_tip_);
+    block_listener_(chain_tip_, blockchain_info["bestblockhash"]);
+  }
+
+  auto wallet_ids = storage_->ListWallets(chain);
+  auto all_utxos = client_->ListUnspent();
+  auto all_txs = client_->ListTransactions();
+  json descriptors;
+  for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
+    auto wallet_id = *i;
+    auto addresses = storage_->GetAllAddresses(chain, wallet_id);
+    if (addresses.empty()) continue;
+
+    // check if wallet descriptor is imported
+    auto address_info = client_->GetAddressInfo(addresses[0]);
+    if (!address_info["solvable"].get<bool>()) {
+      auto wallet = storage_->GetWallet(chain, wallet_id);
+      if (wallet.is_escrow()) {
+        descriptors.push_back({{"desc", wallet.get_descriptor(false)},
+                               {"active", true},
+                               {"timestamp", 0},
+                               {"internal", false},
+                               {"watchonly", true}});
+      } else {
+        descriptors.push_back({{"desc", wallet.get_descriptor(false)},
+                               {"active", true},
+                               {"range", 1000},
+                               {"timestamp", 0},
+                               {"internal", false},
+                               {"watchonly", true}});
+        descriptors.push_back({{"desc", wallet.get_descriptor(true)},
+                               {"active", true},
+                               {"range", 1000},
+                               {"timestamp", 0},
+                               {"internal", true},
+                               {"watchonly", true}});
+      }
+    }
+
+    for (auto a = addresses.rbegin(); a != addresses.rend(); ++a) {
+      auto address = *a;
+      json utxos;
+      for (auto&& utxo : all_utxos) {
+        if (utxo["address"].get<std::string>() == address) {
+          utxos.push_back(utxo);
+        }
+      }
+      storage_->SetUtxos(chain, wallet_id, address, utxos.dump());
+
+      for (auto it = all_txs.begin(); it != all_txs.end(); ++it) {
+        json item = it.value();
+        if (item["address"].get<std::string>() != address) {
+          continue;
+        }
+        std::string tx_id = item["txid"];
+        int height = item["blockheight"];
+        try {
+          Transaction tx = storage_->GetTransaction(chain, wallet_id, tx_id);
+          if (tx.get_status() != TransactionStatus::CONFIRMED && height > 0) {
+            auto tx = client_->GetTransaction(tx_id);
+            storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
+                                        tx["blocktime"]);
+            transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
+          }
+        } catch (StorageException& se) {
+          if (se.code() == StorageException::TX_NOT_FOUND) {
+            auto tx = client_->GetTransaction(tx_id);
+            time_t time =
+                tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
+            storage_->InsertTransaction(chain, wallet_id, tx["hex"], height,
+                                        time);
+            auto status = height <= 0 ? TransactionStatus::PENDING_CONFIRMATION
+                                      : TransactionStatus::CONFIRMED;
+            transaction_listener_(tx_id, status);
+          }
+        }
+      }
+    }
+
+    Amount balance = storage_->GetBalance(chain, wallet_id);
+    balance_listener_(wallet_id, balance);
+  }
+
+  if (!descriptors.empty()) {
+    connection_listener_(ConnectionStatus::SYNCING);
+    client_->ImportDescriptors(descriptors.dump());
+  } else {
+    connection_listener_(ConnectionStatus::ONLINE);
+  }
 }
 
 }  // namespace nunchuk

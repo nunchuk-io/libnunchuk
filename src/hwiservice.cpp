@@ -40,7 +40,7 @@ static void ValidateDevice(const Device &device) {
 static json ParseResponse(const std::string &resp) {
   json rs = json::parse(resp);
   if (rs["error"] != nullptr) {
-    throw HWIException(4000 + rs["code"].get<int>(),
+    throw HWIException(rs["code"].get<int>() - 4000,
                        rs["error"].get<std::string>());
   }
   return rs;

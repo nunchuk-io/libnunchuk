@@ -2,7 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "rpcclient.h"
+#include "corerpcclient.h"
 #include <utils/loguru.hpp>
 #include <utils/httplib.h>
 #include <util/strencodings.h>
@@ -23,13 +23,13 @@ static json ParseResponse(const std::string& resp) {
   if (rs["error"] != nullptr) {
     int code = rs["error"]["code"];
     std::string message = rs["error"]["message"];
-    throw RPCException(3000 + code, message.c_str());
+    throw RPCException(code - 3000, message.c_str());
   }
   return rs["result"];
 }
 
-std::string RpcClient::SendRequest(const std::string& path,
-                                   const std::string& body) {
+std::string CoreRpcClient::SendRequest(const std::string& path,
+                                       const std::string& body) {
   httplib::Client cli(host_, port_);
   httplib::Headers headers = {
       {"Authorization",
@@ -42,17 +42,17 @@ std::string RpcClient::SendRequest(const std::string& path,
   return "";
 }
 
-RpcClient::RpcClient(const AppSettings& appsettings) {
-  user_ = "electrumx";
-  pw_ = "iKC4xhLw92ny2NJjm9N8t0kk_F5aKA2VFelT2azc3C8=";
-  host_ = "18.141.210.87";
-  port_ = 18332;
+CoreRpcClient::CoreRpcClient(const AppSettings& appsettings) {
+  host_ = appsettings.get_corerpc_host();
+  port_ = appsettings.get_corerpc_port();
+  user_ = appsettings.get_corerpc_username();
+  pw_ = appsettings.get_corerpc_password();
   name_ = "nunchuk";
 }
 
-RpcClient::~RpcClient() {}
+CoreRpcClient::~CoreRpcClient() {}
 
-void RpcClient::Broadcast(const std::string& raw_tx) {
+void CoreRpcClient::Broadcast(const std::string& raw_tx) {
   json req = {{"method", "sendrawtransaction"},
               {"params", json::array({raw_tx})},
               {"id", "placeholder"}};
@@ -60,7 +60,7 @@ void RpcClient::Broadcast(const std::string& raw_tx) {
   ParseResponse(resp);
 }
 
-Amount RpcClient::EstimateFee(int conf_target) {
+Amount CoreRpcClient::EstimateFee(int conf_target) {
   json req = {{"method", "estimatesmartfee"},
               {"params", json::array({conf_target})},
               {"id", "placeholder"}};
@@ -72,7 +72,7 @@ Amount RpcClient::EstimateFee(int conf_target) {
   return Utils::AmountFromValue(rs["feerate"].dump());
 }
 
-Amount RpcClient::RelayFee() {
+Amount CoreRpcClient::RelayFee() {
   json req = {{"method", "getmempoolinfo"},
               {"params", json::array({})},
               {"id", "placeholder"}};
@@ -84,7 +84,7 @@ Amount RpcClient::RelayFee() {
   return Utils::AmountFromValue(rs["minrelaytxfee"].dump());
 }
 
-int RpcClient::GetChainTip() {
+json CoreRpcClient::GetBlockchainInfo() {
   json req = {{"method", "getblockchaininfo"},
               {"params", json::array({})},
               {"id", "placeholder"}};
@@ -92,11 +92,10 @@ int RpcClient::GetChainTip() {
   if (resp.empty()) {
     throw std::runtime_error("send rpc request error");
   }
-  json rs = ParseResponse(resp);
-  return rs["blocks"].get<int>();
+  return ParseResponse(resp);
 }
 
-void RpcClient::ImportDescriptors(const std::string& descriptors) {
+void CoreRpcClient::ImportDescriptors(const std::string& descriptors) {
   json options = {{"rescan", true}};
   json req = {{"method", "importmulti"},
               {"params", json::array({json::parse(descriptors), options})},
@@ -113,15 +112,23 @@ void RpcClient::ImportDescriptors(const std::string& descriptors) {
   }
 }
 
-void RpcClient::GetWalletInfo() {
+json CoreRpcClient::GetWalletInfo() {
   json req = {{"method", "getwalletinfo"},
               {"params", json::array({})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/wallet/" + name_, req.dump());
-  json rs = ParseResponse(resp);
+  return ParseResponse(resp);
 }
 
-void RpcClient::CreateWallet() {
+json CoreRpcClient::GetAddressInfo(const std::string& address) {
+  json req = {{"method", "getaddressinfo"},
+              {"params", json::array({address})},
+              {"id", "placeholder"}};
+  std::string resp = SendRequest("/wallet/" + name_, req.dump());
+  return ParseResponse(resp);
+}
+
+void CoreRpcClient::CreateWallet() {
   json req = {{"method", "createwallet"},
               {"params", json::array({name_, true, true, "", false})},
               {"id", "placeholder"}};
@@ -132,7 +139,7 @@ void RpcClient::CreateWallet() {
   }
 }
 
-void RpcClient::LoadWallet() {
+void CoreRpcClient::LoadWallet() {
   json req = {{"method", "loadwallet"},
               {"params", json::array({name_})},
               {"id", "placeholder"}};
@@ -143,22 +150,28 @@ void RpcClient::LoadWallet() {
   }
 }
 
-void RpcClient::ListTransactions() {
+json CoreRpcClient::ListTransactions() {
   json req = {{"method", "listtransactions"},
               {"params", json::array({"*", 1000, 0, true})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/wallet/" + name_, req.dump());
-  json rs = ParseResponse(resp);
+  return ParseResponse(resp);
 }
 
-void RpcClient::GetTransaction(const std::string& tx_id) {
+json CoreRpcClient::GetTransaction(const std::string& tx_id) {
   json req = {{"method", "gettransaction"},
               {"params", json::array({tx_id, true, true})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/wallet/" + name_, req.dump());
-  json rs = ParseResponse(resp);
+  return ParseResponse(resp);
 }
 
-void RpcClient::ListUnspent() {}
+json CoreRpcClient::ListUnspent() {
+  json req = {{"method", "listunspent"},
+              {"params", json::array({})},
+              {"id", "placeholder"}};
+  std::string resp = SendRequest("/wallet/" + name_, req.dump());
+  return ParseResponse(resp);
+}
 
 }  // namespace nunchuk

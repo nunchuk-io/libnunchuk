@@ -43,7 +43,7 @@ static json ParseResponse(const std::string &resp) {
   if (rs["error"] != nullptr) {
     int code = rs["error"]["code"];
     std::string message = rs["error"]["message"];
-    throw RPCException(3000 + code, message.c_str());
+    throw RPCException(code - 3000, message.c_str());
   }
   return rs["result"];
 }
@@ -64,7 +64,7 @@ std::string CoreUtils::FinalizePsbt(const std::string &combined) {
   json rs = ParseResponse(resp);
   if (!rs["complete"]) {
     throw NunchukException(NunchukException::PSBT_INCOMPLETE,
-                            "psbt incomplete");
+                           "psbt incomplete");
   }
   return rs["hex"];
 }
