@@ -30,6 +30,23 @@ Amount CoreRpcSynchronizer::RelayFee() { return client_->RelayFee(); }
 bool CoreRpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
                                     const std::string& address, int index,
                                     bool internal) {
+  json all_txs = client_->ListTransactions();
+  for (auto it = all_txs.begin(); it != all_txs.end(); ++it) {
+    json item = it.value();
+    if (item["address"].get<std::string>() == address) {
+      storage_->AddAddress(chain, wallet_id, address, index, internal);
+
+      json utxos;
+      auto all_utxos = client_->ListUnspent();
+      for (auto&& utxo : all_utxos) {
+        if (utxo["address"].get<std::string>() == address) {
+          utxos.push_back(utxo);
+        }
+      }
+      storage_->SetUtxos(chain, wallet_id, address, utxos.dump());
+      return true;
+    }
+  }
   return false;
 }
 
