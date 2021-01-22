@@ -31,13 +31,15 @@ add_library("${PROJECT_NAME}" STATIC
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
-    src/backend/electrum/electrumclient.cpp
-    src/backend/corerpc/corerpcclient.cpp
     src/coinselector.cpp
     src/storage.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
-    src/synchronizer.cpp
+    src/backend/synchronizer.cpp
+    src/backend/electrum/client.cpp
+    src/backend/electrum/synchronizer.cpp
+    src/backend/corerpc/client.cpp
+    src/backend/corerpc/synchronizer.cpp
     src/dto/appsettings.cpp
     src/dto/device.cpp
     src/dto/mastersigner.cpp

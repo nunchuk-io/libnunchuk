@@ -2,7 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "electrumclient.h"
+#include <backend/electrum/client.h>
 #include <utils/loguru.hpp>
 #include <boost/algorithm/string.hpp>
 

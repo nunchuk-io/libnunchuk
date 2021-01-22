@@ -27,11 +27,11 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
     : app_settings_(appsettings),
       storage_(app_settings_.get_storage_path(), passphrase),
       chain_(app_settings_.get_chain()),
-      hwi_(app_settings_.get_hwi_path(), chain_),
-      synchronizer_(&storage_) {
+      hwi_(app_settings_.get_hwi_path(), chain_) {
   CoreUtils::getInstance().SetChain(chain_);
   storage_.MaybeMigrate(chain_);
-  synchronizer_.Run(app_settings_);
+  synchronizer_ = MakeSynchronizer(app_settings_, &storage_);
+  synchronizer_->Run();
 }
 Nunchuk::~Nunchuk() = default;
 NunchukImpl::~NunchukImpl() {}
@@ -124,7 +124,7 @@ void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
   int index = is_escrow ? -1 : 0;
   std::string address;
   if (is_escrow) {
-    synchronizer_.LookAhead(chain_, wallet_id, address, index, false);
+    synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
     auto descriptor = storage_.GetDescriptor(chain_, wallet_id, false);
     address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
   } else {
@@ -145,7 +145,7 @@ std::string NunchukImpl::GetUnusedAddress(const std::string wallet_id,
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
     bool used =
-        synchronizer_.LookAhead(chain_, wallet_id, address, index, internal);
+        synchronizer_->LookAhead(chain_, wallet_id, address, index, internal);
     if (used) {
       for (auto&& a : unused_addresses) {
         storage_.AddAddress(chain_, wallet_id, a, index, internal);
@@ -417,7 +417,8 @@ std::string NunchukImpl::NewAddress(const std::string& wallet_id,
   int index = storage_.GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
-    if (!synchronizer_.LookAhead(chain_, wallet_id, address, index, internal)) {
+    if (!synchronizer_->LookAhead(chain_, wallet_id, address, index,
+                                  internal)) {
       storage_.AddAddress(chain_, wallet_id, address, index, internal);
       return address;
     }
@@ -508,7 +509,7 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
     storage_.UpdatePsbtTxId(chain_, wallet_id, tx_id, new_txid);
   }
   try {
-    synchronizer_.Broadcast(raw_tx);
+    synchronizer_->Broadcast(raw_tx);
   } catch (NunchukException& ne) {
     if (ne.code() == NunchukException::SERVER_REQUEST_ERROR &&
         boost::starts_with(ne.what(),
@@ -539,7 +540,10 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
   hwi_.SetPath(app_settings_.get_hwi_path());
   hwi_.SetChain(chain_);
   CoreUtils::getInstance().SetChain(chain_);
-  synchronizer_.Run(settings);
+  if (synchronizer_->NeedRecreate(settings)) {
+    synchronizer_ = MakeSynchronizer(app_settings_, &storage_);
+    synchronizer_->Run();
+  }
   return settings;
 }
 
@@ -642,10 +646,10 @@ std::string NunchukImpl::ImportHealthCheckSignature(
 }
 
 Amount NunchukImpl::EstimateFee(int conf_target) {
-  return synchronizer_.EstimateFee(conf_target);
+  return synchronizer_->EstimateFee(conf_target);
 }
 
-int NunchukImpl::GetChainTip() { return synchronizer_.GetChainTip(); }
+int NunchukImpl::GetChainTip() { return synchronizer_->GetChainTip(); }
 
 Amount NunchukImpl::GetTotalAmount(const std::string& wallet_id,
                                    const std::vector<TxInput>& inputs) {
@@ -703,17 +707,17 @@ void NunchukImpl::DisplayAddressOnDevice(
 
 void NunchukImpl::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {
-  synchronizer_.AddBalanceListener(listener);
+  synchronizer_->AddBalanceListener(listener);
 }
 
 void NunchukImpl::AddBlockListener(
     std::function<void(int, std::string)> listener) {
-  synchronizer_.AddBlockListener(listener);
+  synchronizer_->AddBlockListener(listener);
 }
 
 void NunchukImpl::AddTransactionListener(
     std::function<void(std::string, TransactionStatus)> listener) {
-  synchronizer_.AddTransactionListener(listener);
+  synchronizer_->AddTransactionListener(listener);
 }
 
 void NunchukImpl::AddDeviceListener(
@@ -723,7 +727,7 @@ void NunchukImpl::AddDeviceListener(
 
 void NunchukImpl::AddBlockchainConnectionListener(
     std::function<void(ConnectionStatus)> listener) {
-  synchronizer_.AddBlockchainConnectionListener(listener);
+  synchronizer_->AddBlockchainConnectionListener(listener);
 }
 
 std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
@@ -757,7 +761,7 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
   std::string desc = GetDescriptorsImportString(external_desc, internal_desc);
   CoinSelector selector{desc, change_address};
   selector.set_fee_rate(CFeeRate(fee_rate));
-  selector.set_discard_rate(CFeeRate(synchronizer_.RelayFee()));
+  selector.set_discard_rate(CFeeRate(synchronizer_->RelayFee()));
 
   // For escrow use all utxos as inputs
   if (!selector.Select(utxos, wallet.is_escrow() ? utxos : inputs,

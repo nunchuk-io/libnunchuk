@@ -117,6 +117,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_CHAIN = -1016;
   static const int INVALID_PARAMETER = -1017;
   static const int CREATE_DUMMY_SIGNATURE_ERROR = -1018;
+  static const int APP_RESTART_REQUIRED = -1019;
   using BaseException::BaseException;
 };
 
