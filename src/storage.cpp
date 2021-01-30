@@ -736,7 +736,8 @@ std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
   std::stringstream content;
   content << "# Exported from Nunchuk" << std::endl
           << "Name: " << wallet.get_name().substr(0, 20) << std::endl
-          << "Policy: " << wallet.get_m() << "/" << wallet.get_n() << std::endl
+          << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
+          << std::endl
           << "Format: "
           << (wallet.get_address_type() == AddressType::LEGACY
                   ? "P2SH"
@@ -745,13 +746,27 @@ std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
                         : "P2WSH-P2SH")
           << std::endl;
   if (is_cobo) {
-    // Cobo Vault firmware 2.3.1 use the default m/48'/1'/0'/2' for multi-sig
+    // Cobo Vault firmware 2.3.1 use the default paths for multi-sig
     if (chain_ == Chain::TESTNET) {
-      content << "Derivation: m/48'/1'/0'/2'" << std::endl;
+      if (wallet.get_address_type() == AddressType::NESTED_SEGWIT) {
+        content << "Derivation: m/48'/1'/0'/1'";
+      } else if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
+        content << "Derivation: m/48'/1'/0'/2'";
+      } else {
+        content << "Derivation: m/45'";
+      }
     } else {
-      content << "Derivation: m/48'/0'/0'/2'" << std::endl;
+      if (wallet.get_address_type() == AddressType::NESTED_SEGWIT) {
+        content << "Derivation: m/48'/0'/0'/1'";
+      } else if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
+        content << "Derivation: m/48'/0'/0'/2'";
+      } else {
+        content << "Derivation: m/45'";
+      }
     }
+    content << std::endl;
   }
+
   content << std::endl;
   for (auto&& signer : wallet.get_signers()) {
     if (!is_cobo) {
