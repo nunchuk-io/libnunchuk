@@ -14,7 +14,7 @@
 namespace {
 
 static std::regex NAME_REGEX("Name:(.+)");
-static std::regex POLICY_REGEX("Policy:([0-9]{1,2})(.+?)([0-9]{1,2})");
+static std::regex POLICY_REGEX("Policy: ([0-9]{1,2})(.+?)([0-9]{1,2})");
 static std::regex FORMAT_REGEX("Format:(.+)");
 static std::regex DERIVATION_REGEX("Derivation:(.+)");
 static std::regex XFP_REGEX("([0-9a-fA-F]{8}):(.+)");
