@@ -4,12 +4,13 @@
 
 #include <nunchuk.h>
 #include <vector>
+#include <descriptor.h>
 
 namespace nunchuk {
 
 Wallet::Wallet(const std::string& id, int m, int n,
-               const std::vector<SingleSigner>& signers, AddressType address_type,
-               bool is_escrow, time_t create_date)
+               const std::vector<SingleSigner>& signers,
+               AddressType address_type, bool is_escrow, time_t create_date)
     : id_(id),
       m_(m),
       n_(n),
@@ -30,5 +31,13 @@ std::string Wallet::get_description() const { return description_; }
 void Wallet::set_name(const std::string& value) { name_ = value; }
 void Wallet::set_balance(const Amount& value) { balance_ = value; }
 void Wallet::set_description(const std::string& value) { description_ = value; }
+
+std::string Wallet::get_descriptor(bool internal) const {
+  return GetDescriptorForSigners(
+      get_signers(), get_m(), internal, get_address_type(),
+      get_n() == 1
+          ? WalletType::SINGLE_SIG
+          : (is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG));
+}
 
 }  // namespace nunchuk

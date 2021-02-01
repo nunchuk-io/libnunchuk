@@ -817,8 +817,10 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
   };
   std::set<std::string> locked_utxos;
   std::map<std::string, std::string> memo_map;
+  std::map<std::string, int> height_map;
   for (auto&& tx : transactions) {
     memo_map[tx.get_txid()] = tx.get_memo();
+    height_map[tx.get_txid()] = tx.get_height();
     if (tx.get_height() != 0) continue;
     if (!remove_locked) continue;
     // remove UTXOs of unconfirmed transactions
@@ -839,17 +841,29 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
     json utxo_json = json::parse(utxo_str);
     for (auto it = utxo_json.begin(); it != utxo_json.end(); ++it) {
       json item = it.value();
-      if (locked_utxos.find(input_str(item["tx_hash"], item["tx_pos"])) !=
-          locked_utxos.end()) {
+      std::string txid;
+      int vout;
+      Amount amount;
+      if (item["tx_hash"] != nullptr) {  // electrum format
+        txid = item["tx_hash"];
+        vout = item["tx_pos"];
+        amount = Amount(item["value"]);
+      } else {  // bitcoin core rpc format
+        txid = item["txid"];
+        vout = item["vout"];
+        amount = Utils::AmountFromValue(item["amount"].dump());
+      }
+
+      if (locked_utxos.find(input_str(txid, vout)) != locked_utxos.end()) {
         continue;
       }
       UnspentOutput utxo;
-      utxo.set_txid(item["tx_hash"]);
-      utxo.set_vout(item["tx_pos"]);
+      utxo.set_txid(txid);
+      utxo.set_vout(vout);
       utxo.set_address(address);
-      utxo.set_amount(item["value"]);
-      utxo.set_height(item["height"]);
-      utxo.set_memo(memo_map[item["tx_hash"]]);
+      utxo.set_amount(amount);
+      utxo.set_height(height_map[txid]);
+      utxo.set_memo(memo_map[txid]);
       rs.push_back(utxo);
     }
     sqlite3_step(stmt);

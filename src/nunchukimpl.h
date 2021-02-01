@@ -10,8 +10,7 @@
 #include <nunchuk.h>
 #include <coreutils.h>
 #include <storage.h>
-#include <electrumclient.h>
-#include <synchronizer.h>
+#include <backend/synchronizer.h>
 
 namespace nunchuk {
 
@@ -193,7 +192,7 @@ class NunchukImpl : public Nunchuk {
   NunchukStorage storage_;
   Chain chain_;
   HWIService hwi_;
-  BlockSynchronizer synchronizer_;
+  std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
 };
 
