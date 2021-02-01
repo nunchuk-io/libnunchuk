@@ -731,23 +731,48 @@ std::string NunchukWalletDb::GetDescriptor(bool internal) const {
                                  wallet.get_address_type(), wallet_type);
 }
 
-std::string NunchukWalletDb::GetColdcardFile() const {
+std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
   Wallet wallet = GetWallet();
   std::stringstream content;
   content << "# Exported from Nunchuk" << std::endl
           << "Name: " << wallet.get_name().substr(0, 20) << std::endl
-          << "Policy: " << wallet.get_m() << "/" << wallet.get_n() << std::endl
+          << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
+          << std::endl
           << "Format: "
           << (wallet.get_address_type() == AddressType::LEGACY
                   ? "P2SH"
                   : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
                         ? "P2WSH"
                         : "P2WSH-P2SH")
-          << std::endl
           << std::endl;
+  if (is_cobo) {
+    // Cobo Vault firmware 2.3.1 use the default paths for multi-sig
+    if (chain_ == Chain::TESTNET) {
+      if (wallet.get_address_type() == AddressType::NESTED_SEGWIT) {
+        content << "Derivation: m/48'/1'/0'/1'";
+      } else if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
+        content << "Derivation: m/48'/1'/0'/2'";
+      } else {
+        content << "Derivation: m/45'";
+      }
+    } else {
+      if (wallet.get_address_type() == AddressType::NESTED_SEGWIT) {
+        content << "Derivation: m/48'/0'/0'/1'";
+      } else if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
+        content << "Derivation: m/48'/0'/0'/2'";
+      } else {
+        content << "Derivation: m/45'";
+      }
+    }
+    content << std::endl;
+  }
+
+  content << std::endl;
   for (auto&& signer : wallet.get_signers()) {
-    content << "Derivation: " << signer.get_derivation_path() << std::endl
-            << signer.get_master_fingerprint() << ": " << signer.get_xpub()
+    if (!is_cobo) {
+      content << "Derivation: " << signer.get_derivation_path() << std::endl;
+    }
+    content << signer.get_master_fingerprint() << ": " << signer.get_xpub()
             << std::endl
             << std::endl;
   }
@@ -1377,7 +1402,7 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
   auto wallet_db = GetWalletDb(chain, wallet_id);
   switch (format) {
     case ExportFormat::COLDCARD:
-      return WriteFile(file_path, wallet_db.GetColdcardFile());
+      return WriteFile(file_path, wallet_db.GetMultisigConfig());
     case ExportFormat::DESCRIPTOR: {
       std::stringstream descs;
       descs << wallet_db.GetDescriptor(false);
@@ -1547,17 +1572,27 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
       n == 1 ? WalletType::SINGLE_SIG
              : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
   for (auto&& signer : signers) {
-    if (signer.has_master_signer()) {
-      bool usable =
-          GetSignerDb(chain, signer.get_master_signer_id())
-              .UseIndex(wallet_type, address_type,
-                        GetIndexFromPath(signer.get_derivation_path()));
-      if (!usable) {
+    auto master_id = signer.get_master_fingerprint();
+    NunchukSignerDb signer_db{
+        chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+    if (signer_db.IsMaster() && signer.has_master_signer()) {
+      if (!signer_db.UseIndex(wallet_type, address_type,
+                              GetIndexFromPath(signer.get_derivation_path()))) {
         throw StorageException(StorageException::SIGNER_USED, "signer used!");
       }
     } else {
-      GetSignerDb(chain, signer.get_master_fingerprint())
-          .UseRemote(signer.get_derivation_path());
+      try {
+        signer_db.GetRemoteSigner(signer.get_derivation_path());
+        signer_db.UseRemote(signer.get_derivation_path());
+      } catch (StorageException& se) {
+        if (se.code() == StorageException::SIGNER_NOT_FOUND) {
+          signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                              signer.get_public_key(),
+                              signer.get_derivation_path(), true);
+        } else {
+          throw;
+        }
+      }
     }
   }
   std::string external_desc =
@@ -2046,4 +2081,10 @@ Amount NunchukStorage::GetAddressBalance(Chain chain,
   return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
+std::string NunchukStorage::GetMultisigConfig(Chain chain,
+                                              const std::string& wallet_id,
+                                              bool is_cobo) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetMultisigConfig(is_cobo);
+}
 }  // namespace nunchuk

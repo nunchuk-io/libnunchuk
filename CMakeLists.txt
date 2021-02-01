@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(Boost_USE_STATIC_LIBS ON)
 set(OPENSSL_USE_STATIC_LIBS ON)
+set(UR__DISABLE_TESTS ON)
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
@@ -26,6 +27,7 @@ else()
 endif()
 
 add_subdirectory(embedded)
+add_subdirectory(contrib/bc-ur-cpp)
 
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
@@ -52,6 +54,7 @@ add_library("${PROJECT_NAME}" STATIC
 
 set(PROJECT_LIBRARIES
     embedded
+    ur
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
 )

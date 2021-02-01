@@ -74,6 +74,7 @@ enum class ExportFormat {
   DB,
   DESCRIPTOR,
   COLDCARD,
+  COBO,
   CSV,
 };
 
@@ -118,6 +119,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_PARAMETER = -1017;
   static const int CREATE_DUMMY_SIGNATURE_ERROR = -1018;
   static const int APP_RESTART_REQUIRED = -1019;
+  static const int INVALID_FORMAT = -1020;
   using BaseException::BaseException;
 };
 
@@ -472,6 +474,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportWalletDescriptor(
       const std::string& file_path, const std::string& name,
       const std::string& description = {}) = 0;
+  virtual Wallet ImportWalletConfigFile(
+      const std::string& file_path, const std::string& description = {}) = 0;
 
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -561,6 +565,18 @@ class NUNCHUK_EXPORT Nunchuk {
                                 const std::vector<TxInput>& inputs) = 0;
   virtual std::string GetSelectedWallet() = 0;
   virtual bool SetSelectedWallet(const std::string& wallet_id) = 0;
+
+  virtual SingleSigner CreateCoboSigner(const std::string& name,
+                                        const std::string& json_info) = 0;
+  virtual std::vector<std::string> ExportCoboWallet(
+      const std::string& wallet_id) = 0;
+  virtual std::vector<std::string> ExportCoboTransaction(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual Transaction ImportCoboTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) = 0;
+  virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
+                                  const std::string& description = {}) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
