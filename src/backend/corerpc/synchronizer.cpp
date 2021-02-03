@@ -9,27 +9,40 @@ using json = nlohmann::json;
 
 namespace nunchuk {
 
-CoreRpcSynchronizer::~CoreRpcSynchronizer() {}
+CoreRpcSynchronizer::~CoreRpcSynchronizer() { stopped = true; }
 
 void CoreRpcSynchronizer::Run() {
+  connection_listener_(ConnectionStatus::OFFLINE, 0);
   client_ = std::unique_ptr<CoreRpcClient>(new CoreRpcClient(app_settings_));
   timer_.async_wait(boost::bind(&CoreRpcSynchronizer::BlockchainSync, this,
                                 placeholders::error));
 }
 
 void CoreRpcSynchronizer::Broadcast(const std::string& raw_tx) {
+  if (stopped)
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
   client_->Broadcast(raw_tx);
 }
 
 Amount CoreRpcSynchronizer::EstimateFee(int conf_target) {
+  if (stopped)
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
   return client_->EstimateFee(conf_target);
 }
 
-Amount CoreRpcSynchronizer::RelayFee() { return client_->RelayFee(); }
+Amount CoreRpcSynchronizer::RelayFee() {
+  if (stopped)
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  return client_->RelayFee();
+}
 
 bool CoreRpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
                                     const std::string& address, int index,
                                     bool internal) {
+  if (stopped) return false;
   json all_txs = client_->ListTransactions();
   for (auto it = all_txs.begin(); it != all_txs.end(); ++it) {
     json item = it.value();
@@ -50,13 +63,20 @@ bool CoreRpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   return false;
 }
 
+void CoreRpcSynchronizer::RescanBlockchain(int start_height, int stop_height) {
+  if (stopped) return;
+  client_->RescanBlockchain(start_height, stop_height);
+}
+
 bool CoreRpcSynchronizer::IsRpcReady() {
   try {
+    if (stopped) return false;
     auto info = client_->GetWalletInfo();
     if (info["scanning"].is_boolean() && !info["scanning"].get<bool>()) {
       return true;
     } else {
-      connection_listener_(ConnectionStatus::SYNCING);
+      int progress = info["scanning"]["progress"].get<double>() * 100;
+      connection_listener_(ConnectionStatus::SYNCING, progress);
       return false;
     }
   } catch (RPCException& re) {
@@ -77,6 +97,7 @@ void CoreRpcSynchronizer::CreateOrLoadWallet() {
 
 void CoreRpcSynchronizer::BlockchainSync(
     const boost::system::error_code& error) {
+  if (stopped) return;
   timer_.expires_at(timer_.expires_at() + interval_);
   timer_.async_wait(boost::bind(&CoreRpcSynchronizer::BlockchainSync, this,
                                 placeholders::error));
@@ -171,10 +192,10 @@ void CoreRpcSynchronizer::BlockchainSync(
   }
 
   if (!descriptors.empty()) {
-    connection_listener_(ConnectionStatus::SYNCING);
+    connection_listener_(ConnectionStatus::SYNCING, 0);
     client_->ImportDescriptors(descriptors.dump());
   } else {
-    connection_listener_(ConnectionStatus::ONLINE);
+    connection_listener_(ConnectionStatus::ONLINE, 100);
   }
 }
 

@@ -23,6 +23,7 @@ class CoreRpcClient {
   void ImportDescriptors(const std::string &descriptors);
   void CreateWallet();
   void LoadWallet();
+  void RescanBlockchain(int start_height, int stop_height = -1);
   nlohmann::json GetBlockchainInfo();
   nlohmann::json GetWalletInfo();
   nlohmann::json GetAddressInfo(const std::string &address);

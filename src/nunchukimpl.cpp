@@ -783,6 +783,10 @@ Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
   return ImportWalletFromConfig(config_str, description);
 }
 
+void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
+  synchronizer_->RescanBlockchain(start_height, stop_height);
+}
+
 void NunchukImpl::AddBalanceListener(
     std::function<void(std::string, Amount)> listener) {
   synchronizer_->AddBalanceListener(listener);
@@ -804,7 +808,7 @@ void NunchukImpl::AddDeviceListener(
 }
 
 void NunchukImpl::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus)> listener) {
+    std::function<void(ConnectionStatus, int)> listener) {
   synchronizer_->AddBlockchainConnectionListener(listener);
 }
 

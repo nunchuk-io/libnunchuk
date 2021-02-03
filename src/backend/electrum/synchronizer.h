@@ -25,6 +25,7 @@ class ElectrumSynchronizer : public Synchronizer {
   Amount RelayFee();
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal);
+  void RescanBlockchain(int start_height, int stop_height);
 
   void Run();
 

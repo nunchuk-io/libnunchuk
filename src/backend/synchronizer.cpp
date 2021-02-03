@@ -93,7 +93,7 @@ void Synchronizer::AddTransactionListener(
 }
 
 void Synchronizer::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus)> listener) {
+    std::function<void(ConnectionStatus, int)> listener) {
   connection_listener_.connect(listener);
 }
 

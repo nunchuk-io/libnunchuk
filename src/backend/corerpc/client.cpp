@@ -65,9 +65,6 @@ Amount CoreRpcClient::EstimateFee(int conf_target) {
               {"params", json::array({conf_target})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/", req.dump());
-  if (resp.empty()) {
-    throw std::runtime_error("send rpc request error");
-  }
   json rs = ParseResponse(resp);
   return Utils::AmountFromValue(rs["feerate"].dump());
 }
@@ -77,9 +74,6 @@ Amount CoreRpcClient::RelayFee() {
               {"params", json::array({})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/", req.dump());
-  if (resp.empty()) {
-    throw std::runtime_error("send rpc request error");
-  }
   json rs = ParseResponse(resp);
   return Utils::AmountFromValue(rs["minrelaytxfee"].dump());
 }
@@ -89,9 +83,6 @@ json CoreRpcClient::GetBlockchainInfo() {
               {"params", json::array({})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/", req.dump());
-  if (resp.empty()) {
-    throw std::runtime_error("send rpc request error");
-  }
   return ParseResponse(resp);
 }
 
@@ -101,9 +92,6 @@ void CoreRpcClient::ImportDescriptors(const std::string& descriptors) {
               {"params", json::array({json::parse(descriptors), options})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/wallet/" + name_, req.dump());
-  if (resp.empty()) {
-    throw std::runtime_error("send rpc request error");
-  }
   json rs = ParseResponse(resp);
   for (auto& el : rs.items()) {
     if (!el.value()["success"]) {
@@ -148,6 +136,15 @@ void CoreRpcClient::LoadWallet() {
   if (rs["name"] != name_) {
     throw std::runtime_error("load wallet error");
   }
+}
+
+void CoreRpcClient::RescanBlockchain(int start_height, int stop_height) {
+  json params = stop_height > 0 ? json::array({start_height, stop_height})
+                                : json::array({start_height});
+  json req = {{"method", "rescanblockchain"},
+              {"params", params},
+              {"id", "placeholder"}};
+  SendRequest("/wallet/" + name_, req.dump());
 }
 
 json CoreRpcClient::ListTransactions() {

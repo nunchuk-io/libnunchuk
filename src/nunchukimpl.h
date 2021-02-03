@@ -162,6 +162,7 @@ class NunchukImpl : public Nunchuk {
       const std::vector<std::string>& qr_data) override;
   Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                           const std::string& description = {}) override;
+  void RescanBlockchain(int start_height, int stop_height = -1) override;
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
@@ -172,7 +173,7 @@ class NunchukImpl : public Nunchuk {
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus)> listener) override;
+      std::function<void(ConnectionStatus, int)> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,

@@ -577,6 +577,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<std::string>& qr_data) = 0;
   virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                                   const std::string& description = {}) = 0;
+  virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
@@ -592,7 +593,7 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(std::string /* fingerprint */, bool /* connected */)>
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus)> listener) = 0;
+      std::function<void(ConnectionStatus, int /* percent */)> listener) = 0;
 
   // The following methods use HWI to interact with the devices. They might take
   // a long time or require user inputs on device. Depending on the platform,

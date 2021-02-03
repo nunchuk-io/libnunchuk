@@ -28,7 +28,7 @@ class Synchronizer {
   void AddTransactionListener(
       std::function<void(std::string, TransactionStatus)> listener);
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus)> listener);
+      std::function<void(ConnectionStatus, int)> listener);
 
   virtual void Broadcast(const std::string& raw_tx) = 0;
   virtual Amount EstimateFee(int conf_target) = 0;
@@ -36,6 +36,7 @@ class Synchronizer {
   virtual bool LookAhead(Chain chain, const std::string& wallet_id,
                          const std::string& address, int index,
                          bool internal) = 0;
+  virtual void RescanBlockchain(int start_height, int stop_height) = 0;
 
   virtual void Run() = 0;
 
@@ -56,7 +57,7 @@ class Synchronizer {
   boost::signals2::signal<void(int, std::string)> block_listener_;
   boost::signals2::signal<void(std::string, TransactionStatus)>
       transaction_listener_;
-  boost::signals2::signal<void(ConnectionStatus)> connection_listener_;
+  boost::signals2::signal<void(ConnectionStatus, int)> connection_listener_;
 };
 
 std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& app_settings,

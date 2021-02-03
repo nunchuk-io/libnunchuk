@@ -23,6 +23,8 @@ class CoreRpcSynchronizer : public Synchronizer {
   Amount RelayFee() override;
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal) override;
+  void RescanBlockchain(int start_height, int stop_height) override;
+
   void Run() override;
 
  private:
@@ -33,6 +35,7 @@ class CoreRpcSynchronizer : public Synchronizer {
   std::unique_ptr<CoreRpcClient> client_;
   boost::posix_time::seconds interval_{300};  // 5 minutes
   boost::asio::deadline_timer timer_{io_service_, interval_};
+  bool stopped = false;
 };
 
 }  // namespace nunchuk

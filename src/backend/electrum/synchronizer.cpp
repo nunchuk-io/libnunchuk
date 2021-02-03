@@ -136,7 +136,7 @@ std::string ElectrumSynchronizer::SubscribeAddress(const std::string& wallet_id,
 }
 
 void ElectrumSynchronizer::BlockchainSync(Chain chain) {
-  connection_listener_(ConnectionStatus::OFFLINE);
+  connection_listener_(ConnectionStatus::OFFLINE, 0);
   {
     std::unique_lock<std::mutex> lock_(status_mutex_);
     if (status_ != Status::READY && status_ != Status::SYNCING) return;
@@ -145,7 +145,7 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
       storage_->SetChainTip(app_settings_.get_chain(), chain_tip_);
       block_listener_(rs[0]["height"], rs[0]["hex"]);
     });
-    connection_listener_(ConnectionStatus::SYNCING);
+    connection_listener_(ConnectionStatus::SYNCING, 0);
     chain_tip_ = header["height"];
     storage_->SetChainTip(chain, header["height"]);
     block_listener_(header["height"], header["hex"]);
@@ -154,6 +154,7 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
     });
   }
   auto wallet_ids = storage_->ListWallets(chain);
+  int process = 0;
   for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
     auto wallet_id = *i;
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
@@ -164,15 +165,16 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
       auto scripthash = SubscribeAddress(wallet_id, address);
       json utxo = client_->blockchain_scripthash_listunspent(scripthash);
       storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
-      json history =
-          client_->blockchain_scripthash_get_history(scripthash);
+      json history = client_->blockchain_scripthash_get_history(scripthash);
       UpdateTransactions(chain, wallet_id, history);
       std::this_thread::sleep_for(std::chrono::milliseconds(SUBCRIBE_DELAY_MS));
     }
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);
+    connection_listener_(ConnectionStatus::SYNCING,
+                         ++process * 100 / wallet_ids.size());
   }
-  connection_listener_(ConnectionStatus::ONLINE);
+  connection_listener_(ConnectionStatus::ONLINE, 100);
 }
 
 void ElectrumSynchronizer::Broadcast(const std::string& raw_tx) {
@@ -240,6 +242,9 @@ bool ElectrumSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   json utxo = client_->blockchain_scripthash_listunspent(scripthash);
   storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
   return true;
+}
+
+void ElectrumSynchronizer::RescanBlockchain(int start_height, int stop_height) {
 }
 
 }  // namespace nunchuk
