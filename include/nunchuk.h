@@ -36,6 +36,11 @@ enum class Chain {
   REGTEST,
 };
 
+enum class BackendType {
+  ELECTRUM,
+  CORERPC,
+};
+
 enum class WalletType {
   SINGLE_SIG,
   MULTI_SIG,
@@ -69,6 +74,7 @@ enum class ExportFormat {
   DB,
   DESCRIPTOR,
   COLDCARD,
+  COBO,
   CSV,
 };
 
@@ -112,6 +118,8 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_CHAIN = -1016;
   static const int INVALID_PARAMETER = -1017;
   static const int CREATE_DUMMY_SIGNATURE_ERROR = -1018;
+  static const int APP_RESTART_REQUIRED = -1019;
+  static const int INVALID_FORMAT = -1020;
   using BaseException::BaseException;
 };
 
@@ -135,9 +143,11 @@ class NUNCHUK_EXPORT RPCException : public BaseException {
   // Error codes from contrib/bitcoin/src/rpc/protocol.h
   static const int RPC_MISC_ERROR = -3001;
   static const int RPC_TYPE_ERROR = -3003;
+  static const int RPC_WALLET_EXISTS = -3004;
   static const int RPC_INVALID_ADDRESS_OR_KEY = -3005;
   static const int RPC_OUT_OF_MEMORY = -3007;
   static const int RPC_INVALID_PARAMETER = -3008;
+  static const int RPC_WALLET_NOT_FOUND = -3018;
   static const int RPC_DATABASE_ERROR = -3020;
   static const int RPC_DESERIALIZATION_ERROR = -3022;
   static const int RPC_VERIFY_ERROR = -3025;
@@ -270,6 +280,7 @@ class NUNCHUK_EXPORT Wallet {
   Amount get_balance() const;
   time_t get_create_date() const;
   std::string get_description() const;
+  std::string get_descriptor(bool internal) const;
   void set_name(const std::string& value);
   void set_balance(const Amount& value);
   void set_description(const std::string& value);
@@ -384,6 +395,7 @@ class NUNCHUK_EXPORT AppSettings {
   AppSettings();
 
   Chain get_chain() const;
+  BackendType get_backend_type() const;
   std::vector<std::string> get_mainnet_servers() const;
   std::vector<std::string> get_testnet_servers() const;
   std::string get_hwi_path() const;
@@ -394,8 +406,13 @@ class NUNCHUK_EXPORT AppSettings {
   std::string get_proxy_username() const;
   std::string get_proxy_password() const;
   std::string get_certificate_file() const;
+  std::string get_corerpc_host() const;
+  int get_corerpc_port() const;
+  std::string get_corerpc_username() const;
+  std::string get_corerpc_password() const;
 
   void set_chain(Chain value);
+  void set_backend_type(BackendType value);
   void set_mainnet_servers(const std::vector<std::string>& value);
   void set_testnet_servers(const std::vector<std::string>& value);
   void set_hwi_path(const std::string& value);
@@ -406,9 +423,14 @@ class NUNCHUK_EXPORT AppSettings {
   void set_proxy_username(const std::string& value);
   void set_proxy_password(const std::string& value);
   void set_certificate_file(const std::string& value);
+  void set_corerpc_host(const std::string& value);
+  void set_corerpc_port(int value);
+  void set_corerpc_username(const std::string& value);
+  void set_corerpc_password(const std::string& value);
 
  private:
   Chain chain_;
+  BackendType backend_type_;
   std::vector<std::string> mainnet_servers_;
   std::vector<std::string> testnet_servers_;
   std::string hwi_path_;
@@ -419,6 +441,10 @@ class NUNCHUK_EXPORT AppSettings {
   std::string proxy_username_;
   std::string proxy_password_;
   std::string certificate_file_;
+  std::string corerpc_host_;
+  int corerpc_port_;
+  std::string corerpc_username_;
+  std::string corerpc_password_;
 };
 
 class NUNCHUK_EXPORT Nunchuk {
@@ -448,6 +474,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportWalletDescriptor(
       const std::string& file_path, const std::string& name,
       const std::string& description = {}) = 0;
+  virtual Wallet ImportWalletConfigFile(
+      const std::string& file_path, const std::string& description = {}) = 0;
 
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -538,6 +566,19 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::string GetSelectedWallet() = 0;
   virtual bool SetSelectedWallet(const std::string& wallet_id) = 0;
 
+  virtual SingleSigner CreateCoboSigner(const std::string& name,
+                                        const std::string& json_info) = 0;
+  virtual std::vector<std::string> ExportCoboWallet(
+      const std::string& wallet_id) = 0;
+  virtual std::vector<std::string> ExportCoboTransaction(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual Transaction ImportCoboTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) = 0;
+  virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
+                                  const std::string& description = {}) = 0;
+  virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
+
   // Add listener methods
   virtual void AddBalanceListener(
       std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>
@@ -552,7 +593,7 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(std::string /* fingerprint */, bool /* connected */)>
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus)> listener) = 0;
+      std::function<void(ConnectionStatus, int /* percent */)> listener) = 0;
 
   // The following methods use HWI to interact with the devices. They might take
   // a long time or require user inputs on device. Depending on the platform,

@@ -47,7 +47,8 @@ inline CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
 }
 
 inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
-    const CMutableTransaction& mtx, int height) {
+    const CMutableTransaction& mtx,
+    const std::vector<nunchuk::SingleSigner>& signers, int height) {
   using namespace nunchuk;
 
   Transaction tx{};
@@ -60,6 +61,9 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
     std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
     tx.add_output({address, output.nValue});
   }
+  for (auto&& signer : signers) {
+    tx.set_signer(signer.get_master_fingerprint(), height != -1);
+  }
   if (height == 0) {
     tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
   } else if (height == -2) {
@@ -71,13 +75,32 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
 }
 
 inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
-    const PartiallySignedTransaction& psbtx, int m) {
+    const PartiallySignedTransaction& psbtx,
+    const std::vector<nunchuk::SingleSigner>& signers, int m) {
   using namespace nunchuk;
-  Transaction tx = GetTransactionFromCMutableTransaction(psbtx.tx.get(), -1);
+  Transaction tx =
+      GetTransactionFromCMutableTransaction(psbtx.tx.get(), signers, -1);
   tx.set_m(m);
 
   // Parse partial sigs
   const PSBTInput& input = psbtx.inputs[0];
+
+  if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
+    auto psbt = DecodePsbt(EncodePsbt(psbtx));
+    if (FinalizePSBT(psbt)) {
+      for (auto&& signer : signers) {
+        tx.set_signer(signer.get_master_fingerprint(), true);
+      }
+      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+    } else {
+      for (auto&& signer : signers) {
+        tx.set_signer(signer.get_master_fingerprint(), false);
+      }
+      tx.set_status(TransactionStatus::PENDING_SIGNATURES);
+    }
+    return tx;
+  }
+
   std::vector<std::string> signed_pubkey;
   if (!input.partial_sigs.empty()) {
     for (const auto& sig : input.partial_sigs) {

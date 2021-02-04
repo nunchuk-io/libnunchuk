@@ -10,8 +10,7 @@
 #include <nunchuk.h>
 #include <coreutils.h>
 #include <storage.h>
-#include <electrumclient.h>
-#include <synchronizer.h>
+#include <backend/synchronizer.h>
 
 namespace nunchuk {
 
@@ -40,6 +39,8 @@ class NunchukImpl : public Nunchuk {
   Wallet ImportWalletDb(const std::string& file_path) override;
   Wallet ImportWalletDescriptor(const std::string& file_path,
                                 const std::string& name,
+                                const std::string& description = {}) override;
+  Wallet ImportWalletConfigFile(const std::string& file_path,
                                 const std::string& description = {}) override;
 
   std::vector<Device> GetDevices() override;
@@ -150,6 +151,19 @@ class NunchukImpl : public Nunchuk {
   void PromtPinOnDevice(const Device& device) override;
   void SendPinToDevice(const Device& device, const std::string& pin) override;
 
+  SingleSigner CreateCoboSigner(const std::string& name,
+                                const std::string& json_info) override;
+  std::vector<std::string> ExportCoboWallet(
+      const std::string& wallet_id) override;
+  std::vector<std::string> ExportCoboTransaction(
+      const std::string& wallet_id, const std::string& tx_id) override;
+  Transaction ImportCoboTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) override;
+  Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
+                          const std::string& description = {}) override;
+  void RescanBlockchain(int start_height, int stop_height = -1) override;
+
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
   void AddBlockListener(
@@ -159,7 +173,7 @@ class NunchukImpl : public Nunchuk {
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus)> listener) override;
+      std::function<void(ConnectionStatus, int)> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -167,6 +181,9 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput> inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
+  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt);
+  Wallet ImportWalletFromConfig(const std::string& config,
+                                const std::string& description);
   void ScanNewWallet(const std::string wallet_id, bool is_escrow);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const std::string wallet_id, int& index,
@@ -176,7 +193,7 @@ class NunchukImpl : public Nunchuk {
   NunchukStorage storage_;
   Chain chain_;
   HWIService hwi_;
-  BlockSynchronizer synchronizer_;
+  std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
 };
 

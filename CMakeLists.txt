@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(Boost_USE_STATIC_LIBS ON)
 set(OPENSSL_USE_STATIC_LIBS ON)
+set(UR__DISABLE_TESTS ON)
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
@@ -26,17 +27,21 @@ else()
 endif()
 
 add_subdirectory(embedded)
+add_subdirectory(contrib/bc-ur-cpp)
 
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
-    src/electrumclient.cpp
     src/coinselector.cpp
     src/storage.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
-    src/synchronizer.cpp
+    src/backend/synchronizer.cpp
+    src/backend/electrum/client.cpp
+    src/backend/electrum/synchronizer.cpp
+    src/backend/corerpc/client.cpp
+    src/backend/corerpc/synchronizer.cpp
     src/dto/appsettings.cpp
     src/dto/device.cpp
     src/dto/mastersigner.cpp
@@ -49,6 +54,7 @@ add_library("${PROJECT_NAME}" STATIC
 
 set(PROJECT_LIBRARIES
     embedded
+    ur
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
 )

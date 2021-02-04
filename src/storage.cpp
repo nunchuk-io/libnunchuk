@@ -497,8 +497,8 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     if (sqlite3_column_text(stmt, 1)) {
       std::string value = std::string((char*)sqlite3_column_text(stmt, 0));
       extra = std::string((char*)sqlite3_column_text(stmt, 1));
-      Transaction tx =
-          GetTransactionFromPartiallySignedTransaction(DecodePsbt(value), 0);
+      Transaction tx = GetTransactionFromPartiallySignedTransaction(
+          DecodePsbt(value), GetSigners(), 0);
 
       json extra_json = json::parse(extra);
       extra_json["signers"] = tx.get_signers();
@@ -674,10 +674,11 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
     int m = immutable_data["m"];
 
+    auto signers = GetSigners();
     auto tx = height == -1 ? GetTransactionFromPartiallySignedTransaction(
-                                 DecodePsbt(value), m)
+                                 DecodePsbt(value), signers, m)
                            : GetTransactionFromCMutableTransaction(
-                                 DecodeRawTransaction(value), height);
+                                 DecodeRawTransaction(value), signers, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
@@ -690,13 +691,6 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     // become false
     tx.set_receive(false);
     tx.set_sub_amount(0);
-
-    if (height >= 0) {
-      auto singers = GetSigners();
-      for (auto&& signer : singers) {
-        tx.set_signer(signer.get_master_fingerprint(), false);
-      }
-    }
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
@@ -731,23 +725,25 @@ std::string NunchukWalletDb::GetDescriptor(bool internal) const {
                                  wallet.get_address_type(), wallet_type);
 }
 
-std::string NunchukWalletDb::GetColdcardFile() const {
+std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
   Wallet wallet = GetWallet();
   std::stringstream content;
   content << "# Exported from Nunchuk" << std::endl
           << "Name: " << wallet.get_name().substr(0, 20) << std::endl
-          << "Policy: " << wallet.get_m() << "/" << wallet.get_n() << std::endl
+          << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
+          << std::endl
           << "Format: "
           << (wallet.get_address_type() == AddressType::LEGACY
                   ? "P2SH"
                   : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
                         ? "P2WSH"
                         : "P2WSH-P2SH")
-          << std::endl
           << std::endl;
+
+  content << std::endl;
   for (auto&& signer : wallet.get_signers()) {
-    content << "Derivation: " << signer.get_derivation_path() << std::endl
-            << signer.get_master_fingerprint() << ": " << signer.get_xpub()
+    content << "Derivation: " << signer.get_derivation_path() << std::endl;
+    content << signer.get_master_fingerprint() << ": " << signer.get_xpub()
             << std::endl
             << std::endl;
   }
@@ -792,8 +788,10 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
   };
   std::set<std::string> locked_utxos;
   std::map<std::string, std::string> memo_map;
+  std::map<std::string, int> height_map;
   for (auto&& tx : transactions) {
     memo_map[tx.get_txid()] = tx.get_memo();
+    height_map[tx.get_txid()] = tx.get_height();
     if (tx.get_height() != 0) continue;
     if (!remove_locked) continue;
     // remove UTXOs of unconfirmed transactions
@@ -814,17 +812,29 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
     json utxo_json = json::parse(utxo_str);
     for (auto it = utxo_json.begin(); it != utxo_json.end(); ++it) {
       json item = it.value();
-      if (locked_utxos.find(input_str(item["tx_hash"], item["tx_pos"])) !=
-          locked_utxos.end()) {
+      std::string txid;
+      int vout;
+      Amount amount;
+      if (item["tx_hash"] != nullptr) {  // electrum format
+        txid = item["tx_hash"];
+        vout = item["tx_pos"];
+        amount = Amount(item["value"]);
+      } else {  // bitcoin core rpc format
+        txid = item["txid"];
+        vout = item["vout"];
+        amount = Utils::AmountFromValue(item["amount"].dump());
+      }
+
+      if (locked_utxos.find(input_str(txid, vout)) != locked_utxos.end()) {
         continue;
       }
       UnspentOutput utxo;
-      utxo.set_txid(item["tx_hash"]);
-      utxo.set_vout(item["tx_pos"]);
+      utxo.set_txid(txid);
+      utxo.set_vout(vout);
       utxo.set_address(address);
-      utxo.set_amount(item["value"]);
-      utxo.set_height(item["height"]);
-      utxo.set_memo(memo_map[item["tx_hash"]]);
+      utxo.set_amount(amount);
+      utxo.set_height(height_map[txid]);
+      utxo.set_memo(memo_map[txid]);
       rs.push_back(utxo);
     }
     sqlite3_step(stmt);
@@ -853,23 +863,17 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
     int m = immutable_data["m"];
 
+    auto signers = GetSigners();
     auto tx = height == -1 ? GetTransactionFromPartiallySignedTransaction(
-                                 DecodePsbt(value), m)
+                                 DecodePsbt(value), signers, m)
                            : GetTransactionFromCMutableTransaction(
-                                 DecodeRawTransaction(value), height);
+                                 DecodeRawTransaction(value), signers, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
-
-    if (height >= 0) {
-      auto singers = GetSigners();
-      for (auto& signer : singers) {
-        tx.set_signer(signer.get_master_fingerprint(), true);
-      }
-    }
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
@@ -1363,7 +1367,7 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
   auto wallet_db = GetWalletDb(chain, wallet_id);
   switch (format) {
     case ExportFormat::COLDCARD:
-      return WriteFile(file_path, wallet_db.GetColdcardFile());
+      return WriteFile(file_path, wallet_db.GetMultisigConfig());
     case ExportFormat::DESCRIPTOR: {
       std::stringstream descs;
       descs << wallet_db.GetDescriptor(false);
@@ -1533,17 +1537,27 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
       n == 1 ? WalletType::SINGLE_SIG
              : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
   for (auto&& signer : signers) {
-    if (signer.has_master_signer()) {
-      bool usable =
-          GetSignerDb(chain, signer.get_master_signer_id())
-              .UseIndex(wallet_type, address_type,
-                        GetIndexFromPath(signer.get_derivation_path()));
-      if (!usable) {
+    auto master_id = signer.get_master_fingerprint();
+    NunchukSignerDb signer_db{
+        chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+    if (signer_db.IsMaster() && signer.has_master_signer()) {
+      if (!signer_db.UseIndex(wallet_type, address_type,
+                              GetIndexFromPath(signer.get_derivation_path()))) {
         throw StorageException(StorageException::SIGNER_USED, "signer used!");
       }
     } else {
-      GetSignerDb(chain, signer.get_master_fingerprint())
-          .UseRemote(signer.get_derivation_path());
+      try {
+        signer_db.GetRemoteSigner(signer.get_derivation_path());
+        signer_db.UseRemote(signer.get_derivation_path());
+      } catch (StorageException& se) {
+        if (se.code() == StorageException::SIGNER_NOT_FOUND) {
+          signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                              signer.get_public_key(),
+                              signer.get_derivation_path(), true);
+        } else {
+          throw;
+        }
+      }
     }
   }
   std::string external_desc =
@@ -2032,4 +2046,10 @@ Amount NunchukStorage::GetAddressBalance(Chain chain,
   return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
+std::string NunchukStorage::GetMultisigConfig(Chain chain,
+                                              const std::string& wallet_id,
+                                              bool is_cobo) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetMultisigConfig(is_cobo);
+}
 }  // namespace nunchuk

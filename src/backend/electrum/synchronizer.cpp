@@ -2,10 +2,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "synchronizer.h"
+#include <backend/electrum/synchronizer.h>
 #include <utils/addressutils.hpp>
 
 using namespace boost::asio;
+using json = nlohmann::json;
 
 namespace nunchuk {
 
@@ -13,74 +14,20 @@ static int CACHE_SECOND = 600;  // 10 minutes
 static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 100;
 
-BlockSynchronizer::BlockSynchronizer(NunchukStorage* storage)
-    : storage_(storage),
-      sync_thread_(),
-      sync_worker_(make_work_guard(io_service_)) {
-  sync_thread_ = std::thread([&]() {
-    for (;;) {
-      try {
-        io_service_.run();
-        break;  // exited normally
-      } catch (...) {
-      }
-    }
-  });
+ElectrumSynchronizer::~ElectrumSynchronizer() {
+  std::lock_guard<std::mutex> guard(status_mutex_);
+  status_ = Status::STOPPED;
+  status_cv_.notify_all();
 }
 
-BlockSynchronizer::~BlockSynchronizer() {
-  {
-    std::lock_guard<std::mutex> guard(status_mutex_);
-    status_ = Status::STOPPED;
-    status_cv_.notify_all();
-  }
-  sync_worker_.reset();
-  sync_thread_.join();
-}
-
-bool BlockSynchronizer::NeedUpdateClient(const AppSettings& new_settings) {
-  if (first_run_) {
-    first_run_ = false;
-    return true;
-  }
-  if (app_settings_.get_chain() != new_settings.get_chain()) return true;
-  if (app_settings_.use_proxy() != new_settings.use_proxy()) return true;
-  if (new_settings.use_proxy()) {
-    if (app_settings_.get_proxy_host() != new_settings.get_proxy_host())
-      return true;
-    if (app_settings_.get_proxy_port() != new_settings.get_proxy_port())
-      return true;
-    if (app_settings_.get_proxy_password() != new_settings.get_proxy_password())
-      return true;
-    if (app_settings_.get_proxy_username() != new_settings.get_proxy_username())
-      return true;
-  }
-  if (new_settings.get_chain() == Chain::TESTNET &&
-      app_settings_.get_testnet_servers() != new_settings.get_testnet_servers())
-    return true;
-  if (new_settings.get_chain() == Chain::MAIN &&
-      app_settings_.get_mainnet_servers() != new_settings.get_mainnet_servers())
-    return true;
-  return false;
-}
-
-void BlockSynchronizer::Run(const AppSettings& appsettings) {
-  if (!NeedUpdateClient(appsettings)) {
-    app_settings_ = appsettings;
-    return;
-  }
-  app_settings_ = appsettings;
-  Connect();
-}
-
-void BlockSynchronizer::WaitForReady() {
+void ElectrumSynchronizer::WaitForReady() {
   std::unique_lock<std::mutex> lock_(status_mutex_);
   status_cv_.wait(lock_, [&]() {
     return status_ == Status::READY || status_ == Status::SYNCING;
   });
 }
 
-void BlockSynchronizer::Connect() {
+void ElectrumSynchronizer::Run() {
   {
     std::lock_guard<std::mutex> guard(status_mutex_);
     if (status_ == Status::STOPPED) return;
@@ -102,7 +49,7 @@ void BlockSynchronizer::Connect() {
             io_service_.post([&]() {
               std::this_thread::sleep_for(
                   std::chrono::seconds(RECONNECT_DELAY_SECOND));
-              Connect();
+              Run();
             });
           }));
     } catch (...) {
@@ -130,9 +77,9 @@ void BlockSynchronizer::Connect() {
   });
 }
 
-void BlockSynchronizer::UpdateTransactions(Chain chain,
-                                           const std::string& wallet_id,
-                                           const json& history) {
+void ElectrumSynchronizer::UpdateTransactions(Chain chain,
+                                              const std::string& wallet_id,
+                                              const json& history) {
   if (!history.is_array()) return;
   for (auto it = history.begin(); it != history.end(); ++it) {
     json item = it.value();
@@ -142,14 +89,14 @@ void BlockSynchronizer::UpdateTransactions(Chain chain,
       // TODO(Bakaoh): [optimize] use GetTransactions
       Transaction tx = storage_->GetTransaction(chain, wallet_id, tx_id);
       if (tx.get_status() != TransactionStatus::CONFIRMED && height > 0) {
-        auto tx = client_.get()->blockchain_transaction_get(tx_id);
+        auto tx = client_->blockchain_transaction_get(tx_id);
         storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
                                     tx["blocktime"]);
         transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
       }
     } catch (StorageException& se) {
       if (se.code() == StorageException::TX_NOT_FOUND) {
-        auto tx = client_.get()->blockchain_transaction_get(tx_id);
+        auto tx = client_->blockchain_transaction_get(tx_id);
         time_t time = tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
         Amount fee = 0;
         if (height <= 0) {
@@ -166,47 +113,48 @@ void BlockSynchronizer::UpdateTransactions(Chain chain,
   }
 }
 
-void BlockSynchronizer::OnScripthashStatusChange(Chain chain,
-                                                 const json& notification) {
+void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
+                                                    const json& notification) {
   std::string scripthash = notification[0];
   if (scripthash_to_wallet_address_.count(scripthash) == 0) return;
   std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
   std::string address = scripthash_to_wallet_address_.at(scripthash).second;
-  json utxo = client_.get()->blockchain_scripthash_listunspent(scripthash);
+  json utxo = client_->blockchain_scripthash_listunspent(scripthash);
   storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
-  json history = client_.get()->blockchain_scripthash_get_history(scripthash);
+  json history = client_->blockchain_scripthash_get_history(scripthash);
   UpdateTransactions(chain, wallet_id, history);
   Amount balance = storage_->GetBalance(chain, wallet_id);
   balance_listener_(wallet_id, balance);
 }
 
-std::string BlockSynchronizer::SubscribeAddress(const std::string& wallet_id,
-                                                const std::string& address) {
+std::string ElectrumSynchronizer::SubscribeAddress(const std::string& wallet_id,
+                                                   const std::string& address) {
   std::string scripthash = AddressToScriptHash(address);
   scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
-  client_.get()->blockchain_scripthash_subscribe(scripthash);
+  client_->blockchain_scripthash_subscribe(scripthash);
   return scripthash;
 }
 
-void BlockSynchronizer::BlockchainSync(Chain chain) {
-  connection_listener_(ConnectionStatus::OFFLINE);
+void ElectrumSynchronizer::BlockchainSync(Chain chain) {
+  connection_listener_(ConnectionStatus::OFFLINE, 0);
   {
     std::unique_lock<std::mutex> lock_(status_mutex_);
     if (status_ != Status::READY && status_ != Status::SYNCING) return;
-    auto header = client_.get()->blockchain_headers_subscribe([&](json rs) {
+    auto header = client_->blockchain_headers_subscribe([&](json rs) {
       chain_tip_ = rs[0]["height"];
       storage_->SetChainTip(app_settings_.get_chain(), chain_tip_);
       block_listener_(rs[0]["height"], rs[0]["hex"]);
     });
-    connection_listener_(ConnectionStatus::SYNCING);
+    connection_listener_(ConnectionStatus::SYNCING, 0);
     chain_tip_ = header["height"];
     storage_->SetChainTip(chain, header["height"]);
     block_listener_(header["height"], header["hex"]);
-    client_.get()->scripthash_add_listener([&](json notification) {
+    client_->scripthash_add_listener([&](json notification) {
       OnScripthashStatusChange(app_settings_.get_chain(), notification);
     });
   }
   auto wallet_ids = storage_->ListWallets(chain);
+  int process = 0;
   for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
     auto wallet_id = *i;
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
@@ -215,29 +163,30 @@ void BlockSynchronizer::BlockchainSync(Chain chain) {
       if (status_ != Status::READY && status_ != Status::SYNCING) return;
       auto address = *a;
       auto scripthash = SubscribeAddress(wallet_id, address);
-      json utxo = client_.get()->blockchain_scripthash_listunspent(scripthash);
+      json utxo = client_->blockchain_scripthash_listunspent(scripthash);
       storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
-      json history =
-          client_.get()->blockchain_scripthash_get_history(scripthash);
+      json history = client_->blockchain_scripthash_get_history(scripthash);
       UpdateTransactions(chain, wallet_id, history);
       std::this_thread::sleep_for(std::chrono::milliseconds(SUBCRIBE_DELAY_MS));
     }
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);
+    connection_listener_(ConnectionStatus::SYNCING,
+                         ++process * 100 / wallet_ids.size());
   }
-  connection_listener_(ConnectionStatus::ONLINE);
+  connection_listener_(ConnectionStatus::ONLINE, 100);
 }
 
-void BlockSynchronizer::Broadcast(const std::string& raw_tx) {
+void ElectrumSynchronizer::Broadcast(const std::string& raw_tx) {
   std::unique_lock<std::mutex> lock_(status_mutex_);
   if (status_ != Status::READY && status_ != Status::SYNCING) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
   }
-  client_.get()->blockchain_transaction_broadcast(raw_tx);
+  client_->blockchain_transaction_broadcast(raw_tx);
 }
 
-Amount BlockSynchronizer::EstimateFee(int conf_target) {
+Amount ElectrumSynchronizer::EstimateFee(int conf_target) {
   auto current_time = std::time(0);
   int cached_index = -1;
   switch (conf_target) {
@@ -261,7 +210,7 @@ Amount BlockSynchronizer::EstimateFee(int conf_target) {
                            "Disconnected");
   }
   Amount rs = Utils::AmountFromValue(
-      client_.get()->blockchain_estimatefee(conf_target).dump());
+      client_->blockchain_estimatefee(conf_target).dump());
   if (cached_index >= 0) {
     estimate_fee_cached_value_[cached_index] = rs;
     estimate_fee_cached_time_[cached_index] = current_time;
@@ -269,56 +218,33 @@ Amount BlockSynchronizer::EstimateFee(int conf_target) {
   return rs;
 }
 
-Amount BlockSynchronizer::RelayFee() {
+Amount ElectrumSynchronizer::RelayFee() {
   std::unique_lock<std::mutex> lock_(status_mutex_);
   if (status_ != Status::READY && status_ != Status::SYNCING) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
   }
-  return Utils::AmountFromValue(client_.get()->blockchain_relayfee().dump());
+  return Utils::AmountFromValue(client_->blockchain_relayfee().dump());
 }
 
-int BlockSynchronizer::GetChainTip() {
-  int rs = chain_tip_;
-  if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain());
-  return rs;
-}
-
-bool BlockSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
-                                  const std::string& address, int index,
-                                  bool internal) {
+bool ElectrumSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
+                                     const std::string& address, int index,
+                                     bool internal) {
   std::unique_lock<std::mutex> lock_(status_mutex_);
   if (status_ != Status::READY && status_ != Status::SYNCING) return false;
   if (chain != app_settings_.get_chain()) return false;
 
   auto scripthash = SubscribeAddress(wallet_id, address);
-  json history = client_.get()->blockchain_scripthash_get_history(scripthash);
+  json history = client_->blockchain_scripthash_get_history(scripthash);
   if (!history.is_array() || history.empty()) return false;
   storage_->AddAddress(chain, wallet_id, address, index, internal);
   UpdateTransactions(chain, wallet_id, history);
-  json utxo = client_.get()->blockchain_scripthash_listunspent(scripthash);
+  json utxo = client_->blockchain_scripthash_listunspent(scripthash);
   storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
   return true;
 }
 
-void BlockSynchronizer::AddBalanceListener(
-    std::function<void(std::string, Amount)> listener) {
-  balance_listener_.connect(listener);
-}
-
-void BlockSynchronizer::AddBlockListener(
-    std::function<void(int, std::string)> listener) {
-  block_listener_.connect(listener);
-}
-
-void BlockSynchronizer::AddTransactionListener(
-    std::function<void(std::string, TransactionStatus)> listener) {
-  transaction_listener_.connect(listener);
-}
-
-void BlockSynchronizer::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus)> listener) {
-  connection_listener_.connect(listener);
+void ElectrumSynchronizer::RescanBlockchain(int start_height, int stop_height) {
 }
 
 }  // namespace nunchuk

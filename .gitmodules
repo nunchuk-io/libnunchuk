@@ -4,3 +4,6 @@
 [submodule "contrib/sqlcipher"]
 	path = contrib/sqlcipher
 	url = https://github.com/sqlcipher/sqlcipher
+[submodule "contrib/bc-ur-cpp"]
+	path = contrib/bc-ur-cpp
+	url = https://github.com/nunchuk-io/bc-ur-cpp
