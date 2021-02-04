@@ -33,7 +33,7 @@ class CoreRpcSynchronizer : public Synchronizer {
   void BlockchainSync(const boost::system::error_code& error);
 
   std::unique_ptr<CoreRpcClient> client_;
-  boost::posix_time::seconds interval_{300};  // 5 minutes
+  boost::posix_time::seconds interval_{60};  // 1 minute
   boost::asio::deadline_timer timer_{io_service_, boost::posix_time::seconds(10)};
   bool stopped = false;
 };

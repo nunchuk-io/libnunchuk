@@ -169,38 +169,28 @@ void CoreRpcSynchronizer::BlockchainSync(
         std::string tx_id = item["txid"];
         int height = item["blockheight"];
 
-        if (item["address"].get<std::string>() == address) {
-          try {
-            Transaction tx = storage_->GetTransaction(chain, wallet_id, tx_id);
+        bool found = false;
+        for (auto&& tx : txs) {
+          if (tx.get_txid() == tx_id) {
             if (tx.get_status() != TransactionStatus::CONFIRMED && height > 0) {
               auto tx = client_->GetTransaction(tx_id);
               storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
                                           tx["blocktime"]);
               transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
             }
-          } catch (StorageException& se) {
-            if (se.code() == StorageException::TX_NOT_FOUND) {
-              auto tx = client_->GetTransaction(tx_id);
-              time_t time =
-                  tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
-              storage_->InsertTransaction(chain, wallet_id, tx["hex"], height,
-                                          time);
-              auto status = height <= 0
-                                ? TransactionStatus::PENDING_CONFIRMATION
-                                : TransactionStatus::CONFIRMED;
-              transaction_listener_(tx_id, status);
-            }
+            found = true;
+            break;
           }
-        } else if (height > 0) {
-          for (auto&& tx : txs) {
-            if (tx.get_txid() == tx_id &&
-                tx.get_status() != TransactionStatus::CONFIRMED) {
-              auto tx = client_->GetTransaction(tx_id);
-              storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
-                                          tx["blocktime"]);
-              transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
-            }
-          }
+        }
+        if (!found && item["address"].get<std::string>() == address) {
+          auto tx = client_->GetTransaction(tx_id);
+          time_t time =
+              tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
+          storage_->InsertTransaction(chain, wallet_id, tx["hex"], height,
+                                      time);
+          auto status = height <= 0 ? TransactionStatus::PENDING_CONFIRMATION
+                                    : TransactionStatus::CONFIRMED;
+          transaction_listener_(tx_id, status);
         }
       }
     }
