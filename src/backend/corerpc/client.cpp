@@ -18,7 +18,6 @@ static json ParseResponse(const std::string& resp) {
   if (resp.empty()) {
     throw RPCException(RPCException::RPC_REQUEST_ERROR, "send request error");
   }
-  std::cout << resp << std::endl;
   json rs = json::parse(resp);
   if (rs["error"] != nullptr) {
     int code = rs["error"]["code"];
