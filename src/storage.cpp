@@ -497,8 +497,8 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     if (sqlite3_column_text(stmt, 1)) {
       std::string value = std::string((char*)sqlite3_column_text(stmt, 0));
       extra = std::string((char*)sqlite3_column_text(stmt, 1));
-      Transaction tx =
-          GetTransactionFromPartiallySignedTransaction(DecodePsbt(value), 0);
+      Transaction tx = GetTransactionFromPartiallySignedTransaction(
+          DecodePsbt(value), GetSigners(), 0);
 
       json extra_json = json::parse(extra);
       extra_json["signers"] = tx.get_signers();
@@ -674,10 +674,11 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
     int m = immutable_data["m"];
 
+    auto signers = GetSigners();
     auto tx = height == -1 ? GetTransactionFromPartiallySignedTransaction(
-                                 DecodePsbt(value), m)
+                                 DecodePsbt(value), signers, m)
                            : GetTransactionFromCMutableTransaction(
-                                 DecodeRawTransaction(value), height);
+                                 DecodeRawTransaction(value), signers, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
@@ -690,13 +691,6 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     // become false
     tx.set_receive(false);
     tx.set_sub_amount(0);
-
-    if (height >= 0) {
-      auto singers = GetSigners();
-      for (auto&& signer : singers) {
-        tx.set_signer(signer.get_master_fingerprint(), false);
-      }
-    }
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
@@ -745,33 +739,10 @@ std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
                         ? "P2WSH"
                         : "P2WSH-P2SH")
           << std::endl;
-  if (is_cobo) {
-    // Cobo Vault firmware 2.3.1 use the default paths for multi-sig
-    if (chain_ == Chain::TESTNET) {
-      if (wallet.get_address_type() == AddressType::NESTED_SEGWIT) {
-        content << "Derivation: m/48'/1'/0'/1'";
-      } else if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
-        content << "Derivation: m/48'/1'/0'/2'";
-      } else {
-        content << "Derivation: m/45'";
-      }
-    } else {
-      if (wallet.get_address_type() == AddressType::NESTED_SEGWIT) {
-        content << "Derivation: m/48'/0'/0'/1'";
-      } else if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
-        content << "Derivation: m/48'/0'/0'/2'";
-      } else {
-        content << "Derivation: m/45'";
-      }
-    }
-    content << std::endl;
-  }
 
   content << std::endl;
   for (auto&& signer : wallet.get_signers()) {
-    if (!is_cobo) {
-      content << "Derivation: " << signer.get_derivation_path() << std::endl;
-    }
+    content << "Derivation: " << signer.get_derivation_path() << std::endl;
     content << signer.get_master_fingerprint() << ": " << signer.get_xpub()
             << std::endl
             << std::endl;
@@ -892,23 +863,17 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
     int m = immutable_data["m"];
 
+    auto signers = GetSigners();
     auto tx = height == -1 ? GetTransactionFromPartiallySignedTransaction(
-                                 DecodePsbt(value), m)
+                                 DecodePsbt(value), signers, m)
                            : GetTransactionFromCMutableTransaction(
-                                 DecodeRawTransaction(value), height);
+                                 DecodeRawTransaction(value), signers, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
-
-    if (height >= 0) {
-      auto singers = GetSigners();
-      for (auto& signer : singers) {
-        tx.set_signer(signer.get_master_fingerprint(), true);
-      }
-    }
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));

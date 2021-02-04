@@ -590,7 +590,8 @@ Transaction NunchukImpl::DraftTransaction(
                          subtract_fee_from_amount, false, fee, change_pos);
   Wallet wallet = GetWallet(wallet_id);
   int m = wallet.get_m();
-  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), m);
+  auto tx = GetTransactionFromPartiallySignedTransaction(
+      DecodePsbt(psbt), wallet.get_signers(), m);
   tx.set_m(m);
   tx.set_fee(fee);
   tx.set_change_index(change_pos);

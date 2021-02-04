@@ -128,20 +128,20 @@ void CoreRpcSynchronizer::BlockchainSync(
       if (wallet.is_escrow()) {
         descriptors.push_back({{"desc", wallet.get_descriptor(false)},
                                {"active", true},
-                               {"timestamp", 0},
+                               {"timestamp", wallet.get_create_date()},
                                {"internal", false},
                                {"watchonly", true}});
       } else {
         descriptors.push_back({{"desc", wallet.get_descriptor(false)},
                                {"active", true},
                                {"range", 1000},
-                               {"timestamp", 0},
+                               {"timestamp", wallet.get_create_date()},
                                {"internal", false},
                                {"watchonly", true}});
         descriptors.push_back({{"desc", wallet.get_descriptor(true)},
                                {"active", true},
                                {"range", 1000},
-                               {"timestamp", 0},
+                               {"timestamp", wallet.get_create_date()},
                                {"internal", true},
                                {"watchonly", true}});
       }
