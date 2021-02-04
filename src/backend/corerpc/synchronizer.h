@@ -34,7 +34,7 @@ class CoreRpcSynchronizer : public Synchronizer {
 
   std::unique_ptr<CoreRpcClient> client_;
   boost::posix_time::seconds interval_{300};  // 5 minutes
-  boost::asio::deadline_timer timer_{io_service_, interval_};
+  boost::asio::deadline_timer timer_{io_service_, boost::posix_time::seconds(10)};
   bool stopped = false;
 };
 
