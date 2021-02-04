@@ -66,6 +66,7 @@ bool CoreRpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
 void CoreRpcSynchronizer::RescanBlockchain(int start_height, int stop_height) {
   if (stopped) return;
   client_->RescanBlockchain(start_height, stop_height);
+  connection_listener_(ConnectionStatus::SYNCING, 0);
 }
 
 bool CoreRpcSynchronizer::IsRpcReady() {
@@ -80,7 +81,12 @@ bool CoreRpcSynchronizer::IsRpcReady() {
       return false;
     }
   } catch (RPCException& re) {
-    if (re.code() != RPCException::RPC_WALLET_NOT_FOUND) throw;
+    if (re.code() != RPCException::RPC_WALLET_NOT_FOUND) {
+      if (re.code() == RPCException::RPC_REQUEST_ERROR) {
+        connection_listener_(ConnectionStatus::OFFLINE, 0);
+      }
+      throw;
+    }
     CreateOrLoadWallet();
     return IsRpcReady();
   }
