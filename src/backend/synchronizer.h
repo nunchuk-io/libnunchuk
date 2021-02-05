@@ -17,6 +17,7 @@ class Synchronizer {
  public:
   Synchronizer(const AppSettings& app_settings, NunchukStorage* storage);
   Synchronizer(const Synchronizer&) = delete;
+  Synchronizer() = delete;
   Synchronizer& operator=(const Synchronizer&) = delete;
   virtual ~Synchronizer();
 
