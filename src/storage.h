@@ -33,6 +33,8 @@ const int VERSION = 7;
 const int DESCRIPTION = 8;
 const int CHAIN_TIP = 9;
 const int SELECTED_WALLET = 10;
+const int DEVICE_TYPE = 11;
+const int DEVICE_MODEL = 12;
 }  // namespace DbKeys
 
 class NunchukStorage;
@@ -125,7 +127,7 @@ class NunchukWalletDb : public NunchukDb {
 class NunchukSignerDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
-  void InitSigner(const std::string &name, const std::string &fingerprint);
+  void InitSigner(const std::string &name, const Device &device);
   void DeleteSigner();
   bool SetName(const std::string &value);
   bool SetLastHealthCheck(time_t value);
@@ -143,6 +145,8 @@ class NunchukSignerDb : public NunchukDb {
   int GetCachedIndex(const WalletType &wallet_type,
                      const AddressType &address_type);
   std::string GetFingerprint() const;
+  std::string GetDeviceModel() const;
+  std::string GetDeviceType() const;
   std::string GetName() const;
   time_t GetLastHealthCheck() const;
   std::vector<SingleSigner> GetSingleSigners() const;
@@ -197,7 +201,7 @@ class NunchukStorage {
                       AddressType address_type, bool is_escrow,
                       const std::string &description);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
-                                 const std::string &fingerprint);
+                                 const Device &device);
   SingleSigner CreateSingleSigner(Chain chain, const std::string &name,
                                   const std::string &xpub,
                                   const std::string &public_key,

@@ -9,6 +9,12 @@ namespace nunchuk {
 
 Device::Device(const std::string &master_fingerprint)
     : master_fingerprint_(master_fingerprint), connected_(false) {}
+Device::Device(const std::string &type, const std::string &model,
+               const std::string &master_fingerprint)
+    : type_(type),
+      model_(model),
+      master_fingerprint_(master_fingerprint),
+      connected_(false) {}
 Device::Device(const std::string &type, const std::string &path,
                const std::string &model, const std::string &master_fingerprint,
                bool needs_pass_phrase_sent, bool needs_pin_sent,

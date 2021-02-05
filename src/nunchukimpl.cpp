@@ -75,10 +75,19 @@ std::vector<Wallet> NunchukImpl::GetWallets() {
   std::string selected_wallet = GetSelectedWallet();
   for (auto&& id : wallet_ids) {
     if (id == selected_wallet) continue;
-    wallets.push_back(GetWallet(id));
+    try {
+      wallets.push_back(GetWallet(id));
+    } catch (StorageException& se) {
+      if (se.code() != StorageException::SIGNER_NOT_FOUND) {
+        throw;
+      }
+    }
   }
   // Move selected_wallet to back so it will be scanned first when opening app
-  if (!selected_wallet.empty()) wallets.push_back(GetWallet(selected_wallet));
+  if (!selected_wallet.empty()) try {
+      wallets.push_back(GetWallet(selected_wallet));
+    } catch (...) {
+    }
   return wallets;
 }
 
@@ -203,8 +212,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
     const std::string& raw_name, const Device& device,
     std::function<bool(int)> progress) {
   std::string name = trim_copy(raw_name);
-  std::string id = storage_.CreateMasterSigner(chain_, name,
-                                               device.get_master_fingerprint());
+  std::string id = storage_.CreateMasterSigner(chain_, name, device);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
   int count = 0;

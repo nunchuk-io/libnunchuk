@@ -1003,7 +1003,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
 }
 
 void NunchukSignerDb::InitSigner(const std::string& name,
-                                 const std::string& fingerprint) {
+                                 const Device& device) {
   CreateTable();
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS BIP32("
@@ -1013,7 +1013,9 @@ void NunchukSignerDb::InitSigner(const std::string& name,
                         "USED                     INT);",
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
-  PutString(DbKeys::FINGERPRINT, fingerprint);
+  PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
+  PutString(DbKeys::DEVICE_TYPE, device.get_type());
+  PutString(DbKeys::DEVICE_MODEL, device.get_model());
 }
 
 void NunchukSignerDb::DeleteSigner() {
@@ -1127,6 +1129,14 @@ bool NunchukSignerDb::SetLastHealthCheck(time_t value) {
 
 std::string NunchukSignerDb::GetFingerprint() const {
   return GetString(DbKeys::FINGERPRINT);
+}
+
+std::string NunchukSignerDb::GetDeviceType() const {
+  return GetString(DbKeys::DEVICE_TYPE);
+}
+
+std::string NunchukSignerDb::GetDeviceModel() const {
+  return GetString(DbKeys::DEVICE_MODEL);
 }
 
 std::string NunchukSignerDb::GetName() const { return GetString(DbKeys::NAME); }
@@ -1580,12 +1590,12 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
 
 std::string NunchukStorage::CreateMasterSigner(Chain chain,
                                                const std::string& name,
-                                               const std::string& fingerprint) {
+                                               const Device& device) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
-  std::string id = fingerprint;
+  std::string id = device.get_master_fingerprint();
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
-  signer_db.InitSigner(name, fingerprint);
+  signer_db.InitSigner(name, device);
   return id;
 }
 
@@ -1738,8 +1748,11 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
                                              const std::string& id) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
-  MasterSigner signer{id, Device(signer_db.GetFingerprint()),
-                      signer_db.GetLastHealthCheck()};
+  MasterSigner signer{
+      id,
+      Device(signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
+             signer_db.GetFingerprint()),
+      signer_db.GetLastHealthCheck()};
   signer.set_name(signer_db.GetName());
   return signer;
 }
