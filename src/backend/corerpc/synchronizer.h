@@ -13,7 +13,7 @@ namespace nunchuk {
 
 class CoreRpcSynchronizer : public Synchronizer {
  public:
-  using Synchronizer::Synchronizer;
+  CoreRpcSynchronizer(const AppSettings& app_settings, NunchukStorage* storage);
   CoreRpcSynchronizer(const CoreRpcSynchronizer&) = delete;
   CoreRpcSynchronizer& operator=(const CoreRpcSynchronizer&) = delete;
   ~CoreRpcSynchronizer() override;
@@ -33,8 +33,8 @@ class CoreRpcSynchronizer : public Synchronizer {
   void BlockchainSync(const boost::system::error_code& error);
 
   std::unique_ptr<CoreRpcClient> client_;
-  boost::posix_time::seconds interval_{60};  // 1 minute
-  boost::asio::deadline_timer timer_{io_service_, boost::posix_time::seconds(10)};
+  boost::posix_time::seconds interval_;
+  boost::asio::deadline_timer timer_;
   bool stopped = false;
 };
 
