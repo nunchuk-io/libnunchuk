@@ -1014,8 +1014,8 @@ void NunchukSignerDb::InitSigner(const std::string& name,
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
-  PutString(DbKeys::DEVICE_TYPE, device.get_type());
-  PutString(DbKeys::DEVICE_MODEL, device.get_model());
+  PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
+  PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }
 
 void NunchukSignerDb::DeleteSigner() {
@@ -1132,11 +1132,11 @@ std::string NunchukSignerDb::GetFingerprint() const {
 }
 
 std::string NunchukSignerDb::GetDeviceType() const {
-  return GetString(DbKeys::DEVICE_TYPE);
+  return GetString(DbKeys::SIGNER_DEVICE_TYPE);
 }
 
 std::string NunchukSignerDb::GetDeviceModel() const {
-  return GetString(DbKeys::DEVICE_MODEL);
+  return GetString(DbKeys::SIGNER_DEVICE_MODEL);
 }
 
 std::string NunchukSignerDb::GetName() const { return GetString(DbKeys::NAME); }

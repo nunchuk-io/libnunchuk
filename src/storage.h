@@ -33,8 +33,8 @@ const int VERSION = 7;
 const int DESCRIPTION = 8;
 const int CHAIN_TIP = 9;
 const int SELECTED_WALLET = 10;
-const int DEVICE_TYPE = 11;
-const int DEVICE_MODEL = 12;
+const int SIGNER_DEVICE_TYPE = 11;
+const int SIGNER_DEVICE_MODEL = 12;
 }  // namespace DbKeys
 
 class NunchukStorage;
