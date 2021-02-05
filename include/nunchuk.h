@@ -190,6 +190,8 @@ class NUNCHUK_EXPORT HWIException : public BaseException {
 class NUNCHUK_EXPORT Device {
  public:
   Device(const std::string& fingerprint);
+  Device(const std::string& type, const std::string& model,
+         const std::string& master_fingerprint);
   Device(const std::string& type, const std::string& path,
          const std::string& model, const std::string& master_fingerprint,
          bool needs_pass_phrase_sent, bool needs_pin_sent,
