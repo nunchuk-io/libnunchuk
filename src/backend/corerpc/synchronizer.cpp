@@ -71,8 +71,8 @@ bool CoreRpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
 
 void CoreRpcSynchronizer::RescanBlockchain(int start_height, int stop_height) {
   if (stopped) return;
-  client_->RescanBlockchain(start_height, stop_height);
   connection_listener_(ConnectionStatus::SYNCING, 0);
+  client_->RescanBlockchain(start_height, stop_height);
 }
 
 bool CoreRpcSynchronizer::IsRpcReady() {
