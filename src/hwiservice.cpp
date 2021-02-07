@@ -186,7 +186,7 @@ std::string HWIService::DisplayAddress(const Device &device,
 
 void HWIService::PromptPin(const Device &device) const {
   ValidateDevice(device);
-  std::vector<std::string> cmd_args = {"-t", device.get_type(), "-p",
+  std::vector<std::string> cmd_args = {"-t", device.get_type(), "-d",
                                        device.get_path(), "promptpin"};
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
@@ -197,7 +197,7 @@ void HWIService::PromptPin(const Device &device) const {
 void HWIService::SendPin(const Device &device, const std::string &pin) const {
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {
-      "-t", device.get_type(), "-p", device.get_path(), "sendpin", pin};
+      "-t", device.get_type(), "-d", device.get_path(), "sendpin", pin};
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
   }
