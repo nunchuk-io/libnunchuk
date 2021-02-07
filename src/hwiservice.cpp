@@ -147,8 +147,17 @@ std::string HWIService::GetMasterFingerprint(const Device &device) const {
 std::string HWIService::SignTx(const Device &device,
                                const std::string &base64_psbt) const {
   ValidateDevice(device);
-  std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
-                                       "signtx", base64_psbt};
+  std::vector<std::string> cmd_args = {"signtx", base64_psbt};
+  if (!device.get_master_fingerprint().empty()) {
+      cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+      cmd_args.insert(cmd_args.begin(), "-f");
+  } else {
+      // No fingerprint, try to use device type+path instead
+      cmd_args.insert(cmd_args.begin(), device.get_path());
+      cmd_args.insert(cmd_args.begin(), "-d");
+      cmd_args.insert(cmd_args.begin(), device.get_type());
+      cmd_args.insert(cmd_args.begin(), "-t");
+  }
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
   }
@@ -161,9 +170,18 @@ std::string HWIService::SignMessage(const Device &device,
                                     const std::string &derivation_path) const {
   ValidateDevice(device);
   std::string quoted_message = "\"" + message + "\"";
-  std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
-                                       "signmessage", quoted_message,
+  std::vector<std::string> cmd_args = {"signmessage", quoted_message,
                                        derivation_path};
+  if (!device.get_master_fingerprint().empty()) {
+      cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+      cmd_args.insert(cmd_args.begin(), "-f");
+  } else {
+      // No fingerprint, try to use device type+path instead
+      cmd_args.insert(cmd_args.begin(), device.get_path());
+      cmd_args.insert(cmd_args.begin(), "-d");
+      cmd_args.insert(cmd_args.begin(), device.get_type());
+      cmd_args.insert(cmd_args.begin(), "-t");
+  }
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
   }
@@ -175,8 +193,17 @@ std::string HWIService::DisplayAddress(const Device &device,
                                        const std::string &desc) const {
   ValidateDevice(device);
   std::string quoted_desc = "\"" + desc + "\"";
-  std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
-                                       "displayaddress", "--desc", quoted_desc};
+  std::vector<std::string> cmd_args = {"displayaddress", "--desc", quoted_desc};
+  if (!device.get_master_fingerprint().empty()) {
+      cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+      cmd_args.insert(cmd_args.begin(), "-f");
+  } else {
+      // No fingerprint, try to use device type+path instead
+      cmd_args.insert(cmd_args.begin(), device.get_path());
+      cmd_args.insert(cmd_args.begin(), "-d");
+      cmd_args.insert(cmd_args.begin(), device.get_type());
+      cmd_args.insert(cmd_args.begin(), "-t");
+  }
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
   }
@@ -186,7 +213,7 @@ std::string HWIService::DisplayAddress(const Device &device,
 
 void HWIService::PromptPin(const Device &device) const {
   ValidateDevice(device);
-  std::vector<std::string> cmd_args = {"-t", device.get_type(), "-p",
+  std::vector<std::string> cmd_args = {"-t", device.get_type(), "-d",
                                        device.get_path(), "promptpin"};
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
@@ -197,7 +224,7 @@ void HWIService::PromptPin(const Device &device) const {
 void HWIService::SendPin(const Device &device, const std::string &pin) const {
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {
-      "-t", device.get_type(), "-p", device.get_path(), "sendpin", pin};
+      "-t", device.get_type(), "-d", device.get_path(), "sendpin", pin};
   if (testnet_) {
     cmd_args.insert(cmd_args.begin(), "--testnet");
   }
