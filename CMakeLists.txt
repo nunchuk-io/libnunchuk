@@ -10,6 +10,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(Boost_USE_STATIC_LIBS ON)
 set(OPENSSL_USE_STATIC_LIBS ON)
 set(UR__DISABLE_TESTS ON)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
