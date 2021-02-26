@@ -2,7 +2,7 @@
 
 ## Instruction
 
-On linux, you will need to install udev rules for the devices to be reachable by [HWI](https://github.com/bitcoin-core/HWI). Run `install_udev_script.sh` before using **nunchuk** for the first time, the script will need sudo permission:
+On Linux, you will need to install udev rules for the devices to be reachable by [HWI](https://github.com/bitcoin-core/HWI). Run `install_udev_script.sh` before using **nunchuk** for the first time, the script will need sudo permission:
 
 ```sh
 $ sudo ./install_udev_script.sh
