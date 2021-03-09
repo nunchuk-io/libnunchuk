@@ -141,7 +141,7 @@ class NunchukImpl : public Nunchuk {
 
   void CacheMasterSignerXPub(const std::string& mastersigner_id,
                              std::function<bool(int)> progress) override;
-  Amount EstimateFee(int conf_target = 6, bool use_mempool = false) override;
+  Amount EstimateFee(int conf_target = 6, bool use_mempool = true) override;
   int GetChainTip() override;
   Amount GetTotalAmount(const std::string& wallet_id,
                         const std::vector<TxInput>& inputs) override;
