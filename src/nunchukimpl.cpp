@@ -6,6 +6,8 @@
 
 #include <coinselector.h>
 #include <key_io.h>
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include <utils/httplib.h>
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
 #include <utils/addressutils.hpp>
@@ -22,6 +24,7 @@ using namespace boost::algorithm;
 namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
+static int CACHE_SECOND = 600;  // 10 minutes
 
 // Nunchuk implement
 NunchukImpl::NunchukImpl(const AppSettings& appsettings,
@@ -581,6 +584,10 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
   hwi_.SetChain(chain_);
   CoreUtils::getInstance().SetChain(chain_);
   if (synchronizer_->NeedRecreate(settings)) {
+    std::fill(estimate_fee_cached_time_,
+              estimate_fee_cached_time_ + ESTIMATE_FEE_CACHE_SIZE, 0);
+    std::fill(estimate_fee_cached_value_,
+              estimate_fee_cached_value_ + ESTIMATE_FEE_CACHE_SIZE, 0);
     synchronizer_ = MakeSynchronizer(app_settings_, &storage_);
     synchronizer_->Run();
   }
@@ -686,8 +693,49 @@ std::string NunchukImpl::ImportHealthCheckSignature(
   return boost::trim_copy(storage_.LoadFile(file_path));
 }
 
-Amount NunchukImpl::EstimateFee(int conf_target) {
-  return synchronizer_->EstimateFee(conf_target);
+Amount NunchukImpl::EstimateFee(int conf_target, bool use_mempool) {
+  auto current_time = std::time(0);
+  int cached_index = -1;
+  if (use_mempool && chain_ == Chain::MAIN) {
+    if (conf_target <= CONF_TARGET_PRIORITY)
+      cached_index = 3;
+    else if (conf_target <= CONF_TARGET_STANDARD)
+      cached_index = 4;
+    else
+      cached_index = 5;
+  } else {
+    if (conf_target == CONF_TARGET_PRIORITY)
+      cached_index = 0;
+    else if (conf_target == CONF_TARGET_STANDARD)
+      cached_index = 1;
+    else if (conf_target == CONF_TARGET_ECONOMICAL)
+      cached_index = 2;
+  }
+  if (cached_index >= 0 && cached_index < ESTIMATE_FEE_CACHE_SIZE &&
+      current_time - estimate_fee_cached_time_[cached_index] <= CACHE_SECOND) {
+    return estimate_fee_cached_value_[cached_index];
+  } else if (use_mempool && chain_ == Chain::MAIN) {
+    httplib::Client cli("https://mempool.space");
+    auto res = cli.Get("/api/v1/fees/recommended");
+    if (!res) {
+      throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                             "Send request error");
+    }
+    json recommended = json::parse(res->body);
+    estimate_fee_cached_time_[3] = current_time;
+    estimate_fee_cached_time_[4] = current_time;
+    estimate_fee_cached_time_[5] = current_time;
+    estimate_fee_cached_value_[3] = recommended["fastestFee"];
+    estimate_fee_cached_value_[4] = recommended["hourFee"];
+    estimate_fee_cached_value_[5] = recommended["minimumFee"];
+    return estimate_fee_cached_value_[cached_index];
+  }
+  Amount rs = synchronizer_->EstimateFee(conf_target);
+  if (cached_index >= 0) {
+    estimate_fee_cached_value_[cached_index] = rs;
+    estimate_fee_cached_time_[cached_index] = current_time;
+  }
+  return rs;
 }
 
 int NunchukImpl::GetChainTip() { return synchronizer_->GetChainTip(); }

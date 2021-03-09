@@ -10,7 +10,6 @@ using json = nlohmann::json;
 
 namespace nunchuk {
 
-static int CACHE_SECOND = 600;  // 10 minutes
 static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 100;
 
@@ -37,10 +36,6 @@ void ElectrumSynchronizer::Run() {
   // Clear cache
   chain_tip_ = 0;
   scripthash_to_wallet_address_.clear();
-  std::fill(estimate_fee_cached_time_,
-            estimate_fee_cached_time_ + ESTIMATE_FEE_CACHE_SIZE, 0);
-  std::fill(estimate_fee_cached_value_,
-            estimate_fee_cached_value_ + ESTIMATE_FEE_CACHE_SIZE, 0);
 
   io_service_.post([&]() {
     try {
@@ -187,35 +182,13 @@ void ElectrumSynchronizer::Broadcast(const std::string& raw_tx) {
 }
 
 Amount ElectrumSynchronizer::EstimateFee(int conf_target) {
-  auto current_time = std::time(0);
-  int cached_index = -1;
-  switch (conf_target) {
-    case CONF_TARGET_PRIORITY:
-      cached_index = 0;
-      break;
-    case CONF_TARGET_STANDARD:
-      cached_index = 1;
-      break;
-    case CONF_TARGET_ECONOMICAL:
-      cached_index = 2;
-      break;
-  }
-  if (cached_index >= 0 && cached_index < ESTIMATE_FEE_CACHE_SIZE &&
-      current_time - estimate_fee_cached_time_[cached_index] <= CACHE_SECOND) {
-    return estimate_fee_cached_value_[cached_index];
-  }
   std::unique_lock<std::mutex> lock_(status_mutex_);
   if (status_ != Status::READY && status_ != Status::SYNCING) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
   }
-  Amount rs = Utils::AmountFromValue(
+  return Utils::AmountFromValue(
       client_->blockchain_estimatefee(conf_target).dump());
-  if (cached_index >= 0) {
-    estimate_fee_cached_value_[cached_index] = rs;
-    estimate_fee_cached_time_[cached_index] = current_time;
-  }
-  return rs;
 }
 
 Amount ElectrumSynchronizer::RelayFee() {

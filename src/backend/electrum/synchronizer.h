@@ -11,8 +11,6 @@
 
 namespace nunchuk {
 
-const int ESTIMATE_FEE_CACHE_SIZE = 3;
-
 class ElectrumSynchronizer : public Synchronizer {
  public:
   using Synchronizer::Synchronizer;
@@ -54,8 +52,6 @@ class ElectrumSynchronizer : public Synchronizer {
 
   // Cache
   bool first_run_ = true;
-  time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
-  Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
   std::map<std::string, std::pair<std::string, std::string>>
       scripthash_to_wallet_address_;
 };

@@ -14,6 +14,8 @@
 
 namespace nunchuk {
 
+const int ESTIMATE_FEE_CACHE_SIZE = 6;
+
 class NunchukImpl : public Nunchuk {
  public:
   NunchukImpl(const AppSettings& appsettings, const std::string& passphrase);
@@ -139,7 +141,7 @@ class NunchukImpl : public Nunchuk {
 
   void CacheMasterSignerXPub(const std::string& mastersigner_id,
                              std::function<bool(int)> progress) override;
-  Amount EstimateFee(int conf_target = 6) override;
+  Amount EstimateFee(int conf_target = 6, bool use_mempool = true) override;
   int GetChainTip() override;
   Amount GetTotalAmount(const std::string& wallet_id,
                         const std::vector<TxInput>& inputs) override;
@@ -195,6 +197,10 @@ class NunchukImpl : public Nunchuk {
   HWIService hwi_;
   std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
+
+  // Cache
+  time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
+  Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
 };
 
 }  // namespace nunchuk
