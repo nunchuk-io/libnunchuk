@@ -1022,8 +1022,8 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
   }
 }
 
-void NunchukSignerDb::InitSigner(const std::string& name,
-                                 const Device& device) {
+void NunchukSignerDb::InitSigner(const std::string& name, const Device& device,
+                                 const std::string& mnemonic) {
   CreateTable();
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS BIP32("
@@ -1034,6 +1034,7 @@ void NunchukSignerDb::InitSigner(const std::string& name,
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
+  PutString(DbKeys::MNEMONIC, mnemonic);
   PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
   PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }
@@ -1170,6 +1171,19 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
 // fingerprint of an existing remote signer, a BIP32 table will be added to the
 // existing signer Db. The remote signer will become a master signer.
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
+
+bool NunchukSignerDb::IsSoftware() const {
+  return !GetString(DbKeys::MNEMONIC).empty();
+}
+
+SoftwareSigner NunchukSignerDb::GetSoftwareSigner() const {
+  auto mnemonic = GetString(DbKeys::MNEMONIC);
+  if (mnemonic.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "is not software signer");
+  }
+  return SoftwareSigner{mnemonic};
+}
 
 void NunchukSignerDb::InitRemote() {
   SQLCHECK(sqlite3_exec(db_,
@@ -1605,12 +1619,13 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
 
 std::string NunchukStorage::CreateMasterSigner(Chain chain,
                                                const std::string& name,
-                                               const Device& device) {
+                                               const Device& device,
+                                               const std::string& mnemonic) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   std::string id = device.get_master_fingerprint();
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
-  signer_db.InitSigner(name, device);
+  signer_db.InitSigner(name, device, mnemonic);
   return id;
 }
 
@@ -1650,22 +1665,45 @@ std::vector<SingleSigner> NunchukStorage::GetSignersFromMasterSigner(
   return GetSignerDb(chain, mastersigner_id).GetSingleSigners();
 }
 
-bool NunchukStorage::CacheMasterSignerXPub(Chain chain,
-                                           const std::string& mastersigner_id,
-                                           const std::string& path,
-                                           const std::string& xpub) {
+void NunchukStorage::CacheMasterSignerXPub(
+    Chain chain, const std::string& id,
+    std::function<std::string(std::string)> getxpub,
+    std::function<bool(int)> progress, bool first) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
-  return GetSignerDb(chain, mastersigner_id).AddXPub(path, xpub, "custom");
-}
+  auto signer_db = GetSignerDb(chain, id);
 
-bool NunchukStorage::CacheMasterSignerXPub(Chain chain,
-                                           const std::string& mastersigner_id,
-                                           const WalletType& wallet_type,
-                                           const AddressType& address_type,
-                                           int index, const std::string& xpub) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
-  return GetSignerDb(chain, mastersigner_id)
-      .AddXPub(wallet_type, address_type, index, xpub);
+  int count = 0;
+  auto total = first ? 7 : TOTAL_CACHE_NUMBER;
+
+  // Retrieve standard BIP32 paths when connected to a device for the first time
+  if (first) {
+    auto cachePath = [&](const std::string& path) {
+      signer_db.AddXPub(path, getxpub(path), "custom");
+      progress(count++ * 100 / total);
+    };
+    cachePath("m");
+    cachePath(chain == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
+                                   : TESTNET_HEALTH_CHECK_PATH);
+  }
+
+  auto cacheIndex = [&](WalletType w, AddressType a, int n) {
+    int index = signer_db.GetCachedIndex(w, a);
+    if (index < 0 && w == WalletType::MULTI_SIG) index = 0;
+    for (int i = index + 1; i <= index + n; i++) {
+      signer_db.AddXPub(w, a, i, getxpub(GetBip32Path(chain, w, a, i)));
+      progress(count++ * 100 / total);
+    }
+  };
+  cacheIndex(WalletType::MULTI_SIG, AddressType::ANY,
+             first ? 1 : MULTISIG_CACHE_NUMBER);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
+             first ? 1 : SINGLESIG_BIP84_CACHE_NUMBER);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
+             first ? 1 : SINGLESIG_BIP49_CACHE_NUMBER);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY,
+             first ? 1 : SINGLESIG_BIP48_CACHE_NUMBER);
+  cacheIndex(WalletType::ESCROW, AddressType::ANY,
+             first ? 1 : ESCROW_CACHE_NUMBER);
 }
 
 int NunchukStorage::GetCurrentIndexFromMasterSigner(
@@ -1771,9 +1809,15 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
       id,
       Device(signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
              signer_db.GetFingerprint()),
-      signer_db.GetLastHealthCheck()};
+      signer_db.GetLastHealthCheck(), signer_db.IsSoftware()};
   signer.set_name(signer_db.GetName());
   return signer;
+}
+
+SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
+                                                 const std::string& id) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetSignerDb(chain, id).GetSoftwareSigner();
 }
 
 bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {

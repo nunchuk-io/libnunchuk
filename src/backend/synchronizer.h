@@ -39,7 +39,7 @@ class Synchronizer {
                          bool internal) = 0;
   virtual void RescanBlockchain(int start_height, int stop_height) = 0;
 
-  virtual void Run() = 0;
+  virtual void Run(){};
 
  protected:
   AppSettings app_settings_;

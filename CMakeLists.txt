@@ -30,12 +30,29 @@ endif()
 add_subdirectory(embedded)
 add_subdirectory(contrib/bc-ur-cpp)
 
+add_library(trezor-crypto STATIC
+    "contrib/trezor-firmware/crypto/bip39.c"
+    "contrib/trezor-firmware/crypto/hmac.c"
+    "contrib/trezor-firmware/crypto/memzero.c"
+    "contrib/trezor-firmware/crypto/pbkdf2.c"
+    "contrib/trezor-firmware/crypto/sha2.c"
+    "contrib/trezor-firmware/crypto/aes/aes_modes.c"
+    "contrib/trezor-firmware/crypto/aes/aescrypt.c"
+    "contrib/trezor-firmware/crypto/aes/aeskey.c"
+    "contrib/trezor-firmware/crypto/aes/aestab.c"
+)
+
+target_include_directories(trezor-crypto PUBLIC 
+    "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
+)
+
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
     src/coinselector.cpp
     src/storage.cpp
+    src/softwaresigner.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
     src/backend/synchronizer.cpp
@@ -70,7 +87,7 @@ elseif(UNIX)
     set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} dl)
 endif()
 
-target_link_libraries("${PROJECT_NAME}" PUBLIC ${PROJECT_LIBRARIES})
+target_link_libraries("${PROJECT_NAME}" PUBLIC ${PROJECT_LIBRARIES} trezor-crypto)
 target_include_directories("${PROJECT_NAME}" PUBLIC 
     "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/include"

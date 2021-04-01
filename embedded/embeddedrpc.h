@@ -44,6 +44,7 @@ class EmbeddedRpc {
 
  private:
   EmbeddedRpc();
+  ~EmbeddedRpc();
 
   bool initialized_;
   std::string chain_;

@@ -16,9 +16,12 @@ static const ECCVerifyHandle verify_handle;
 
 EmbeddedRpc::EmbeddedRpc() {}
 
+EmbeddedRpc::~EmbeddedRpc() { ECC_Stop(); }
+
 void EmbeddedRpc::Init(const std::string &chain) {
   static std::once_flag flag;
   std::call_once(flag, [&] {
+    ECC_Start();
     chain_ = chain;
     SelectParams(chain);
     RegisterMiscRPCCommands(table_);

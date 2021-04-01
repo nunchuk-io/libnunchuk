@@ -5,6 +5,7 @@
 #include "nunchukimpl.h"
 
 #include <coinselector.h>
+#include <softwaresigner.h>
 #include <key_io.h>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
@@ -212,30 +213,29 @@ MasterSigner NunchukImpl::CreateMasterSigner(
   std::string name = trim_copy(raw_name);
   std::string id = storage_.CreateMasterSigner(chain_, name, device);
 
-  // Retrieve standard BIP32 paths when connected to a device for the first time
-  int count = 0;
-  auto cachePath = [&](const std::string& path) {
-    storage_.CacheMasterSignerXPub(chain_, id, path,
-                                   hwi_.GetXpubAtPath(device, path));
-    progress(count++ * 100 / 7);
-  };
-  auto cacheIndex = [&](WalletType w, AddressType a) {
-    int index = w == WalletType::MULTI_SIG ? 1 : 0;
-    storage_.CacheMasterSignerXPub(
-        chain_, id, w, a, index,
-        hwi_.GetXpubAtPath(device, GetBip32Path(chain_, w, a, index)));
-    progress(count++ * 100 / 7);
-  };
-  cachePath("m");
-  cachePath(chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
-                                  : TESTNET_HEALTH_CHECK_PATH);
-  cacheIndex(WalletType::MULTI_SIG, AddressType::ANY);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
-  cacheIndex(WalletType::ESCROW, AddressType::ANY);
+  storage_.CacheMasterSignerXPub(
+      chain_, id,
+      [&](std::string path) { return hwi_.GetXpubAtPath(device, path); },
+      progress, true);
 
   MasterSigner mastersigner{id, device, std::time(0)};
+  mastersigner.set_name(name);
+  return mastersigner;
+}
+
+MasterSigner NunchukImpl::CreateSoftwareSigner(
+    const std::string& raw_name, const std::string& mnemonic,
+    std::function<bool(int)> progress) {
+  std::string name = trim_copy(raw_name);
+  SoftwareSigner signer{mnemonic};
+  Device device{"software", "nunchuk", signer.GetMasterFingerprint()};
+  std::string id = storage_.CreateMasterSigner(chain_, name, device, mnemonic);
+
+  storage_.CacheMasterSignerXPub(
+      chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
+      progress, true);
+
+  MasterSigner mastersigner{id, device, std::time(0), true};
   mastersigner.set_name(name);
   return mastersigner;
 }
@@ -355,7 +355,9 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   bool existed = true;
   std::string id = fingerprint;
   try {
-    GetMasterSigner(id);
+    if (GetMasterSigner(id).is_software()) {
+      return HealthStatus::SUCCESS;
+    }
   } catch (StorageException& se) {
     if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
       existed = false;
@@ -530,7 +532,14 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                                          const Device& device) {
   std::string psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), psbt='%s'", psbt.c_str());
-  std::string signed_psbt = hwi_.SignTx(device, psbt);
+  auto mastersigner_id = device.get_master_fingerprint();
+  std::string signed_psbt;
+  if (GetMasterSigner(mastersigner_id).is_software()) {
+    auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
+    signed_psbt = software_signer.SignTx(psbt);
+  } else {
+    signed_psbt = hwi_.SignTx(device, psbt);
+  }
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
          signed_psbt.c_str());
   storage_.UpdatePsbt(chain_, wallet_id, signed_psbt);
@@ -656,27 +665,23 @@ bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,
 
 void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
                                         std::function<bool(int)> progress) {
-  std::string id = mastersigner_id;
-  Device device{id};
-  int count = 0;
-  auto cacheIndex = [&](WalletType w, AddressType a, int n) {
-    int index = storage_.GetCachedIndexFromMasterSigner(chain_, id, w, a);
-    if (index < 0 && w == WalletType::MULTI_SIG) index = 0;
-    for (int i = index + 1; i <= index + n; i++) {
-      storage_.CacheMasterSignerXPub(
-          chain_, id, w, a, i,
-          hwi_.GetXpubAtPath(device, GetBip32Path(chain_, w, a, i)));
-      progress(count++ * 100 / TOTAL_CACHE_NUMBER);
-    }
-  };
-  cacheIndex(WalletType::MULTI_SIG, AddressType::ANY, MULTISIG_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
-             SINGLESIG_BIP84_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
-             SINGLESIG_BIP49_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY,
-             SINGLESIG_BIP48_CACHE_NUMBER);
-  cacheIndex(WalletType::ESCROW, AddressType::ANY, ESCROW_CACHE_NUMBER);
+  if (GetMasterSigner(mastersigner_id).is_software()) {
+    auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
+    storage_.CacheMasterSignerXPub(
+        chain_, mastersigner_id,
+        [&](const std::string& path) {
+          return software_signer.GetXpubAtPath(path);
+        },
+        progress, false);
+  } else {
+    Device device{mastersigner_id};
+    storage_.CacheMasterSignerXPub(
+        chain_, mastersigner_id,
+        [&](const std::string& path) {
+          return hwi_.GetXpubAtPath(device, path);
+        },
+        progress, false);
+  }
 }
 
 bool NunchukImpl::ExportHealthCheckMessage(const std::string& message,

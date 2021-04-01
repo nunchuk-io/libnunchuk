@@ -259,12 +259,13 @@ class NUNCHUK_EXPORT SingleSigner {
 class NUNCHUK_EXPORT MasterSigner {
  public:
   MasterSigner(const std::string& id, const Device& device,
-               time_t last_health_check);
+               time_t last_health_check, bool software = false);
 
   std::string get_id() const;
   std::string get_name() const;
   Device get_device() const;
   time_t get_last_health_check() const;
+  bool is_software() const;
   void set_name(const std::string& value);
 
  private:
@@ -272,6 +273,7 @@ class NUNCHUK_EXPORT MasterSigner {
   std::string name_;
   Device device_;
   time_t last_health_check_;
+  bool software_;
 };
 
 class NUNCHUK_EXPORT Wallet {
@@ -588,6 +590,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                                   const std::string& description = {}) = 0;
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
+  virtual MasterSigner CreateSoftwareSigner(
+      const std::string& name, const std::string& mnemonic,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
@@ -650,6 +655,8 @@ class NUNCHUK_EXPORT Utils {
   static std::string SanitizeBIP32Input(
       const std::string& slip132_input,
       const std::string& target_format = "xpub");
+  static std::string GenerateMnemonic();
+  static bool CheckMnemonic(const std::string& mnemonic);
 
  private:
   Utils() {}

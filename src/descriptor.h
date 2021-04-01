@@ -31,7 +31,8 @@ std::string GetDescriptorForSigners(
     const std::vector<SingleSigner>& signers, int m,
     DescriptorPath path = DescriptorPath::EXTERNAL_ALL,
     AddressType address_type = AddressType::LEGACY,
-    WalletType wallet_type = WalletType::MULTI_SIG, int index = -1);
+    WalletType wallet_type = WalletType::MULTI_SIG, int index = -1,
+    bool sorted = true);
 
 std::string GetPkhDescriptor(const std::string& address);
 

@@ -12,6 +12,7 @@
 #endif
 
 #include <nunchuk.h>
+#include <softwaresigner.h>
 #include <sqlcipher/sqlite3.h>
 
 #include <boost/filesystem.hpp>
@@ -35,6 +36,7 @@ const int CHAIN_TIP = 9;
 const int SELECTED_WALLET = 10;
 const int SIGNER_DEVICE_TYPE = 11;
 const int SIGNER_DEVICE_MODEL = 12;
+const int MNEMONIC = 13;
 }  // namespace DbKeys
 
 class NunchukStorage;
@@ -126,7 +128,8 @@ class NunchukWalletDb : public NunchukDb {
 class NunchukSignerDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
-  void InitSigner(const std::string &name, const Device &device);
+  void InitSigner(const std::string &name, const Device &device,
+                  const std::string &mnemonic);
   void DeleteSigner();
   bool SetName(const std::string &value);
   bool SetLastHealthCheck(time_t value);
@@ -162,6 +165,8 @@ class NunchukSignerDb : public NunchukDb {
   bool SetRemoteLastHealthCheck(const std::string &derivation_path,
                                 time_t value);
   std::vector<SingleSigner> GetRemoteSigners() const;
+  bool IsSoftware() const;
+  SoftwareSigner GetSoftwareSigner() const;
 
  private:
   friend class NunchukStorage;
@@ -200,7 +205,8 @@ class NunchukStorage {
                       AddressType address_type, bool is_escrow,
                       const std::string &description);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
-                                 const Device &device);
+                                 const Device &device,
+                                 const std::string &mnemonic = {});
   SingleSigner CreateSingleSigner(Chain chain, const std::string &name,
                                   const std::string &xpub,
                                   const std::string &public_key,
@@ -218,6 +224,7 @@ class NunchukStorage {
   Wallet GetWallet(Chain chain, const std::string &id,
                    bool create_signers_if_not_exist = false);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
+  SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);
 
   bool UpdateWallet(Chain chain, const Wallet &wallet);
   bool UpdateMasterSigner(Chain chain, const MasterSigner &mastersigner);
@@ -227,12 +234,9 @@ class NunchukStorage {
 
   std::vector<SingleSigner> GetSignersFromMasterSigner(
       Chain chain, const std::string &mastersigner_id);
-  bool CacheMasterSignerXPub(Chain chain, const std::string &mastersigner_id,
-                             const WalletType &wallet_type,
-                             const AddressType &address_type, int index,
-                             const std::string &xpub);
-  bool CacheMasterSignerXPub(Chain chain, const std::string &mastersigner_id,
-                             const std::string &path, const std::string &xpub);
+  void CacheMasterSignerXPub(Chain chain, const std::string &mastersigner_id,
+                             std::function<std::string(std::string)> getxpub,
+                             std::function<bool(int)> progress, bool first);
   int GetCurrentIndexFromMasterSigner(Chain chain,
                                       const std::string &mastersigner_id,
                                       const WalletType &wallet_type,
