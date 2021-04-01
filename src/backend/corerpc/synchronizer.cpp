@@ -138,24 +138,27 @@ void CoreRpcSynchronizer::BlockchainSync(
     if (!address_info["solvable"].get<bool>()) {
       auto wallet = storage_->GetWallet(chain, wallet_id);
       if (wallet.is_escrow()) {
-        descriptors.push_back({{"desc", wallet.get_descriptor(false)},
-                               {"active", true},
-                               {"timestamp", wallet.get_create_date()},
-                               {"internal", false},
-                               {"watchonly", true}});
+        descriptors.push_back(
+            {{"desc", wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)},
+             {"active", true},
+             {"timestamp", wallet.get_create_date()},
+             {"internal", false},
+             {"watchonly", true}});
       } else {
-        descriptors.push_back({{"desc", wallet.get_descriptor(false)},
-                               {"active", true},
-                               {"range", 1000},
-                               {"timestamp", wallet.get_create_date()},
-                               {"internal", false},
-                               {"watchonly", true}});
-        descriptors.push_back({{"desc", wallet.get_descriptor(true)},
-                               {"active", true},
-                               {"range", 1000},
-                               {"timestamp", wallet.get_create_date()},
-                               {"internal", true},
-                               {"watchonly", true}});
+        descriptors.push_back(
+            {{"desc", wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)},
+             {"active", true},
+             {"range", 1000},
+             {"timestamp", wallet.get_create_date()},
+             {"internal", false},
+             {"watchonly", true}});
+        descriptors.push_back(
+            {{"desc", wallet.get_descriptor(DescriptorPath::INTERNAL_ALL)},
+             {"active", true},
+             {"range", 1000},
+             {"timestamp", wallet.get_create_date()},
+             {"internal", true},
+             {"watchonly", true}});
       }
     }
 

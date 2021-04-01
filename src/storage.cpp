@@ -715,16 +715,6 @@ bool NunchukWalletDb::DeleteTransaction(const std::string& tx_id) {
   return updated;
 }
 
-std::string NunchukWalletDb::GetDescriptor(bool internal) const {
-  Wallet wallet = GetWallet();
-  WalletType wallet_type =
-      wallet.get_n() == 1
-          ? WalletType::SINGLE_SIG
-          : (wallet.is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG);
-  return GetDescriptorForSigners(wallet.get_signers(), wallet.get_m(), internal,
-                                 wallet.get_address_type(), wallet_type);
-}
-
 std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
   Wallet wallet = GetWallet();
   std::stringstream content;
@@ -891,8 +881,9 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   if (!psbt.tx.has_value()) return base64_psbt;
 
   FlatSigningProvider provider;
-  std::string internal_desc = GetDescriptor(true);
-  std::string external_desc = GetDescriptor(false);
+  auto wallet = GetWallet();
+  std::string internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
+  std::string external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   UniValue uv;
   uv.read(GetDescriptorsImportString(external_desc, internal_desc));
   auto descs = uv.get_array();
@@ -1379,13 +1370,8 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
     case ExportFormat::COLDCARD:
       return WriteFile(file_path, wallet_db.GetMultisigConfig());
     case ExportFormat::DESCRIPTOR: {
-      std::stringstream descs;
-      descs << wallet_db.GetDescriptor(false);
-      bool is_escrow = wallet_db.GetWallet().is_escrow();
-      if (!is_escrow) {
-        descs << "\n" + wallet_db.GetDescriptor(true);
-      }
-      return WriteFile(file_path, descs.str());
+      return WriteFile(
+          file_path, wallet_db.GetWallet().get_descriptor(DescriptorPath::ANY));
     }
     case ExportFormat::DB:
       if (passphrase_.empty()) {
@@ -1570,8 +1556,8 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
       }
     }
   }
-  std::string external_desc =
-      GetDescriptorForSigners(signers, m, false, address_type, wallet_type);
+  std::string external_desc = GetDescriptorForSigners(
+      signers, m, DescriptorPath::EXTERNAL_ALL, address_type, wallet_type);
   std::string id = GetDescriptorChecksum(external_desc);
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
@@ -1793,13 +1779,6 @@ bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
   boost::unique_lock<boost::shared_mutex> lock(access_);
   return GetSignerDb(chain, signer.get_master_fingerprint())
       .SetRemoteLastHealthCheck(signer.get_derivation_path(), std::time(0));
-}
-
-std::string NunchukStorage::GetDescriptor(Chain chain,
-                                          const std::string& wallet_id,
-                                          bool internal) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetDescriptor(internal);
 }
 
 bool NunchukStorage::AddAddress(Chain chain, const std::string& wallet_id,

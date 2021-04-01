@@ -105,7 +105,6 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdatePsbt(const std::string &psbt);
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(const std::string &tx_id) const;
-  std::string GetDescriptor(bool internal) const;
   std::vector<UnspentOutput> GetUnspentOutputs(bool remove_locked) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
                                            int skip = 0) const;
@@ -247,8 +246,6 @@ class NunchukStorage {
                                   const std::string &path);
   bool SetHealthCheckSuccess(Chain chain, const std::string &mastersigner_id);
   bool SetHealthCheckSuccess(Chain chain, const SingleSigner &signer);
-  std::string GetDescriptor(Chain chain, const std::string &wallet_id,
-                            bool internal);
   bool AddAddress(Chain chain, const std::string &wallet_id,
                   const std::string &address, int index, bool internal);
   bool UseAddress(Chain chain, const std::string &wallet_id,

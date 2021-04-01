@@ -59,17 +59,10 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
                                      const std::string& description) {
-  WalletType wallet_type =
+  return GetDescriptorForSigners(
+      signers, m, DescriptorPath::ANY, address_type,
       n == 1 ? WalletType::SINGLE_SIG
-             : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
-  std::stringstream descs;
-  descs << GetDescriptorForSigners(signers, m, false, address_type,
-                                   wallet_type);
-  if (!is_escrow) {
-    descs << "\n" + GetDescriptorForSigners(signers, m, true, address_type,
-                                            wallet_type);
-  }
-  return descs.str();
+             : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG));
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets() {
@@ -161,7 +154,8 @@ void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
   std::string address;
   if (is_escrow) {
     synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
-    auto descriptor = storage_.GetDescriptor(chain_, wallet_id, false);
+    auto descriptor =
+        GetWallet(wallet_id).get_descriptor(DescriptorPath::EXTERNAL_ALL);
     address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
   } else {
     int change_index = 0;
@@ -175,7 +169,8 @@ void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
 
 std::string NunchukImpl::GetUnusedAddress(const std::string wallet_id,
                                           int& index, bool internal) {
-  auto descriptor = storage_.GetDescriptor(chain_, wallet_id, internal);
+  auto descriptor = GetWallet(wallet_id).get_descriptor(
+      internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int consecutive_unused = 0;
   std::vector<std::string> unused_addresses;
   while (true) {
@@ -448,7 +443,8 @@ std::vector<std::string> NunchukImpl::GetAddresses(const std::string& wallet_id,
 
 std::string NunchukImpl::NewAddress(const std::string& wallet_id,
                                     bool internal) {
-  std::string descriptor = storage_.GetDescriptor(chain_, wallet_id, internal);
+  std::string descriptor = GetWallet(wallet_id).get_descriptor(
+      internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int index = storage_.GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
@@ -761,23 +757,12 @@ bool NunchukImpl::SetSelectedWallet(const std::string& wallet_id) {
 void NunchukImpl::DisplayAddressOnDevice(
     const std::string& wallet_id, const std::string& address,
     const std::string& device_fingerprint) {
-  Wallet wallet = storage_.GetWallet(chain_, wallet_id);
-  WalletType wallet_type =
-      wallet.get_n() == 1
-          ? WalletType::SINGLE_SIG
-          : (wallet.is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG);
-  std::string desc{};
-  bool internal = false;
-  if (wallet_type == WalletType::ESCROW) {
-    desc =
-        GetDescriptorForSigners(wallet.get_signers(), wallet.get_m(), internal,
-                                wallet.get_address_type(), wallet_type);
-  } else {
-    int index = storage_.GetAddressIndex(chain_, wallet_id, address);
-    desc = GetDescriptorForSignersAtIndex(wallet.get_signers(), wallet.get_m(),
-                                          internal, wallet.get_address_type(),
-                                          wallet_type, index);
-  }
+  Wallet wallet = GetWallet(wallet_id);
+  std::string desc = wallet.get_descriptor(
+      DescriptorPath::EXTERNAL,
+      wallet.is_escrow()
+          ? -1
+          : storage_.GetAddressIndex(chain_, wallet_id, address));
 
   if (device_fingerprint.empty()) {
     auto devices = GetDevices();
@@ -895,8 +880,8 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
     change_address = unused.empty() ? NewAddress(wallet_id, true) : unused[0];
   }
   std::string error;
-  std::string internal_desc = storage_.GetDescriptor(chain_, wallet_id, true);
-  std::string external_desc = storage_.GetDescriptor(chain_, wallet_id, false);
+  std::string internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
+  std::string external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   std::string desc = GetDescriptorsImportString(external_desc, internal_desc);
   CoinSelector selector{desc, change_address};
   selector.set_fee_rate(CFeeRate(fee_rate));
