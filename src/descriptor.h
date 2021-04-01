@@ -28,14 +28,10 @@ std::string GetDescriptorsImportString(const std::string& external,
                                        int64_t timestamp = -1);
 
 std::string GetDescriptorForSigners(
-    const std::vector<SingleSigner>& signers, int m, bool internal = false,
+    const std::vector<SingleSigner>& signers, int m,
+    DescriptorPath path = DescriptorPath::EXTERNAL_ALL,
     AddressType address_type = AddressType::LEGACY,
-    WalletType wallet_type = WalletType::MULTI_SIG);
-
-// TODO (bakaoh): merge this method into GetDescriptorForSigners
-std::string GetDescriptorForSignersAtIndex(
-    const std::vector<SingleSigner>& signers, int m, bool internal,
-    AddressType address_type, WalletType wallet_type, int index);
+    WalletType wallet_type = WalletType::MULTI_SIG, int index = -1);
 
 std::string GetPkhDescriptor(const std::string& address);
 

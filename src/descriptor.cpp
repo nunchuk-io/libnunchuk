@@ -37,39 +37,77 @@ std::string GetDescriptorsImportString(const std::string& external,
   return descs.dump();
 }
 
+std::string FormalizePath(const std::string& path) {
+  std::string rs(path);
+  if (rs.rfind("m", 0) == 0) rs.erase(0, 1);  // Remove leading m
+  std::replace(rs.begin(), rs.end(), 'h', '\'');
+  return rs;
+}
+
+std::string GetKeyPath(DescriptorPath path, int index) {
+  std::stringstream keypath;
+  switch (path) {
+    case DescriptorPath::ANY:
+      keypath << "/*";
+      break;
+    case DescriptorPath::INTERNAL_ALL:
+      keypath << "/1/*";
+      break;
+    case DescriptorPath::INTERNAL:
+      keypath << "/1/" << index;
+      break;
+    case DescriptorPath::EXTERNAL_ALL:
+      keypath << "/0/*";
+      break;
+    case DescriptorPath::EXTERNAL:
+      keypath << "/0/" << index;
+      break;
+  }
+  return keypath.str();
+}
+
 std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
-                                    int m, bool internal,
+                                    int m, DescriptorPath key_path,
                                     AddressType address_type,
-                                    WalletType wallet_type) {
+                                    WalletType wallet_type, int index) {
   std::stringstream desc;
+  std::string keypath = GetKeyPath(key_path, index);
   if (wallet_type == WalletType::SINGLE_SIG) {
     const SingleSigner& signer = signers[0];
-    std::string path = signer.get_derivation_path();
-    if (path.rfind("m", 0) == 0) path.erase(0, 1);  // Remove leading m
-    std::replace(path.begin(), path.end(), 'h', '\'');
+    std::string path = FormalizePath(signer.get_derivation_path());
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY ? "pkh" : "wpkh");
     desc << "([" << signer.get_master_fingerprint() << path << "]"
-         << signer.get_xpub() << "/" << (internal ? 1 : 0) << "/*)";
+         << signer.get_xpub() << keypath << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
   } else {
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");
     desc << "(sortedmulti(" << m;
     for (auto&& signer : signers) {
-      std::string path = signer.get_derivation_path();
-      if (path.rfind("m", 0) == 0) path.erase(0, 1);  // Remove leading m
-      std::replace(path.begin(), path.end(), 'h', '\'');
-      if (wallet_type == WalletType::MULTI_SIG) {
-        desc << ",[" << signer.get_master_fingerprint() << path << "]"
-             << signer.get_xpub() << "/" << (internal ? 1 : 0) << "/*";
-      } else {
+      if (wallet_type == WalletType::ESCROW) {
         std::string pubkey = signer.get_public_key();
         if (pubkey.empty()) {
           pubkey = HexStr(DecodeExtPubKey(signer.get_xpub()).pubkey);
         }
+        desc << ",[" << signer.get_master_fingerprint()
+             << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
+      } else if (key_path == DescriptorPath::EXTERNAL ||
+                 key_path == DescriptorPath::INTERNAL) {
+        std::stringstream p;
+        p << signer.get_derivation_path() << keypath;
+        std::string path = FormalizePath(p.str());
+        // displayaddress only takes pubkeys as inputs, not xpubs
+        auto xpub = DecodeExtPubKey(signer.get_xpub());
+        xpub.Derive(xpub, (key_path == DescriptorPath::INTERNAL ? 1 : 0));
+        xpub.Derive(xpub, index);
+        std::string pubkey = HexStr(xpub.pubkey);
         desc << ",[" << signer.get_master_fingerprint() << path << "]"
              << pubkey;
+      } else {
+        desc << ",[" << signer.get_master_fingerprint()
+             << FormalizePath(signer.get_derivation_path()) << "]"
+             << signer.get_xpub() << keypath;
       }
     }
     desc << "))";
@@ -82,50 +120,6 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   return desc_with_checksum;
 }
 
-std::string GetDescriptorForSignersAtIndex(
-    const std::vector<SingleSigner>& signers, int m, bool internal,
-    AddressType address_type, WalletType wallet_type, int index) {
-  std::stringstream desc;
-  if (wallet_type == WalletType::SINGLE_SIG) {
-    const SingleSigner& signer = signers[0];
-    std::string path = signer.get_derivation_path();
-    if (path.rfind("m", 0) == 0) path.erase(0, 1);  // Remove leading m
-    std::replace(path.begin(), path.end(), 'h', '\'');
-    desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
-    desc << (address_type == AddressType::LEGACY ? "pkh" : "wpkh");
-    desc << "([" << signer.get_master_fingerprint() << path << "]"
-         << signer.get_xpub() << "/" << (internal ? 1 : 0) << "/" << index
-         << ")";
-    desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
-  } else {
-    desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
-    desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");
-    desc << "(sortedmulti(" << m;
-    for (auto&& signer : signers) {
-      std::stringstream p;
-      p << signer.get_derivation_path() << "/" << (internal ? 1 : 0) << "/"
-        << index;
-      std::string path = p.str();
-      if (path.rfind("m", 0) == 0) path.erase(0, 1);  // Remove leading m
-      std::replace(path.begin(), path.end(), 'h', '\'');
-      // displayaddress only takes pubkeys as inputs, not xpubs
-      auto xpub = DecodeExtPubKey(signer.get_xpub());
-      xpub.Derive(xpub, (internal ? 1 : 0));
-      xpub.Derive(xpub, index);
-      std::string pubkey = HexStr(xpub.pubkey);
-      desc << ",[" << signer.get_master_fingerprint() << path << "]" << pubkey;
-    }
-    desc << "))";
-    desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
-  }
-
-  std::string desc_with_checksum = AddChecksum(desc.str());
-  DLOG_F(INFO, "GetDescriptorForSignersAtIndex(): '%s'",
-         desc_with_checksum.c_str());
-
-  return desc_with_checksum;
-}
-
 std::string GetPkhDescriptor(const std::string& address) {
   std::stringstream desc_without_checksum;
   desc_without_checksum << "pkh(" << address << ")";
@@ -133,7 +127,7 @@ std::string GetPkhDescriptor(const std::string& address) {
   return AddChecksum(desc_without_checksum.str());
 }
 
-static std::regex SIGNER_REGEX("\\[([0-9a-f]{8})(.+)\\](.+?)(/[01]/\\*)?");
+static std::regex SIGNER_REGEX("\\[([0-9a-f]{8})(.+)\\](.+?)(/.*\\*)?");
 
 static std::map<std::string, std::pair<AddressType, WalletType>>
     PREFIX_MATCHER = {
@@ -155,9 +149,9 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
       return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), sm[1], 0);
     }
   }
-  throw NunchukException(
-      NunchukException::INVALID_PARAMETER,
-      "Could not parse descriptor. Note that key origin is required for XPUB");
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Could not parse descriptor. Note that key origin "
+                         "is required for XPUB");
 }
 
 bool ParseDescriptors(const std::string descs, AddressType& a, WalletType& w,
@@ -190,13 +184,7 @@ bool ParseDescriptors(const std::string descs, AddressType& a, WalletType& w,
           }
         }
 
-        if (external != GetDescriptorForSigners(signers, m, false, a, w)) {
-          return false;
-        } else if (w == WalletType::ESCROW) {
-          return !has_internal;
-        } else {
-          return internal == GetDescriptorForSigners(signers, m, true, a, w);
-        }
+        return true;
       }
     }
   } catch (...) {

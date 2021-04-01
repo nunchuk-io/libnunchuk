@@ -83,6 +83,14 @@ enum class Unit {
   SATOSHI,
 };
 
+enum class DescriptorPath {
+  ANY,
+  INTERNAL_ALL,
+  INTERNAL,
+  EXTERNAL_ALL,
+  EXTERNAL,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -282,7 +290,7 @@ class NUNCHUK_EXPORT Wallet {
   Amount get_balance() const;
   time_t get_create_date() const;
   std::string get_description() const;
-  std::string get_descriptor(bool internal) const;
+  std::string get_descriptor(DescriptorPath key_path, int index = -1) const;
   void set_name(const std::string& value);
   void set_balance(const Amount& value);
   void set_description(const std::string& value);
