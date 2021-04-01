@@ -779,10 +779,38 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
   std::set<std::string> locked_utxos;
   std::map<std::string, std::string> memo_map;
   std::map<std::string, int> height_map;
+
+  std::vector<UnspentOutput> rs;
+  auto change_addresses = GetAddresses(false, true);
+  auto is_my_change_address = [change_addresses](std::string address) {
+    return (std::find(change_addresses.begin(), change_addresses.end(),
+                      address) != change_addresses.end());
+  };
+
   for (auto&& tx : transactions) {
     memo_map[tx.get_txid()] = tx.get_memo();
     height_map[tx.get_txid()] = tx.get_height();
     if (tx.get_height() != 0) continue;
+
+    // CoreRPC uses polling requests to get new UTXO so it has some delay to
+    // update the balance. To fix #19 bug, we have to add change UTXO manually
+    int nout = tx.get_outputs().size();
+    for (int vout = 0; vout < nout; vout++) {
+      auto output = tx.get_outputs()[vout];
+      if (!is_my_change_address(output.first)) continue;
+      // add it to locked_utxos to prevent duplicate UTXO
+      locked_utxos.insert(input_str(tx.get_txid(), vout));
+
+      UnspentOutput utxo;
+      utxo.set_txid(tx.get_txid());
+      utxo.set_vout(vout);
+      utxo.set_address(output.first);
+      utxo.set_amount(output.second);
+      utxo.set_height(tx.get_height());
+      utxo.set_memo(tx.get_memo());
+      rs.push_back(utxo);
+    }
+
     if (!remove_locked) continue;
     // remove UTXOs of unconfirmed transactions
     for (auto&& input : tx.get_inputs()) {
@@ -795,7 +823,6 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
 
-  std::vector<UnspentOutput> rs;
   while (sqlite3_column_text(stmt, 0)) {
     std::string address = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string utxo_str = std::string((char*)sqlite3_column_text(stmt, 1));
@@ -882,8 +909,10 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
 
   FlatSigningProvider provider;
   auto wallet = GetWallet();
-  std::string internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-  std::string external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+  std::string internal_desc =
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
+  std::string external_desc =
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   UniValue uv;
   uv.read(GetDescriptorsImportString(external_desc, internal_desc));
   auto descs = uv.get_array();
@@ -1666,7 +1695,9 @@ std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
   fs::path directory = (datadir_ / ChainStr(chain) / "wallets");
   std::vector<std::string> ids;
   for (auto&& f : fs::directory_iterator(directory)) {
-    ids.push_back(f.path().filename().string());
+    auto id = f.path().filename().string();
+    if (id.size() != 8) continue;
+    ids.push_back(id);
   }
   return ids;
 }
@@ -1676,7 +1707,9 @@ std::vector<std::string> NunchukStorage::ListMasterSigners(Chain chain) {
   fs::path directory = (datadir_ / ChainStr(chain) / "signers");
   std::vector<std::string> ids;
   for (auto&& f : fs::directory_iterator(directory)) {
-    ids.push_back(f.path().filename().string());
+    auto id = f.path().filename().string();
+    if (id.size() != 8) continue;
+    ids.push_back(id);
   }
   return ids;
 }
