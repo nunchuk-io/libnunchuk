@@ -17,6 +17,7 @@ class SoftwareSigner {
  public:
   static std::string GenerateMnemonic();
   static bool CheckMnemonic(const std::string& mnemonic);
+  static std::vector<std::string> GetBip39WordList();
 
   SoftwareSigner(const std::string& mnemonic);
   CExtKey GetExtKeyAtPath(const std::string& derivation_path) const;

@@ -119,4 +119,8 @@ bool Utils::CheckMnemonic(const std::string& mnemonic) {
   return SoftwareSigner::CheckMnemonic(mnemonic);
 }
 
+std::vector<std::string> Utils::GetBip39WordList() {
+  return SoftwareSigner::GetBip39WordList();
+}
+
 }  // namespace nunchuk

@@ -18,6 +18,7 @@
 
 extern "C" {
 #include <bip39.h>
+#include <bip39_english.h>
 void random_buffer(uint8_t* buf, size_t len) { GetStrongRandBytes(buf, len); }
 }
 
@@ -39,6 +40,14 @@ std::string SoftwareSigner::GenerateMnemonic() {
 
 bool SoftwareSigner::CheckMnemonic(const std::string& mnemonic) {
   return mnemonic_check(mnemonic.c_str());
+}
+
+std::vector<std::string> SoftwareSigner::GetBip39WordList() {
+  std::vector<std::string> list{};
+  for (auto&& word : wordlist) {
+    if (word) list.push_back(word);
+  }
+  return list;
 }
 
 SoftwareSigner::SoftwareSigner(const std::string& mnemonic)
