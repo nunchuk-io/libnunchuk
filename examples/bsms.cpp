@@ -5,11 +5,12 @@
 extern "C" {
 #include <bip39.h>
 #include <pbkdf2.h>
-#include <sha2.h>
+// #include <sha2.h>
 #include <hmac.h>
 #include <aes/aes.h>
 
-void random_buffer(uint8_t* buf, size_t len) { GetStrongRandBytes(buf, len); }
+// void random_buffer(uint8_t* buf, size_t len) { GetStrongRandBytes(buf, len);
+// }
 }
 
 #include <iostream>
@@ -22,6 +23,7 @@ void random_buffer(uint8_t* buf, size_t len) { GetStrongRandBytes(buf, len); }
 
 #include <descriptor.h>
 #include <utils/loguru.hpp>
+#include <coreutils.h>
 
 std::string hexStr(const uint8_t* data, int len) {
   std::stringstream ss;
@@ -42,7 +44,8 @@ std::vector<uint8_t> generate(size_t entropy) {
 nunchuk::SingleSigner round1_signer(int id, const std::string& hex_token,
                                     const uint8_t encryption_key[256 / 8],
                                     nunchuk::Chain chain,
-                                    nunchuk::AddressType addressType) {
+                                    nunchuk::AddressType addressType,
+                                    bool escrow) {
   std::cout << "\n## Signer " << id + 1 << std::endl;
   if (hex_token != "00") {
     std::cout << "- ENCRYPTION_KEY (hex): " << hexStr(encryption_key, 32)
@@ -76,14 +79,20 @@ nunchuk::SingleSigner round1_signer(int id, const std::string& hex_token,
   xkey.Derive(xkey, 0 | 0x80000000);
   xkey.Derive(xkey, scriptType | 0x80000000);
   std::string xpub = EncodeExtPubKey(xkey.Neuter());
+  std::string pubkey = HexStr(xkey.Neuter().pubkey);
   std::cout << "- PRIVATE_KEY (m" << path << "): " << EncodeSecret(xkey.key)
             << std::endl;
-  std::cout << "- XPUB (m" << path << "): " << xpub << std::endl;
+  if (escrow) {
+    std::cout << "- PUBKEY (m" << path << "): " << pubkey << std::endl;
+  } else {
+    std::cout << "- XPUB (m" << path << "): " << xpub << std::endl;
+  }
 
   std::stringstream key_record;
   key_record << "BSMS 1.0" << std::endl;
   key_record << hex_token << std::endl;
-  key_record << "[" << master_fingerprint << path << "]" << xpub << std::endl;
+  key_record << "[" << master_fingerprint << path << "]"
+             << (escrow ? pubkey : xpub) << std::endl;
   key_record << "Signer " << id + 1 << " key";
 
   std::string signature;
@@ -159,16 +168,20 @@ void round2_coordinator(int id, const std::string& descriptor_record_str,
 
 int main(int argc, char** argv) {
   // Config
-  if (argc != 8) {
-    std::cout
-        << "./bip39 network m n tokenlen sametoken addresstype sortedmulti"
-        << std::endl;
+  if (argc != 10) {
+    std::cout << "./bip39 network m n tokenlen sametoken addresstype "
+                 "sortedmulti restrictpath escrow"
+              << std::endl;
     std::cout << "        network:  main, test" << std::endl;
     std::cout << "       tokenlen:  0, 64, 96" << std::endl;
     std::cout << "      sametoken:  true, false" << std::endl;
     std::cout << "    addresstype:  native, nested, legacy" << std::endl;
-    std::cout << "    sortedmulti:  true, false" << std::endl;
-    std::cout << "\nExample: ./bip39 main 2 5 96 false native true"
+    std::cout << "    sortedmulti:  true (sortedmulti), false (multi)"
+              << std::endl;
+    std::cout << "   restrictpath:  true, false (No path restrictions)"
+              << std::endl;
+    std::cout << "         escrow:  true (pubkey), false (xpub)" << std::endl;
+    std::cout << "\nExample: ./bip39 main 2 5 96 false native true true false"
               << std::endl;
     return 1;
   }
@@ -209,11 +222,13 @@ int main(int argc, char** argv) {
 
   bool sametoken = std::string(argv[5]) == "true";
   bool sorted = std::string(argv[7]) == "true";
+  bool retrictpath = std::string(argv[8]) == "true";
+  bool escrow = std::string(argv[9]) == "true";
 
   // Start
   loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
   nunchuk::Utils::SetChain(chain);
-  ECC_Start();
+  // ECC_Start();
 
   std::cout << "# ROUND 1" << std::endl;
 
@@ -257,7 +272,7 @@ int main(int argc, char** argv) {
 
   for (int i = 0; i < N; i++) {
     signers.push_back(round1_signer(i, hex_tokens[i], encryption_keys[i], chain,
-                                    addressType));
+                                    addressType, escrow));
   }
 
   std::cout << "\n\n# ROUND 2" << std::endl;
@@ -266,10 +281,23 @@ int main(int argc, char** argv) {
 
   std::stringstream descriptor_record;
   descriptor_record << "BSMS 1.0" << std::endl;
-  descriptor_record << "/0/*,/1/*" << std::endl;
   descriptor_record << GetDescriptorForSigners(
-      signers, M, nunchuk::DescriptorPath::ANY, addressType,
-      nunchuk::WalletType::MULTI_SIG, 0, sorted);
+                           signers, M,
+                           retrictpath ? nunchuk::DescriptorPath::TEMPLATE
+                                       : nunchuk::DescriptorPath::ANY,
+                           addressType,
+                           escrow ? nunchuk::WalletType::ESCROW
+                                  : nunchuk::WalletType::MULTI_SIG,
+                           0, sorted)
+                    << std::endl;
+  descriptor_record << (retrictpath ? "/0/*,/1/*" : "No path restrictions")
+                    << std::endl;
+  descriptor_record << nunchuk::CoreUtils::getInstance().DeriveAddresses(
+      GetDescriptorForSigners(
+          signers, M, nunchuk::DescriptorPath::EXTERNAL_ALL, addressType,
+          escrow ? nunchuk::WalletType::ESCROW : nunchuk::WalletType::MULTI_SIG,
+          escrow ? -1 : 0, sorted),
+      escrow ? -1 : 0);
 
   std::string descriptor_record_str = descriptor_record.str();
   std::cout << "- DESCRIPTOR_RECORD: \n\n```\n"

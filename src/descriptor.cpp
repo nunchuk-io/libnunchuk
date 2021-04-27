@@ -62,6 +62,9 @@ std::string GetKeyPath(DescriptorPath path, int index) {
     case DescriptorPath::EXTERNAL:
       keypath << "/0/" << index;
       break;
+    case DescriptorPath::TEMPLATE:
+      keypath << "/**";
+      break;
   }
   return keypath.str();
 }
@@ -113,6 +116,10 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     }
     desc << "))";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+  }
+
+  if (key_path == DescriptorPath::TEMPLATE) {
+    return desc.str();
   }
 
   std::string desc_with_checksum = AddChecksum(desc.str());

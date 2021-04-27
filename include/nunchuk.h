@@ -89,6 +89,7 @@ enum class DescriptorPath {
   INTERNAL,
   EXTERNAL_ALL,
   EXTERNAL,
+  TEMPLATE,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
