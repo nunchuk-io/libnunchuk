@@ -166,7 +166,7 @@ class NunchukSignerDb : public NunchukDb {
                                 time_t value);
   std::vector<SingleSigner> GetRemoteSigners() const;
   bool IsSoftware() const;
-  SoftwareSigner GetSoftwareSigner() const;
+  SoftwareSigner GetSoftwareSigner(const std::string &passphrase) const;
 
  private:
   friend class NunchukStorage;
@@ -316,6 +316,8 @@ class NunchukStorage {
                            const std::string &address);
   std::string GetMultisigConfig(Chain chain, const std::string &wallet_id,
                                 bool is_cobo);
+  void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
+                            const std::string &passphrase);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
@@ -331,6 +333,7 @@ class NunchukStorage {
   boost::filesystem::path datadir_;
   std::string passphrase_;
   boost::shared_mutex access_;
+  std::map<std::string, std::string> signer_passphrase_;
 };
 
 }  // namespace nunchuk

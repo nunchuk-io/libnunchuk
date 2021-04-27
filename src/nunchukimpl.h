@@ -51,7 +51,10 @@ class NunchukImpl : public Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) override;
   MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
+      const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress) override;
+  void SendSignerPassphrase(const std::string& mastersigner_id,
+                            const std::string& passphrase) override;
   SingleSigner GetSignerFromMasterSigner(const std::string& mastersigner_id,
                                          const WalletType& wallet_type,
                                          const AddressType& address_type,

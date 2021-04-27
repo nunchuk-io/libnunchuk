@@ -1176,13 +1176,19 @@ bool NunchukSignerDb::IsSoftware() const {
   return !GetString(DbKeys::MNEMONIC).empty();
 }
 
-SoftwareSigner NunchukSignerDb::GetSoftwareSigner() const {
+SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
+    const std::string& passphrase) const {
   auto mnemonic = GetString(DbKeys::MNEMONIC);
   if (mnemonic.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "is not software signer");
   }
-  return SoftwareSigner{mnemonic};
+  auto signer = SoftwareSigner{mnemonic, passphrase};
+  if (signer.GetMasterFingerprint() != id_) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
+                           "invalid software signer passphrase");
+  }
+  return signer;
 }
 
 void NunchukSignerDb::InitRemote() {
@@ -1817,7 +1823,11 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
 SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
                                                  const std::string& id) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
-  return GetSignerDb(chain, id).GetSoftwareSigner();
+  if (signer_passphrase_.count(id) == 0) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
+                           "invalid software signer passphrase");
+  }
+  return GetSignerDb(chain, id).GetSoftwareSigner(signer_passphrase_.at(id));
 }
 
 bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
@@ -2121,4 +2131,13 @@ std::string NunchukStorage::GetMultisigConfig(Chain chain,
   boost::shared_lock<boost::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetMultisigConfig(is_cobo);
 }
+
+void NunchukStorage::SendSignerPassphrase(Chain chain,
+                                          const std::string& mastersigner_id,
+                                          const std::string& passphrase) {
+  boost::unique_lock<boost::shared_mutex> lock(access_);
+  GetSignerDb(chain, mastersigner_id).GetSoftwareSigner(passphrase);
+  signer_passphrase_[mastersigner_id] = passphrase;
+}
+
 }  // namespace nunchuk

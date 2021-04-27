@@ -225,11 +225,12 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 
 MasterSigner NunchukImpl::CreateSoftwareSigner(
     const std::string& raw_name, const std::string& mnemonic,
-    std::function<bool(int)> progress) {
+    const std::string& passphrase, std::function<bool(int)> progress) {
   std::string name = trim_copy(raw_name);
-  SoftwareSigner signer{mnemonic};
+  SoftwareSigner signer{mnemonic, passphrase};
   Device device{"software", "nunchuk", signer.GetMasterFingerprint()};
   std::string id = storage_.CreateMasterSigner(chain_, name, device, mnemonic);
+  storage_.SendSignerPassphrase(chain_, id, passphrase);
 
   storage_.CacheMasterSignerXPub(
       chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
@@ -238,6 +239,11 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   MasterSigner mastersigner{id, device, std::time(0), true};
   mastersigner.set_name(name);
   return mastersigner;
+}
+
+void NunchukImpl::SendSignerPassphrase(const std::string& mastersigner_id,
+                                       const std::string& passphrase) {
+  storage_.SendSignerPassphrase(chain_, mastersigner_id, passphrase);
 }
 
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(
@@ -885,8 +891,10 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
     change_address = unused.empty() ? NewAddress(wallet_id, true) : unused[0];
   }
   std::string error;
-  std::string internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-  std::string external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+  std::string internal_desc =
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
+  std::string external_desc =
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   std::string desc = GetDescriptorsImportString(external_desc, internal_desc);
   CoinSelector selector{desc, change_address};
   selector.set_fee_rate(CFeeRate(fee_rate));

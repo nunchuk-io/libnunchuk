@@ -50,8 +50,9 @@ std::vector<std::string> SoftwareSigner::GetBip39WordList() {
   return list;
 }
 
-SoftwareSigner::SoftwareSigner(const std::string& mnemonic)
-    : bip32rootkey_(GetBip32RootKey(mnemonic)) {}
+SoftwareSigner::SoftwareSigner(const std::string& mnemonic,
+                               const std::string& passphrase)
+    : bip32rootkey_(GetBip32RootKey(mnemonic, passphrase)) {}
 
 CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
   std::vector<uint32_t> keypath;
@@ -113,9 +114,10 @@ std::string SoftwareSigner::SignMessage(const std::string& message,
   return signature;
 }
 
-CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic) const {
+CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
+                                        const std::string& passphrase) const {
   uint8_t seed[512 / 8];
-  mnemonic_to_seed(mnemonic.c_str(), "", seed, nullptr);
+  mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
   CExtKey bip32rootkey{};
   bip32rootkey.SetSeed(seed, 512 / 8);
   return bip32rootkey;

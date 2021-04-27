@@ -19,7 +19,7 @@ class SoftwareSigner {
   static bool CheckMnemonic(const std::string& mnemonic);
   static std::vector<std::string> GetBip39WordList();
 
-  SoftwareSigner(const std::string& mnemonic);
+  SoftwareSigner(const std::string& mnemonic, const std::string& passphrase);
   CExtKey GetExtKeyAtPath(const std::string& derivation_path) const;
   std::string GetXpubAtPath(const std::string& derivation_path) const;
   std::string GetMasterFingerprint() const;
@@ -28,7 +28,8 @@ class SoftwareSigner {
                           const std::string& derivation_path) const;
 
  private:
-  CExtKey GetBip32RootKey(const std::string& mnemonic) const;
+  CExtKey GetBip32RootKey(const std::string& mnemonic,
+                          const std::string& passphrase) const;
   CExtKey bip32rootkey_;
 };
 

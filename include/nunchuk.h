@@ -129,6 +129,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int CREATE_DUMMY_SIGNATURE_ERROR = -1018;
   static const int APP_RESTART_REQUIRED = -1019;
   static const int INVALID_FORMAT = -1020;
+  static const int INVALID_SIGNER_PASSPHRASE = -1021;
   using BaseException::BaseException;
 };
 
@@ -593,7 +594,10 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
+      const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual void SendSignerPassphrase(const std::string& mastersigner_id,
+                                    const std::string& passphrase);
 
   // Add listener methods
   virtual void AddBalanceListener(
