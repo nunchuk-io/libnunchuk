@@ -1811,11 +1811,13 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
                                              const std::string& id) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
-  MasterSigner signer{
-      id,
-      Device(signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
-             signer_db.GetFingerprint()),
-      signer_db.GetLastHealthCheck(), signer_db.IsSoftware()};
+  Device device{signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
+                signer_db.GetFingerprint()};
+  if (signer_db.IsSoftware()) {
+    device.set_needs_pass_phrase_sent(signer_passphrase_.count(id) == 0);
+  }
+  MasterSigner signer{id, device, signer_db.GetLastHealthCheck(),
+                      signer_db.IsSoftware()};
   signer.set_name(signer_db.GetName());
   return signer;
 }

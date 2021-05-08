@@ -38,5 +38,8 @@ bool Device::connected() const { return connected_; }
 bool Device::needs_pass_phrase_sent() const { return needs_pass_phrase_sent_; }
 bool Device::needs_pin_sent() const { return needs_pin_sent_; }
 bool Device::initialized() const { return initialized_; }
+void Device::set_needs_pass_phrase_sent(const bool value) {
+  needs_pass_phrase_sent_ = value;
+}
 
 }  // namespace nunchuk

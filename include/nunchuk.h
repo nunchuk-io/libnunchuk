@@ -215,6 +215,7 @@ class NUNCHUK_EXPORT Device {
   bool needs_pass_phrase_sent() const;
   bool needs_pin_sent() const;
   bool initialized() const;
+  void set_needs_pass_phrase_sent(const bool value);
 
  private:
   std::string type_;
