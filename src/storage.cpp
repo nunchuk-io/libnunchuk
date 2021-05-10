@@ -1814,6 +1814,13 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
   Device device{signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
                 signer_db.GetFingerprint()};
   if (signer_db.IsSoftware()) {
+    if (signer_passphrase_.count(id) == 0) {
+      try {
+        GetSignerDb(chain, id).GetSoftwareSigner("");
+        signer_passphrase_[id] = "";
+      } catch (...) {
+      }
+    }
     device.set_needs_pass_phrase_sent(signer_passphrase_.count(id) == 0);
   }
   MasterSigner signer{id, device, signer_db.GetLastHealthCheck(),
@@ -1826,8 +1833,9 @@ SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
                                                  const std::string& id) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
   if (signer_passphrase_.count(id) == 0) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
-                           "invalid software signer passphrase");
+    auto software_signer = GetSignerDb(chain, id).GetSoftwareSigner("");
+    signer_passphrase_[id] = "";
+    return software_signer;
   }
   return GetSignerDb(chain, id).GetSoftwareSigner(signer_passphrase_.at(id));
 }
