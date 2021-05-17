@@ -19,7 +19,10 @@
 extern "C" {
 #include <bip39.h>
 #include <bip39_english.h>
-void random_buffer(uint8_t* buf, size_t len) { GetStrongRandBytes(buf, len); }
+void random_buffer(uint8_t* buf, size_t len) { 
+  // Core's GetStrongRandBytes https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
+  GetStrongRandBytes(buf, len); 
+}
 }
 
 namespace nunchuk {
@@ -42,7 +45,7 @@ bool SoftwareSigner::CheckMnemonic(const std::string& mnemonic) {
   return mnemonic_check(mnemonic.c_str());
 }
 
-std::vector<std::string> SoftwareSigner::GetBip39WordList() {
+std::vector<std::string> SoftwareSigner::GetBIP39WordList() {
   std::vector<std::string> list{};
   for (auto&& word : wordlist) {
     if (word) list.push_back(word);

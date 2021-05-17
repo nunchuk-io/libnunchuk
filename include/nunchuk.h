@@ -663,7 +663,7 @@ class NUNCHUK_EXPORT Utils {
       const std::string& target_format = "xpub");
   static std::string GenerateMnemonic();
   static bool CheckMnemonic(const std::string& mnemonic);
-  static std::vector<std::string> GetBip39WordList();
+  static std::vector<std::string> GetBIP39WordList();
 
  private:
   Utils() {}
