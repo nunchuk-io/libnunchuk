@@ -4,7 +4,9 @@
 
 #include <nunchuk.h>
 #include <coreutils.h>
+#include <softwaresigner.h>
 #include <utils/addressutils.hpp>
+
 #include <base58.h>
 #include <amount.h>
 #include <stdlib.h>
@@ -108,5 +110,17 @@ std::string Utils::AddressToScriptPubKey(const std::string& address) {
 }
 
 void Utils::SetChain(Chain chain) { CoreUtils::getInstance().SetChain(chain); }
+
+std::string Utils::GenerateMnemonic() {
+  return SoftwareSigner::GenerateMnemonic();
+}
+
+bool Utils::CheckMnemonic(const std::string& mnemonic) {
+  return SoftwareSigner::CheckMnemonic(mnemonic);
+}
+
+std::vector<std::string> Utils::GetBIP39WordList() {
+  return SoftwareSigner::GetBIP39WordList();
+}
 
 }  // namespace nunchuk

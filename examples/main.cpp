@@ -102,12 +102,29 @@ void newmastersigner() {
   auto device_xfp = devices[device_idx].get_master_fingerprint();
   auto master_signer = nu.get()->CreateMasterSigner(
       name, {device_xfp}, [](int percent) { return true; });
+  nu.get()->CacheMasterSignerXPub(master_signer.get_id(), [](int percent) {
+    std::cout << "Caching xpub... " << percent << "%" << std::endl;
+    return true;
+  });
   std::cout << "\nMaster signer create success." << std::endl;
 }
 
+void newsoftwaresigner() {
+  auto name = input_string("Enter signer name");
+  auto mnemonic = Utils::GenerateMnemonic();
+  std::cout << "Mnemonic: " << mnemonic << std::endl;
+  auto master_signer = nu.get()->CreateSoftwareSigner(
+      name, mnemonic, [](int percent) { return true; });
+  nu.get()->CacheMasterSignerXPub(master_signer.get_id(),
+                                  [](int percent) { return true; });
+  std::cout << "\nMaster signer create success. Please back up your mnemonic."
+            << std::endl;
+}
+
 void newsigner() {
-  auto is_remote = input_bool("Is it remote signer");
-  if (is_remote) {
+  if (input_bool("Is it software signer")) {
+    newsoftwaresigner();
+  } else if (input_bool("Is it remote signer")) {
     newremotesigner();
   } else {
     newmastersigner();
@@ -227,6 +244,10 @@ void send() {
   // Sign transaction
   while (tx.get_status() == TransactionStatus::PENDING_SIGNATURES) {
     auto devices = nu.get()->GetDevices();
+    auto signers = nu.get()->GetMasterSigners();
+    for (auto&& signer : signers) {
+      if (signer.is_software()) devices.push_back(signer.get_device());
+    }
     for (auto&& device : devices) {
       auto signers = tx.get_signers();
       auto xfp = device.get_master_fingerprint();

@@ -89,6 +89,7 @@ enum class DescriptorPath {
   INTERNAL,
   EXTERNAL_ALL,
   EXTERNAL,
+  TEMPLATE,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
@@ -128,6 +129,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int CREATE_DUMMY_SIGNATURE_ERROR = -1018;
   static const int APP_RESTART_REQUIRED = -1019;
   static const int INVALID_FORMAT = -1020;
+  static const int INVALID_SIGNER_PASSPHRASE = -1021;
   using BaseException::BaseException;
 };
 
@@ -213,6 +215,7 @@ class NUNCHUK_EXPORT Device {
   bool needs_pass_phrase_sent() const;
   bool needs_pin_sent() const;
   bool initialized() const;
+  void set_needs_pass_phrase_sent(const bool value);
 
  private:
   std::string type_;
@@ -259,12 +262,13 @@ class NUNCHUK_EXPORT SingleSigner {
 class NUNCHUK_EXPORT MasterSigner {
  public:
   MasterSigner(const std::string& id, const Device& device,
-               time_t last_health_check);
+               time_t last_health_check, bool software = false);
 
   std::string get_id() const;
   std::string get_name() const;
   Device get_device() const;
   time_t get_last_health_check() const;
+  bool is_software() const;
   void set_name(const std::string& value);
 
  private:
@@ -272,6 +276,7 @@ class NUNCHUK_EXPORT MasterSigner {
   std::string name_;
   Device device_;
   time_t last_health_check_;
+  bool software_;
 };
 
 class NUNCHUK_EXPORT Wallet {
@@ -588,6 +593,12 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                                   const std::string& description = {}) = 0;
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
+  virtual MasterSigner CreateSoftwareSigner(
+      const std::string& name, const std::string& mnemonic,
+      const std::string& passphrase,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual void SendSignerPassphrase(const std::string& mastersigner_id,
+                                    const std::string& passphrase) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
@@ -650,6 +661,9 @@ class NUNCHUK_EXPORT Utils {
   static std::string SanitizeBIP32Input(
       const std::string& slip132_input,
       const std::string& target_format = "xpub");
+  static std::string GenerateMnemonic();
+  static bool CheckMnemonic(const std::string& mnemonic);
+  static std::vector<std::string> GetBIP39WordList();
 
  private:
   Utils() {}

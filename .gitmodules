@@ -7,3 +7,6 @@
 [submodule "contrib/bc-ur-cpp"]
 	path = contrib/bc-ur-cpp
 	url = https://github.com/nunchuk-io/bc-ur-cpp
+[submodule "contrib/trezor-firmware"]
+	path = contrib/trezor-firmware
+	url = https://github.com/trezor/trezor-firmware

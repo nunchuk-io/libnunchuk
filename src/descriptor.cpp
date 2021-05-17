@@ -62,6 +62,9 @@ std::string GetKeyPath(DescriptorPath path, int index) {
     case DescriptorPath::EXTERNAL:
       keypath << "/0/" << index;
       break;
+    case DescriptorPath::TEMPLATE:
+      keypath << "/**";
+      break;
   }
   return keypath.str();
 }
@@ -69,7 +72,8 @@ std::string GetKeyPath(DescriptorPath path, int index) {
 std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
                                     int m, DescriptorPath key_path,
                                     AddressType address_type,
-                                    WalletType wallet_type, int index) {
+                                    WalletType wallet_type, int index,
+                                    bool sorted) {
   std::stringstream desc;
   std::string keypath = GetKeyPath(key_path, index);
   if (wallet_type == WalletType::SINGLE_SIG) {
@@ -83,7 +87,7 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   } else {
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");
-    desc << "(sortedmulti(" << m;
+    desc << (sorted ? "(sortedmulti(" : "(multi(") << m;
     for (auto&& signer : signers) {
       if (wallet_type == WalletType::ESCROW) {
         std::string pubkey = signer.get_public_key();
@@ -112,6 +116,10 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     }
     desc << "))";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+  }
+
+  if (key_path == DescriptorPath::TEMPLATE) {
+    return desc.str();
   }
 
   std::string desc_with_checksum = AddChecksum(desc.str());
