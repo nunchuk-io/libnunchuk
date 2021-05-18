@@ -36,6 +36,10 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
       hwi_(app_settings_.get_hwi_path(), chain_) {
   CoreUtils::getInstance().SetChain(chain_);
   storage_.MaybeMigrate(chain_);
+  std::fill(estimate_fee_cached_time_,
+            estimate_fee_cached_time_ + ESTIMATE_FEE_CACHE_SIZE, 0);
+  std::fill(estimate_fee_cached_value_,
+            estimate_fee_cached_value_ + ESTIMATE_FEE_CACHE_SIZE, 0);
   synchronizer_ = MakeSynchronizer(app_settings_, &storage_);
   synchronizer_->Run();
 }
