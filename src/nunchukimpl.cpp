@@ -573,8 +573,8 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
         boost::starts_with(ne.what(),
                            "the transaction was rejected by network rules.")) {
       storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, ne.what());
-      throw;
     }
+    throw;
   }
   storage_.UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
   return GetTransaction(wallet_id, new_txid);
