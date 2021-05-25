@@ -178,7 +178,7 @@ using socket_t = SOCKET;
 #include <unistd.h>
 
 using socket_t = int;
-#define INVALID_SOCKET_1 (-1)
+#define INVALID_SOCKET (-1)
 #endif //_WIN32
 
 #include <algorithm>
@@ -998,12 +998,12 @@ public:
 
 protected:
   struct Socket {
-    socket_t sock = INVALID_SOCKET_1;
+    socket_t sock = INVALID_SOCKET;
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
     SSL *ssl = nullptr;
 #endif
 
-    bool is_open() const { return sock != INVALID_SOCKET_1; }
+    bool is_open() const { return sock != INVALID_SOCKET; }
   };
 
   Result send_(Request &&req);
@@ -2051,7 +2051,7 @@ socket_t create_socket(const char *host, int port, int socket_flags,
 #ifdef __linux__
     res_init();
 #endif
-    return INVALID_SOCKET_1;
+    return INVALID_SOCKET;
   }
 
   for (auto rp = result; rp; rp = rp->ai_next) {
@@ -2073,13 +2073,13 @@ socket_t create_socket(const char *host, int port, int socket_flags,
      * SP1, and later
      *
      */
-    if (sock == INVALID_SOCKET_1) {
+    if (sock == INVALID_SOCKET) {
       sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     }
 #else
     auto sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 #endif
-    if (sock == INVALID_SOCKET_1) { continue; }
+    if (sock == INVALID_SOCKET) { continue; }
 
 #ifndef _WIN32
     if (fcntl(sock, F_SETFD, FD_CLOEXEC) == -1) { continue; }
@@ -2109,7 +2109,7 @@ socket_t create_socket(const char *host, int port, int socket_flags,
   }
 
   freeaddrinfo(result);
-  return INVALID_SOCKET_1;
+  return INVALID_SOCKET;
 }
 
 inline void set_nonblocking(socket_t sock, bool nonblocking) {
@@ -2218,7 +2218,7 @@ inline socket_t create_client_socket(const char *host, int port,
         return true;
       });
 
-  if (sock != INVALID_SOCKET_1) {
+  if (sock != INVALID_SOCKET) {
     error = Error::Success;
   } else {
     if (error == Error::Success) { error = Error::Connection; }
@@ -4139,7 +4139,7 @@ inline const std::string &BufferStream::get_buffer() const { return buffer; }
 inline Server::Server()
     : new_task_queue(
           [] { return new ThreadPool(CPPHTTPLIB_THREAD_POOL_COUNT); }),
-      svr_sock_(INVALID_SOCKET_1), is_running_(false) {
+      svr_sock_(INVALID_SOCKET), is_running_(false) {
 #ifndef _WIN32
   signal(SIGPIPE, SIG_IGN);
 #endif
@@ -4411,8 +4411,8 @@ inline bool Server::is_running() const { return is_running_; }
 
 inline void Server::stop() {
   if (is_running_) {
-    assert(svr_sock_ != INVALID_SOCKET_1);
-    std::atomic<socket_t> sock(svr_sock_.exchange(INVALID_SOCKET_1));
+    assert(svr_sock_ != INVALID_SOCKET);
+    std::atomic<socket_t> sock(svr_sock_.exchange(INVALID_SOCKET));
     detail::shutdown_socket(sock);
     detail::close_socket(sock);
   }
@@ -4532,7 +4532,7 @@ Server::write_content_with_provider(Stream &strm, const Request &req,
                                     Response &res, const std::string &boundary,
                                     const std::string &content_type) {
   auto is_shutting_down = [this]() {
-    return this->svr_sock_ == INVALID_SOCKET_1;
+    return this->svr_sock_ == INVALID_SOCKET;
   };
 
   if (res.content_length_ > 0) {
@@ -4721,7 +4721,7 @@ inline int Server::bind_internal(const char *host, int port, int socket_flags) {
   if (!is_valid()) { return -1; }
 
   svr_sock_ = create_server_socket(host, port, socket_flags, socket_options_);
-  if (svr_sock_ == INVALID_SOCKET_1) { return -1; }
+  if (svr_sock_ == INVALID_SOCKET) { return -1; }
 
   if (port == 0) {
     struct sockaddr_storage addr;
@@ -4749,7 +4749,7 @@ inline bool Server::listen_internal() {
   {
     std::unique_ptr<TaskQueue> task_queue(new_task_queue());
 
-    while (svr_sock_ != INVALID_SOCKET_1) {
+    while (svr_sock_ != INVALID_SOCKET) {
 #ifndef _WIN32
       if (idle_interval_sec_ > 0 || idle_interval_usec_ > 0) {
 #endif
@@ -4764,14 +4764,14 @@ inline bool Server::listen_internal() {
 #endif
       socket_t sock = accept(svr_sock_, nullptr, nullptr);
 
-      if (sock == INVALID_SOCKET_1) {
+      if (sock == INVALID_SOCKET) {
         if (errno == EMFILE) {
           // The per-process limit of open file descriptors has been reached.
           // Try to accept new connections after a short sleep.
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
           continue;
         }
-        if (svr_sock_ != INVALID_SOCKET_1) {
+        if (svr_sock_ != INVALID_SOCKET) {
           detail::close_socket(svr_sock_);
           ret = false;
         } else {
@@ -5205,7 +5205,7 @@ inline socket_t ClientImpl::create_client_socket(Error &error) const {
 inline bool ClientImpl::create_and_connect_socket(Socket &socket,
                                                   Error &error) {
   auto sock = create_client_socket(error);
-  if (sock == INVALID_SOCKET_1) { return false; }
+  if (sock == INVALID_SOCKET) { return false; }
   socket.sock = sock;
   return true;
 }
@@ -5219,7 +5219,7 @@ inline void ClientImpl::shutdown_ssl(Socket & /*socket*/,
 }
 
 inline void ClientImpl::shutdown_socket(Socket &socket) {
-  if (socket.sock == INVALID_SOCKET_1) { return; }
+  if (socket.sock == INVALID_SOCKET) { return; }
   detail::shutdown_socket(socket.sock);
 }
 
@@ -5237,9 +5237,9 @@ inline void ClientImpl::close_socket(Socket &socket) {
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
   assert(socket.ssl == nullptr);
 #endif
-  if (socket.sock == INVALID_SOCKET_1) { return; }
+  if (socket.sock == INVALID_SOCKET) { return; }
   detail::close_socket(socket.sock);
-  socket.sock = INVALID_SOCKET_1;
+  socket.sock = INVALID_SOCKET;
 }
 
 inline void ClientImpl::lock_socket_and_shutdown_and_close() {
@@ -6892,7 +6892,7 @@ inline bool SSLClient::initialize_ssl(Socket &socket, Error &error) {
 }
 
 inline void SSLClient::shutdown_ssl(Socket &socket, bool shutdown_gracefully) {
-  if (socket.sock == INVALID_SOCKET_1) {
+  if (socket.sock == INVALID_SOCKET) {
     assert(socket.ssl == nullptr);
     return;
   }
