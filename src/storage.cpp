@@ -9,6 +9,7 @@
 #include <utils/txutils.hpp>
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
+#include <utils/bsms.hpp>
 #include <boost/filesystem/string_file.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
@@ -1421,6 +1422,9 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
     case ExportFormat::DESCRIPTOR: {
       return WriteFile(
           file_path, wallet_db.GetWallet().get_descriptor(DescriptorPath::ANY));
+    }
+    case ExportFormat::BSMS: {
+      return WriteFile(file_path, GetDescriptorRecord(wallet_db.GetWallet()));
     }
     case ExportFormat::DB:
       if (passphrase_.empty()) {

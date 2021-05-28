@@ -16,6 +16,7 @@
 #include <utils/loguru.hpp>
 #include <utils/quote.hpp>
 #include <utils/multisigconfig.hpp>
+#include <utils/bsms.hpp>
 #include <boost/algorithm/string.hpp>
 #include <ur.h>
 
@@ -124,9 +125,12 @@ Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
   int m;
   int n;
   std::vector<SingleSigner> signers;
-  if (!ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Could not parse descriptor");
+  if (!ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers)) {
+    // Not BSMS format, fallback to legacy format
+    if (!ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Could not parse descriptor");
+    }
   }
   return CreateWallet(name, m, n, signers, address_type,
                       wallet_type == WalletType::ESCROW, description);

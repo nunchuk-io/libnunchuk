@@ -122,7 +122,7 @@ std::string HWIService::GetXpubAtPath(const Device &device,
   std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
                                        "getxpub", derivation_path};
   if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    cmd_args.insert(cmd_args.begin(), "--chain test");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["xpub"];
@@ -159,7 +159,7 @@ std::string HWIService::SignTx(const Device &device,
       cmd_args.insert(cmd_args.begin(), "-t");
   }
   if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    cmd_args.insert(cmd_args.begin(), "--chain test");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["psbt"];
@@ -183,7 +183,7 @@ std::string HWIService::SignMessage(const Device &device,
       cmd_args.insert(cmd_args.begin(), "-t");
   }
   if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    cmd_args.insert(cmd_args.begin(), "--chain test");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["signature"];
@@ -205,7 +205,7 @@ std::string HWIService::DisplayAddress(const Device &device,
       cmd_args.insert(cmd_args.begin(), "-t");
   }
   if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    cmd_args.insert(cmd_args.begin(), "--chain test");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["address"];
@@ -216,7 +216,7 @@ void HWIService::PromptPin(const Device &device) const {
   std::vector<std::string> cmd_args = {"-t", device.get_type(), "-d",
                                        device.get_path(), "promptpin"};
   if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    cmd_args.insert(cmd_args.begin(), "--chain test");
   }
   ParseResponse(RunCmd(cmd_args));
 }
@@ -226,7 +226,7 @@ void HWIService::SendPin(const Device &device, const std::string &pin) const {
   std::vector<std::string> cmd_args = {
       "-t", device.get_type(), "-d", device.get_path(), "sendpin", pin};
   if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    cmd_args.insert(cmd_args.begin(), "--chain test");
   }
   ParseResponse(RunCmd(cmd_args));
 }
