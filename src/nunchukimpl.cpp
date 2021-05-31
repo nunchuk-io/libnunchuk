@@ -239,11 +239,10 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   Device device{"software", "nunchuk", signer.GetMasterFingerprint()};
   std::string id = storage_.CreateMasterSigner(chain_, name, device, mnemonic);
   storage_.SendSignerPassphrase(chain_, id, passphrase);
-
   storage_.CacheMasterSignerXPub(
       chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
       progress, true);
-
+  storage_.ClearSignerPassphrase(chain_, id);
   MasterSigner mastersigner{id, device, std::time(0), true};
   mastersigner.set_name(name);
   return mastersigner;
@@ -252,6 +251,10 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
 void NunchukImpl::SendSignerPassphrase(const std::string& mastersigner_id,
                                        const std::string& passphrase) {
   storage_.SendSignerPassphrase(chain_, mastersigner_id, passphrase);
+}
+
+void NunchukImpl::ClearSignerPassphrase(const std::string& mastersigner_id) {
+  storage_.ClearSignerPassphrase(chain_, mastersigner_id);
 }
 
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(

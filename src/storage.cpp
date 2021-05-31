@@ -2154,4 +2154,10 @@ void NunchukStorage::SendSignerPassphrase(Chain chain,
   signer_passphrase_[mastersigner_id] = passphrase;
 }
 
+void NunchukStorage::ClearSignerPassphrase(Chain chain,
+                                          const std::string& mastersigner_id) {
+  boost::unique_lock<boost::shared_mutex> lock(access_);
+  signer_passphrase_.erase(mastersigner_id);
+}
+
 }  // namespace nunchuk

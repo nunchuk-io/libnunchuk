@@ -318,6 +318,7 @@ class NunchukStorage {
                                 bool is_cobo);
   void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                             const std::string &passphrase);
+  void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);

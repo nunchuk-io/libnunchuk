@@ -600,6 +600,7 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,
                                     const std::string& passphrase) = 0;
+  virtual void ClearSignerPassphrase(const std::string& mastersigner_id) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
