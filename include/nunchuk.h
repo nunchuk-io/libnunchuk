@@ -76,6 +76,7 @@ enum class ExportFormat {
   COLDCARD,
   COBO,
   CSV,
+  BSMS,
 };
 
 enum class Unit {
