@@ -51,7 +51,6 @@ add_library("${PROJECT_NAME}" STATIC
     src/coreutils.cpp
     src/descriptor.cpp
     src/coinselector.cpp
-    src/storage.cpp
     src/softwaresigner.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
@@ -67,6 +66,12 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/transaction.cpp
     src/dto/unspentoutput.cpp
     src/dto/wallet.cpp
+    src/storage/appstatedb.cpp
+    src/storage/common.cpp
+    src/storage/db.cpp
+    src/storage/signerdb.cpp
+    src/storage/storage.cpp
+    src/storage/walletdb.cpp
     src/utils/loguru.cpp
 )
 

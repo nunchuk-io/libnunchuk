@@ -9,7 +9,7 @@
 #include <hwiservice.h>
 #include <nunchuk.h>
 #include <coreutils.h>
-#include <storage.h>
+#include <storage/storage.h>
 #include <backend/synchronizer.h>
 
 namespace nunchuk {
