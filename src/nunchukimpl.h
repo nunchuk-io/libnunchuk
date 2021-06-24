@@ -18,7 +18,8 @@ const int ESTIMATE_FEE_CACHE_SIZE = 6;
 
 class NunchukImpl : public Nunchuk {
  public:
-  NunchukImpl(const AppSettings& appsettings, const std::string& passphrase);
+  NunchukImpl(const AppSettings& appsettings, const std::string& passphrase,
+              const std::string& account);
   NunchukImpl(const NunchukImpl&) = delete;
   NunchukImpl& operator=(const NunchukImpl&) = delete;
   ~NunchukImpl() override;

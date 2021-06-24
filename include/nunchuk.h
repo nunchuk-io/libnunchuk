@@ -674,6 +674,10 @@ class NUNCHUK_EXPORT Utils {
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase = "");
 
+std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
+                                               const std::string& passphrase,
+                                               const std::string& account);
+
 }  // namespace nunchuk
 
 #endif  // NUNCHUK_INCLUDE_H

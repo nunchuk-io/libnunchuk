@@ -30,9 +30,10 @@ static int CACHE_SECOND = 600;  // 10 minutes
 
 // Nunchuk implement
 NunchukImpl::NunchukImpl(const AppSettings& appsettings,
-                         const std::string& passphrase)
+                         const std::string& passphrase,
+                         const std::string& account)
     : app_settings_(appsettings),
-      storage_(app_settings_.get_storage_path(), passphrase),
+      storage_(app_settings_.get_storage_path(), passphrase, account),
       chain_(app_settings_.get_chain()),
       hwi_(app_settings_.get_hwi_path(), chain_) {
   CoreUtils::getInstance().SetChain(chain_);
@@ -927,7 +928,13 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase) {
-  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase));
+  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase, ""));
+}
+
+std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
+                                               const std::string& passphrase,
+                                               const std::string& account) {
+  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase, account));
 }
 
 }  // namespace nunchuk

@@ -112,8 +112,9 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
 }
 
 NunchukStorage::NunchukStorage(const std::string& datadir,
-                               const std::string& passphrase)
-    : passphrase_(passphrase) {
+                               const std::string& passphrase,
+                               const std::string& account)
+    : passphrase_(passphrase), account_(account) {
   if (!datadir.empty()) {
     datadir_ = fs::system_complete(datadir);
     if (!fs::is_directory(datadir_)) {
@@ -124,6 +125,9 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
     datadir_ = GetDefaultDataDir();
   }
 
+  if (!account_.empty()) {
+    datadir_ = datadir_ / account_;
+  }
   if (fs::create_directories(datadir_ / "testnet")) {
     fs::create_directories(datadir_ / "testnet" / "wallets");
     fs::create_directories(datadir_ / "testnet" / "signers");

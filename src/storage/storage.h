@@ -20,7 +20,8 @@ namespace nunchuk {
 class NunchukStorage {
  public:
   NunchukStorage(const std::string &datadir = "",
-                 const std::string &passphrase = "");
+                 const std::string &passphrase = "",
+                 const std::string &account = "");
 
   void MaybeMigrate(Chain chain);
   bool WriteFile(const std::string &file_path, const std::string &value);
@@ -162,6 +163,7 @@ class NunchukStorage {
   boost::filesystem::path GetDefaultDataDir() const;
   boost::filesystem::path datadir_;
   std::string passphrase_;
+  std::string account_;
   boost::shared_mutex access_;
   std::map<std::string, std::string> signer_passphrase_;
 };
