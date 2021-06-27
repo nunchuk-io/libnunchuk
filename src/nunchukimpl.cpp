@@ -49,7 +49,7 @@ Nunchuk::~Nunchuk() = default;
 NunchukImpl::~NunchukImpl() {}
 
 void NunchukImpl::SetPassphrase(const std::string& passphrase) {
-  storage_.SetPassphrase(chain_, passphrase);
+  storage_.SetPassphrase(passphrase);
 }
 
 Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,

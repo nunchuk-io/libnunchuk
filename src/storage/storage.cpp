@@ -139,11 +139,17 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
   fs::create_directories(datadir_ / "tmp");
 }
 
-void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
+void NunchukStorage::SetPassphrase(const std::string& value) {
   if (value == passphrase_) {
     throw NunchukException(NunchukException::PASSPHRASE_ALREADY_USED,
                            "passphrase used");
   }
+  SetPassphrase(Chain::MAIN, value);
+  SetPassphrase(Chain::TESTNET, value);
+  passphrase_ = value;
+}
+
+void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   auto wallets = ListWallets(chain);
   auto signers = ListMasterSigners(chain);
   boost::unique_lock<boost::shared_mutex> lock(access_);
@@ -185,8 +191,6 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
       GetSignerDb(chain, signer_id).ReKey(value);
     }
   }
-
-  passphrase_ = value;
 }
 
 std::string NunchukStorage::ChainStr(Chain chain) const {
@@ -821,7 +825,7 @@ void NunchukStorage::SendSignerPassphrase(Chain chain,
 }
 
 void NunchukStorage::ClearSignerPassphrase(Chain chain,
-                                          const std::string& mastersigner_id) {
+                                           const std::string& mastersigner_id) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   signer_passphrase_.erase(ba::to_lower_copy(mastersigner_id));
 }

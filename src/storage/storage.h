@@ -29,7 +29,7 @@ class NunchukStorage {
   bool ExportWallet(Chain chain, const std::string &wallet_id,
                     const std::string &file_path, ExportFormat format);
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
-  void SetPassphrase(Chain chain, const std::string &new_passphrase);
+  void SetPassphrase(const std::string &new_passphrase);
   Wallet CreateWallet(Chain chain, const std::string &name, int m, int n,
                       const std::vector<SingleSigner> &signers,
                       AddressType address_type, bool is_escrow,
@@ -161,6 +161,7 @@ class NunchukStorage {
                                        const std::string &id) const;
   boost::filesystem::path GetAppStateDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
+  void SetPassphrase(Chain chain, const std::string &new_passphrase);
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;
