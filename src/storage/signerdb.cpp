@@ -164,7 +164,7 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
 // NunchukSignerDb only creates a BIP32 table if the signer is a master signer.
 // When user adds a master signer whose fingerprint matches the master
 // fingerprint of an existing remote signer, a BIP32 table will be added to the
-// existing signer Db. The remote signer will become a master signer.
+// existing signer Db. The single signer will become a master signer.
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 
 bool NunchukSignerDb::IsSoftware() const {

@@ -20,6 +20,7 @@
 #include <univalue.h>
 #include <rpc/util.h>
 #include <policy/policy.h>
+#include <crypto/sha256.h>
 
 #ifdef _WIN32
 #include <shlobj.h>
@@ -126,7 +127,13 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
   }
 
   if (!account_.empty()) {
-    datadir_ = datadir_ / account_;
+    CSHA256 hasher;
+    std::vector<unsigned char> stream(account_.begin(), account_.end());
+    hasher.Write((unsigned char*)&(*stream.begin()),
+                stream.end() - stream.begin());
+    uint256 hash;
+    hasher.Finalize(hash.begin());
+    datadir_ = datadir_ / hash.GetHex();
   }
   if (fs::create_directories(datadir_ / "testnet")) {
     fs::create_directories(datadir_ / "testnet" / "wallets");
