@@ -666,6 +666,10 @@ class NUNCHUK_EXPORT Utils {
   static std::string GenerateMnemonic();
   static bool CheckMnemonic(const std::string& mnemonic);
   static std::vector<std::string> GetBIP39WordList();
+  static void SetPassPhrase(const std::string& storage_path,
+                            const std::string& account,
+                            const std::string& old_passphrase,
+                            const std::string& new_passphrase);
 
  private:
   Utils() {}
@@ -673,6 +677,10 @@ class NUNCHUK_EXPORT Utils {
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase = "");
+
+std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
+                                               const std::string& passphrase,
+                                               const std::string& account);
 
 }  // namespace nunchuk
 

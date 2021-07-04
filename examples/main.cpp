@@ -114,7 +114,7 @@ void newsoftwaresigner() {
   auto mnemonic = Utils::GenerateMnemonic();
   std::cout << "Mnemonic: " << mnemonic << std::endl;
   auto master_signer = nu.get()->CreateSoftwareSigner(
-      name, mnemonic, [](int percent) { return true; });
+      name, mnemonic, "", [](int percent) { return true; });
   nu.get()->CacheMasterSignerXPub(master_signer.get_id(),
                                   [](int percent) { return true; });
   std::cout << "\nMaster signer create success. Please back up your mnemonic."

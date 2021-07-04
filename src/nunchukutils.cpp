@@ -6,6 +6,7 @@
 #include <coreutils.h>
 #include <softwaresigner.h>
 #include <utils/addressutils.hpp>
+#include <storage/storage.h>
 
 #include <base58.h>
 #include <amount.h>
@@ -121,6 +122,14 @@ bool Utils::CheckMnemonic(const std::string& mnemonic) {
 
 std::vector<std::string> Utils::GetBIP39WordList() {
   return SoftwareSigner::GetBIP39WordList();
+}
+
+void Utils::SetPassPhrase(const std::string& storage_path,
+                          const std::string& account,
+                          const std::string& old_passphrase,
+                          const std::string& new_passphrase) {
+  NunchukStorage storage(storage_path, old_passphrase, account);
+  storage.SetPassphrase(new_passphrase);
 }
 
 }  // namespace nunchuk

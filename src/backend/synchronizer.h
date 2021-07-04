@@ -6,7 +6,7 @@
 #define NUNCHUK_SYNCHRONIZER_H
 
 #include <nunchuk.h>
-#include <storage.h>
+#include <storage/storage.h>
 #include <atomic>
 #include <boost/asio.hpp>
 #include <boost/signals2.hpp>
