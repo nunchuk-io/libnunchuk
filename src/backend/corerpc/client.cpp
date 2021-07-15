@@ -29,10 +29,9 @@ static json ParseResponse(const std::string& resp) {
 
 std::string CoreRpcClient::SendRequest(const std::string& path,
                                        const std::string& body) {
+  std::string auth = (std::string("Basic ") + EncodeBase64(user_ + ":" + pw_));
+  httplib::Headers headers = {{"Authorization", auth}};
   httplib::Client cli(host_, port_);
-  httplib::Headers headers = {
-      {"Authorization",
-       (std::string("Basic ") + EncodeBase64(user_ + ":" + pw_)).c_str()}};
 
   auto res = cli.Post(path.c_str(), headers, body, "text/plain");
   if (res) {
