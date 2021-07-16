@@ -736,18 +736,16 @@ Amount NunchukImpl::EstimateFee(int conf_target, bool use_mempool) {
   } else if (use_mempool && chain_ == Chain::MAIN) {
     httplib::Client cli("https://mempool.space");
     auto res = cli.Get("/api/v1/fees/recommended");
-    if (!res) {
-      throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                             "Send request error");
+    if (res) {
+      json recommended = json::parse(res->body);
+      estimate_fee_cached_time_[3] = current_time;
+      estimate_fee_cached_time_[4] = current_time;
+      estimate_fee_cached_time_[5] = current_time;
+      estimate_fee_cached_value_[3] = recommended["fastestFee"];
+      estimate_fee_cached_value_[4] = recommended["hourFee"];
+      estimate_fee_cached_value_[5] = recommended["minimumFee"];
+      return estimate_fee_cached_value_[cached_index];
     }
-    json recommended = json::parse(res->body);
-    estimate_fee_cached_time_[3] = current_time;
-    estimate_fee_cached_time_[4] = current_time;
-    estimate_fee_cached_time_[5] = current_time;
-    estimate_fee_cached_value_[3] = recommended["fastestFee"];
-    estimate_fee_cached_value_[4] = recommended["hourFee"];
-    estimate_fee_cached_value_[5] = recommended["minimumFee"];
-    return estimate_fee_cached_value_[cached_index];
   }
   Amount rs = synchronizer_->EstimateFee(conf_target);
   if (cached_index >= 0) {
