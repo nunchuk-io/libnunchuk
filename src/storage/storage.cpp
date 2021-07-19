@@ -16,6 +16,7 @@
 #include <boost/thread/locks.hpp>
 #include <set>
 #include <sstream>
+#include <cstring>
 
 #include <univalue.h>
 #include <rpc/util.h>
@@ -46,7 +47,7 @@ fs::path NunchukStorage::GetDefaultDataDir() const {
 #else
   fs::path pathRet;
   char* pszHome = getenv("HOME");
-  if (pszHome == nullptr || strlen(pszHome) == 0)
+  if (pszHome == nullptr || std::strlen(pszHome) == 0)
     pathRet = fs::path("/");
   else
     pathRet = fs::path(pszHome);

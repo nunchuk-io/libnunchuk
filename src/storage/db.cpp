@@ -5,6 +5,7 @@
 #include "db.h"
 #include <sstream>
 #include <utils/loguru.hpp>
+#include <cstring>
 
 namespace nunchuk {
 
@@ -15,7 +16,7 @@ NunchukDb::NunchukDb(Chain chain, const std::string& id,
   SQLCHECK(sqlite3_open(db_file_name_.c_str(), &db_));
   if (!passphrase.empty()) {
     const char* key = passphrase.c_str();
-    SQLCHECK(sqlite3_key(db_, (const void*)key, strlen(key)));
+    SQLCHECK(sqlite3_key(db_, (const void*)key, std::strlen(key)));
   }
   if (sqlite3_exec(db_, "SELECT count(*) FROM sqlite_master;", NULL, NULL,
                    NULL) != SQLITE_OK) {
@@ -50,7 +51,7 @@ void NunchukDb::DropTable() {
 
 void NunchukDb::ReKey(const std::string& new_passphrase) {
   const char* key = new_passphrase.c_str();
-  SQLCHECK(sqlite3_rekey(db_, (const void*)key, strlen(key)));
+  SQLCHECK(sqlite3_rekey(db_, (const void*)key, std::strlen(key)));
   DLOG_F(INFO, "NunchukDb '%s' ReKey success", db_file_name_.c_str());
 }
 
