@@ -54,6 +54,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/softwaresigner.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
+    src/nunchukmatriximpl.cpp
     src/backend/synchronizer.cpp
     src/backend/electrum/client.cpp
     src/backend/electrum/synchronizer.cpp
@@ -66,12 +67,16 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/transaction.cpp
     src/dto/unspentoutput.cpp
     src/dto/wallet.cpp
+    src/dto/roomevent.cpp
+    src/dto/roomtransaction.cpp
+    src/dto/roomwallet.cpp
     src/storage/appstatedb.cpp
     src/storage/common.cpp
     src/storage/db.cpp
     src/storage/signerdb.cpp
     src/storage/storage.cpp
     src/storage/walletdb.cpp
+    src/storage/roomdb.cpp
     src/utils/loguru.cpp
 )
 

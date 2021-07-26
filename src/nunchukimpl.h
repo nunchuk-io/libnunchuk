@@ -122,6 +122,7 @@ class NunchukImpl : public Nunchuk {
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
+  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
@@ -191,7 +192,6 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput> inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
-  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
   void ScanNewWallet(const std::string wallet_id, bool is_escrow);

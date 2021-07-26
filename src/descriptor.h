@@ -15,6 +15,8 @@ namespace nunchuk {
 
 std::string AddChecksum(const std::string& str);
 
+std::string FormalizePath(const std::string& path);
+
 /**
  * @param external External descriptor to import
  * @param internal Internal descriptor to import

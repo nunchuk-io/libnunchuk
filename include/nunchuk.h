@@ -365,6 +365,7 @@ class Transaction {
   bool subtract_fee_from_amount() const;
   bool is_receive() const;
   Amount get_sub_amount() const;
+  std::string get_psbt() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -384,6 +385,7 @@ class Transaction {
   void set_subtract_fee_from_amount(bool value);
   void set_receive(bool value);
   void set_sub_amount(const Amount& value);
+  void set_psbt(const std::string& value);
 
  private:
   std::string txid_;
@@ -404,6 +406,7 @@ class Transaction {
   bool subtract_fee_from_amount_;
   bool is_receive_;
   Amount sub_amount_;
+  std::string psbt_;
 };
 
 class NUNCHUK_EXPORT AppSettings {
@@ -554,6 +557,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& file_path) = 0;
   virtual Transaction ImportTransaction(const std::string& wallet_id,
                                         const std::string& file_path) = 0;
+  virtual Transaction ImportPsbt(const std::string& wallet_id,
+                         const std::string& psbt) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
