@@ -50,9 +50,9 @@ class NUNCHUK_EXPORT NunchukMatrixEvent {
   time_t ts_;
 };
 
-class NUNCHUK_EXPORT RoomSharedWallet {
+class NUNCHUK_EXPORT RoomWallet {
  public:
-  RoomSharedWallet();
+  RoomWallet();
 
   std::string get_wallet_id() const;
   std::string get_init_id() const;
@@ -141,7 +141,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent BroadcastTransaction(const std::string& init_id,
                                                   const Transaction& tx) = 0;
 
-  virtual RoomSharedWallet GetRoomWallet(const std::string& room_id) = 0;
+  virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
   virtual std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) = 0;
 

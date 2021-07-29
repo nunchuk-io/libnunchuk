@@ -11,13 +11,14 @@ NunchukMatrixDb::NunchukMatrixDb() {}
 bool NunchukMatrixDb::HasWallet(const std::string& room_id) {
   return wallets_.find(room_id) != wallets_.end();
 }
+
 bool NunchukMatrixDb::SetWallet(const std::string& room_id,
-                                const RoomSharedWallet& wallet) {
+                                const RoomWallet& wallet) {
   wallets_[room_id] = wallet;
   return true;
 }
 
-RoomSharedWallet NunchukMatrixDb::GetWallet(const std::string& room_id) {
+RoomWallet NunchukMatrixDb::GetWallet(const std::string& room_id) {
   if (wallets_.find(room_id) == wallets_.end()) {
     throw new NunchukMatrixException(
         NunchukMatrixException::SHARED_WALLET_NOT_FOUND,

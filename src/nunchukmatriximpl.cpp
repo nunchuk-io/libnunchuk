@@ -231,7 +231,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
   return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
 }
 
-RoomSharedWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
+RoomWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
   return db_.GetWallet(room_id);
 }
 
@@ -257,7 +257,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   std::string msgtype = content["msgtype"];
   json body = content["body"];
   if (msgtype == "io.nunchuk.wallet.init") {
-    RoomSharedWallet wallet{};
+    RoomWallet wallet{};
     wallet.set_init_id(event.get_event_id());
     db_.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.join") {

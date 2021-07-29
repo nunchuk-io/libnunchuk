@@ -19,8 +19,8 @@ class NunchukMatrixDb {
  public:
   NunchukMatrixDb();
   bool HasWallet(const std::string& room_id);
-  bool SetWallet(const std::string& room_id, const RoomSharedWallet& wallet);
-  RoomSharedWallet GetWallet(const std::string& room_id);
+  bool SetWallet(const std::string& room_id, const RoomWallet& wallet);
+  RoomWallet GetWallet(const std::string& room_id);
   bool SetTransaction(const std::string& room_id, const std::string& init_id,
                       const RoomTransaction& tx);
   RoomTransaction GetTransaction(const std::string& init_id);
@@ -29,7 +29,7 @@ class NunchukMatrixDb {
   std::set<std::string> GetPendingTransactions(const std::string& room_id);
 
  private:
-  std::map<std::string, RoomSharedWallet> wallets_;
+  std::map<std::string, RoomWallet> wallets_;
   std::map<std::string, RoomTransaction> txs_;
   std::map<std::string, NunchukMatrixEvent> events_;
   std::map<std::string, std::set<std::string>> pendings_;
