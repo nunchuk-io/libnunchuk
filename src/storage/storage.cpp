@@ -224,6 +224,10 @@ fs::path NunchukStorage::GetAppStateDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "state";
 }
 
+fs::path NunchukStorage::GetRoomDir(Chain chain) const {
+  return datadir_ / ChainStr(chain) / "room";
+}
+
 NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
                                             const std::string& id) {
   fs::path db_file = GetWalletDir(chain, id);
@@ -248,6 +252,14 @@ NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
   fs::path db_file = GetAppStateDir(chain);
   bool is_new = !fs::exists(db_file);
   auto db = NunchukAppStateDb{chain, "", db_file.string(), ""};
+  if (is_new) db.Init();
+  return db;
+}
+
+NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
+  fs::path db_file = GetAppStateDir(chain);
+  bool is_new = !fs::exists(db_file);
+  auto db = NunchukRoomDb{chain, "", db_file.string(), ""};
   if (is_new) db.Init();
   return db;
 }

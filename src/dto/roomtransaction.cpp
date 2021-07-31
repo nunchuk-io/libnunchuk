@@ -17,19 +17,21 @@ std::vector<std::string> RoomTransaction::get_sign_ids() const {
 std::vector<std::string> RoomTransaction::get_reject_ids() const {
   return reject_ids_;
 }
-std::string RoomTransaction::get_broadcast_id() const {
-  return broadcast_id_;
-}
+std::string RoomTransaction::get_broadcast_id() const { return broadcast_id_; }
 std::string RoomTransaction::get_cancel_id() const { return cancel_id_; }
 
-void RoomTransaction::set_tx_id(const std::string& value) {
-  tx_id_ = value;
-}
+void RoomTransaction::set_tx_id(const std::string& value) { tx_id_ = value; }
 void RoomTransaction::set_wallet_id(const std::string& value) {
   wallet_id_ = value;
 }
 void RoomTransaction::set_init_id(const std::string& value) {
   init_id_ = value;
+}
+void RoomTransaction::set_sign_ids(const std::vector<std::string>& value) {
+  sign_ids_ = value;
+}
+void RoomTransaction::set_reject_ids(const std::vector<std::string>& value) {
+  reject_ids_ = value;
 }
 void RoomTransaction::add_sign_id(const std::string& value) {
   sign_ids_.push_back(value);

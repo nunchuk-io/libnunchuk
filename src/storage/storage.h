@@ -8,6 +8,7 @@
 #include "walletdb.h"
 #include "signerdb.h"
 #include "appstatedb.h"
+#include "roomdb.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/thread/shared_mutex.hpp>
@@ -149,6 +150,7 @@ class NunchukStorage {
   void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                             const std::string &passphrase);
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
+  NunchukRoomDb GetRoomDb(Chain chain);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
@@ -160,6 +162,7 @@ class NunchukStorage {
   boost::filesystem::path GetSignerDir(Chain chain,
                                        const std::string &id) const;
   boost::filesystem::path GetAppStateDir(Chain chain) const;
+  boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
   boost::filesystem::path datadir_;

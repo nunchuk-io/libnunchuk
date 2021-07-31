@@ -64,6 +64,8 @@ class NUNCHUK_EXPORT RoomWallet {
 
   void set_wallet_id(const std::string& value);
   void set_init_id(const std::string& value);
+  void set_join_ids(const std::vector<std::string>& value);
+  void set_leave_ids(const std::vector<std::string>& value);
   void add_join_id(const std::string& value);
   void add_leave_id(const std::string& value);
   void set_finalize_id(const std::string& value);
@@ -94,6 +96,8 @@ class NUNCHUK_EXPORT RoomTransaction {
   void set_tx_id(const std::string& value);
   void set_wallet_id(const std::string& value);
   void set_init_id(const std::string& value);
+  void set_sign_ids(const std::vector<std::string>& value);
+  void set_reject_ids(const std::vector<std::string>& value);
   void add_sign_id(const std::string& value);
   void add_reject_id(const std::string& value);
   void set_broadcast_id(const std::string& value);

@@ -6,8 +6,9 @@
 #define NUNCHUK_STORAGE_MATRIXDB_H
 
 #include "common.h"
-#include <nunchuk.h>
+#include "db.h"
 #include <nunchukmatrix.h>
+#include <sqlcipher/sqlite3.h>
 #include <vector>
 #include <string>
 #include <map>
@@ -15,9 +16,11 @@
 
 namespace nunchuk {
 
-class NunchukMatrixDb {
+class NunchukRoomDb : public NunchukDb {
  public:
-  NunchukMatrixDb();
+  using NunchukDb::NunchukDb;
+
+  void Init();
   bool HasWallet(const std::string& room_id);
   bool SetWallet(const std::string& room_id, const RoomWallet& wallet);
   RoomWallet GetWallet(const std::string& room_id);
@@ -26,13 +29,10 @@ class NunchukMatrixDb {
   RoomTransaction GetTransaction(const std::string& init_id);
   bool SetEvent(const std::string event_id, const NunchukMatrixEvent& event);
   NunchukMatrixEvent GetEvent(const std::string& event_id);
-  std::set<std::string> GetPendingTransactions(const std::string& room_id);
+  std::vector<std::string> GetPendingTransactions(const std::string& room_id);
 
  private:
-  std::map<std::string, RoomWallet> wallets_;
-  std::map<std::string, RoomTransaction> txs_;
-  std::map<std::string, NunchukMatrixEvent> events_;
-  std::map<std::string, std::set<std::string>> pendings_;
+  friend class NunchukStorage;
 };
 
 }  // namespace nunchuk

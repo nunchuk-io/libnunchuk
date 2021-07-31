@@ -11,12 +11,14 @@
 #include <string>
 #include <vector>
 #include <storage/roomdb.h>
+#include <storage/storage.h>
 
 namespace nunchuk {
 
 class NunchukMatrixImpl : public NunchukMatrix {
  public:
-  NunchukMatrixImpl(const std::string& sender, Chain chain);
+  NunchukMatrixImpl(const AppSettings& appsettings,
+                    const std::string& passphrase, const std::string& account);
   NunchukMatrixImpl(const NunchukMatrixImpl&) = delete;
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
   ~NunchukMatrixImpl() override;
@@ -57,7 +59,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent NewEvent(const std::string& room_id,
                               const std::string& event_type,
                               const std::string& content);
-  NunchukMatrixDb db_;
+  NunchukStorage storage_;
   std::string sender_;
   Chain chain_;
 };
