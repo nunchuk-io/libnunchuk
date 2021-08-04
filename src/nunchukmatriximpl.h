@@ -18,7 +18,8 @@ namespace nunchuk {
 class NunchukMatrixImpl : public NunchukMatrix {
  public:
   NunchukMatrixImpl(const AppSettings& appsettings,
-                    const std::string& passphrase, const std::string& account);
+                    const std::string& passphrase, const std::string& account,
+                    SendFunc sendFunc);
   NunchukMatrixImpl(const NunchukMatrixImpl&) = delete;
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
   ~NunchukMatrixImpl() override;
@@ -62,6 +63,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukStorage storage_;
   std::string sender_;
   Chain chain_;
+  SendFunc sendFunc_;
 };
 
 }  // namespace nunchuk

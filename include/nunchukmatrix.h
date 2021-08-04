@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace nunchuk {
 
@@ -113,6 +114,9 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string cancel_id_;
 };
 
+typedef std::function<std::string(const std::string&, const std::string&)>
+    SendFunc;
+
 class NUNCHUK_EXPORT NunchukMatrix {
  public:
   NunchukMatrix(const NunchukMatrix&) = delete;
@@ -158,7 +162,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(
     const AppSettings& appsettings, const std::string& passphrase,
-    const std::string& account);
+    const std::string& account, SendFunc sendFunction);
 
 }  // namespace nunchuk
 
