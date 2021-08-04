@@ -60,6 +60,10 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent NewEvent(const std::string& room_id,
                               const std::string& event_type,
                               const std::string& content);
+  void SendWalletReady(const std::string& room_id);
+  void SendTransactionReady(const std::string& room_id,
+                            const std::string& init_id);
+
   NunchukStorage storage_;
   std::string sender_;
   Chain chain_;

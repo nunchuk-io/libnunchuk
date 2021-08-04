@@ -61,6 +61,7 @@ class NUNCHUK_EXPORT RoomWallet {
   std::vector<std::string> get_leave_ids() const;
   std::string get_finalize_id() const;
   std::string get_cancel_id() const;
+  std::string get_ready_id() const;
   std::string get_pin_data() const;
 
   void set_wallet_id(const std::string& value);
@@ -71,6 +72,7 @@ class NUNCHUK_EXPORT RoomWallet {
   void add_leave_id(const std::string& value);
   void set_finalize_id(const std::string& value);
   void set_cancel_id(const std::string& value);
+  void set_ready_id(const std::string& value);
 
  private:
   std::string wallet_id_;
@@ -79,6 +81,7 @@ class NUNCHUK_EXPORT RoomWallet {
   std::vector<std::string> leave_ids_;
   std::string finalize_id_;
   std::string cancel_id_;
+  std::string ready_id_;
   std::string pin_data_;
 };
 
@@ -93,6 +96,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::vector<std::string> get_reject_ids() const;
   std::string get_broadcast_id() const;
   std::string get_cancel_id() const;
+  std::string get_ready_id() const;
 
   void set_tx_id(const std::string& value);
   void set_wallet_id(const std::string& value);
@@ -103,6 +107,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   void add_reject_id(const std::string& value);
   void set_broadcast_id(const std::string& value);
   void set_cancel_id(const std::string& value);
+  void set_ready_id(const std::string& value);
 
  private:
   std::string tx_id_;
@@ -112,6 +117,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::vector<std::string> reject_ids_;
   std::string broadcast_id_;
   std::string cancel_id_;
+  std::string ready_id_;
 };
 
 typedef std::function<std::string(const std::string&, const std::string&)>

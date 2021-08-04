@@ -16,6 +16,7 @@ std::vector<std::string> RoomWallet::get_leave_ids() const {
 }
 std::string RoomWallet::get_finalize_id() const { return finalize_id_; }
 std::string RoomWallet::get_cancel_id() const { return cancel_id_; }
+std::string RoomWallet::get_ready_id() const { return ready_id_; }
 std::string RoomWallet::get_pin_data() const { return pin_data_; }
 
 void RoomWallet::set_wallet_id(const std::string& value) { wallet_id_ = value; }
@@ -36,5 +37,6 @@ void RoomWallet::set_finalize_id(const std::string& value) {
   finalize_id_ = value;
 }
 void RoomWallet::set_cancel_id(const std::string& value) { cancel_id_ = value; }
+void RoomWallet::set_ready_id(const std::string& value) { ready_id_ = value; }
 
 }  // namespace nunchuk

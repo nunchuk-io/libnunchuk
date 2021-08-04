@@ -19,6 +19,7 @@ std::vector<std::string> RoomTransaction::get_reject_ids() const {
 }
 std::string RoomTransaction::get_broadcast_id() const { return broadcast_id_; }
 std::string RoomTransaction::get_cancel_id() const { return cancel_id_; }
+std::string RoomTransaction::get_ready_id() const { return ready_id_; }
 
 void RoomTransaction::set_tx_id(const std::string& value) { tx_id_ = value; }
 void RoomTransaction::set_wallet_id(const std::string& value) {
@@ -44,6 +45,9 @@ void RoomTransaction::set_broadcast_id(const std::string& value) {
 }
 void RoomTransaction::set_cancel_id(const std::string& value) {
   cancel_id_ = value;
+}
+void RoomTransaction::set_ready_id(const std::string& value) {
+  ready_id_ = value;
 }
 
 }  // namespace nunchuk
