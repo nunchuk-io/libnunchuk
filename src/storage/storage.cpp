@@ -131,7 +131,7 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
     CSHA256 hasher;
     std::vector<unsigned char> stream(account_.begin(), account_.end());
     hasher.Write((unsigned char*)&(*stream.begin()),
-                stream.end() - stream.begin());
+                 stream.end() - stream.begin());
     uint256 hash;
     hasher.Finalize(hash.begin());
     datadir_ = datadir_ / hash.GetHex();
@@ -176,6 +176,13 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
       fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
       fs::remove(new_file);
     }
+    {
+      auto old_file = GetRoomDir(chain);
+      auto new_file = datadir_ / "tmp" / "matrix";
+      GetRoomDb(chain).EncryptDb(new_file.string(), value);
+      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
+      fs::remove(new_file);
+    }
   } else if (value.empty()) {
     for (auto&& wallet_id : wallets) {
       auto old_file = GetWalletDir(chain, wallet_id);
@@ -191,6 +198,13 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
       fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
       fs::remove(new_file);
     }
+    {
+      auto old_file = GetRoomDir(chain);
+      auto new_file = datadir_ / "tmp" / "matrix";
+      GetRoomDb(chain).DecryptDb(new_file.string());
+      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
+      fs::remove(new_file);
+    }
   } else {
     for (auto&& wallet_id : wallets) {
       GetWalletDb(chain, wallet_id).ReKey(value);
@@ -198,6 +212,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     for (auto&& signer_id : signers) {
       GetSignerDb(chain, signer_id).ReKey(value);
     }
+    GetRoomDb(chain).ReKey(value);
   }
 }
 
@@ -259,7 +274,7 @@ NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
 NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
   fs::path db_file = GetAppStateDir(chain);
   bool is_new = !fs::exists(db_file);
-  auto db = NunchukRoomDb{chain, "", db_file.string(), ""};
+  auto db = NunchukRoomDb{chain, "", db_file.string(), passphrase_};
   if (is_new) db.Init();
   return db;
 }
