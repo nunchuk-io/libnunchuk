@@ -316,6 +316,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
                      {{"init_event_id", rtx.get_init_event_id()},
                       {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  rtx.set_tx_id(tx.get_txid());
   rtx.set_broadcast_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
   return event;
