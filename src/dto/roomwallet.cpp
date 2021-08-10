@@ -9,34 +9,34 @@ namespace nunchuk {
 RoomWallet::RoomWallet() {}
 
 std::string RoomWallet::get_wallet_id() const { return wallet_id_; }
-std::string RoomWallet::get_init_id() const { return init_id_; }
-std::vector<std::string> RoomWallet::get_join_ids() const { return join_ids_; }
-std::vector<std::string> RoomWallet::get_leave_ids() const {
-  return leave_ids_;
+std::string RoomWallet::get_init_event_id() const { return init_event_id_; }
+std::vector<std::string> RoomWallet::get_join_event_ids() const { return join_event_ids_; }
+std::vector<std::string> RoomWallet::get_leave_event_ids() const {
+  return leave_event_ids_;
 }
-std::string RoomWallet::get_finalize_id() const { return finalize_id_; }
-std::string RoomWallet::get_cancel_id() const { return cancel_id_; }
-std::string RoomWallet::get_ready_id() const { return ready_id_; }
+std::string RoomWallet::get_finalize_event_id() const { return finalize_event_id_; }
+std::string RoomWallet::get_cancel_event_id() const { return cancel_event_id_; }
+std::string RoomWallet::get_ready_event_id() const { return ready_event_id_; }
 std::string RoomWallet::get_pin_data() const { return pin_data_; }
 
 void RoomWallet::set_wallet_id(const std::string& value) { wallet_id_ = value; }
-void RoomWallet::set_init_id(const std::string& value) { init_id_ = value; }
-void RoomWallet::set_join_ids(const std::vector<std::string>& value) {
-  join_ids_ = value;
+void RoomWallet::set_init_event_id(const std::string& value) { init_event_id_ = value; }
+void RoomWallet::set_join_event_ids(const std::vector<std::string>& value) {
+  join_event_ids_ = value;
 }
-void RoomWallet::set_leave_ids(const std::vector<std::string>& value) {
-  leave_ids_ = value;
+void RoomWallet::set_leave_event_ids(const std::vector<std::string>& value) {
+  leave_event_ids_ = value;
 }
-void RoomWallet::add_join_id(const std::string& value) {
-  join_ids_.push_back(value);
+void RoomWallet::add_join_event_id(const std::string& value) {
+  join_event_ids_.push_back(value);
 }
-void RoomWallet::add_leave_id(const std::string& value) {
-  leave_ids_.push_back(value);
+void RoomWallet::add_leave_event_id(const std::string& value) {
+  leave_event_ids_.push_back(value);
 }
-void RoomWallet::set_finalize_id(const std::string& value) {
-  finalize_id_ = value;
+void RoomWallet::set_finalize_event_id(const std::string& value) {
+  finalize_event_id_ = value;
 }
-void RoomWallet::set_cancel_id(const std::string& value) { cancel_id_ = value; }
-void RoomWallet::set_ready_id(const std::string& value) { ready_id_ = value; }
+void RoomWallet::set_cancel_event_id(const std::string& value) { cancel_event_id_ = value; }
+void RoomWallet::set_ready_event_id(const std::string& value) { ready_event_id_ = value; }
 
 }  // namespace nunchuk

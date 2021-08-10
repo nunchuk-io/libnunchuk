@@ -56,32 +56,32 @@ class NUNCHUK_EXPORT RoomWallet {
   RoomWallet();
 
   std::string get_wallet_id() const;
-  std::string get_init_id() const;
-  std::vector<std::string> get_join_ids() const;
-  std::vector<std::string> get_leave_ids() const;
-  std::string get_finalize_id() const;
-  std::string get_cancel_id() const;
-  std::string get_ready_id() const;
+  std::string get_init_event_id() const;
+  std::vector<std::string> get_join_event_ids() const;
+  std::vector<std::string> get_leave_event_ids() const;
+  std::string get_finalize_event_id() const;
+  std::string get_cancel_event_id() const;
+  std::string get_ready_event_id() const;
   std::string get_pin_data() const;
 
   void set_wallet_id(const std::string& value);
-  void set_init_id(const std::string& value);
-  void set_join_ids(const std::vector<std::string>& value);
-  void set_leave_ids(const std::vector<std::string>& value);
-  void add_join_id(const std::string& value);
-  void add_leave_id(const std::string& value);
-  void set_finalize_id(const std::string& value);
-  void set_cancel_id(const std::string& value);
-  void set_ready_id(const std::string& value);
+  void set_init_event_id(const std::string& value);
+  void set_join_event_ids(const std::vector<std::string>& value);
+  void set_leave_event_ids(const std::vector<std::string>& value);
+  void add_join_event_id(const std::string& value);
+  void add_leave_event_id(const std::string& value);
+  void set_finalize_event_id(const std::string& value);
+  void set_cancel_event_id(const std::string& value);
+  void set_ready_event_id(const std::string& value);
 
  private:
   std::string wallet_id_;
-  std::string init_id_;
-  std::vector<std::string> join_ids_;
-  std::vector<std::string> leave_ids_;
-  std::string finalize_id_;
-  std::string cancel_id_;
-  std::string ready_id_;
+  std::string init_event_id_;
+  std::vector<std::string> join_event_ids_;
+  std::vector<std::string> leave_event_ids_;
+  std::string finalize_event_id_;
+  std::string cancel_event_id_;
+  std::string ready_event_id_;
   std::string pin_data_;
 };
 
@@ -91,37 +91,37 @@ class NUNCHUK_EXPORT RoomTransaction {
 
   std::string get_tx_id() const;
   std::string get_wallet_id() const;
-  std::string get_init_id() const;
-  std::vector<std::string> get_sign_ids() const;
-  std::vector<std::string> get_reject_ids() const;
-  std::string get_broadcast_id() const;
-  std::string get_cancel_id() const;
-  std::string get_ready_id() const;
+  std::string get_init_event_id() const;
+  std::vector<std::string> get_sign_event_ids() const;
+  std::vector<std::string> get_reject_event_ids() const;
+  std::string get_broadcast_event_id() const;
+  std::string get_cancel_event_id() const;
+  std::string get_ready_event_id() const;
 
   void set_tx_id(const std::string& value);
   void set_wallet_id(const std::string& value);
-  void set_init_id(const std::string& value);
-  void set_sign_ids(const std::vector<std::string>& value);
-  void set_reject_ids(const std::vector<std::string>& value);
-  void add_sign_id(const std::string& value);
-  void add_reject_id(const std::string& value);
-  void set_broadcast_id(const std::string& value);
-  void set_cancel_id(const std::string& value);
-  void set_ready_id(const std::string& value);
+  void set_init_event_id(const std::string& value);
+  void set_sign_event_ids(const std::vector<std::string>& value);
+  void set_reject_event_ids(const std::vector<std::string>& value);
+  void add_sign_event_id(const std::string& value);
+  void add_reject_event_id(const std::string& value);
+  void set_broadcast_event_id(const std::string& value);
+  void set_cancel_event_id(const std::string& value);
+  void set_ready_event_id(const std::string& value);
 
  private:
   std::string tx_id_;
   std::string wallet_id_;
-  std::string init_id_;
-  std::vector<std::string> sign_ids_;
-  std::vector<std::string> reject_ids_;
-  std::string broadcast_id_;
-  std::string cancel_id_;
-  std::string ready_id_;
+  std::string init_event_id_;
+  std::vector<std::string> sign_event_ids_;
+  std::vector<std::string> reject_event_ids_;
+  std::string broadcast_event_id_;
+  std::string cancel_event_id_;
+  std::string ready_event_id_;
 };
 
 typedef std::function<std::string(const std::string&, const std::string&)>
-    SendFunc;
+    SendEventFunc;
 
 class NUNCHUK_EXPORT NunchukMatrix {
  public:
@@ -137,7 +137,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent JoinWallet(const std::string& room_id,
                                         const SingleSigner& signer) = 0;
   virtual NunchukMatrixEvent LeaveWallet(const std::string& room_id,
-                                         const std::string& join_id,
+                                         const std::string& join_event_id,
                                          const std::string& reason = {}) = 0;
   virtual NunchukMatrixEvent CancelWallet(const std::string& room_id,
                                           const std::string& reason = {}) = 0;
@@ -146,18 +146,19 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
   virtual NunchukMatrixEvent InitTransaction(const std::string& room_id,
                                              const Transaction& tx) = 0;
-  virtual NunchukMatrixEvent SignTransaction(const std::string& init_id,
+  virtual NunchukMatrixEvent SignTransaction(const std::string& init_event_id,
                                              const Transaction& tx) = 0;
   virtual NunchukMatrixEvent RejectTransaction(
-      const std::string& init_id, const std::string& reason = {}) = 0;
+      const std::string& init_event_id, const std::string& reason = {}) = 0;
   virtual NunchukMatrixEvent CancelTransaction(
-      const std::string& init_id, const std::string& reason = {}) = 0;
-  virtual NunchukMatrixEvent BroadcastTransaction(const std::string& init_id,
-                                                  const Transaction& tx) = 0;
+      const std::string& init_event_id, const std::string& reason = {}) = 0;
+  virtual NunchukMatrixEvent BroadcastTransaction(
+      const std::string& init_event_id, const Transaction& tx) = 0;
 
   virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
   virtual std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) = 0;
+  virtual NunchukMatrixEvent GetEvent(const std::string& event_id) = 0;
 
   virtual void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                             const NunchukMatrixEvent& event) = 0;
@@ -168,7 +169,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(
     const AppSettings& appsettings, const std::string& passphrase,
-    const std::string& account, SendFunc sendFunction);
+    const std::string& account, SendEventFunc SendEventFunction);
 
 }  // namespace nunchuk
 

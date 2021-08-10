@@ -19,7 +19,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
  public:
   NunchukMatrixImpl(const AppSettings& appsettings,
                     const std::string& passphrase, const std::string& account,
-                    SendFunc sendFunc);
+                    SendEventFunc SendEventFunc);
   NunchukMatrixImpl(const NunchukMatrixImpl&) = delete;
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
   ~NunchukMatrixImpl() override;
@@ -31,7 +31,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent JoinWallet(const std::string& room_id,
                                 const SingleSigner& signer) override;
   NunchukMatrixEvent LeaveWallet(const std::string& room_id,
-                                 const std::string& join_id,
+                                 const std::string& join_event_id,
                                  const std::string& reason = {}) override;
   NunchukMatrixEvent CancelWallet(const std::string& room_id,
                                   const std::string& reason = {}) override;
@@ -40,18 +40,19 @@ class NunchukMatrixImpl : public NunchukMatrix {
 
   NunchukMatrixEvent InitTransaction(const std::string& room_id,
                                      const Transaction& tx) override;
-  NunchukMatrixEvent SignTransaction(const std::string& init_id,
+  NunchukMatrixEvent SignTransaction(const std::string& init_event_id,
                                      const Transaction& tx) override;
-  NunchukMatrixEvent RejectTransaction(const std::string& init_id,
+  NunchukMatrixEvent RejectTransaction(const std::string& init_event_id,
                                        const std::string& reason = {}) override;
-  NunchukMatrixEvent CancelTransaction(const std::string& init_id,
+  NunchukMatrixEvent CancelTransaction(const std::string& init_event_id,
                                        const std::string& reason = {}) override;
-  NunchukMatrixEvent BroadcastTransaction(const std::string& init_id,
+  NunchukMatrixEvent BroadcastTransaction(const std::string& init_event_id,
                                           const Transaction& tx) override;
 
   RoomWallet GetRoomWallet(const std::string& room_id) override;
   std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) override;
+  NunchukMatrixEvent GetEvent(const std::string& event_id) override;
 
   void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                     const NunchukMatrixEvent& event) override;
@@ -62,12 +63,12 @@ class NunchukMatrixImpl : public NunchukMatrix {
                               const std::string& content);
   void SendWalletReady(const std::string& room_id);
   void SendTransactionReady(const std::string& room_id,
-                            const std::string& init_id);
+                            const std::string& init_event_id);
 
   NunchukStorage storage_;
   std::string sender_;
   Chain chain_;
-  SendFunc sendFunc_;
+  SendEventFunc SendEventFunc_;
 };
 
 }  // namespace nunchuk

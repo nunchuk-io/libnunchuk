@@ -48,11 +48,11 @@ bool NunchukRoomDb::SetWallet(const std::string& room_id,
                               const RoomWallet& wallet) {
   json value{};
   value["wallet_id"] = wallet.get_wallet_id();
-  value["init_id"] = wallet.get_init_id();
-  value["join_ids"] = wallet.get_join_ids();
-  value["leave_ids"] = wallet.get_leave_ids();
-  value["finalize_id"] = wallet.get_finalize_id();
-  value["cancel_id"] = wallet.get_cancel_id();
+  value["init_event_id"] = wallet.get_init_event_id();
+  value["join_event_ids"] = wallet.get_join_event_ids();
+  value["leave_event_ids"] = wallet.get_leave_event_ids();
+  value["finalize_event_id"] = wallet.get_finalize_event_id();
+  value["cancel_event_id"] = wallet.get_cancel_event_id();
   std::string value_str = value.dump();
 
   sqlite3_stmt* stmt;
@@ -81,11 +81,11 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
     json value = json::parse(value_str);
     RoomWallet rs{};
     rs.set_wallet_id(value["wallet_id"]);
-    rs.set_init_id(value["init_id"]);
-    rs.set_join_ids(value["join_ids"]);
-    rs.set_leave_ids(value["leave_ids"]);
-    rs.set_finalize_id(value["finalize_id"]);
-    rs.set_cancel_id(value["cancel_id"]);
+    rs.set_init_event_id(value["init_event_id"]);
+    rs.set_join_event_ids(value["join_event_ids"]);
+    rs.set_leave_event_ids(value["leave_event_ids"]);
+    rs.set_finalize_event_id(value["finalize_event_id"]);
+    rs.set_cancel_event_id(value["cancel_event_id"]);
     SQLCHECK(sqlite3_finalize(stmt));
     return rs;
   } else {
@@ -97,16 +97,16 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
 }
 
 bool NunchukRoomDb::SetTransaction(const std::string& room_id,
-                                   const std::string& init_id,
+                                   const std::string& init_event_id,
                                    const RoomTransaction& tx) {
   json value{};
   value["tx_id"] = tx.get_tx_id();
   value["wallet_id"] = tx.get_wallet_id();
-  value["init_id"] = tx.get_init_id();
-  value["sign_ids"] = tx.get_sign_ids();
-  value["reject_ids"] = tx.get_reject_ids();
-  value["broadcast_id"] = tx.get_broadcast_id();
-  value["cancel_id"] = tx.get_cancel_id();
+  value["init_event_id"] = tx.get_init_event_id();
+  value["sign_event_ids"] = tx.get_sign_event_ids();
+  value["reject_event_ids"] = tx.get_reject_event_ids();
+  value["broadcast_event_id"] = tx.get_broadcast_event_id();
+  value["cancel_event_id"] = tx.get_cancel_event_id();
   std::string value_str = value.dump();
 
   sqlite3_stmt* stmt;
@@ -115,7 +115,7 @@ bool NunchukRoomDb::SetTransaction(const std::string& room_id,
       "VALUES (?1, ?2)"
       "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, init_id.c_str(), init_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, init_event_id.c_str(), init_event_id.size(), NULL);
   sqlite3_bind_text(stmt, 2, value_str.c_str(), value_str.size(), NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
@@ -123,11 +123,11 @@ bool NunchukRoomDb::SetTransaction(const std::string& room_id,
   return updated;
 }
 
-RoomTransaction NunchukRoomDb::GetTransaction(const std::string& init_id) {
+RoomTransaction NunchukRoomDb::GetTransaction(const std::string& init_event_id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM TXS WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, init_id.c_str(), init_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, init_event_id.c_str(), init_event_id.size(), NULL);
   sqlite3_step(stmt);
   std::string value_str;
   if (sqlite3_column_text(stmt, 0)) {
@@ -136,11 +136,11 @@ RoomTransaction NunchukRoomDb::GetTransaction(const std::string& init_id) {
     RoomTransaction rs{};
     rs.set_tx_id(value["tx_id"]);
     rs.set_wallet_id(value["wallet_id"]);
-    rs.set_init_id(value["init_id"]);
-    rs.set_sign_ids(value["sign_ids"]);
-    rs.set_reject_ids(value["reject_ids"]);
-    rs.set_broadcast_id(value["broadcast_id"]);
-    rs.set_cancel_id(value["cancel_id"]);
+    rs.set_init_event_id(value["init_event_id"]);
+    rs.set_sign_event_ids(value["sign_event_ids"]);
+    rs.set_reject_event_ids(value["reject_event_ids"]);
+    rs.set_broadcast_event_id(value["broadcast_event_id"]);
+    rs.set_cancel_event_id(value["cancel_event_id"]);
     SQLCHECK(sqlite3_finalize(stmt));
     return rs;
   } else {
@@ -210,9 +210,9 @@ std::vector<std::string> NunchukRoomDb::GetPendingTransactions(
   std::vector<std::string> rs;
   while (sqlite3_column_text(stmt, 0)) {
     json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 0)));
-    std::string broadcast_id = value["broadcast_id"];
-    if (broadcast_id.empty()) {
-      rs.push_back(value["init_id"]);
+    std::string broadcast_event_id = value["broadcast_event_id"];
+    if (broadcast_event_id.empty()) {
+      rs.push_back(value["init_event_id"]);
     }
     sqlite3_step(stmt);
   }
