@@ -59,7 +59,7 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
   event.set_content(content);
   event.set_sender(sender_);
   event.set_ts(std::time(0));
-  event.set_event_id(SendEventFunc_(event_type, content));
+  event.set_event_id(sendfunc_(event_type, content));
 
   auto db = storage_.GetRoomDb(chain_);
   db.SetEvent(event.get_event_id(), event);
@@ -69,11 +69,11 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
 NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
                                      const std::string& passphrase,
                                      const std::string& account,
-                                     SendEventFunc SendEventFunc)
+                                     SendEventFunc sendfunc)
     : storage_(appsettings.get_storage_path(), passphrase, account),
       sender_(account),
       chain_(appsettings.get_chain()),
-      SendEventFunc_(SendEventFunc) {}
+      sendfunc_(sendfunc) {}
 NunchukMatrix::~NunchukMatrix() = default;
 NunchukMatrixImpl::~NunchukMatrixImpl() {}
 
@@ -223,9 +223,14 @@ void NunchukMatrixImpl::SendWalletReady(const std::string& room_id) {
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
-    const std::string& room_id, const Transaction& tx) {
+    const std::unique_ptr<Nunchuk>& nu, const std::string& room_id,
+    const std::map<std::string, Amount> outputs, const std::string& memo,
+    const std::vector<UnspentOutput> inputs, Amount fee_rate,
+    bool subtract_fee_from_amount) {
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetWallet(room_id);
+  auto tx = nu->CreateTransaction(wallet.get_wallet_id(), outputs, memo, inputs,
+                                  fee_rate, subtract_fee_from_amount);
   json content = {{"msgtype", "io.nunchuk.transaction.init"},
                   {"body",
                    {{"wallet_id", wallet.get_wallet_id()},
@@ -244,17 +249,20 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
-    const std::string& init_event_id, const Transaction& tx) {
+    const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
+    const Device& device) {
   auto db = storage_.GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
+  auto rtx = db.GetTransaction(init_event_id);
+  auto tx = nu->SignTransaction(rtx.get_wallet_id(), rtx.get_tx_id(), device);
   json content = {
       {"msgtype", "io.nunchuk.transaction.sign"},
       {"body",
        {{"psbt", tx.get_psbt()},
+        {"master_fingerprint", device.get_master_fingerprint()},
         {"io.nunchuk.relates_to", {{"init_event_id", init_event_id}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
-  auto rtx = db.GetTransaction(init_event_id);
   rtx.add_sign_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
   return event;
@@ -295,11 +303,12 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
-    const std::string& init_event_id, const Transaction& tx) {
+    const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id) {
   auto db = storage_.GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
   auto rtx = db.GetTransaction(init_event_id);
+  auto tx = nu->BroadcastTransaction(rtx.get_wallet_id(), rtx.get_tx_id());
   json content = {{"msgtype", "io.nunchuk.transaction.broadcast"},
                   {"body",
                    {{"tx_id", tx.get_txid()},

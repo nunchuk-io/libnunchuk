@@ -144,16 +144,20 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent CreateWallet(const std::unique_ptr<Nunchuk>& nu,
                                           const std::string& room_id) = 0;
 
-  virtual NunchukMatrixEvent InitTransaction(const std::string& room_id,
-                                             const Transaction& tx) = 0;
-  virtual NunchukMatrixEvent SignTransaction(const std::string& init_event_id,
-                                             const Transaction& tx) = 0;
+  virtual NunchukMatrixEvent InitTransaction(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& room_id,
+      const std::map<std::string, Amount> outputs, const std::string& memo = {},
+      const std::vector<UnspentOutput> inputs = {}, Amount fee_rate = -1,
+      bool subtract_fee_from_amount = false) = 0;
+  virtual NunchukMatrixEvent SignTransaction(const std::unique_ptr<Nunchuk>& nu,
+                                             const std::string& init_event_id,
+                                             const Device& device) = 0;
   virtual NunchukMatrixEvent RejectTransaction(
       const std::string& init_event_id, const std::string& reason = {}) = 0;
   virtual NunchukMatrixEvent CancelTransaction(
       const std::string& init_event_id, const std::string& reason = {}) = 0;
   virtual NunchukMatrixEvent BroadcastTransaction(
-      const std::string& init_event_id, const Transaction& tx) = 0;
+      const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id) = 0;
 
   virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
   virtual std::vector<RoomTransaction> GetPendingTransactions(
@@ -169,7 +173,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(
     const AppSettings& appsettings, const std::string& passphrase,
-    const std::string& account, SendEventFunc SendEventFunction);
+    const std::string& account, SendEventFunc sendfunction);
 
 }  // namespace nunchuk
 
