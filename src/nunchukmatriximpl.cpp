@@ -342,6 +342,11 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
 }
 
+std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
+  auto db = storage_.GetRoomDb(chain_);
+  return db.GetWallets();
+}
+
 RoomWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
   auto db = storage_.GetRoomDb(chain_);
   return db.GetWallet(room_id);
@@ -350,12 +355,7 @@ RoomWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
 std::vector<RoomTransaction> NunchukMatrixImpl::GetPendingTransactions(
     const std::string& room_id) {
   auto db = storage_.GetRoomDb(chain_);
-  auto pending = db.GetPendingTransactions(room_id);
-  std::vector<RoomTransaction> rs{};
-  for (auto& id : pending) {
-    rs.push_back(db.GetTransaction(id));
-  }
-  return rs;
+  return db.GetPendingTransactions(room_id);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::GetEvent(const std::string& event_id) {

@@ -75,10 +75,8 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, room_id.c_str(), room_id.size(), NULL);
   sqlite3_step(stmt);
-  std::string value_str;
   if (sqlite3_column_text(stmt, 0)) {
-    value_str = std::string((char*)sqlite3_column_text(stmt, 1));
-    json value = json::parse(value_str);
+    json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 1)));
     RoomWallet rs{};
     rs.set_wallet_id(value["wallet_id"]);
     rs.set_init_event_id(value["init_event_id"]);
@@ -94,6 +92,28 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
         NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
         "shared wallet not found");
   }
+}
+
+std::vector<RoomWallet> NunchukRoomDb::GetWallets() {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT VALUE FROM WALLETS;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_step(stmt);
+  std::vector<RoomWallet> rs;
+  while (sqlite3_column_text(stmt, 0)) {
+    json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 0)));
+    RoomWallet rw{};
+    rw.set_wallet_id(value["wallet_id"]);
+    rw.set_init_event_id(value["init_event_id"]);
+    rw.set_join_event_ids(value["join_event_ids"]);
+    rw.set_leave_event_ids(value["leave_event_ids"]);
+    rw.set_finalize_event_id(value["finalize_event_id"]);
+    rw.set_cancel_event_id(value["cancel_event_id"]);
+    rs.push_back(rw);
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
 }
 
 bool NunchukRoomDb::SetTransaction(const std::string& room_id,
@@ -123,16 +143,15 @@ bool NunchukRoomDb::SetTransaction(const std::string& room_id,
   return updated;
 }
 
-RoomTransaction NunchukRoomDb::GetTransaction(const std::string& init_event_id) {
+RoomTransaction NunchukRoomDb::GetTransaction(
+    const std::string& init_event_id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM TXS WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, init_event_id.c_str(), init_event_id.size(), NULL);
   sqlite3_step(stmt);
-  std::string value_str;
   if (sqlite3_column_text(stmt, 0)) {
-    value_str = std::string((char*)sqlite3_column_text(stmt, 1));
-    json value = json::parse(value_str);
+    json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 1)));
     RoomTransaction rs{};
     rs.set_tx_id(value["tx_id"]);
     rs.set_wallet_id(value["wallet_id"]);
@@ -181,10 +200,8 @@ NunchukMatrixEvent NunchukRoomDb::GetEvent(const std::string& event_id) {
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, event_id.c_str(), event_id.size(), NULL);
   sqlite3_step(stmt);
-  std::string value_str;
   if (sqlite3_column_text(stmt, 0)) {
-    value_str = std::string((char*)sqlite3_column_text(stmt, 1));
-    json value = json::parse(value_str);
+    json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 1)));
     NunchukMatrixEvent rs{};
     rs.set_type(value["type"]);
     rs.set_content(value["content"]);
@@ -201,18 +218,27 @@ NunchukMatrixEvent NunchukRoomDb::GetEvent(const std::string& event_id) {
   }
 }
 
-std::vector<std::string> NunchukRoomDb::GetPendingTransactions(
+std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
     const std::string& room_id) {
+  auto wallet_id = GetWallet(room_id).get_wallet_id();
   sqlite3_stmt* stmt;
   std::string sql = "SELECT VALUE FROM TXS;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
-  std::vector<std::string> rs;
+  std::vector<RoomTransaction> rs;
   while (sqlite3_column_text(stmt, 0)) {
     json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 0)));
-    std::string broadcast_event_id = value["broadcast_event_id"];
-    if (broadcast_event_id.empty()) {
-      rs.push_back(value["init_event_id"]);
+    if (wallet_id == value["wallet_id"].get<std::string>() &&
+        value["broadcast_event_id"].get<std::string>().empty()) {
+      RoomTransaction rtx{};
+      rtx.set_tx_id(value["tx_id"]);
+      rtx.set_wallet_id(value["wallet_id"]);
+      rtx.set_init_event_id(value["init_event_id"]);
+      rtx.set_sign_event_ids(value["sign_event_ids"]);
+      rtx.set_reject_event_ids(value["reject_event_ids"]);
+      rtx.set_broadcast_event_id(value["broadcast_event_id"]);
+      rtx.set_cancel_event_id(value["cancel_event_id"]);
+      rs.push_back(rtx);
     }
     sqlite3_step(stmt);
   }
