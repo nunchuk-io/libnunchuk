@@ -272,7 +272,7 @@ NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
 }
 
 NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
-  fs::path db_file = GetAppStateDir(chain);
+  fs::path db_file = GetRoomDir(chain);
   bool is_new = !fs::exists(db_file);
   auto db = NunchukRoomDb{chain, "", db_file.string(), passphrase_};
   if (is_new) db.Init();
@@ -863,6 +863,60 @@ void NunchukStorage::ClearSignerPassphrase(Chain chain,
                                            const std::string& mastersigner_id) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   signer_passphrase_.erase(ba::to_lower_copy(mastersigner_id));
+}
+
+std::string NunchukStorage::ExportBackup() {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+
+  auto exportByChain = [&](Chain chain) {
+    json rs;
+    rs["wallets"] = json::array();
+    auto wids = ListWallets(chain);
+    for (auto& id : wids) {
+      auto w = GetWallet(chain, id, false);
+      json wallet = {
+          {"id", w.get_id()},
+          {"name", w.get_name()},
+          {"descriptor", w.get_descriptor(DescriptorPath::ANY)},
+          {"create_date", w.get_create_date()},
+          {"description", w.get_description()},
+      };
+      rs["wallets"].push_back(wallet);
+    }
+
+    rs["signers"] = json::array();
+    auto sids = ListMasterSigners(chain);
+    for (auto& id : sids) {
+      auto signerDb = GetSignerDb(chain, id);
+      json signer = {{"id", signerDb.GetId()},
+                     {"name", signerDb.GetName()},
+                     {"last_health_check", signerDb.GetLastHealthCheck()},
+                     {"bip32", json::array()},
+                     {"remote", json::array()}};
+      auto singleSigners = signerDb.GetSingleSigners(false);
+      for (auto& singleSigner : singleSigners) {
+        signer["bip32"].push_back({{"path", singleSigner.get_derivation_path()},
+                                   {"xpub", singleSigner.get_xpub()}});
+      }
+      auto remoteSigners = signerDb.GetRemoteSigners();
+      for (auto& singleSigner : remoteSigners) {
+        signer["remote"].push_back(
+            {{"path", singleSigner.get_derivation_path()},
+             {"xpub", singleSigner.get_xpub()},
+             {"pubkey", singleSigner.get_public_key()},
+             {"name", singleSigner.get_name()},
+             {"last_health_check", singleSigner.get_last_health_check()}});
+      }
+      rs["signers"].push_back(signer);
+    }
+    return rs;
+  };
+
+  json data = {
+      {"testnet", exportByChain(Chain::TESTNET)},
+      {"mainnet", exportByChain(Chain::MAIN)},
+  };
+  return data.dump();
 }
 
 }  // namespace nunchuk

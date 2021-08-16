@@ -161,6 +161,8 @@ class NunchukImpl : public Nunchuk {
       const std::string& device_fingerprint = {}) override;
   void PromtPinOnDevice(const Device& device) override;
   void SendPinToDevice(const Device& device, const std::string& pin) override;
+  std::string ExportBackup() override;
+  bool SyncWithBackup(const std::string& data) override;
 
   SingleSigner CreateCoboSigner(const std::string& name,
                                 const std::string& json_info) override;

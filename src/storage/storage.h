@@ -151,6 +151,7 @@ class NunchukStorage {
                             const std::string &passphrase);
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
   NunchukRoomDb GetRoomDb(Chain chain);
+  std::string ExportBackup();
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);

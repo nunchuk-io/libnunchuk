@@ -319,13 +319,15 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
   return signers;
 }
 
-std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners() const {
+std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
+    bool usedOnly) const {
   std::string name = GetName();
   std::string master_fingerprint = GetFingerprint();
   time_t last_health_check = GetLastHealthCheck();
 
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT PATH, XPUB FROM BIP32 WHERE USED != -1;";
+  std::string sql = usedOnly ? "SELECT PATH, XPUB FROM BIP32 WHERE USED != -1;"
+                             : "SELECT PATH, XPUB FROM BIP32;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
   std::vector<SingleSigner> signers;

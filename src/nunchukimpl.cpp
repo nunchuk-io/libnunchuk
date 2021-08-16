@@ -839,6 +839,14 @@ Transaction NunchukImpl::ImportCoboTransaction(
   return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
 }
 
+std::string NunchukImpl::ExportBackup() {
+  return storage_.ExportBackup();
+}
+
+bool NunchukImpl::SyncWithBackup(const std::string& data) {
+  return false;
+}
+
 Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
                                      const std::string& description) {
   auto config = nunchuk::bcr::DecodeUniformResource(qr_data);
@@ -926,13 +934,15 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase) {
-  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase, ""));
+  return std::unique_ptr<NunchukImpl>(
+      new NunchukImpl(appsettings, passphrase, ""));
 }
 
 std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
                                                const std::string& passphrase,
                                                const std::string& account) {
-  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase, account));
+  return std::unique_ptr<NunchukImpl>(
+      new NunchukImpl(appsettings, passphrase, account));
 }
 
 }  // namespace nunchuk

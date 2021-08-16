@@ -59,7 +59,7 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
   event.set_content(content);
   event.set_sender(sender_);
   event.set_ts(std::time(0));
-  event.set_event_id(sendfunc_(event_type, content));
+  event.set_event_id(sendfunc_(room_id, event_type, content));
 
   auto db = storage_.GetRoomDb(chain_);
   db.SetEvent(event.get_event_id(), event);

@@ -120,7 +120,8 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string ready_event_id_;
 };
 
-typedef std::function<std::string(const std::string&, const std::string&)>
+typedef std::function<std::string(const std::string&, const std::string&,
+                                  const std::string&)>
     SendEventFunc;
 
 class NUNCHUK_EXPORT NunchukMatrix {
