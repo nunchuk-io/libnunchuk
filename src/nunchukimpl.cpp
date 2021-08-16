@@ -844,7 +844,7 @@ std::string NunchukImpl::ExportBackup() {
 }
 
 bool NunchukImpl::SyncWithBackup(const std::string& data) {
-  return false;
+  return storage_.SyncWithBackup(data);
 }
 
 Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,

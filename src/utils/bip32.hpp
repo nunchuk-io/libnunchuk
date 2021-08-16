@@ -65,6 +65,14 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
                          "invalid wallet type");
 }
 
+inline std::string GetBip32Type(const std::string& path) {
+  if (path.rfind("m/44h/", 0) == 0) return "bip44";
+  if (path.rfind("m/49h/", 0) == 0) return "bip49";
+  if (path.rfind("m/84h/", 0) == 0) return "bip84";
+  if (path.rfind("m/48h/0h/0h", 0) == 0 || path.rfind("m/48h/1h/0h", 0) == 0) return "escrow";
+  return "bip48";
+}
+
 inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
                          const nunchuk::AddressType& address_type) {
   using namespace nunchuk;

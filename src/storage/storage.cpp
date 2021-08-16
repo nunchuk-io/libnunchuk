@@ -17,6 +17,7 @@
 #include <set>
 #include <sstream>
 #include <cstring>
+#include <algorithm>
 
 #include <univalue.h>
 #include <rpc/util.h>
@@ -285,6 +286,16 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
                                     AddressType address_type, bool is_escrow,
                                     const std::string& description) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
+  return CreateWallet0(chain, name, m, n, signers, address_type, is_escrow,
+                       description, std::time(0));
+}
+
+Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
+                                     int m, int n,
+                                     const std::vector<SingleSigner>& signers,
+                                     AddressType address_type, bool is_escrow,
+                                     const std::string& description,
+                                     time_t create_date) {
   WalletType wallet_type =
       n == 1 ? WalletType::SINGLE_SIG
              : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
@@ -320,7 +331,6 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
     throw StorageException(StorageException::WALLET_EXISTED, "wallet existed!");
   }
   NunchukWalletDb wallet_db{chain, id, wallet_file.string(), passphrase_};
-  time_t create_date = std::time(0);
   wallet_db.InitWallet(name, m, n, signers, address_type, is_escrow,
                        create_date, description);
   Wallet wallet(id, m, n, signers, address_type, is_escrow, create_date);
@@ -868,11 +878,11 @@ void NunchukStorage::ClearSignerPassphrase(Chain chain,
 std::string NunchukStorage::ExportBackup() {
   boost::shared_lock<boost::shared_mutex> lock(access_);
 
-  auto exportByChain = [&](Chain chain) {
+  auto exportChain = [&](Chain chain) {
     json rs;
     rs["wallets"] = json::array();
     auto wids = ListWallets(chain);
-    for (auto& id : wids) {
+    for (auto&& id : wids) {
       auto w = GetWallet(chain, id, false);
       json wallet = {
           {"id", w.get_id()},
@@ -886,20 +896,22 @@ std::string NunchukStorage::ExportBackup() {
 
     rs["signers"] = json::array();
     auto sids = ListMasterSigners(chain);
-    for (auto& id : sids) {
+    for (auto&& id : sids) {
       auto signerDb = GetSignerDb(chain, id);
       json signer = {{"id", signerDb.GetId()},
                      {"name", signerDb.GetName()},
+                     {"device_type", signerDb.GetDeviceType()},
+                     {"device_model", signerDb.GetDeviceModel()},
                      {"last_health_check", signerDb.GetLastHealthCheck()},
                      {"bip32", json::array()},
                      {"remote", json::array()}};
       auto singleSigners = signerDb.GetSingleSigners(false);
-      for (auto& singleSigner : singleSigners) {
+      for (auto&& singleSigner : singleSigners) {
         signer["bip32"].push_back({{"path", singleSigner.get_derivation_path()},
                                    {"xpub", singleSigner.get_xpub()}});
       }
       auto remoteSigners = signerDb.GetRemoteSigners();
-      for (auto& singleSigner : remoteSigners) {
+      for (auto&& singleSigner : remoteSigners) {
         signer["remote"].push_back(
             {{"path", singleSigner.get_derivation_path()},
              {"xpub", singleSigner.get_xpub()},
@@ -913,10 +925,60 @@ std::string NunchukStorage::ExportBackup() {
   };
 
   json data = {
-      {"testnet", exportByChain(Chain::TESTNET)},
-      {"mainnet", exportByChain(Chain::MAIN)},
+      {"testnet", exportChain(Chain::TESTNET)},
+      {"mainnet", exportChain(Chain::MAIN)},
   };
   return data.dump();
+}
+
+bool NunchukStorage::SyncWithBackup(const std::string& dataStr) {
+  boost::unique_lock<boost::shared_mutex> lock(access_);
+
+  auto importChain = [&](Chain chain, const json& d) {
+    json signers = d["signers"];
+    for (auto&& signer : signers) {
+      std::string id = signer["id"];
+      fs::path db_file = GetSignerDir(chain, id);
+      NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
+      db.InitSigner(signer["name"],
+                    {signer["device_type"], signer["device_model"], id}, "");
+      db.SetLastHealthCheck(signer["last_health_check"]);
+      for (auto&& ss : signer["bip32"]) {
+        db.AddXPub(ss["path"], ss["xpub"], GetBip32Type(ss["path"]));
+      }
+      for (auto&& ss : signer["remote"]) {
+        db.AddRemote(ss["name"], ss["xpub"], ss["pubkey"], ss["path"]);
+        db.SetRemoteLastHealthCheck(ss["path"], ss["last_health_check"]);
+      }
+    }
+
+    json wallets = d["wallets"];
+    for (auto&& wallet : wallets) {
+      std::string id = wallet["id"];
+      fs::path db_file = GetWalletDir(chain, id);
+      if (!fs::exists(db_file)) {
+        AddressType a;
+        WalletType w;
+        int m;
+        int n;
+        std::vector<SingleSigner> signers;
+        if (ParseDescriptors(wallet["descriptor"], a, w, m, n, signers)) {
+          CreateWallet0(chain, wallet["name"], m, n, signers, a,
+                        w == WalletType::ESCROW, wallet["description"],
+                        wallet["create_date"]);
+        }
+      } else {
+        auto db = GetWalletDb(chain, id);
+        db.SetName(wallet["name"]);
+        db.SetDescription(wallet["description"]);
+      }
+    }
+  };
+
+  json data = json::parse(dataStr);
+  importChain(Chain::TESTNET, data["testnet"]);
+  importChain(Chain::MAIN, data["mainnet"]);
+  return true;
 }
 
 }  // namespace nunchuk

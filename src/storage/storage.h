@@ -152,6 +152,7 @@ class NunchukStorage {
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
   NunchukRoomDb GetRoomDb(Chain chain);
   std::string ExportBackup();
+  bool SyncWithBackup(const std::string &data);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
@@ -166,6 +167,11 @@ class NunchukStorage {
   boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
+  Wallet CreateWallet0(Chain chain, const std::string &name, int m,
+                              int n, const std::vector<SingleSigner> &signers,
+                              AddressType address_type, bool is_escrow,
+                              const std::string &description,
+                              time_t create_date);
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;
