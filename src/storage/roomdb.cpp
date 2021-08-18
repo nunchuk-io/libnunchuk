@@ -88,7 +88,7 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw new NunchukMatrixException(
+    throw NunchukMatrixException(
         NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
         "shared wallet not found");
   }
@@ -164,8 +164,8 @@ RoomTransaction NunchukRoomDb::GetTransaction(
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw new NunchukMatrixException(
-        NunchukMatrixException::TRANSACTION_NOT_FOUND, "transaction not found");
+    throw NunchukMatrixException(NunchukMatrixException::TRANSACTION_NOT_FOUND,
+                                 "transaction not found");
   }
 }
 
@@ -213,8 +213,8 @@ NunchukMatrixEvent NunchukRoomDb::GetEvent(const std::string& event_id) {
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw new NunchukMatrixException(NunchukMatrixException::EVENT_NOT_FOUND,
-                                     "event not found");
+    throw NunchukMatrixException(NunchukMatrixException::EVENT_NOT_FOUND,
+                                 "event not found");
   }
 }
 
