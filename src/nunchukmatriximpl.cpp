@@ -81,9 +81,10 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,
     AddressType address_type, bool is_escrow, const std::string& description) {
   auto db = storage_.GetRoomDb(chain_);
-  if (db.HasWallet(room_id)) {
-    throw NunchukMatrixException(
-        NunchukMatrixException::SHARED_WALLET_EXISTS, "shared wallet exists");
+  if (db.HasWallet(room_id) &&
+      db.GetWallet(room_id).get_cancel_event_id().empty()) {
+    throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_EXISTS,
+                                 "shared wallet exists");
   }
   json content = {{"msgtype", "io.nunchuk.wallet.init"},
                   {"body",
