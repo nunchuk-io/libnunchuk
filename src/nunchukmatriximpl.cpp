@@ -61,8 +61,10 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
   event.set_ts(std::time(0));
   event.set_event_id(sendfunc_(room_id, event_type, content));
 
-  auto db = storage_.GetRoomDb(chain_);
-  db.SetEvent(event.get_event_id(), event);
+  if (!event.get_event_id().empty()) {
+    auto db = storage_.GetRoomDb(chain_);
+    db.SetEvent(event.get_event_id(), event);
+  }
   return event;
 }
 
@@ -97,6 +99,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
                     {"members", json::array()},
                     {"chain", ChainToStr(chain_)}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return event;
   RoomWallet wallet{};
   wallet.set_init_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
@@ -113,6 +116,7 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
                     {"io.nunchuk.relates_to",
                      {{"init_event_id", wallet.get_init_event_id()}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return event;
   wallet.add_join_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
   SendWalletReady(room_id);
@@ -131,6 +135,7 @@ NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
                      {{"init_event_id", wallet.get_init_event_id()},
                       {"join_event_id", join_event_id}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return event;
   wallet.add_leave_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
   return event;
@@ -146,6 +151,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
                     {"io.nunchuk.relates_to",
                      {{"init_event_id", wallet.get_init_event_id()}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return event;
   wallet.set_cancel_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
   return event;
@@ -196,6 +202,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
                      {{"init_event_id", wallet.get_init_event_id()},
                       {"join_event_ids", join_event_ids}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return event;
   wallet.set_finalize_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
   return event;
@@ -219,6 +226,7 @@ void NunchukMatrixImpl::SendWalletReady(const std::string& room_id) {
                      {{"init_event_id", wallet.get_init_event_id()},
                       {"join_event_ids", join_event_ids}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return;
   wallet.set_ready_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
 }
@@ -241,6 +249,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
                     {"subtract_fee_from_amount", tx.subtract_fee_from_amount()},
                     {"chain", ChainToStr(chain_)}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  if (event.get_event_id().empty()) return event;
   RoomTransaction rtx{};
   rtx.set_init_event_id(event.get_event_id());
   rtx.set_wallet_id(wallet.get_wallet_id());
@@ -264,6 +273,7 @@ NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
         {"master_fingerprint", device.get_master_fingerprint()},
         {"io.nunchuk.relates_to", {{"init_event_id", init_event_id}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  if (event.get_event_id().empty()) return event;
   rtx.add_sign_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
   return event;
@@ -280,6 +290,7 @@ NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
        {{"reason", reason},
         {"io.nunchuk.relates_to", {{"init_event_id", init_event_id}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  if (event.get_event_id().empty()) return event;
   auto rtx = db.GetTransaction(init_event_id);
   rtx.add_reject_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
@@ -297,6 +308,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
        {{"reason", reason},
         {"io.nunchuk.relates_to", {{"init_event_id", init_event_id}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  if (event.get_event_id().empty()) return event;
   auto rtx = db.GetTransaction(init_event_id);
   rtx.set_cancel_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
@@ -317,6 +329,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
                      {{"init_event_id", rtx.get_init_event_id()},
                       {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  if (event.get_event_id().empty()) return event;
   rtx.set_tx_id(tx.get_txid());
   rtx.set_broadcast_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
@@ -339,6 +352,7 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
                      {{"init_event_id", wallet.get_init_event_id()},
                       {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  if (event.get_event_id().empty()) return;
   rtx.set_ready_event_id(event.get_event_id());
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
 }
@@ -393,6 +407,10 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto wallet = db.GetWallet(event.get_room_id());
     wallet.set_cancel_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
+  } else if (msgtype == "io.nunchuk.wallet.ready") {
+    auto wallet = db.GetWallet(event.get_room_id());
+    wallet.set_ready_event_id(event.get_event_id());
+    db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.create") {
     auto wallet = db.GetWallet(event.get_room_id());
     wallet.set_finalize_event_id(event.get_event_id());
@@ -444,6 +462,12 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
         content["io.nunchuk.relates_to"]["init_event_id"];
     auto tx = db.GetTransaction(init_event_id);
     tx.set_cancel_event_id(event.get_event_id());
+    db.SetTransaction(event.get_room_id(), init_event_id, tx);
+  } else if (msgtype == "io.nunchuk.transaction.ready") {
+    std::string init_event_id =
+        content["io.nunchuk.relates_to"]["init_event_id"];
+    auto tx = db.GetTransaction(init_event_id);
+    tx.set_ready_event_id(event.get_event_id());
     db.SetTransaction(event.get_room_id(), init_event_id, tx);
   } else if (msgtype == "io.nunchuk.transaction.broadcast") {
     std::string init_event_id =
