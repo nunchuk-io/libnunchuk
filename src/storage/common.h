@@ -40,6 +40,8 @@ const int SELECTED_WALLET = 10;
 const int SIGNER_DEVICE_TYPE = 11;
 const int SIGNER_DEVICE_MODEL = 12;
 const int MNEMONIC = 13;
+const int SYNC_TS = 14;
+const int SYNC_ROOM_ID = 15;
 }  // namespace DbKeys
 
 }

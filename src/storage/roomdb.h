@@ -21,6 +21,8 @@ class NunchukRoomDb : public NunchukDb {
   using NunchukDb::NunchukDb;
 
   void Init();
+  bool SetSyncRoomId(const std::string& room_id);
+  std::string GetSyncRoomId();
   bool HasWallet(const std::string& room_id);
   bool SetWallet(const std::string& room_id, const RoomWallet& wallet);
   RoomWallet GetWallet(const std::string& room_id);

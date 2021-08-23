@@ -24,6 +24,8 @@ class NunchukAppStateDb : public NunchukDb {
   bool SetSelectedWallet(const std::string &value);
   int64_t GetStorageVersion() const;
   bool SetStorageVersion(int64_t value);
+  time_t GetLastSyncTs() const;
+  bool SetLastSyncTs(time_t value);
 
  private:
   friend class NunchukStorage;

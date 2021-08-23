@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <utils/json.hpp>
+#include <utils/attachment.hpp>
 
 #include <descriptor.h>
 #include <coreutils.h>
@@ -357,6 +358,26 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
   db.SetTransaction(event.get_room_id(), init_event_id, rtx);
 }
 
+NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
+                                             const std::string& sync_room_id,
+                                             const std::string& access_token) {
+  auto db = storage_.GetRoomDb(chain_);
+  std::string room_id = sync_room_id;
+  if (room_id.empty()) {
+    room_id = db.GetSyncRoomId();
+  } else {
+    db.SetSyncRoomId(room_id);
+  }
+  if (room_id.empty() || access_token.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid room_id or access_token");
+  }
+  auto data = nu->ExportBackup();
+  auto file = json::parse(EncryptAttachment(access_token, data));
+  json content = {{"msgtype", "io.nunchuk.sync.file"}, {"file", file}};
+  return NewEvent(room_id, "io.nunchuk.sync", content.dump());
+}
+
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
   auto db = storage_.GetRoomDb(chain_);
   return db.GetWallets();
@@ -380,9 +401,7 @@ NunchukMatrixEvent NunchukMatrixImpl::GetEvent(const std::string& event_id) {
 
 void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                                      const NunchukMatrixEvent& event) {
-  if (event.get_type() != "io.nunchuk.wallet" &&
-      event.get_type() != "io.nunchuk.transaction")
-    return;
+  if (event.get_type().rfind("io.nunchuk", 0) != 0) return;
   if (event.get_event_id().empty()) return;
 
   auto db = storage_.GetRoomDb(chain_);
@@ -475,6 +494,10 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto tx = db.GetTransaction(init_event_id);
     tx.set_broadcast_event_id(event.get_event_id());
     db.SetTransaction(event.get_room_id(), init_event_id, tx);
+  } else if (msgtype == "io.nunchuk.sync.file") {
+    auto data = content["file"];
+    db.SetSyncRoomId(event.get_room_id());
+    nu->SyncWithBackup(data.dump());
   }
 }
 

@@ -30,4 +30,12 @@ bool NunchukAppStateDb::SetStorageVersion(int64_t value) {
   return PutInt(DbKeys::VERSION, value);
 }
 
+time_t NunchukAppStateDb::GetLastSyncTs() const {
+  return GetInt(DbKeys::SYNC_TS);
+}
+
+bool NunchukAppStateDb::SetLastSyncTs(time_t value) {
+  return PutInt(DbKeys::SYNC_TS, value);
+}
+
 }  // namespace nunchuk

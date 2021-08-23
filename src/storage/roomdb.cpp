@@ -28,6 +28,14 @@ void NunchukRoomDb::Init() {
                         NULL, 0, NULL));
 }
 
+bool NunchukRoomDb::SetSyncRoomId(const std::string& room_id) {
+  return PutString(DbKeys::SYNC_ROOM_ID, room_id);
+}
+
+std::string NunchukRoomDb::GetSyncRoomId() {
+  return GetString(DbKeys::SYNC_ROOM_ID);
+}
+
 bool NunchukRoomDb::HasWallet(const std::string& room_id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM WALLETS WHERE ID = ?;";

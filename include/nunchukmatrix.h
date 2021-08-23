@@ -161,6 +161,10 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent BroadcastTransaction(
       const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id) = 0;
 
+  virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
+                                    const std::string& sync_room_id,
+                                    const std::string& access_token) = 0;
+
   virtual std::vector<RoomWallet> GetAllRoomWallets() = 0;
   virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
   virtual std::vector<RoomTransaction> GetPendingTransactions(

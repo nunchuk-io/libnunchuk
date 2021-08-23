@@ -924,10 +924,9 @@ std::string NunchukStorage::ExportBackup() {
     return rs;
   };
 
-  json data = {
-      {"testnet", exportChain(Chain::TESTNET)},
-      {"mainnet", exportChain(Chain::MAIN)},
-  };
+  json data = {{"testnet", exportChain(Chain::TESTNET)},
+               {"mainnet", exportChain(Chain::MAIN)},
+               {"ts", std::time(0)}};
   return data.dump();
 }
 
@@ -975,10 +974,14 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr) {
     }
   };
 
+  auto appState = GetAppStateDb(Chain::MAIN);
   json data = json::parse(dataStr);
+  time_t ts = data["ts"];
+  time_t lastSyncTs = appState.GetLastSyncTs();
+  if (lastSyncTs > ts) return false;  // old backup
   importChain(Chain::TESTNET, data["testnet"]);
   importChain(Chain::MAIN, data["mainnet"]);
-  return true;
+  return appState.SetLastSyncTs(ts);
 }
 
 }  // namespace nunchuk
