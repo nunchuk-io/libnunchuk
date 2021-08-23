@@ -28,10 +28,12 @@ extern "C" {
 
 namespace {
 
+static const std::string DEFAULT_MATRIX_SERVER = "https://element.nunchuk.io";
+
 inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
   auto id = url.substr(5);
   std::string body;
-  httplib::Client cli("https://matrix-client.matrix.org");
+  httplib::Client cli(DEFAULT_MATRIX_SERVER.c_str());
   auto res = cli.Get(("/_matrix/media/r0/download" + id).c_str(),
                      [&](const char* data, size_t data_length) {
                        body.append(data, data_length);
@@ -48,7 +50,7 @@ inline std::string UploadAttachment(const std::string& accessToken,
                                     const char* body, size_t length) {
   std::string auth = (std::string("Bearer ") + accessToken);
   httplib::Headers headers = {{"Authorization", auth}};
-  httplib::Client cli("https://matrix-client.matrix.org");
+  httplib::Client cli(DEFAULT_MATRIX_SERVER.c_str());
   auto res = cli.Post("/_matrix/media/r0/upload", headers, body, length,
                       "application/octet-stream");
   if (!res || res->status != 200) {
