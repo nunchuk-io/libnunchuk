@@ -37,6 +37,7 @@ class NunchukRoomDb : public NunchukDb {
       const std::string& room_id);
 
  private:
+  std::string GetJsonContent(const RoomWallet& wallet);
   friend class NunchukStorage;
 };
 

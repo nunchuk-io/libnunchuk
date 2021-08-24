@@ -10,17 +10,23 @@ RoomWallet::RoomWallet() {}
 
 std::string RoomWallet::get_wallet_id() const { return wallet_id_; }
 std::string RoomWallet::get_init_event_id() const { return init_event_id_; }
-std::vector<std::string> RoomWallet::get_join_event_ids() const { return join_event_ids_; }
+std::vector<std::string> RoomWallet::get_join_event_ids() const {
+  return join_event_ids_;
+}
 std::vector<std::string> RoomWallet::get_leave_event_ids() const {
   return leave_event_ids_;
 }
-std::string RoomWallet::get_finalize_event_id() const { return finalize_event_id_; }
+std::string RoomWallet::get_finalize_event_id() const {
+  return finalize_event_id_;
+}
 std::string RoomWallet::get_cancel_event_id() const { return cancel_event_id_; }
 std::string RoomWallet::get_ready_event_id() const { return ready_event_id_; }
-std::string RoomWallet::get_pin_data() const { return pin_data_; }
+std::string RoomWallet::get_json_content() const { return json_content_; }
 
 void RoomWallet::set_wallet_id(const std::string& value) { wallet_id_ = value; }
-void RoomWallet::set_init_event_id(const std::string& value) { init_event_id_ = value; }
+void RoomWallet::set_init_event_id(const std::string& value) {
+  init_event_id_ = value;
+}
 void RoomWallet::set_join_event_ids(const std::vector<std::string>& value) {
   join_event_ids_ = value;
 }
@@ -36,7 +42,14 @@ void RoomWallet::add_leave_event_id(const std::string& value) {
 void RoomWallet::set_finalize_event_id(const std::string& value) {
   finalize_event_id_ = value;
 }
-void RoomWallet::set_cancel_event_id(const std::string& value) { cancel_event_id_ = value; }
-void RoomWallet::set_ready_event_id(const std::string& value) { ready_event_id_ = value; }
+void RoomWallet::set_cancel_event_id(const std::string& value) {
+  cancel_event_id_ = value;
+}
+void RoomWallet::set_ready_event_id(const std::string& value) {
+  ready_event_id_ = value;
+}
+void RoomWallet::set_json_content(const std::string& value) {
+  json_content_ = value;
+}
 
 }  // namespace nunchuk

@@ -4,6 +4,7 @@
 
 #include "roomdb.h"
 #include <utils/json.hpp>
+#include <set>
 
 using json = nlohmann::json;
 
@@ -93,6 +94,7 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
     rs.set_finalize_event_id(value["finalize_event_id"]);
     rs.set_cancel_event_id(value["cancel_event_id"]);
     SQLCHECK(sqlite3_finalize(stmt));
+    rs.set_json_content(GetJsonContent(rs));
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -121,6 +123,9 @@ std::vector<RoomWallet> NunchukRoomDb::GetWallets() {
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  for (auto&& w : rs) {
+    w.set_json_content(GetJsonContent(w));
+  }
   return rs;
 }
 
@@ -252,6 +257,45 @@ std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return rs;
+}
+
+std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
+  json content;
+  auto init_event = GetEvent(wallet.get_init_event_id());
+  auto init_body = json::parse(init_event.get_content())["body"];
+  content["name"] = init_body["name"];
+  content["description"] = init_body["description"];
+  content["m"] = init_body["m"];
+  content["n"] = init_body["n"];
+  content["address_type"] = init_body["address_type"];
+  content["is_escrow"] = init_body["is_escrow"];
+  if (!wallet.get_cancel_event_id().empty()) {
+    content["canceled"] = true;
+    return content.dump();
+  }
+  if (!wallet.get_finalize_event_id().empty()) {
+    content["finalized"] = true;
+    content["wallet_id"] = wallet.get_wallet_id();
+  }
+
+  std::set<std::string> leave_ids;
+  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
+    auto leave_event = GetEvent(leave_event_id);
+    auto leave_body = json::parse(leave_event.get_content())["body"];
+    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
+    leave_ids.insert(join_id);
+  }
+  json joins;
+  for (auto&& join_event_id : wallet.get_join_event_ids()) {
+    if (leave_ids.find(join_event_id) != leave_ids.end()) continue;
+    auto join_event = GetEvent(join_event_id);
+    auto join_body = json::parse(join_event.get_content())["body"];
+    if (!joins[join_event.get_sender()])
+      joins[join_event.get_sender()] = json::array();
+    joins[join_event.get_sender()].push_back(join_body["key"]);
+  }
+
+  return content.dump();
 }
 
 }  // namespace nunchuk

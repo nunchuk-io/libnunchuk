@@ -203,7 +203,6 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
                      {{"init_event_id", wallet.get_init_event_id()},
                       {"join_event_ids", join_event_ids}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
-  if (event.get_event_id().empty()) return event;
   wallet.set_finalize_event_id(event.get_event_id());
   db.SetWallet(event.get_room_id(), wallet);
   return event;
@@ -433,8 +432,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   } else if (msgtype == "io.nunchuk.wallet.create") {
     auto wallet = db.GetWallet(event.get_room_id());
     wallet.set_finalize_event_id(event.get_event_id());
-
-    if (event.get_sender() != sender_) {
+    if (wallet.get_wallet_id().empty()) {
       auto init_event = db.GetEvent(wallet.get_init_event_id());
       json wallet_config = json::parse(init_event.get_content())["body"];
       std::string name = wallet_config["name"];
