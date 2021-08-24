@@ -5,6 +5,8 @@
 #include "roomdb.h"
 #include <utils/json.hpp>
 #include <set>
+#include <iostream>
+#include <descriptor.h>
 
 using json = nlohmann::json;
 
@@ -285,16 +287,17 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
     std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
     leave_ids.insert(join_id);
   }
-  json joins;
   for (auto&& join_event_id : wallet.get_join_event_ids()) {
-    if (leave_ids.find(join_event_id) != leave_ids.end()) continue;
+    if (leave_ids.count(join_event_id)) continue;
     auto join_event = GetEvent(join_event_id);
-    auto join_body = json::parse(join_event.get_content())["body"];
-    if (!joins[join_event.get_sender()])
-      joins[join_event.get_sender()] = json::array();
-    joins[join_event.get_sender()].push_back(join_body["key"]);
+    std::string key = json::parse(join_event.get_content())["body"]["key"];
+    auto parse = ParseSignerString(key);
+    json signer = {
+        {"master_fingerprint", parse.get_master_fingerprint()},
+        {"derivation_path", parse.get_derivation_path()},
+    };
+    content["joins"][join_event.get_sender()].push_back(signer);
   }
-
   return content.dump();
 }
 

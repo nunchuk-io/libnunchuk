@@ -46,8 +46,7 @@ std::string SignerToStr(const SingleSigner& value) {
   std::stringstream key;
   key << "[" << value.get_master_fingerprint()
       << FormalizePath(value.get_derivation_path()) << "]"
-      << (value.get_xpub().empty() ? value.get_public_key() : value.get_xpub())
-      << std::endl;
+      << (value.get_xpub().empty() ? value.get_public_key() : value.get_xpub());
   return key.str();
 }
 
@@ -170,7 +169,8 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   for (auto& id : join_event_ids) {
     auto event = db.GetEvent(id);
     json content = json::parse(event.get_content());
-    signers.push_back(ParseSignerString(content["key"]));
+    std::string key = content["key"];
+    signers.push_back(ParseSignerString(key));
   }
 
   json wallet_config = json::parse(init_event.get_content())["body"];
