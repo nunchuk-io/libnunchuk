@@ -31,6 +31,7 @@ class NunchukRoomDb : public NunchukDb {
                       const std::string& init_event_id,
                       const RoomTransaction& tx);
   RoomTransaction GetTransaction(const std::string& init_event_id);
+  bool HasEvent(const std::string& event_id);
   bool SetEvent(const std::string event_id, const NunchukMatrixEvent& event);
   NunchukMatrixEvent GetEvent(const std::string& event_id);
   std::vector<RoomTransaction> GetPendingTransactions(

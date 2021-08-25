@@ -157,6 +157,23 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
   return event;
 }
 
+NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
+    const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
+  auto db = storage_.GetRoomDb(chain_);
+  auto wallet = db.GetWallet(room_id);
+  json content = {{"msgtype", "io.nunchuk.wallet.delete"},
+                  {"body",
+                   {{"wallet_id", wallet.get_wallet_id()},
+                    {"io.nunchuk.relates_to",
+                     {{"init_event_id", wallet.get_init_event_id()}}}}}};
+  auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  if (event.get_event_id().empty()) return event;
+  wallet.set_delete_event_id(event.get_event_id());
+  db.SetWallet(event.get_room_id(), wallet);
+  nu->DeleteWallet(wallet.get_wallet_id());
+  return event;
+}
+
 NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
     const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
   auto db = storage_.GetRoomDb(chain_);
@@ -404,33 +421,49 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   if (event.get_event_id().empty()) return;
 
   auto db = storage_.GetRoomDb(chain_);
+  if (db.HasEvent(event.get_event_id())) return;
   db.SetEvent(event.get_event_id(), event);
   json content = json::parse(event.get_content());
   std::string msgtype = content["msgtype"];
   json body = content["body"];
+  std::string init_event_id =
+      content["io.nunchuk.relates_to"].empty()
+          ? ""
+          : content["io.nunchuk.relates_to"]["init_event_id"];
   if (msgtype == "io.nunchuk.wallet.init") {
     RoomWallet wallet{};
     wallet.set_init_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.join") {
     auto wallet = db.GetWallet(event.get_room_id());
+    if (wallet.get_init_event_id() != init_event_id) return;
     wallet.add_join_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
     SendWalletReady(event.get_room_id());
   } else if (msgtype == "io.nunchuk.wallet.leave") {
     auto wallet = db.GetWallet(event.get_room_id());
+    if (wallet.get_init_event_id() != init_event_id) return;
     wallet.add_leave_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.cancel") {
     auto wallet = db.GetWallet(event.get_room_id());
+    if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_cancel_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.ready") {
     auto wallet = db.GetWallet(event.get_room_id());
+    if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_ready_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
+  } else if (msgtype == "io.nunchuk.wallet.delete") {
+    auto wallet = db.GetWallet(event.get_room_id());
+    if (wallet.get_init_event_id() != init_event_id) return;
+    wallet.set_delete_event_id(event.get_event_id());
+    db.SetWallet(event.get_room_id(), wallet);
+    nu->DeleteWallet(wallet.get_wallet_id());
   } else if (msgtype == "io.nunchuk.wallet.create") {
     auto wallet = db.GetWallet(event.get_room_id());
+    if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_finalize_event_id(event.get_event_id());
     if (wallet.get_wallet_id().empty()) {
       auto init_event = db.GetEvent(wallet.get_init_event_id());
@@ -461,34 +494,24 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     tx.set_tx_id(ntx.get_txid());
     db.SetTransaction(event.get_room_id(), event.get_event_id(), tx);
   } else if (msgtype == "io.nunchuk.transaction.sign") {
-    std::string init_event_id =
-        content["io.nunchuk.relates_to"]["init_event_id"];
     auto tx = db.GetTransaction(init_event_id);
     tx.add_sign_event_id(event.get_event_id());
     nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
     db.SetTransaction(event.get_room_id(), init_event_id, tx);
     SendTransactionReady(event.get_room_id(), init_event_id);
   } else if (msgtype == "io.nunchuk.transaction.reject") {
-    std::string init_event_id =
-        content["io.nunchuk.relates_to"]["init_event_id"];
     auto tx = db.GetTransaction(init_event_id);
     tx.add_reject_event_id(event.get_event_id());
     db.SetTransaction(event.get_room_id(), init_event_id, tx);
   } else if (msgtype == "io.nunchuk.transaction.cancel") {
-    std::string init_event_id =
-        content["io.nunchuk.relates_to"]["init_event_id"];
     auto tx = db.GetTransaction(init_event_id);
     tx.set_cancel_event_id(event.get_event_id());
     db.SetTransaction(event.get_room_id(), init_event_id, tx);
   } else if (msgtype == "io.nunchuk.transaction.ready") {
-    std::string init_event_id =
-        content["io.nunchuk.relates_to"]["init_event_id"];
     auto tx = db.GetTransaction(init_event_id);
     tx.set_ready_event_id(event.get_event_id());
     db.SetTransaction(event.get_room_id(), init_event_id, tx);
   } else if (msgtype == "io.nunchuk.transaction.broadcast") {
-    std::string init_event_id =
-        content["io.nunchuk.relates_to"]["init_event_id"];
     auto tx = db.GetTransaction(init_event_id);
     tx.set_broadcast_event_id(event.get_event_id());
     db.SetTransaction(event.get_room_id(), init_event_id, tx);

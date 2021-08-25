@@ -37,6 +37,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
                                   const std::string& reason = {}) override;
   NunchukMatrixEvent CreateWallet(const std::unique_ptr<Nunchuk>& nu,
                                   const std::string& room_id) override;
+  NunchukMatrixEvent DeleteWallet(const std::unique_ptr<Nunchuk>& nu,
+                                  const std::string& room_id) override;
 
   NunchukMatrixEvent InitTransaction(
       const std::unique_ptr<Nunchuk>& nu, const std::string& room_id,
