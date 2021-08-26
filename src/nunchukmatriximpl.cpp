@@ -206,16 +206,16 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
 
   std::string descriptor = GetDescriptorForSigners(
       signers, m, DescriptorPath::TEMPLATE, a, w, 0, true);
-  std::string first_address = CoreUtils::getInstance().DeriveAddresses(
-      GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w,
-                              is_escrow ? -1 : 0, true),
-      is_escrow ? -1 : 0);
+  // std::string first_address = CoreUtils::getInstance().DeriveAddresses(
+  //     GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w,
+  //                             is_escrow ? -1 : 0, true),
+  //     is_escrow ? -1 : 0);
 
   json content = {{"msgtype", "io.nunchuk.wallet.create"},
                   {"body",
                    {{"descriptor", descriptor},
                     {"path_restriction", "/0/*,/1/*"},
-                    {"first_address", first_address},
+                    // {"first_address", first_address},
                     {"io.nunchuk.relates_to",
                      {{"init_event_id", wallet.get_init_event_id()},
                       {"join_event_ids", join_event_ids}}}}}};
