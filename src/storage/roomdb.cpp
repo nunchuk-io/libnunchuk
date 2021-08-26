@@ -96,7 +96,8 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
     rs.set_leave_event_ids(value["leave_event_ids"]);
     rs.set_finalize_event_id(value["finalize_event_id"]);
     rs.set_cancel_event_id(value["cancel_event_id"]);
-    rs.set_delete_event_id(value["delete_event_id"]);
+    auto delete_event_id = value["delete_event_id"];
+    rs.set_delete_event_id(delete_event_id == nullptr ? "" : delete_event_id);
     SQLCHECK(sqlite3_finalize(stmt));
     rs.set_json_content(GetJsonContent(rs));
     return rs;
@@ -123,7 +124,8 @@ std::vector<RoomWallet> NunchukRoomDb::GetWallets() {
     rw.set_leave_event_ids(value["leave_event_ids"]);
     rw.set_finalize_event_id(value["finalize_event_id"]);
     rw.set_cancel_event_id(value["cancel_event_id"]);
-    rw.set_delete_event_id(value["delete_event_id"]);
+    auto delete_event_id = value["delete_event_id"];
+    rw.set_delete_event_id(delete_event_id == nullptr ? "" : delete_event_id);
     rs.push_back(rw);
     sqlite3_step(stmt);
   }
