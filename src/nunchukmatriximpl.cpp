@@ -186,7 +186,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   for (auto& id : join_event_ids) {
     auto event = db.GetEvent(id);
     json content = json::parse(event.get_content());
-    std::string key = content["key"];
+    std::string key = content["body"]["key"];
     signers.push_back(ParseSignerString(key));
   }
 
