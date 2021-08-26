@@ -436,34 +436,34 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.join") {
     auto wallet = db.GetWallet(event.get_room_id());
-    if (wallet.get_init_event_id() != init_event_id) return;
+    // if (wallet.get_init_event_id() != init_event_id) return;
     wallet.add_join_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
     SendWalletReady(event.get_room_id());
   } else if (msgtype == "io.nunchuk.wallet.leave") {
     auto wallet = db.GetWallet(event.get_room_id());
-    if (wallet.get_init_event_id() != init_event_id) return;
+    // if (wallet.get_init_event_id() != init_event_id) return;
     wallet.add_leave_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.cancel") {
     auto wallet = db.GetWallet(event.get_room_id());
-    if (wallet.get_init_event_id() != init_event_id) return;
+    // if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_cancel_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.ready") {
     auto wallet = db.GetWallet(event.get_room_id());
-    if (wallet.get_init_event_id() != init_event_id) return;
+    // if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_ready_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
   } else if (msgtype == "io.nunchuk.wallet.delete") {
     auto wallet = db.GetWallet(event.get_room_id());
-    if (wallet.get_init_event_id() != init_event_id) return;
+    // if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_delete_event_id(event.get_event_id());
     db.SetWallet(event.get_room_id(), wallet);
     nu->DeleteWallet(wallet.get_wallet_id());
   } else if (msgtype == "io.nunchuk.wallet.create") {
     auto wallet = db.GetWallet(event.get_room_id());
-    if (wallet.get_init_event_id() != init_event_id) return;
+    // if (wallet.get_init_event_id() != init_event_id) return;
     wallet.set_finalize_event_id(event.get_event_id());
     if (wallet.get_wallet_id().empty()) {
       auto init_event = db.GetEvent(wallet.get_init_event_id());
