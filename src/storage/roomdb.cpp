@@ -39,25 +39,31 @@ std::string NunchukRoomDb::GetSyncRoomId() {
   return GetString(DbKeys::SYNC_ROOM_ID);
 }
 
-bool NunchukRoomDb::HasWallet(const std::string& room_id) {
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM WALLETS WHERE ID = ?;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, room_id.c_str(), room_id.size(), NULL);
-  sqlite3_step(stmt);
-  std::string value_str;
-  if (sqlite3_column_text(stmt, 0)) {
-    SQLCHECK(sqlite3_finalize(stmt));
-    return true;
-  } else {
-    SQLCHECK(sqlite3_finalize(stmt));
-    return false;
+bool NunchukRoomDb::HasActiveWallet(const std::string& room_id) {
+  auto wallets = GetWallets();
+  for (auto&& wallet : wallets) {
+    if (wallet.get_room_id() == room_id && IsActiveWallet(wallet)) {
+      return true;
+    }
   }
+  return false;
 }
 
-bool NunchukRoomDb::SetWallet(const std::string& room_id,
-                              const RoomWallet& wallet) {
+RoomWallet NunchukRoomDb::GetActiveWallet(const std::string& room_id) {
+  auto wallets = GetWallets();
+  for (auto&& wallet : wallets) {
+    if (wallet.get_room_id() == room_id && IsActiveWallet(wallet)) {
+      return wallet;
+    }
+  }
+  throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
+                               "shared wallet not found");
+}
+
+bool NunchukRoomDb::SetWallet(const RoomWallet& wallet) {
+  auto init_event_id = wallet.get_init_event_id();
   json value{};
+  value["room_id"] = wallet.get_room_id();
   value["wallet_id"] = wallet.get_wallet_id();
   value["init_event_id"] = wallet.get_init_event_id();
   value["join_event_ids"] = wallet.get_join_event_ids();
@@ -73,7 +79,7 @@ bool NunchukRoomDb::SetWallet(const std::string& room_id,
       "VALUES (?1, ?2)"
       "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, room_id.c_str(), room_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, init_event_id.c_str(), init_event_id.size(), NULL);
   sqlite3_bind_text(stmt, 2, value_str.c_str(), value_str.size(), NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
@@ -81,31 +87,31 @@ bool NunchukRoomDb::SetWallet(const std::string& room_id,
   return updated;
 }
 
-RoomWallet NunchukRoomDb::GetWallet(const std::string& room_id) {
+RoomWallet NunchukRoomDb::GetWallet(const std::string& init_event_id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM WALLETS WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, room_id.c_str(), room_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, init_event_id.c_str(), init_event_id.size(), NULL);
   sqlite3_step(stmt);
   if (sqlite3_column_text(stmt, 0)) {
     json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 1)));
     RoomWallet rs{};
+    rs.set_room_id(value["room_id"]);
     rs.set_wallet_id(value["wallet_id"]);
     rs.set_init_event_id(value["init_event_id"]);
     rs.set_join_event_ids(value["join_event_ids"]);
     rs.set_leave_event_ids(value["leave_event_ids"]);
     rs.set_finalize_event_id(value["finalize_event_id"]);
     rs.set_cancel_event_id(value["cancel_event_id"]);
-    auto delete_event_id = value["delete_event_id"];
-    rs.set_delete_event_id(delete_event_id == nullptr ? "" : delete_event_id);
+    rs.set_delete_event_id(value["delete_event_id"]);
     SQLCHECK(sqlite3_finalize(stmt));
     rs.set_json_content(GetJsonContent(rs));
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw NunchukMatrixException(
-        NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
-        "shared wallet not found");
+    RoomWallet rs{};
+    rs.set_init_event_id(init_event_id);
+    return rs;
   }
 }
 
@@ -118,14 +124,14 @@ std::vector<RoomWallet> NunchukRoomDb::GetWallets() {
   while (sqlite3_column_text(stmt, 0)) {
     json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 0)));
     RoomWallet rw{};
+    rw.set_room_id(value["room_id"]);
     rw.set_wallet_id(value["wallet_id"]);
     rw.set_init_event_id(value["init_event_id"]);
     rw.set_join_event_ids(value["join_event_ids"]);
     rw.set_leave_event_ids(value["leave_event_ids"]);
     rw.set_finalize_event_id(value["finalize_event_id"]);
     rw.set_cancel_event_id(value["cancel_event_id"]);
-    auto delete_event_id = value["delete_event_id"];
-    rw.set_delete_event_id(delete_event_id == nullptr ? "" : delete_event_id);
+    rw.set_delete_event_id(value["delete_event_id"]);
     rs.push_back(rw);
     sqlite3_step(stmt);
   }
@@ -136,10 +142,10 @@ std::vector<RoomWallet> NunchukRoomDb::GetWallets() {
   return rs;
 }
 
-bool NunchukRoomDb::SetTransaction(const std::string& room_id,
-                                   const std::string& init_event_id,
-                                   const RoomTransaction& tx) {
+bool NunchukRoomDb::SetTransaction(const RoomTransaction& tx) {
+  auto init_event_id = tx.get_init_event_id();
   json value{};
+  value["room_id"] = tx.get_room_id();
   value["tx_id"] = tx.get_tx_id();
   value["wallet_id"] = tx.get_wallet_id();
   value["init_event_id"] = tx.get_init_event_id();
@@ -173,6 +179,7 @@ RoomTransaction NunchukRoomDb::GetTransaction(
   if (sqlite3_column_text(stmt, 0)) {
     json value = json::parse(std::string((char*)sqlite3_column_text(stmt, 1)));
     RoomTransaction rs{};
+    rs.set_room_id(value["room_id"]);
     rs.set_tx_id(value["tx_id"]);
     rs.set_wallet_id(value["wallet_id"]);
     rs.set_init_event_id(value["init_event_id"]);
@@ -184,8 +191,9 @@ RoomTransaction NunchukRoomDb::GetTransaction(
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw NunchukMatrixException(NunchukMatrixException::TRANSACTION_NOT_FOUND,
-                                 "transaction not found");
+    RoomTransaction rs{};
+    rs.set_init_event_id(init_event_id);
+    return rs;
   }
 }
 
@@ -205,9 +213,9 @@ bool NunchukRoomDb::HasEvent(const std::string& event_id) {
   }
 }
 
-bool NunchukRoomDb::SetEvent(const std::string event_id,
-                             const NunchukMatrixEvent& event) {
+bool NunchukRoomDb::SetEvent(const NunchukMatrixEvent& event) {
   json value{};
+  auto event_id = event.get_event_id();
   value["type"] = event.get_type();
   value["content"] = event.get_content();
   value["event_id"] = event.get_event_id();
@@ -267,6 +275,7 @@ std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
     if (wallet_id == value["wallet_id"].get<std::string>() &&
         value["broadcast_event_id"].get<std::string>().empty()) {
       RoomTransaction rtx{};
+      rtx.set_room_id(value["room_id"]);
       rtx.set_tx_id(value["tx_id"]);
       rtx.set_wallet_id(value["wallet_id"]);
       rtx.set_init_event_id(value["init_event_id"]);
@@ -280,6 +289,11 @@ std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return rs;
+}
+
+bool NunchukRoomDb::IsActiveWallet(const RoomWallet& wallet) const {
+  return wallet.get_cancel_event_id().empty() &&
+         wallet.get_delete_event_id().empty();
 }
 
 std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {

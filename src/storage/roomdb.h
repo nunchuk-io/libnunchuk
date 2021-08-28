@@ -23,21 +23,21 @@ class NunchukRoomDb : public NunchukDb {
   void Init();
   bool SetSyncRoomId(const std::string& room_id);
   std::string GetSyncRoomId();
-  bool HasWallet(const std::string& room_id);
-  bool SetWallet(const std::string& room_id, const RoomWallet& wallet);
-  RoomWallet GetWallet(const std::string& room_id);
+  bool HasActiveWallet(const std::string& room_id);
+  RoomWallet GetActiveWallet(const std::string& room_id);
+  bool SetWallet(const RoomWallet& wallet);
+  RoomWallet GetWallet(const std::string& init_event_id);
   std::vector<RoomWallet> GetWallets();
-  bool SetTransaction(const std::string& room_id,
-                      const std::string& init_event_id,
-                      const RoomTransaction& tx);
+  bool SetTransaction(const RoomTransaction& tx);
   RoomTransaction GetTransaction(const std::string& init_event_id);
   bool HasEvent(const std::string& event_id);
-  bool SetEvent(const std::string event_id, const NunchukMatrixEvent& event);
+  bool SetEvent(const NunchukMatrixEvent& event);
   NunchukMatrixEvent GetEvent(const std::string& event_id);
   std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id);
 
  private:
+  bool IsActiveWallet(const RoomWallet& wallet) const;
   std::string GetJsonContent(const RoomWallet& wallet);
   friend class NunchukStorage;
 };

@@ -55,6 +55,7 @@ class NUNCHUK_EXPORT RoomWallet {
  public:
   RoomWallet();
 
+  std::string get_room_id() const;
   std::string get_wallet_id() const;
   std::string get_init_event_id() const;
   std::vector<std::string> get_join_event_ids() const;
@@ -65,6 +66,7 @@ class NUNCHUK_EXPORT RoomWallet {
   std::string get_delete_event_id() const;
   std::string get_json_content() const;
 
+  void set_room_id(const std::string& value);
   void set_wallet_id(const std::string& value);
   void set_init_event_id(const std::string& value);
   void set_join_event_ids(const std::vector<std::string>& value);
@@ -78,6 +80,7 @@ class NUNCHUK_EXPORT RoomWallet {
   void set_json_content(const std::string& value);
 
  private:
+  std::string room_id_;
   std::string wallet_id_;
   std::string init_event_id_;
   std::vector<std::string> join_event_ids_;
@@ -93,6 +96,7 @@ class NUNCHUK_EXPORT RoomTransaction {
  public:
   RoomTransaction();
 
+  std::string get_room_id() const;
   std::string get_tx_id() const;
   std::string get_wallet_id() const;
   std::string get_init_event_id() const;
@@ -102,6 +106,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string get_cancel_event_id() const;
   std::string get_ready_event_id() const;
 
+  void set_room_id(const std::string& value);
   void set_tx_id(const std::string& value);
   void set_wallet_id(const std::string& value);
   void set_init_event_id(const std::string& value);
@@ -114,6 +119,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   void set_ready_event_id(const std::string& value);
 
  private:
+  std::string room_id_;
   std::string tx_id_;
   std::string wallet_id_;
   std::string init_event_id_;

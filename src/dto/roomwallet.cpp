@@ -8,6 +8,7 @@ namespace nunchuk {
 
 RoomWallet::RoomWallet() {}
 
+std::string RoomWallet::get_room_id() const { return room_id_; }
 std::string RoomWallet::get_wallet_id() const { return wallet_id_; }
 std::string RoomWallet::get_init_event_id() const { return init_event_id_; }
 std::vector<std::string> RoomWallet::get_join_event_ids() const {
@@ -24,6 +25,7 @@ std::string RoomWallet::get_ready_event_id() const { return ready_event_id_; }
 std::string RoomWallet::get_delete_event_id() const { return delete_event_id_; }
 std::string RoomWallet::get_json_content() const { return json_content_; }
 
+void RoomWallet::set_room_id(const std::string& value) { room_id_ = value; }
 void RoomWallet::set_wallet_id(const std::string& value) { wallet_id_ = value; }
 void RoomWallet::set_init_event_id(const std::string& value) {
   init_event_id_ = value;
