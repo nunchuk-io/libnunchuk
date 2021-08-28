@@ -5,6 +5,7 @@
 #include <nunchukmatriximpl.h>
 #include <iostream>
 #include <sstream>
+#include <set>
 #include <utils/json.hpp>
 #include <utils/attachment.hpp>
 
@@ -178,25 +179,34 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
     const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
-  auto join_event_ids = wallet.get_join_event_ids();
 
-  auto init_event = db.GetEvent(wallet.get_init_event_id());
+  std::set<std::string> leave_ids;
+  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
+    auto leave_event = db.GetEvent(leave_event_id);
+    auto leave_body = json::parse(leave_event.get_content())["body"];
+    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
+    leave_ids.insert(join_id);
+  }
 
+  std::vector<std::string> join_event_ids;
   std::vector<SingleSigner> signers = {};
-  for (auto& id : join_event_ids) {
-    auto event = db.GetEvent(id);
-    json content = json::parse(event.get_content());
-    std::string key = content["body"]["key"];
+  for (auto&& join_event_id : wallet.get_join_event_ids()) {
+    if (leave_ids.count(join_event_id)) continue;
+    auto join_event = db.GetEvent(join_event_id);
+    auto join_body = json::parse(join_event.get_content())["body"];
+    join_event_ids.push_back(join_event_id);
+    std::string key = join_body["key"];
     signers.push_back(ParseSignerString(key));
   }
 
-  json wallet_config = json::parse(init_event.get_content())["body"];
-  std::string name = wallet_config["name"];
-  int m = wallet_config["m"];
-  int n = wallet_config["n"];
-  std::string description = wallet_config["description"];
-  bool is_escrow = wallet_config["is_escrow"];
-  auto a = AddressTypeFromStr(wallet_config["address_type"]);
+  auto init_event = db.GetEvent(wallet.get_init_event_id());
+  json init_body = json::parse(init_event.get_content())["body"];
+  std::string name = init_body["name"];
+  int m = init_body["m"];
+  int n = init_body["n"];
+  std::string description = init_body["description"];
+  bool is_escrow = init_body["is_escrow"];
+  auto a = AddressTypeFromStr(init_body["address_type"]);
   auto w = n == 1 ? WalletType::SINGLE_SIG
                   : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
 
@@ -218,6 +228,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
                     {"first_address", first_address},
                     {"io.nunchuk.relates_to",
                      {{"init_event_id", wallet.get_init_event_id()},
+                      {"init_event_body", init_body},
                       {"join_event_ids", join_event_ids}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
   wallet.set_finalize_event_id(event.get_event_id());
@@ -466,11 +477,11 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto wallet = db.GetWallet(init_event_id);
     wallet.set_room_id(event.get_room_id());
     wallet.set_finalize_event_id(event.get_event_id());
-    if (wallet.get_wallet_id().empty()) {
-      auto init_event = db.GetEvent(wallet.get_init_event_id());
-      json wallet_config = json::parse(init_event.get_content())["body"];
-      std::string name = wallet_config["name"];
-      std::string description = wallet_config["description"];
+    if (wallet.get_wallet_id().empty() &&
+        wallet.get_delete_event_id().empty()) {
+      auto init_body = content["io.nunchuk.relates_to"]["init_event_body"];
+      std::string name = init_body["name"];
+      std::string description = init_body["description"];
       std::string desc = body["descriptor"];
 
       AddressType a;
