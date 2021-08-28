@@ -18,7 +18,7 @@ namespace nunchuk {
 class NunchukMatrixImpl : public NunchukMatrix {
  public:
   NunchukMatrixImpl(const AppSettings& appsettings,
-                    const std::string& passphrase, const std::string& account,
+                    const std::string& access_token, const std::string& account,
                     SendEventFunc sendfunc);
   NunchukMatrixImpl(const NunchukMatrixImpl&) = delete;
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
@@ -58,7 +58,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
 
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
                             const std::string& sync_room_id,
-                            const std::string& access_token) override;
+                            const std::string& access_token = {}) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
   RoomWallet GetRoomWallet(const std::string& room_id) override;
@@ -78,6 +78,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
                             const std::string& init_event_id);
 
   NunchukStorage storage_;
+  std::string access_token_;
   std::string sender_;
   Chain chain_;
   SendEventFunc sendfunc_;

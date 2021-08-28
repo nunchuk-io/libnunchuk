@@ -70,10 +70,11 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
 }
 
 NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
-                                     const std::string& passphrase,
+                                     const std::string& access_token,
                                      const std::string& account,
                                      SendEventFunc sendfunc)
-    : storage_(appsettings.get_storage_path(), passphrase, account),
+    : storage_(appsettings.get_storage_path(), "", account),
+      access_token_(access_token),
       sender_(account),
       chain_(appsettings.get_chain()),
       sendfunc_(sendfunc) {}
@@ -396,12 +397,13 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
   } else {
     db.SetSyncRoomId(room_id);
   }
-  if (room_id.empty() || access_token.empty()) {
+  std::string token = access_token.empty() ? access_token_ : access_token;
+  if (room_id.empty() || token.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "invalid room_id or access_token");
   }
   auto data = nu->ExportBackup();
-  auto file = json::parse(EncryptAttachment(access_token, data));
+  auto file = json::parse(EncryptAttachment(token, data));
   json content = {{"msgtype", "io.nunchuk.sync.file"}, {"file", file}};
   return NewEvent(room_id, "io.nunchuk.sync", content.dump());
 }
@@ -434,7 +436,6 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
 
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasEvent(event.get_event_id())) return;
-  db.SetEvent(event);
   json content = json::parse(event.get_content());
   std::string msgtype = content["msgtype"];
   json body = content["body"];
@@ -479,11 +480,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     wallet.set_finalize_event_id(event.get_event_id());
     if (wallet.get_wallet_id().empty() &&
         wallet.get_delete_event_id().empty()) {
-      auto init_body = content["io.nunchuk.relates_to"]["init_event_body"];
-      std::string name = init_body["name"];
-      std::string description = init_body["description"];
       std::string desc = body["descriptor"];
-
       AddressType a;
       WalletType w;
       int m;
@@ -492,6 +489,14 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       if (!ParseDescriptors(desc, a, w, m, n, signers)) {
         throw NunchukException(NunchukException::INVALID_PARAMETER,
                                "Could not parse descriptor");
+      }
+
+      auto init_body = content["io.nunchuk.relates_to"]["init_event_body"];
+      std::string name = "Room Wallet";
+      std::string description = event.get_room_id();
+      if (init_body != nullptr) {
+        name = init_body["name"];
+        description = init_body["description"];
       }
       auto nwallet = nu->CreateWallet(name, m, n, signers, a,
                                       w == WalletType::ESCROW, description);
@@ -538,6 +543,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     db.SetSyncRoomId(event.get_room_id());
     nu->SyncWithBackup(data.dump());
   }
+  db.SetEvent(event);
 }
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(

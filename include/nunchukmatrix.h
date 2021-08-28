@@ -175,7 +175,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
   virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
                                     const std::string& sync_room_id,
-                                    const std::string& access_token) = 0;
+                                    const std::string& access_token = {}) = 0;
 
   virtual std::vector<RoomWallet> GetAllRoomWallets() = 0;
   virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
@@ -191,7 +191,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
 };
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(
-    const AppSettings& appsettings, const std::string& passphrase,
+    const AppSettings& appsettings, const std::string& access_token,
     const std::string& account, SendEventFunc sendfunction);
 
 }  // namespace nunchuk
