@@ -314,7 +314,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() == StorageException::SIGNER_NOT_FOUND) {
-          signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+          signer_db.AddRemote("import", signer.get_xpub(),
                               signer.get_public_key(),
                               signer.get_derivation_path(), true);
         } else {

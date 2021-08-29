@@ -4,6 +4,7 @@
 
 #ifndef NUNCHUK_NUNCHUKMATRIXIMPL_H
 #define NUNCHUK_NUNCHUKMATRIXIMPL_H
+#define NUNCHUK_EVENT_VER 1
 
 #include <nunchukmatrix.h>
 #include <map>

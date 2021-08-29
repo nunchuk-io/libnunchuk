@@ -312,7 +312,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
-    signers.push_back(signer);
+    if (name != "import") signers.push_back(signer);
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));

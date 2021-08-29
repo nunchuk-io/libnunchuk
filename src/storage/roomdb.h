@@ -24,10 +24,10 @@ class NunchukRoomDb : public NunchukDb {
   bool SetSyncRoomId(const std::string& room_id);
   std::string GetSyncRoomId();
   bool HasActiveWallet(const std::string& room_id);
-  RoomWallet GetActiveWallet(const std::string& room_id);
+  RoomWallet GetActiveWallet(const std::string& room_id, bool fill_json = true);
   bool SetWallet(const RoomWallet& wallet);
-  RoomWallet GetWallet(const std::string& init_event_id);
-  std::vector<RoomWallet> GetWallets();
+  RoomWallet GetWallet(const std::string& init_event_id, bool fill_json = true);
+  std::vector<RoomWallet> GetWallets(bool fill_json = true);
   bool SetTransaction(const RoomTransaction& tx);
   RoomTransaction GetTransaction(const std::string& init_event_id);
   bool HasEvent(const std::string& event_id);
