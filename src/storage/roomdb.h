@@ -28,6 +28,7 @@ class NunchukRoomDb : public NunchukDb {
   bool SetWallet(const RoomWallet& wallet);
   RoomWallet GetWallet(const std::string& init_event_id, bool fill_json = true);
   std::vector<RoomWallet> GetWallets(bool fill_json = true);
+  std::vector<std::string> GetJoinIds(const RoomWallet& wallet);
   bool SetTransaction(const RoomTransaction& tx);
   RoomTransaction GetTransaction(const std::string& init_event_id);
   bool HasEvent(const std::string& event_id);

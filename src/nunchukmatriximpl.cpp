@@ -273,24 +273,7 @@ void NunchukMatrixImpl::SendWalletReady(const std::string& room_id) {
   auto wallet = db.GetActiveWallet(room_id, false);
   if (!wallet.get_ready_event_id().empty()) return;  // Ready event sent
 
-  std::set<std::string> leave_ids;
-  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
-    auto leave_event = db.GetEvent(leave_event_id);
-    auto leave_body = json::parse(leave_event.get_content())["body"];
-    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
-    leave_ids.insert(join_id);
-  }
-  std::set<std::string> keys;
-  std::vector<std::string> join_event_ids;
-  for (auto&& join_event_id : wallet.get_join_event_ids()) {
-    if (leave_ids.count(join_event_id)) continue;
-    auto join_event = db.GetEvent(join_event_id);
-    std::string key = json::parse(join_event.get_content())["body"]["key"];
-    if (keys.count(key)) continue;
-    keys.insert(key);
-    join_event_ids.push_back(join_event_id);
-  }
-
+  auto join_event_ids = db.GetJoinIds(wallet);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json wallet_config = json::parse(init_event.get_content())["body"];
   int n = wallet_config["n"];
@@ -511,6 +494,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     wallet.set_room_id(event.get_room_id());
     wallet.add_join_event_id(event.get_event_id());
     db.SetWallet(wallet);
+    db.SetEvent(event);
     SendWalletReady(event.get_room_id());
   } else if (msgtype == "io.nunchuk.wallet.leave") {
     auto wallet = db.GetWallet(init_event_id, false);
@@ -572,6 +556,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     tx.add_sign_event_id(event.get_event_id());
     nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
     db.SetTransaction(tx);
+    db.SetEvent(event);
     SendTransactionReady(event.get_room_id(), init_event_id);
   } else if (msgtype == "io.nunchuk.transaction.reject") {
     auto tx = db.GetTransaction(init_event_id);

@@ -107,7 +107,11 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& init_event_id,
     rs.set_cancel_event_id(value["cancel_event_id"]);
     rs.set_delete_event_id(value["delete_event_id"]);
     SQLCHECK(sqlite3_finalize(stmt));
-    if (fill_json) rs.set_json_content(GetJsonContent(rs));
+    if (fill_json) {
+      rs.set_join_event_ids(GetJoinIds(rs));
+      rs.set_leave_event_ids({});
+      rs.set_json_content(GetJsonContent(rs));
+    }
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -139,7 +143,11 @@ std::vector<RoomWallet> NunchukRoomDb::GetWallets(bool fill_json) {
   }
   SQLCHECK(sqlite3_finalize(stmt));
   if (fill_json) {
-    for (auto&& w : rs) w.set_json_content(GetJsonContent(w));
+    for (auto&& rw : rs) {
+      rw.set_join_event_ids(GetJoinIds(rw));
+      rw.set_leave_event_ids({});
+      rw.set_json_content(GetJsonContent(rw));
+    }
   }
   return rs;
 }
@@ -298,6 +306,27 @@ bool NunchukRoomDb::IsActiveWallet(const RoomWallet& wallet) const {
          wallet.get_delete_event_id().empty();
 }
 
+std::vector<std::string> NunchukRoomDb::GetJoinIds(const RoomWallet& wallet) {
+  std::set<std::string> leave_ids;
+  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
+    auto leave_event = GetEvent(leave_event_id);
+    auto leave_body = json::parse(leave_event.get_content())["body"];
+    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
+    leave_ids.insert(join_id);
+  }
+  std::set<std::string> keys;
+  std::vector<std::string> join_event_ids;
+  for (auto&& join_event_id : wallet.get_join_event_ids()) {
+    if (leave_ids.count(join_event_id)) continue;
+    auto join_event = GetEvent(join_event_id);
+    std::string key = json::parse(join_event.get_content())["body"]["key"];
+    if (keys.count(key)) continue;
+    keys.insert(key);
+    join_event_ids.push_back(join_event_id);
+  }
+  return join_event_ids;
+}
+
 std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
   json content;
   auto init_event = GetEvent(wallet.get_init_event_id());
@@ -317,20 +346,10 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
     content["wallet_id"] = wallet.get_wallet_id();
   }
 
-  std::set<std::string> leave_ids;
-  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
-    auto leave_event = GetEvent(leave_event_id);
-    auto leave_body = json::parse(leave_event.get_content())["body"];
-    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
-    leave_ids.insert(join_id);
-  }
-  std::set<std::string> keys;
-  for (auto&& join_event_id : wallet.get_join_event_ids()) {
-    if (leave_ids.count(join_event_id)) continue;
+  auto join_event_ids = GetJoinIds(wallet);
+  for (auto&& join_event_id : join_event_ids) {
     auto join_event = GetEvent(join_event_id);
     std::string key = json::parse(join_event.get_content())["body"]["key"];
-    if (keys.count(key)) continue;
-    keys.insert(key);
     auto parse = ParseSignerString(key);
     json signer = {
         {"master_fingerprint", parse.get_master_fingerprint()},
