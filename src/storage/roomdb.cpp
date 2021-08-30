@@ -40,7 +40,7 @@ std::string NunchukRoomDb::GetSyncRoomId() {
 }
 
 bool NunchukRoomDb::HasActiveWallet(const std::string& room_id) {
-  auto wallets = GetWallets();
+  auto wallets = GetWallets(false);
   for (auto&& wallet : wallets) {
     if (wallet.get_room_id() == room_id && IsActiveWallet(wallet)) {
       return true;

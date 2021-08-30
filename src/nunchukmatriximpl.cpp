@@ -66,7 +66,7 @@ NunchukMatrixEvent JsonToEvent(const json& j) {
   NunchukMatrixEvent event{};
   event.set_room_id(j["room_id"]);
   event.set_type(j["type"]);
-  event.set_content(j["content"]);
+  event.set_content(j["content"].dump());
   event.set_sender(j["sender"]);
   event.set_ts(j["ts"]);
   event.set_event_id(j["event_id"]);
@@ -161,7 +161,7 @@ NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
                   {"body",
                    {{"reason", reason},
                     {"io.nunchuk.relates_to",
-                     {{"init_event_id", wallet.get_init_event_id()},
+                     {{"init_event", EventToJson(init_event)},
                       {"join_event_id", join_event_id}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
   if (event.get_event_id().empty()) return event;
@@ -270,7 +270,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
 
 void NunchukMatrixImpl::SendWalletReady(const std::string& room_id) {
   auto db = storage_.GetRoomDb(chain_);
-  auto wallet = db.GetActiveWallet(room_id);
+  auto wallet = db.GetActiveWallet(room_id, false);
   if (!wallet.get_ready_event_id().empty()) return;  // Ready event sent
 
   auto join_event_ids = wallet.get_join_event_ids();
@@ -481,9 +481,8 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   std::string msgtype = content["msgtype"];
   json body = content["body"];
   std::string init_event_id = "";
-  if (!content["io.nunchuk.relates_to"].empty()) {
-    auto init_event =
-        JsonToEvent(content["io.nunchuk.relates_to"]["init_event"]);
+  if (body["io.nunchuk.relates_to"] != nullptr) {
+    auto init_event = JsonToEvent(body["io.nunchuk.relates_to"]["init_event"]);
     if (!db.HasEvent(init_event.get_event_id())) db.SetEvent(init_event);
     init_event_id = init_event.get_event_id();
   }
@@ -536,7 +535,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       }
 
       auto init_body =
-          content["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
+          body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
       std::string name = init_body["name"];
       std::string description = init_body["description"];
 
