@@ -324,10 +324,13 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
     std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
     leave_ids.insert(join_id);
   }
+  std::set<std::string> keys;
   for (auto&& join_event_id : wallet.get_join_event_ids()) {
     if (leave_ids.count(join_event_id)) continue;
     auto join_event = GetEvent(join_event_id);
     std::string key = json::parse(join_event.get_content())["body"]["key"];
+    if (keys.count(key)) continue;
+    keys.insert(key);
     auto parse = ParseSignerString(key);
     json signer = {
         {"master_fingerprint", parse.get_master_fingerprint()},

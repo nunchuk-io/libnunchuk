@@ -273,13 +273,28 @@ void NunchukMatrixImpl::SendWalletReady(const std::string& room_id) {
   auto wallet = db.GetActiveWallet(room_id, false);
   if (!wallet.get_ready_event_id().empty()) return;  // Ready event sent
 
-  auto join_event_ids = wallet.get_join_event_ids();
-  auto leave_event_ids = wallet.get_leave_event_ids();
+  std::set<std::string> leave_ids;
+  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
+    auto leave_event = db.GetEvent(leave_event_id);
+    auto leave_body = json::parse(leave_event.get_content())["body"];
+    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
+    leave_ids.insert(join_id);
+  }
+  std::set<std::string> keys;
+  std::vector<std::string> join_event_ids;
+  for (auto&& join_event_id : wallet.get_join_event_ids()) {
+    if (leave_ids.count(join_event_id)) continue;
+    auto join_event = db.GetEvent(join_event_id);
+    std::string key = json::parse(join_event.get_content())["body"]["key"];
+    if (keys.count(key)) continue;
+    keys.insert(key);
+    join_event_ids.push_back(join_event_id);
+  }
+
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json wallet_config = json::parse(init_event.get_content())["body"];
   int n = wallet_config["n"];
-  if (join_event_ids.size() - leave_event_ids.size() != n)
-    return;  // Wallet not ready
+  if (join_event_ids.size() != n) return;  // Wallet not ready
   json content = {{"msgtype", "io.nunchuk.wallet.ready"},
                   {"v", NUNCHUK_EVENT_VER},
                   {"body",
