@@ -4,7 +4,7 @@
 
 #include <backend/corerpc/client.h>
 #include <utils/loguru.hpp>
-#include <utils/httplib.h>
+#include "httplib5.h"
 #include <util/strencodings.h>
 #include <utils/json.hpp>
 
@@ -30,8 +30,8 @@ static json ParseResponse(const std::string& resp) {
 std::string CoreRpcClient::SendRequest(const std::string& path,
                                        const std::string& body) {
   std::string auth = (std::string("Basic ") + EncodeBase64(user_ + ":" + pw_));
-  httplib::Headers headers = {{"Authorization", auth}};
-  httplib::Client cli(host_, port_);
+  httplib5::Headers headers = {{"Authorization", auth}};
+  httplib5::Client cli(host_, port_);
 
   auto res = cli.Post(path.c_str(), headers, body, "text/plain");
   if (res) {
