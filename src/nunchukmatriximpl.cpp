@@ -43,6 +43,22 @@ AddressType AddressTypeFromStr(const std::string& value) {
                          "invalid address type");
 }
 
+std::string SignerTypeToStr(SignerType value) {
+  if (value == SignerType::SOFTWARE) return "SOFTWARE";
+  if (value == SignerType::FOREIGN_SOFTWARE) return "FOREIGN_SOFTWARE";
+  if (value == SignerType::AIRGAP) return "AIRGAP";
+  return "HARDWARE";
+}
+
+SignerType SignerTypeFromStr(const std::string& value) {
+  if (value == "SOFTWARE") return SignerType::SOFTWARE;
+  if (value == "FOREIGN_SOFTWARE") return SignerType::FOREIGN_SOFTWARE;
+  if (value == "AIRGAP") return SignerType::AIRGAP;
+  if (value == "HARDWARE") return SignerType::HARDWARE;
+  throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                         "invalid signer type");
+}
+
 std::string SignerToStr(const SingleSigner& value) {
   std::stringstream key;
   key << "[" << value.get_master_fingerprint()
@@ -141,6 +157,7 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
       {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"key", SignerToStr(signer)},
+        {"type", SignerTypeToStr(signer.get_type())},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
   auto event = NewEvent(room_id, "io.nunchuk.wallet", content.dump());
   if (event.get_event_id().empty()) return event;

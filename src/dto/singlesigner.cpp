@@ -34,6 +34,7 @@ std::string SingleSigner::get_master_fingerprint() const {
 std::string SingleSigner::get_master_signer_id() const {
   return master_signer_id_;
 }
+SignerType SingleSigner::get_type() const { return type_; }
 bool SingleSigner::is_used() const { return used_; }
 bool SingleSigner::has_master_signer() const {
   return !master_signer_id_.empty();
@@ -43,5 +44,6 @@ time_t SingleSigner::get_last_health_check() const {
 }
 void SingleSigner::set_name(const std::string& value) { name_ = value; }
 void SingleSigner::set_used(bool value) { used_ = value; }
+void SingleSigner::set_type(SignerType value) { type_ = value; }
 
 }  // namespace nunchuk

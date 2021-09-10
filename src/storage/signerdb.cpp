@@ -236,6 +236,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     bool used = sqlite3_column_int(stmt, 4) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
+    signer.set_type(SignerType::AIRGAP);
     SQLCHECK(sqlite3_finalize(stmt));
     return signer;
   } else {
@@ -312,6 +313,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
+    signer.set_type(SignerType::AIRGAP);
     if (name != "import") signers.push_back(signer);
     sqlite3_step(stmt);
   }
@@ -324,6 +326,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
   std::string name = GetName();
   std::string master_fingerprint = GetFingerprint();
   time_t last_health_check = GetLastHealthCheck();
+  bool isSoftware = IsSoftware();
 
   sqlite3_stmt* stmt;
   std::string sql = usedOnly ? "SELECT PATH, XPUB FROM BIP32 WHERE USED != -1;"
@@ -336,6 +339,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
     SingleSigner signer(name, xpub, "", path, master_fingerprint,
                         last_health_check, id_, true);
+    signer.set_type(isSoftware ? SignerType::SOFTWARE : SignerType::HARDWARE);
     signers.push_back(signer);
     sqlite3_step(stmt);
   }

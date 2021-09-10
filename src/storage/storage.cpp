@@ -366,8 +366,10 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   if (!signer_db.AddRemote(name, xpub, public_key, derivation_path)) {
     throw StorageException(StorageException::SIGNER_EXISTS, "signer exists");
   }
-  return SingleSigner(name, xpub, public_key, derivation_path,
-                      master_fingerprint, 0);
+  auto signer = SingleSigner(name, xpub, public_key, derivation_path,
+                             master_fingerprint, 0);
+  signer.set_type(SignerType::AIRGAP);
+  return signer;
 }
 
 SingleSigner NunchukStorage::GetSignerFromMasterSigner(
@@ -376,10 +378,13 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
   boost::shared_lock<boost::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, mastersigner_id);
   std::string path = GetBip32Path(chain, wallet_type, address_type, index);
-  return SingleSigner(signer_db.GetName(),
-                      signer_db.GetXpub(wallet_type, address_type, index), "",
-                      path, signer_db.GetFingerprint(),
-                      signer_db.GetLastHealthCheck(), mastersigner_id);
+  auto signer = SingleSigner(
+      signer_db.GetName(), signer_db.GetXpub(wallet_type, address_type, index),
+      "", path, signer_db.GetFingerprint(), signer_db.GetLastHealthCheck(),
+      mastersigner_id);
+  bool isSoftware = signer_db.IsSoftware();
+  signer.set_type(isSoftware ? SignerType::SOFTWARE : SignerType::HARDWARE);
+  return signer;
 }
 
 std::vector<SingleSigner> NunchukStorage::GetSignersFromMasterSigner(
@@ -488,6 +493,8 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     time_t last_health_check = signer.get_last_health_check();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+    SignerType signer_type =
+        signer_db.IsSoftware() ? SignerType::SOFTWARE : SignerType::HARDWARE;
     if (signer_db.IsMaster()) {
       name = signer_db.GetName();
       last_health_check = signer_db.GetLastHealthCheck();
@@ -495,6 +502,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
       // master_id is used by the caller to check if the signer is master or
       // remote
       master_id = "";
+      signer_type = SignerType::AIRGAP;
       try {
         auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
         name = remote.get_name();
@@ -514,6 +522,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                              signer.get_derivation_path(),
                              signer.get_master_fingerprint(), last_health_check,
                              master_id);
+    true_signer.set_type(signer_type);
     signers.push_back(true_signer);
   }
   Wallet true_wallet(id, wallet.get_m(), wallet.get_n(), signers,

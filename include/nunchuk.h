@@ -93,6 +93,13 @@ enum class DescriptorPath {
   TEMPLATE,
 };
 
+enum class SignerType {
+  HARDWARE,
+  AIRGAP,
+  SOFTWARE,
+  FOREIGN_SOFTWARE,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -131,6 +138,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int APP_RESTART_REQUIRED = -1019;
   static const int INVALID_FORMAT = -1020;
   static const int INVALID_SIGNER_PASSPHRASE = -1021;
+  static const int INVALID_SIGNER_TYPE = -1022;
   using BaseException::BaseException;
 };
 
@@ -243,11 +251,13 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string get_derivation_path() const;
   std::string get_master_fingerprint() const;
   std::string get_master_signer_id() const;
+  SignerType get_type() const;
   bool is_used() const;
   bool has_master_signer() const;
   time_t get_last_health_check() const;
   void set_name(const std::string& value);
   void set_used(bool value);
+  void set_type(SignerType value);
 
  private:
   std::string name_;
@@ -258,6 +268,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string master_signer_id_;
   time_t last_health_check_;
   bool used_;
+  SignerType type_;
 };
 
 class NUNCHUK_EXPORT MasterSigner {
