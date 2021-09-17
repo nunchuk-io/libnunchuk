@@ -486,6 +486,7 @@ NunchukMatrixEvent NunchukMatrixImpl::GetEvent(const std::string& event_id) {
 
 void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                                      const NunchukMatrixEvent& event) {
+  if (event.get_type().rfind("io.nunchuk.sync", 0) == 0) return;
   if (event.get_type().rfind("io.nunchuk", 0) != 0) return;
   if (event.get_event_id().empty()) return;
 
@@ -595,10 +596,25 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     tx.set_room_id(event.get_room_id());
     tx.set_broadcast_event_id(event.get_event_id());
     db.SetTransaction(tx);
-  } else if (msgtype == "io.nunchuk.sync.file") {
+  }
+  db.SetEvent(event);
+}
+
+void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
+                                         const NunchukMatrixEvent& event,
+                                         std::function<bool(int)> progress) {
+  if (event.get_type().rfind("io.nunchuk.sync", 0) != 0) return;
+  if (event.get_event_id().empty()) return;
+
+  auto db = storage_.GetRoomDb(chain_);
+  if (db.HasEvent(event.get_event_id())) return;
+  json content = json::parse(event.get_content());
+  if (content["v"] == nullptr) return;
+  std::string msgtype = content["msgtype"];
+  if (msgtype == "io.nunchuk.sync.file") {
     auto data = content["file"];
     db.SetSyncRoomId(event.get_room_id());
-    nu->SyncWithBackup(data.dump());
+    nu->SyncWithBackup(data.dump(), progress);
   }
   db.SetEvent(event);
 }

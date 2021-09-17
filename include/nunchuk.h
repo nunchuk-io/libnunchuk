@@ -569,7 +569,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction ImportTransaction(const std::string& wallet_id,
                                         const std::string& file_path) = 0;
   virtual Transaction ImportPsbt(const std::string& wallet_id,
-                         const std::string& psbt) = 0;
+                                 const std::string& psbt) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
@@ -618,7 +618,9 @@ class NUNCHUK_EXPORT Nunchuk {
                                     const std::string& passphrase) = 0;
   virtual void ClearSignerPassphrase(const std::string& mastersigner_id) = 0;
   virtual std::string ExportBackup() = 0;
-  virtual bool SyncWithBackup(const std::string& data) = 0;
+  virtual bool SyncWithBackup(
+      const std::string& data,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

@@ -122,7 +122,8 @@ class NunchukImpl : public Nunchuk {
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
-  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt) override;
+  Transaction ImportPsbt(const std::string& wallet_id,
+                         const std::string& psbt) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
@@ -162,7 +163,9 @@ class NunchukImpl : public Nunchuk {
   void PromtPinOnDevice(const Device& device) override;
   void SendPinToDevice(const Device& device, const std::string& pin) override;
   std::string ExportBackup() override;
-  bool SyncWithBackup(const std::string& data) override;
+  bool SyncWithBackup(
+      const std::string& data,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
 
   SingleSigner CreateCoboSigner(const std::string& name,
                                 const std::string& json_info) override;

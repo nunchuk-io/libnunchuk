@@ -939,9 +939,11 @@ std::string NunchukStorage::ExportBackup() {
   return data.dump();
 }
 
-bool NunchukStorage::SyncWithBackup(const std::string& dataStr) {
+bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
+                                    std::function<bool(int)> progress) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
 
+  int percent = 0;
   auto importChain = [&](Chain chain, const json& d) {
     json signers = d["signers"];
     for (auto&& signer : signers) {
@@ -959,6 +961,8 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr) {
         db.SetRemoteLastHealthCheck(ss["path"], ss["last_health_check"]);
       }
     }
+    percent += 25;
+    progress(percent);
 
     json wallets = d["wallets"];
     for (auto&& wallet : wallets) {
@@ -981,15 +985,21 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr) {
         db.SetDescription(wallet["description"]);
       }
     }
+    percent += 25;
+    progress(percent);
   };
 
   auto appState = GetAppStateDb(Chain::MAIN);
   json data = json::parse(dataStr);
   time_t ts = data["ts"];
   time_t lastSyncTs = appState.GetLastSyncTs();
-  if (lastSyncTs > ts) return false;  // old backup
+  if (lastSyncTs > ts) {
+    progress(100);
+    return false;  // old backup
+  }
   importChain(Chain::TESTNET, data["testnet"]);
   importChain(Chain::MAIN, data["mainnet"]);
+  progress(100);
   return appState.SetLastSyncTs(ts);
 }
 

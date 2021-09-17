@@ -185,6 +185,9 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
   virtual void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                             const NunchukMatrixEvent& event) = 0;
+  virtual void ConsumeSyncEvent(
+      const std::unique_ptr<Nunchuk>& nu, const NunchukMatrixEvent& event,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
  protected:
   NunchukMatrix() = default;

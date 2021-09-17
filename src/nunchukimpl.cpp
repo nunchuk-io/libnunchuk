@@ -581,6 +581,7 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
         boost::starts_with(ne.what(),
                            "the transaction was rejected by network rules.")) {
       storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, ne.what());
+      return GetTransaction(wallet_id, new_txid);
     }
     throw;
   }
@@ -839,12 +840,11 @@ Transaction NunchukImpl::ImportCoboTransaction(
   return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
 }
 
-std::string NunchukImpl::ExportBackup() {
-  return storage_.ExportBackup();
-}
+std::string NunchukImpl::ExportBackup() { return storage_.ExportBackup(); }
 
-bool NunchukImpl::SyncWithBackup(const std::string& data) {
-  return storage_.SyncWithBackup(data);
+bool NunchukImpl::SyncWithBackup(const std::string& data,
+                                 std::function<bool(int)> progress) {
+  return storage_.SyncWithBackup(data, progress);
 }
 
 Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,

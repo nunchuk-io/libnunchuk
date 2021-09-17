@@ -69,6 +69,9 @@ class NunchukMatrixImpl : public NunchukMatrix {
 
   void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                     const NunchukMatrixEvent& event) override;
+  void ConsumeSyncEvent(
+      const std::unique_ptr<Nunchuk>& nu, const NunchukMatrixEvent& event,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
 
  private:
   NunchukMatrixEvent NewEvent(const std::string& room_id,
