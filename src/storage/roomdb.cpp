@@ -337,6 +337,8 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
   content["n"] = init_body["n"];
   content["address_type"] = init_body["address_type"];
   content["is_escrow"] = init_body["is_escrow"];
+  content["init_sender"] = init_event.get_sender();
+  content["init_ts"] = init_event.get_ts();
   if (!wallet.get_cancel_event_id().empty()) {
     content["canceled"] = true;
     return content.dump();
@@ -359,6 +361,7 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
         {"derivation_path", parse.get_derivation_path()},
         {"signer_type", signer_type},
         {"join_event_id", join_event_id},
+        {"join_ts", join_event.get_ts()},
     };
     content["joins"][join_event.get_sender()].push_back(signer);
   }
