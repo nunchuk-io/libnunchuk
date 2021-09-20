@@ -313,7 +313,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
     const std::vector<UnspentOutput> inputs, Amount fee_rate,
     bool subtract_fee_from_amount) {
   auto db = storage_.GetRoomDb(chain_);
-  auto wallet = db.GetWallet(room_id);
+  auto wallet = db.GetActiveWallet(room_id);
   auto tx = nu->CreateTransaction(wallet.get_wallet_id(), outputs, memo, inputs,
                                   fee_rate, subtract_fee_from_amount);
   json content = {{"msgtype", "io.nunchuk.transaction.init"},
@@ -421,7 +421,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
 void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
                                              const std::string& init_event_id) {
   auto db = storage_.GetRoomDb(chain_);
-  auto wallet = db.GetWallet(room_id);
+  auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json wallet_config = json::parse(init_event.get_content())["body"];
   int n = wallet_config["n"];
