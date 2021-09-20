@@ -58,7 +58,10 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::string& description) {
   Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
                                         address_type, is_escrow, description);
-  ScanNewWallet(wallet.get_id(), wallet.is_escrow());
+  try {
+    ScanNewWallet(wallet.get_id(), wallet.is_escrow());
+  } catch (...) {
+  }
   return storage_.GetWallet(chain_, wallet.get_id(), true);
 }
 

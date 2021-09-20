@@ -120,6 +120,7 @@ json ElectrumClient::call_method(const std::string& method,
       std::promise<json>(std::allocator_arg, std::allocator<json>());
   enqueue_message(req.dump());
   json resp = callback_[id].get_future().get();
+  callback_.erase(id);
   if (resp["error"] != nullptr) {
     std::string message = resp["error"]["message"];
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, message);
@@ -307,7 +308,6 @@ void ElectrumClient::handle_read(const boost::system::error_code& error) {
       auto cb = callback_.find(id);
       if (cb != callback_.end()) {
         cb->second.set_value(response);
-        callback_.erase(cb);
       }
     }
   }
