@@ -479,6 +479,12 @@ std::vector<RoomTransaction> NunchukMatrixImpl::GetPendingTransactions(
   return db.GetPendingTransactions(room_id);
 }
 
+RoomTransaction NunchukMatrixImpl::GetRoomTransaction(
+    const std::string& init_event_id) {
+  auto db = storage_.GetRoomDb(chain_);
+  return db.GetTransaction(init_event_id);
+}
+
 NunchukMatrixEvent NunchukMatrixImpl::GetEvent(const std::string& event_id) {
   auto db = storage_.GetRoomDb(chain_);
   return db.GetEvent(event_id);

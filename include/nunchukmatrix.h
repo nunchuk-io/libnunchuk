@@ -105,6 +105,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string get_broadcast_event_id() const;
   std::string get_cancel_event_id() const;
   std::string get_ready_event_id() const;
+  Transaction get_tx() const;
 
   void set_room_id(const std::string& value);
   void set_tx_id(const std::string& value);
@@ -117,6 +118,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   void set_broadcast_event_id(const std::string& value);
   void set_cancel_event_id(const std::string& value);
   void set_ready_event_id(const std::string& value);
+  void set_tx(const Transaction& value);
 
  private:
   std::string room_id_;
@@ -128,6 +130,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string broadcast_event_id_;
   std::string cancel_event_id_;
   std::string ready_event_id_;
+  Transaction tx_;
 };
 
 typedef std::function<std::string /* event_id */ (
@@ -181,6 +184,8 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
   virtual std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) = 0;
+  virtual RoomTransaction GetRoomTransaction(
+      const std::string& init_event_id) = 0;
   virtual NunchukMatrixEvent GetEvent(const std::string& event_id) = 0;
 
   virtual void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,

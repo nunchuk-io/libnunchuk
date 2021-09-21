@@ -65,6 +65,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   RoomWallet GetRoomWallet(const std::string& room_id) override;
   std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) override;
+  RoomTransaction GetRoomTransaction(const std::string& init_event_id) override;
   NunchukMatrixEvent GetEvent(const std::string& event_id) override;
 
   void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,

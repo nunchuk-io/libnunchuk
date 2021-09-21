@@ -4,6 +4,7 @@
 
 #include "roomdb.h"
 #include <utils/json.hpp>
+#include <utils/txutils.hpp>
 #include <set>
 #include <iostream>
 #include <descriptor.h>
@@ -197,6 +198,7 @@ RoomTransaction NunchukRoomDb::GetTransaction(
     rs.set_reject_event_ids(value["reject_event_ids"]);
     rs.set_broadcast_event_id(value["broadcast_event_id"]);
     rs.set_cancel_event_id(value["cancel_event_id"]);
+    rs.set_tx(GetTransaction(rs));
     SQLCHECK(sqlite3_finalize(stmt));
     return rs;
   } else {
@@ -298,6 +300,9 @@ std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  for (auto&& rt : rs) {
+    rt.set_tx(GetTransaction(rt));
+  }
   return rs;
 }
 
@@ -366,6 +371,25 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
     content["joins"][join_event.get_sender()].push_back(signer);
   }
   return content.dump();
+}
+
+Transaction NunchukRoomDb::GetTransaction(const RoomTransaction& rtx) {
+  auto init_event = GetEvent(rtx.get_init_event_id());
+  auto init_body = json::parse(init_event.get_content())["body"];
+  auto psbt = DecodePsbt(init_body["psbt"]);
+  auto wallet = GetActiveWallet(rtx.get_room_id());
+  auto wallet_init_event = GetEvent(wallet.get_init_event_id());
+  int m = json::parse(wallet_init_event.get_content())["body"]["m"];
+  std::vector<SingleSigner> signers;
+  auto join_event_ids = GetJoinIds(wallet);
+  for (auto&& join_event_id : join_event_ids) {
+    auto join_event = GetEvent(join_event_id);
+    auto body = json::parse(join_event.get_content())["body"];
+    std::string key = body["key"];
+    signers.push_back(ParseSignerString(key));
+  }
+
+  return GetTransactionFromPartiallySignedTransaction(psbt, signers, m);
 }
 
 }  // namespace nunchuk

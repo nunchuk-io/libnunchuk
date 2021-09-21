@@ -29,6 +29,7 @@ std::string RoomTransaction::get_cancel_event_id() const {
 std::string RoomTransaction::get_ready_event_id() const {
   return ready_event_id_;
 }
+Transaction RoomTransaction::get_tx() const { return tx_; }
 
 void RoomTransaction::set_room_id(const std::string& value) {
   room_id_ = value;
@@ -63,5 +64,6 @@ void RoomTransaction::set_cancel_event_id(const std::string& value) {
 void RoomTransaction::set_ready_event_id(const std::string& value) {
   ready_event_id_ = value;
 }
+void RoomTransaction::set_tx(const Transaction& value) { tx_ = value; }
 
 }  // namespace nunchuk
