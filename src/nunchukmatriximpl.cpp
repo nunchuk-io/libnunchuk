@@ -571,14 +571,18 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto tx = db.GetTransaction(event.get_event_id());
     tx.set_room_id(event.get_room_id());
     tx.set_wallet_id(body["wallet_id"]);
-    auto ntx = nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
-    tx.set_tx_id(ntx.get_txid());
+    if (tx.get_broadcast_event_id().empty()) {
+      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+      tx.set_tx_id(ntx.get_txid());
+    }
     db.SetTransaction(tx);
   } else if (msgtype == "io.nunchuk.transaction.sign") {
     auto tx = db.GetTransaction(init_event_id);
     tx.set_room_id(event.get_room_id());
     tx.add_sign_event_id(event.get_event_id());
-    nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+    if (tx.get_broadcast_event_id().empty()) {
+      nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+    }
     db.SetTransaction(tx);
     db.SetEvent(event);
     SendTransactionReady(event.get_room_id(), init_event_id);
@@ -601,6 +605,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto tx = db.GetTransaction(init_event_id);
     tx.set_room_id(event.get_room_id());
     tx.set_broadcast_event_id(event.get_event_id());
+    tx.set_tx_id(body["tx_id"]);
     db.SetTransaction(tx);
   }
   db.SetEvent(event);
