@@ -495,6 +495,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   if (event.get_type().rfind("io.nunchuk.sync", 0) == 0) return;
   if (event.get_type().rfind("io.nunchuk", 0) != 0) return;
   if (event.get_event_id().empty()) return;
+  if (event.get_event_id().rfind("$local", 0) == 0) return;
 
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasEvent(event.get_event_id())) return;
@@ -616,6 +617,7 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
                                          std::function<bool(int)> progress) {
   if (event.get_type().rfind("io.nunchuk.sync", 0) != 0) return;
   if (event.get_event_id().empty()) return;
+  if (event.get_event_id().rfind("$local", 0) == 0) return;
 
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasEvent(event.get_event_id())) return;
