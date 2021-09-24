@@ -463,6 +463,13 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
   return NewEvent(room_id, "io.nunchuk.sync", content.dump());
 }
 
+void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+                                         const std::string& sync_room_id,
+                                         const std::string& access_token) {
+  nu->AddStorageUpdateListener(
+      [&]() { Backup(nu, sync_room_id, access_token); });
+}
+
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
   auto db = storage_.GetRoomDb(chain_);
   return db.GetWallets();

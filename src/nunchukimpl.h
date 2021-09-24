@@ -190,6 +190,7 @@ class NunchukImpl : public Nunchuk {
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int)> listener) override;
+  void AddStorageUpdateListener(std::function<void()> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -210,6 +211,7 @@ class NunchukImpl : public Nunchuk {
   HWIService hwi_;
   std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
+  boost::signals2::signal<void()> storage_listener_;
 
   // Cache
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];

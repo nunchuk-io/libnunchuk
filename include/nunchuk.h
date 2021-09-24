@@ -637,6 +637,7 @@ class NUNCHUK_EXPORT Nunchuk {
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int /* percent */)> listener) = 0;
+  virtual void AddStorageUpdateListener(std::function<void()> listener) = 0;
 
   // The following methods use HWI to interact with the devices. They might take
   // a long time or require user inputs on device. Depending on the platform,

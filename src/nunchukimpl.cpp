@@ -62,6 +62,7 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
     ScanNewWallet(wallet.get_id(), wallet.is_escrow());
   } catch (...) {
   }
+  storage_listener_();
   return storage_.GetWallet(chain_, wallet.get_id(), true);
 }
 
@@ -102,11 +103,15 @@ Wallet NunchukImpl::GetWallet(const std::string& wallet_id) {
 }
 
 bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
-  return storage_.DeleteWallet(chain_, wallet_id);
+  bool rs = storage_.DeleteWallet(chain_, wallet_id);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
-  return storage_.UpdateWallet(chain_, wallet);
+  bool rs = storage_.UpdateWallet(chain_, wallet);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::ExportWallet(const std::string& wallet_id,
@@ -117,6 +122,7 @@ bool NunchukImpl::ExportWallet(const std::string& wallet_id,
 
 Wallet NunchukImpl::ImportWalletDb(const std::string& file_path) {
   std::string id = storage_.ImportWalletDb(chain_, file_path);
+  storage_listener_();
   return storage_.GetWallet(chain_, id, true);
 }
 
@@ -229,6 +235,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
       chain_, id,
       [&](std::string path) { return hwi_.GetXpubAtPath(device, path); },
       progress, true);
+  storage_listener_();
 
   MasterSigner mastersigner{id, device, std::time(0)};
   mastersigner.set_name(name);
@@ -246,6 +253,8 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   storage_.CacheMasterSignerXPub(
       chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
       progress, true);
+  storage_listener_();
+
   storage_.ClearSignerPassphrase(chain_, id);
   MasterSigner mastersigner{id, device, std::time(0), true};
   mastersigner.set_name(name);
@@ -289,8 +298,11 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
                            "invalid master fingerprint");
   }
   std::string name = trim_copy(raw_name);
-  return storage_.CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
-                                     derivation_path, master_fingerprint);
+  auto rs =
+      storage_.CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
+                                  derivation_path, master_fingerprint);
+  storage_listener_();
+  return rs;
 }
 
 int NunchukImpl::GetCurrentIndexFromMasterSigner(
@@ -339,11 +351,15 @@ MasterSigner NunchukImpl::GetMasterSigner(const std::string& mastersigner_id) {
 }
 
 bool NunchukImpl::DeleteMasterSigner(const std::string& mastersigner_id) {
-  return storage_.DeleteMasterSigner(chain_, mastersigner_id);
+  bool rs = storage_.DeleteMasterSigner(chain_, mastersigner_id);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateMasterSigner(const MasterSigner& mastersigner) {
-  return storage_.UpdateMasterSigner(chain_, mastersigner);
+  bool rs = storage_.UpdateMasterSigner(chain_, mastersigner);
+  storage_listener_();
+  return rs;
 }
 
 std::vector<SingleSigner> NunchukImpl::GetRemoteSigners() {
@@ -352,12 +368,16 @@ std::vector<SingleSigner> NunchukImpl::GetRemoteSigners() {
 
 bool NunchukImpl::DeleteRemoteSigner(const std::string& master_fingerprint,
                                      const std::string& derivation_path) {
-  return storage_.DeleteRemoteSigner(chain_, master_fingerprint,
-                                     derivation_path);
+  bool rs =
+      storage_.DeleteRemoteSigner(chain_, master_fingerprint, derivation_path);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateRemoteSigner(const SingleSigner& remotesigner) {
-  return storage_.UpdateRemoteSigner(chain_, remotesigner);
+  bool rs = storage_.UpdateRemoteSigner(chain_, remotesigner);
+  storage_listener_();
+  return rs;
 }
 
 std::string NunchukImpl::GetHealthCheckPath() {
@@ -884,6 +904,10 @@ void NunchukImpl::AddDeviceListener(
 void NunchukImpl::AddBlockchainConnectionListener(
     std::function<void(ConnectionStatus, int)> listener) {
   synchronizer_->AddBlockchainConnectionListener(listener);
+}
+
+void NunchukImpl::AddStorageUpdateListener(std::function<void()> listener) {
+  storage_listener_.connect(listener);
 }
 
 std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
