@@ -13,6 +13,7 @@
 #include <vector>
 #include <storage/roomdb.h>
 #include <storage/storage.h>
+#include <boost/thread/shared_mutex.hpp>
 
 namespace nunchuk {
 
@@ -90,6 +91,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   std::string sender_;
   Chain chain_;
   SendEventFunc sendfunc_;
+  boost::shared_mutex access_;
 };
 
 }  // namespace nunchuk
