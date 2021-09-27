@@ -377,10 +377,10 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
   auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json wallet_config = json::parse(init_event.get_content())["body"];
-  int n = wallet_config["n"];
+  int m = wallet_config["m"];
 
   auto rtx = db.GetTransaction(init_event_id);
-  if (rtx.get_sign_event_ids().size() != n) return;  // Transaction not ready
+  if (rtx.get_sign_event_ids().size() < m) return;  // Transaction not ready
   json content = {{"msgtype", "io.nunchuk.transaction.ready"},
                   {"v", NUNCHUK_EVENT_VER},
                   {"body",
