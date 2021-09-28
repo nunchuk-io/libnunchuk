@@ -152,7 +152,8 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
   if (std::regex_match(signer_str, sm, SIGNER_REGEX)) {
     const std::string xfp = boost::algorithm::to_lower_copy(sm[1].str());
-    if (sm[3].str().rfind("tpub", 0) == 0 || sm[3].str().rfind("xpub", 0)) {
+    if (sm[3].str().rfind("tpub", 0) == 0 ||
+        sm[3].str().rfind("xpub", 0) == 0) {
       return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), xfp, 0);
     } else {
       return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), xfp, 0);
