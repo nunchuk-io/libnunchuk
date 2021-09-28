@@ -529,12 +529,14 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
 
       auto init_body = GetInitBody(body);
       std::string name = init_body["name"];
-      std::string description = init_body["description"];
+      std::string d = init_body["description"];
+
+      std::string external_desc = GetDescriptorForSigners(
+          signers, m, DescriptorPath::EXTERNAL_ALL, a, w);
+      wallet.set_wallet_id(GetDescriptorChecksum(external_desc));
 
       try {
-        auto nwallet = nu->CreateWallet(name, m, n, signers, a,
-                                        w == WalletType::ESCROW, description);
-        wallet.set_wallet_id(nwallet.get_id());
+        nu->CreateWallet(name, m, n, signers, a, w == WalletType::ESCROW, d);
       } catch (...) {
         // Most likely the wallet existed
       }
