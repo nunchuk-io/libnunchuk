@@ -209,7 +209,7 @@ RoomTransaction NunchukRoomDb::GetTransaction(
     if (value["ready_event_id"] != nullptr) {
       rs.set_ready_event_id(value["ready_event_id"]);
     }
-    rs.set_tx(GetTransaction(rs));
+    // rs.set_tx(GetTransaction(rs));
     SQLCHECK(sqlite3_finalize(stmt));
     return rs;
   } else {
@@ -314,9 +314,9 @@ std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
-  for (auto&& rt : rs) {
-    rt.set_tx(GetTransaction(rt));
-  }
+  // for (auto&& rt : rs) {
+  //   rt.set_tx(GetTransaction(rt));
+  // }
   return rs;
 }
 

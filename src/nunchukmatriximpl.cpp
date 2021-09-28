@@ -67,6 +67,10 @@ std::string SignerToStr(const SingleSigner& value) {
   return key.str();
 }
 
+json GetInitBody(const json& body) {
+  return body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
+}
+
 json EventToJson(const NunchukMatrixEvent& event) {
   return {
       {"room_id", event.get_room_id()},
@@ -522,56 +526,57 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                                "Could not parse descriptor");
       }
 
-      auto init_body =
-          body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
+      auto init_body = GetInitBody(body);
       std::string name = init_body["name"];
       std::string description = init_body["description"];
 
-      auto nwallet = nu->CreateWallet(name, m, n, signers, a,
-                                      w == WalletType::ESCROW, description);
-      wallet.set_wallet_id(nwallet.get_id());
+      try {
+        auto nwallet = nu->CreateWallet(name, m, n, signers, a,
+                                        w == WalletType::ESCROW, description);
+        wallet.set_wallet_id(nwallet.get_id());
+      } catch (...) {
+        // Most likely the wallet existed
+      }
     }
     db.SetWallet(wallet);
-  } else if (msgtype == "io.nunchuk.transaction.init") {
-    auto tx = db.GetTransaction(event.get_event_id());
+  } else if (msgtype.rfind("io.nunchuk.transaction", 0) == 0) {
+    json init_body;
+    if (msgtype == "io.nunchuk.transaction.init") {
+      init_event_id = event.get_event_id();
+      init_body = body;
+    } else {
+      init_body = GetInitBody(body);
+    }
+
+    auto tx = db.GetTransaction(init_event_id);
     tx.set_room_id(event.get_room_id());
-    tx.set_wallet_id(body["wallet_id"]);
+    tx.set_wallet_id(init_body["wallet_id"]);
     if (tx.get_broadcast_event_id().empty()) {
-      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
       tx.set_tx_id(ntx.get_txid());
     }
-    db.SetTransaction(tx);
-  } else if (msgtype == "io.nunchuk.transaction.sign") {
-    auto tx = db.GetTransaction(init_event_id);
-    tx.set_room_id(event.get_room_id());
-    tx.add_sign_event_id(event.get_event_id());
-    if (tx.get_broadcast_event_id().empty()) {
-      nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+
+    if (msgtype == "io.nunchuk.transaction.sign") {
+      tx.add_sign_event_id(event.get_event_id());
+      if (tx.get_broadcast_event_id().empty()) {
+        nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+      }
+    } else if (msgtype == "io.nunchuk.transaction.reject") {
+      tx.add_reject_event_id(event.get_event_id());
+    } else if (msgtype == "io.nunchuk.transaction.cancel") {
+      tx.set_cancel_event_id(event.get_event_id());
+    } else if (msgtype == "io.nunchuk.transaction.ready") {
+      tx.set_ready_event_id(event.get_event_id());
+    } else if (msgtype == "io.nunchuk.transaction.broadcast") {
+      tx.set_broadcast_event_id(event.get_event_id());
+      tx.set_tx_id(body["tx_id"]);
     }
+
     db.SetTransaction(tx);
-    db.SetEvent(event);
-    SendTransactionReady(event.get_room_id(), init_event_id);
-  } else if (msgtype == "io.nunchuk.transaction.reject") {
-    auto tx = db.GetTransaction(init_event_id);
-    tx.set_room_id(event.get_room_id());
-    tx.add_reject_event_id(event.get_event_id());
-    db.SetTransaction(tx);
-  } else if (msgtype == "io.nunchuk.transaction.cancel") {
-    auto tx = db.GetTransaction(init_event_id);
-    tx.set_room_id(event.get_room_id());
-    tx.set_cancel_event_id(event.get_event_id());
-    db.SetTransaction(tx);
-  } else if (msgtype == "io.nunchuk.transaction.ready") {
-    auto tx = db.GetTransaction(init_event_id);
-    tx.set_room_id(event.get_room_id());
-    tx.set_ready_event_id(event.get_event_id());
-    db.SetTransaction(tx);
-  } else if (msgtype == "io.nunchuk.transaction.broadcast") {
-    auto tx = db.GetTransaction(init_event_id);
-    tx.set_room_id(event.get_room_id());
-    tx.set_broadcast_event_id(event.get_event_id());
-    tx.set_tx_id(body["tx_id"]);
-    db.SetTransaction(tx);
+    if (msgtype == "io.nunchuk.transaction.sign") {
+      db.SetEvent(event);
+      SendTransactionReady(event.get_room_id(), init_event_id);
+    }
   }
   db.SetEvent(event);
 }
