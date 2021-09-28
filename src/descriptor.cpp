@@ -135,7 +135,7 @@ std::string GetPkhDescriptor(const std::string& address) {
   return AddChecksum(desc_without_checksum.str());
 }
 
-static std::regex SIGNER_REGEX("\\[([0-9a-f]{8})(.+)\\](.+?)(/.*\\*)?\n?");
+static std::regex SIGNER_REGEX("\\[([0-9a-fA-F]{8})(.+)\\](.+?)(/.*\\*)?\n?");
 
 static std::map<std::string, std::pair<AddressType, WalletType>>
     PREFIX_MATCHER = {
@@ -151,10 +151,11 @@ static std::map<std::string, std::pair<AddressType, WalletType>>
 SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
   if (std::regex_match(signer_str, sm, SIGNER_REGEX)) {
+    const std::string xfp = boost::algorithm::to_lower_copy(sm[1].str());
     if (sm[3].str().rfind("tpub", 0) == 0 || sm[3].str().rfind("xpub", 0)) {
-      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), sm[1], 0);
+      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), xfp, 0);
     } else {
-      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), sm[1], 0);
+      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), xfp, 0);
     }
   }
   throw NunchukException(NunchukException::INVALID_PARAMETER,

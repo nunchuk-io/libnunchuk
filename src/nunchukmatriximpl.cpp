@@ -8,7 +8,7 @@
 #include <set>
 #include <utils/json.hpp>
 #include <utils/attachment.hpp>
-
+#include <boost/thread/locks.hpp>
 #include <descriptor.h>
 #include <coreutils.h>
 
