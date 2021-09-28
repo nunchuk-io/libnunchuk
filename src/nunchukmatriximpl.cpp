@@ -379,12 +379,13 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
                                              const std::string& init_event_id) {
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
-  auto init_event = db.GetEvent(wallet.get_init_event_id());
-  json wallet_config = json::parse(init_event.get_content())["body"];
+  auto wallet_init_event = db.GetEvent(wallet.get_init_event_id());
+  json wallet_config = json::parse(wallet_init_event.get_content())["body"];
   int m = wallet_config["m"];
 
   auto rtx = db.GetTransaction(init_event_id);
   if (rtx.get_sign_event_ids().size() < m) return;  // Transaction not ready
+  auto init_event = db.GetEvent(init_event_id);
   json content = {{"msgtype", "io.nunchuk.transaction.ready"},
                   {"v", NUNCHUK_EVENT_VER},
                   {"body",
@@ -552,8 +553,11 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     tx.set_room_id(event.get_room_id());
     tx.set_wallet_id(init_body["wallet_id"]);
     if (tx.get_broadcast_event_id().empty()) {
-      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
-      tx.set_tx_id(ntx.get_txid());
+      try {
+        auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
+        tx.set_tx_id(ntx.get_txid());
+      } catch (...) {
+      }
     }
 
     if (msgtype == "io.nunchuk.transaction.sign") {
