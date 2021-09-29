@@ -146,12 +146,45 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
   boost::shared_lock<boost::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
+
   auto init_event = db.GetEvent(wallet.get_init_event_id());
+  json init_body = json::parse(init_event.get_content())["body"];
+  auto chain = ChainFromStr(init_body["chain"]);
+  if (chain_ != chain) {
+    throw NunchukMatrixException(NunchukMatrixException::MISMATCHED_NETWORKS,
+                                 "mismatched networks");
+  }
+  bool is_escrow = init_body["is_escrow"];
+  if (is_escrow && !signer.get_xpub().empty()) {
+    throw NunchukMatrixException(NunchukMatrixException::MISMATCHED_KEY_TYPES,
+                                 "mismatched key types");
+  }
+
+  std::set<std::string> leave_ids;
+  for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
+    auto leave_event = db.GetEvent(leave_event_id);
+    auto leave_body = json::parse(leave_event.get_content())["body"];
+    std::string join_id = leave_body["io.nunchuk.relates_to"]["join_event_id"];
+    leave_ids.insert(join_id);
+  }
+
+  std::string key = SignerToStr(signer);
+  for (auto&& join_event_id : wallet.get_join_event_ids()) {
+    if (leave_ids.count(join_event_id)) continue;
+    auto join_event = db.GetEvent(join_event_id);
+    auto join_body = json::parse(join_event.get_content())["body"];
+    std::string join_key = join_body["key"];
+    if (key == join_key) {
+      throw NunchukMatrixException(NunchukMatrixException::DUPPLICATE_KEYS,
+                                   "dupplicate keys");
+    }
+  }
+
   json content = {
       {"msgtype", "io.nunchuk.wallet.join"},
       {"v", NUNCHUK_EVENT_VER},
       {"body",
-       {{"key", SignerToStr(signer)},
+       {{"key", key},
         {"type", SignerTypeToStr(signer.get_type())},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
   return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
