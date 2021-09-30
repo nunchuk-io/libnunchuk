@@ -59,14 +59,14 @@ void HWIService::SetPath(const std::string &path) {
 void HWIService::SetChain(Chain chain) { testnet_ = chain == Chain::TESTNET; }
 
 void HWIService::CheckVersion() {
-  auto version = RunCmd({"--version"});
-  if (version.rfind("hwi 1", 0) == 0) {
-    version_ = 1;
-  } else if (version.rfind("hwi 2", 0) == 0) {
-    version_ = 2;
-  } else {
-    throw HWIException(HWIException::VERSION_NOT_SUPPORTED,
-                       "version not supported");
+  try {
+    auto version = RunCmd({"--version"});
+    if (version.rfind("hwi 1", 0) == 0) {
+      version_ = 1;
+    } else if (version.rfind("hwi 2", 0) == 0) {
+      version_ = 2;
+    }
+  } catch (...) {
   }
 }
 

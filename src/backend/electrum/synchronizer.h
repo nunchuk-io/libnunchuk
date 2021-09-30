@@ -51,7 +51,6 @@ class ElectrumSynchronizer : public Synchronizer {
   std::condition_variable status_cv_;
 
   // Cache
-  bool first_run_ = true;
   std::map<std::string, std::pair<std::string, std::string>>
       scripthash_to_wallet_address_;
 };
