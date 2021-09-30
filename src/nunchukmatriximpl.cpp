@@ -432,8 +432,6 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
                                              const std::string& sync_room_id,
                                              const std::string& access_token) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
-  std::cout << "[Bakaoh] Backup room_id " << sync_room_id << " token " << access_token
-            << std::endl;
   auto db = storage_.GetRoomDb(chain_);
   std::string room_id = sync_room_id;
   if (room_id.empty()) {
@@ -457,8 +455,6 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
 void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                          const std::string& sync_room_id,
                                          const std::string& access_token) {
-  std::cout << "[Bakaoh] EnableAutoBackup room_id " << sync_room_id << " token " << access_token
-            << std::endl;
   nu->AddStorageUpdateListener(
       [&]() { Backup(nu, sync_room_id, access_token); });
 }

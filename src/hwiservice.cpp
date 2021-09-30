@@ -47,12 +47,36 @@ static json ParseResponse(const std::string &resp) {
 }
 
 HWIService::HWIService(std::string path, Chain chain)
-    : hwi_(path), testnet_(chain == Chain::TESTNET) {}
+    : hwi_(path), testnet_(chain == Chain::TESTNET) {
+  CheckVersion();
+}
 
-void HWIService::SetPath(const std::string &path) { hwi_ = path; }
+void HWIService::SetPath(const std::string &path) {
+  hwi_ = path;
+  CheckVersion();
+}
+
 void HWIService::SetChain(Chain chain) { testnet_ = chain == Chain::TESTNET; }
 
-std::string HWIService::RunCmd(const std::vector<std::string> &args) const {
+void HWIService::CheckVersion() {
+  auto version = RunCmd({"--version"});
+  if (version.rfind("hwi 1", 0) == 0) {
+    version_ = 1;
+  } else if (version.rfind("hwi 2", 0) == 0) {
+    version_ = 2;
+  } else {
+    throw HWIException(HWIException::VERSION_NOT_SUPPORTED,
+                       "version not supported");
+  }
+}
+
+std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
+  std::vector<std::string> args(cmd_args);
+  if (testnet_) {
+    if (version_ == 1) args.insert(args.begin(), "--testnet");
+    if (version_ == 2) args.insert(args.begin(), "--chain test");
+  }
+
   // build command string
   std::stringstream cmd;
   cmd << hwi_;
@@ -121,9 +145,6 @@ std::string HWIService::GetXpubAtPath(const Device &device,
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
                                        "getxpub", derivation_path};
-  if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
-  }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["xpub"];
 }
@@ -149,17 +170,14 @@ std::string HWIService::SignTx(const Device &device,
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {"signtx", base64_psbt};
   if (!device.get_master_fingerprint().empty()) {
-      cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
-      cmd_args.insert(cmd_args.begin(), "-f");
+    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+    cmd_args.insert(cmd_args.begin(), "-f");
   } else {
-      // No fingerprint, try to use device type+path instead
-      cmd_args.insert(cmd_args.begin(), device.get_path());
-      cmd_args.insert(cmd_args.begin(), "-d");
-      cmd_args.insert(cmd_args.begin(), device.get_type());
-      cmd_args.insert(cmd_args.begin(), "-t");
-  }
-  if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    // No fingerprint, try to use device type+path instead
+    cmd_args.insert(cmd_args.begin(), device.get_path());
+    cmd_args.insert(cmd_args.begin(), "-d");
+    cmd_args.insert(cmd_args.begin(), device.get_type());
+    cmd_args.insert(cmd_args.begin(), "-t");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["psbt"];
@@ -173,17 +191,14 @@ std::string HWIService::SignMessage(const Device &device,
   std::vector<std::string> cmd_args = {"signmessage", quoted_message,
                                        derivation_path};
   if (!device.get_master_fingerprint().empty()) {
-      cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
-      cmd_args.insert(cmd_args.begin(), "-f");
+    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+    cmd_args.insert(cmd_args.begin(), "-f");
   } else {
-      // No fingerprint, try to use device type+path instead
-      cmd_args.insert(cmd_args.begin(), device.get_path());
-      cmd_args.insert(cmd_args.begin(), "-d");
-      cmd_args.insert(cmd_args.begin(), device.get_type());
-      cmd_args.insert(cmd_args.begin(), "-t");
-  }
-  if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    // No fingerprint, try to use device type+path instead
+    cmd_args.insert(cmd_args.begin(), device.get_path());
+    cmd_args.insert(cmd_args.begin(), "-d");
+    cmd_args.insert(cmd_args.begin(), device.get_type());
+    cmd_args.insert(cmd_args.begin(), "-t");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["signature"];
@@ -195,17 +210,14 @@ std::string HWIService::DisplayAddress(const Device &device,
   std::string quoted_desc = "\"" + desc + "\"";
   std::vector<std::string> cmd_args = {"displayaddress", "--desc", quoted_desc};
   if (!device.get_master_fingerprint().empty()) {
-      cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
-      cmd_args.insert(cmd_args.begin(), "-f");
+    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+    cmd_args.insert(cmd_args.begin(), "-f");
   } else {
-      // No fingerprint, try to use device type+path instead
-      cmd_args.insert(cmd_args.begin(), device.get_path());
-      cmd_args.insert(cmd_args.begin(), "-d");
-      cmd_args.insert(cmd_args.begin(), device.get_type());
-      cmd_args.insert(cmd_args.begin(), "-t");
-  }
-  if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
+    // No fingerprint, try to use device type+path instead
+    cmd_args.insert(cmd_args.begin(), device.get_path());
+    cmd_args.insert(cmd_args.begin(), "-d");
+    cmd_args.insert(cmd_args.begin(), device.get_type());
+    cmd_args.insert(cmd_args.begin(), "-t");
   }
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["address"];
@@ -215,9 +227,6 @@ void HWIService::PromptPin(const Device &device) const {
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {"-t", device.get_type(), "-d",
                                        device.get_path(), "promptpin"};
-  if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
-  }
   ParseResponse(RunCmd(cmd_args));
 }
 
@@ -225,9 +234,6 @@ void HWIService::SendPin(const Device &device, const std::string &pin) const {
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {
       "-t", device.get_type(), "-d", device.get_path(), "sendpin", pin};
-  if (testnet_) {
-    cmd_args.insert(cmd_args.begin(), "--testnet");
-  }
   ParseResponse(RunCmd(cmd_args));
 }
 

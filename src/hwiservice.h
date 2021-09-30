@@ -34,9 +34,11 @@ class HWIService {
   void SendPin(const Device &device, const std::string &pin) const;
 
  private:
+  void CheckVersion();
   std::string RunCmd(const std::vector<std::string> &) const;
   std::string hwi_;
   bool testnet_;
+  int version_;
 };
 
 }  // namespace nunchuk

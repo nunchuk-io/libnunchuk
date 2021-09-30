@@ -203,6 +203,7 @@ class NUNCHUK_EXPORT HWIException : public BaseException {
   // Nunchuk-defined error codes
   static const int RUN_ERROR = -4099;
   static const int INVALID_RESULT = -4098;
+  static const int VERSION_NOT_SUPPORTED = -4097;
   using BaseException::BaseException;
 };
 
