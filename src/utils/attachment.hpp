@@ -28,7 +28,7 @@ extern "C" {
 
 namespace {
 
-static const std::string DEFAULT_MATRIX_SERVER = "https://element.nunchuk.io";
+static const std::string DEFAULT_MATRIX_SERVER = "https://matrix.nunchuk.io";
 
 inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
   auto id = url.substr(5);
