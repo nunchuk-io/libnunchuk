@@ -30,6 +30,11 @@ void NunchukRoomDb::Init() {
                         "ID TEXT PRIMARY KEY     NOT NULL,"
                         "VALUE          TEXT    NOT NULL);",
                         NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS RTXS("
+                        "ID TEXT PRIMARY KEY     NOT NULL,"
+                        "VALUE          TEXT    NOT NULL);",
+                        NULL, 0, NULL));
 }
 
 bool NunchukRoomDb::SetSyncRoomId(const std::string& room_id) {
@@ -318,6 +323,38 @@ std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
   //   rt.set_tx(GetTransaction(rt));
   // }
   return rs;
+}
+
+bool NunchukRoomDb::SetTransactionNotify(const std::string& tx_id,
+                                         const std::string& event_id) {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "INSERT INTO RTXS(ID, VALUE)"
+      "VALUES (?1, ?2)"
+      "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 2, event_id.c_str(), event_id.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+bool NunchukRoomDb::HasTransactionNotify(const std::string& tx_id) {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT * FROM RTXS WHERE ID = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_step(stmt);
+  std::string value_str;
+  if (sqlite3_column_text(stmt, 0)) {
+    SQLCHECK(sqlite3_finalize(stmt));
+    return true;
+  } else {
+    SQLCHECK(sqlite3_finalize(stmt));
+    return false;
+  }
 }
 
 bool NunchukRoomDb::IsActiveWallet(const RoomWallet& wallet) const {

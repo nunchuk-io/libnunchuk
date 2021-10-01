@@ -193,6 +193,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual RoomTransaction GetRoomTransaction(
       const std::string& init_event_id) = 0;
   virtual NunchukMatrixEvent GetEvent(const std::string& event_id) = 0;
+  virtual std::string GetTransactionId(const std::string& event_id) = 0;
 
   virtual void ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                             const NunchukMatrixEvent& event) = 0;

@@ -36,6 +36,9 @@ class NunchukRoomDb : public NunchukDb {
   NunchukMatrixEvent GetEvent(const std::string& event_id);
   std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id);
+  bool SetTransactionNotify(const std::string& tx_id,
+                            const std::string& event_id);
+  bool HasTransactionNotify(const std::string& tx_id);
 
  private:
   bool IsActiveWallet(const RoomWallet& wallet) const;

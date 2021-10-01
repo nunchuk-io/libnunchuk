@@ -119,6 +119,60 @@ inline std::string EncryptAttachment(const std::string& accessToken,
   return file.dump();
 }
 
+inline std::string DecryptTxId(const std::string& descriptor,
+                               const std::string& encrypted) {
+  using json = nlohmann::json;
+  json file = json::parse(encrypted);
+
+  std::vector<unsigned char> key(32, 0);
+  CSHA256 hasher;
+  std::vector<unsigned char> stream(descriptor.begin(), descriptor.end());
+  hasher.Write((unsigned char*)&(*stream.begin()),
+               stream.end() - stream.begin());
+  hasher.Finalize(key.data());
+
+  auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
+  auto buf = DecodeBase64(file["d"].get<std::string>().c_str());
+
+  unsigned char ciphertext[buf.size()];
+  aes_encrypt_ctx cx[1];
+  aes_init();
+  aes_encrypt_key256(&key[0], cx);
+  aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
+  return std::string((char*)ciphertext);
+}
+
+inline std::string EncryptTxId(const std::string& descriptor,
+                               const std::string& txId) {
+  using json = nlohmann::json;
+  json encrypted;
+  encrypted["v"] = "v1";
+
+  std::vector<unsigned char> key(32, 0);
+  CSHA256 hasher;
+  std::vector<unsigned char> stream(descriptor.begin(), descriptor.end());
+  hasher.Write((unsigned char*)&(*stream.begin()),
+               stream.end() - stream.begin());
+  hasher.Finalize(key.data());
+
+  std::vector<unsigned char> iv(16, 0);
+  GetStrongRandBytes(iv.data(), 8);
+  encrypted["iv"] = EncodeBase64(iv);
+  iv.resize(8);
+
+  std::vector<unsigned char> buf(txId.begin(), txId.end());
+  unsigned char ciphertext[buf.size()];
+  aes_encrypt_ctx cx[1];
+  aes_init();
+  aes_encrypt_key256(&key[0], cx);
+  aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
+
+  std::vector<unsigned char> d(
+      ciphertext, ciphertext + sizeof(ciphertext) / sizeof(ciphertext[0]));
+  encrypted["d"] = EncodeBase64(d);
+  return encrypted.dump();
+}
+
 }  // namespace
 
 #endif  // NUNCHUK_ATTACHMENT_H

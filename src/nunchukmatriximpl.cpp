@@ -428,6 +428,44 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
   NewEvent(room_id, "io.nunchuk.transaction", content.dump());
 }
 
+std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  auto db = storage_.GetRoomDb(chain_);
+
+  auto event = db.GetEvent(event_id);
+  auto encrypted = json::parse(event.get_content())["body"]["encrypted_tx_id"];
+
+  auto wallet = db.GetActiveWallet(event.get_room_id());
+  if (wallet.get_finalize_event_id().empty()) {
+    throw NunchukMatrixException(
+        NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
+        "shared wallet not finalized");
+  }
+  auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
+  std::string desc =
+      json::parse(wallet_finalize_event.get_content())["body"]["descriptor"];
+
+  return DecryptTxId(desc, encrypted.dump());
+}
+
+void NunchukMatrixImpl::ReceiveTransaction(const std::string& room_id,
+                                           const std::string& tx_id) {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  auto db = storage_.GetRoomDb(chain_);
+  if (db.HasTransactionNotify(tx_id)) return;
+  auto wallet = db.GetActiveWallet(room_id);
+  if (wallet.get_finalize_event_id().empty()) return;
+  auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
+  std::string desc =
+      json::parse(wallet_finalize_event.get_content())["body"]["descriptor"];
+  std::string encrypted_tx_id = EncryptTxId(desc, tx_id);
+  json content = {
+      {"msgtype", "io.nunchuk.transaction.receive"},
+      {"v", NUNCHUK_EVENT_VER},
+      {"body", {{"encrypted_tx_id", json::parse(encrypted_tx_id)}}}};
+  NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+}
+
 NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
                                              const std::string& sync_room_id,
                                              const std::string& access_token) {
@@ -573,6 +611,16 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       }
     }
     db.SetWallet(wallet);
+  } else if (msgtype == "io.nunchuk.transaction.receive") {
+    auto wallet = db.GetActiveWallet(event.get_room_id());
+    if (!wallet.get_finalize_event_id().empty()) {
+      auto encrypted = body["encrypted_tx_id"];
+      auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
+      std::string desc = json::parse(
+          wallet_finalize_event.get_content())["body"]["descriptor"];
+      db.SetTransactionNotify(DecryptTxId(desc, encrypted.dump()),
+                              event.get_event_id());
+    }
   } else if (msgtype.rfind("io.nunchuk.transaction", 0) == 0) {
     json init_body;
     if (msgtype == "io.nunchuk.transaction.init") {
