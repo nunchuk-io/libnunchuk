@@ -431,32 +431,30 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
 NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
                                              const std::string& sync_room_id,
                                              const std::string& access_token) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
-  std::string room_id = sync_room_id;
-  if (room_id.empty()) {
-    room_id = db.GetSyncRoomId();
-  } else {
-    db.SetSyncRoomId(room_id);
-  }
-  std::string token = access_token.empty() ? access_token_ : access_token;
-  if (room_id.empty() || token.empty()) {
+  if (!sync_room_id.empty()) sync_room_id_ = sync_room_id;
+  if (!access_token.empty()) access_token_ = access_token;
+  if (sync_room_id_.empty() || access_token_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "invalid room_id or access_token");
   }
   auto data = nu->ExportBackup();
-  auto file = json::parse(EncryptAttachment(token, data));
+  auto file = json::parse(EncryptAttachment(access_token_, data));
   json content = {{"msgtype", "io.nunchuk.sync.file"},
                   {"v", NUNCHUK_EVENT_VER},
                   {"file", file}};
-  return NewEvent(room_id, "io.nunchuk.sync", content.dump());
+  return NewEvent(sync_room_id_, "io.nunchuk.sync", content.dump());
 }
 
 void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                          const std::string& sync_room_id,
                                          const std::string& access_token) {
-  nu->AddStorageUpdateListener(
-      [&]() { Backup(nu, sync_room_id, access_token); });
+  sync_room_id_ = sync_room_id;
+  access_token_ = access_token;
+  if (sync_room_id_.empty() || access_token_.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid room_id or access_token");
+  }
+  nu->AddStorageUpdateListener([&]() { Backup(nu); });
 }
 
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {

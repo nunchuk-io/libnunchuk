@@ -59,7 +59,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
       const std::string& init_event_id) override;
 
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
-                            const std::string& sync_room_id,
+                            const std::string& sync_room_id = {},
                             const std::string& access_token = {}) override;
   void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
@@ -87,6 +87,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
                             const std::string& init_event_id);
 
   NunchukStorage storage_;
+  std::string sync_room_id_;
   std::string access_token_;
   std::string sender_;
   Chain chain_;
