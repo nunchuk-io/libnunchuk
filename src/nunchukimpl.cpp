@@ -892,7 +892,7 @@ void NunchukImpl::AddBlockListener(
 }
 
 void NunchukImpl::AddTransactionListener(
-    std::function<void(std::string, TransactionStatus)> listener) {
+    std::function<void(std::string, TransactionStatus, std::string)> listener) {
   synchronizer_->AddTransactionListener(listener);
 }
 

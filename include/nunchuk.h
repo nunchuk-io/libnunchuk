@@ -631,7 +631,7 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(int /* height */, std::string /* hex_header */)>
           listener) = 0;
   virtual void AddTransactionListener(
-      std::function<void(std::string /* tx_id */, TransactionStatus)>
+      std::function<void(std::string /* tx_id */, TransactionStatus, std::string /* wallet_id */)>
           listener) = 0;
   virtual void AddDeviceListener(
       std::function<void(std::string /* fingerprint */, bool /* connected */)>

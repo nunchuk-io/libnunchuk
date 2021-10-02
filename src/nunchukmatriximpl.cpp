@@ -274,9 +274,12 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   auto w = n == 1 ? WalletType::SINGLE_SIG
                   : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
 
-  auto nwallet =
-      nu->CreateWallet(name, m, n, signers, a, is_escrow, description);
-  wallet.set_wallet_id(nwallet.get_id());
+  std::string external_desc =
+      GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w);
+  auto wallet_id = GetDescriptorChecksum(external_desc);
+  wallet.set_wallet_id(wallet_id);
+  wallet2room_[wallet_id] = room_id;
+  nu->CreateWallet(name, m, n, signers, a, is_escrow, description);
 
   std::string descriptor = GetDescriptorForSigners(
       signers, m, DescriptorPath::TEMPLATE, a, w, 0, true);
@@ -448,9 +451,9 @@ std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
   return DecryptTxId(desc, encrypted.dump());
 }
 
-void NunchukMatrixImpl::ReceiveTransaction(const std::string& room_id,
-                                           const std::string& tx_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+void NunchukMatrixImpl::SendReceiveTransaction(const std::string& room_id,
+                                               const std::string& tx_id) {
+  // boost::shared_lock<boost::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasTransactionNotify(tx_id)) return;
   auto wallet = db.GetActiveWallet(room_id);
@@ -464,6 +467,25 @@ void NunchukMatrixImpl::ReceiveTransaction(const std::string& room_id,
       {"v", NUNCHUK_EVENT_VER},
       {"body", {{"encrypted_tx_id", json::parse(encrypted_tx_id)}}}};
   NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+}
+
+void NunchukMatrixImpl::EnableGenerateReceiveEvent(
+    const std::unique_ptr<Nunchuk>& nu) {
+  auto wallets = GetAllRoomWallets();
+  for (auto&& wallet : wallets) {
+    if (!wallet.get_wallet_id().empty()) {
+      wallet2room_[wallet.get_wallet_id()] = wallet.get_room_id();
+    }
+  }
+  nu->AddTransactionListener(
+      [&](std::string tx_id, TransactionStatus status, std::string wallet_id) {
+        if (status != TransactionStatus::PENDING_CONFIRMATION &&
+            status != TransactionStatus::CONFIRMED)
+          return;
+        if (wallet2room_.count(wallet_id) == 0) return;
+        if (!nu->GetTransaction(wallet_id, tx_id).is_receive()) return;
+        SendReceiveTransaction(wallet2room_.at(wallet_id), tx_id);
+      });
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
@@ -602,7 +624,9 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
 
       std::string external_desc = GetDescriptorForSigners(
           signers, m, DescriptorPath::EXTERNAL_ALL, a, w);
-      wallet.set_wallet_id(GetDescriptorChecksum(external_desc));
+      auto wallet_id = GetDescriptorChecksum(external_desc);
+      wallet.set_wallet_id(wallet_id);
+      wallet2room_[wallet_id] = event.get_room_id();
 
       try {
         nu->CreateWallet(name, m, n, signers, a, w == WalletType::ESCROW, d);

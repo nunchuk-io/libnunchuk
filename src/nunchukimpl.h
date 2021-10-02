@@ -185,7 +185,7 @@ class NunchukImpl : public Nunchuk {
   void AddBlockListener(
       std::function<void(int, std::string)> listener) override;
   void AddTransactionListener(
-      std::function<void(std::string, TransactionStatus)> listener) override;
+      std::function<void(std::string, TransactionStatus, std::string)> listener) override;
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(

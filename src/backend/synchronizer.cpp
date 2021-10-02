@@ -88,7 +88,7 @@ void Synchronizer::AddBlockListener(
 }
 
 void Synchronizer::AddTransactionListener(
-    std::function<void(std::string, TransactionStatus)> listener) {
+    std::function<void(std::string, TransactionStatus, std::string)> listener) {
   transaction_listener_.connect(listener);
 }
 

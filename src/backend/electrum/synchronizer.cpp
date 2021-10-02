@@ -87,7 +87,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
         auto tx = client_->blockchain_transaction_get(tx_id);
         storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
                                     tx["blocktime"]);
-        transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
+        transaction_listener_(tx_id, TransactionStatus::CONFIRMED, wallet_id);
       }
     } catch (StorageException& se) {
       if (se.code() == StorageException::TX_NOT_FOUND) {
@@ -102,7 +102,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
                                     fee);
         auto status = height <= 0 ? TransactionStatus::PENDING_CONFIRMATION
                                   : TransactionStatus::CONFIRMED;
-        transaction_listener_(tx_id, status);
+        transaction_listener_(tx_id, status, wallet_id);
       }
     }
   }

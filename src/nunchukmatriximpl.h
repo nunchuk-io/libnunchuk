@@ -64,6 +64,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
                         const std::string& access_token) override;
+  void EnableGenerateReceiveEvent(const std::unique_ptr<Nunchuk>& nu) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
   RoomWallet GetRoomWallet(const std::string& room_id) override;
@@ -83,7 +84,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent NewEvent(const std::string& room_id,
                               const std::string& event_type,
                               const std::string& content);
-  void ReceiveTransaction(const std::string& room_id, const std::string& tx_id);
+  void SendReceiveTransaction(const std::string& room_id,
+                              const std::string& tx_id);
   void SendWalletReady(const std::string& room_id);
   void SendTransactionReady(const std::string& room_id,
                             const std::string& init_event_id);
@@ -95,6 +97,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   Chain chain_;
   SendEventFunc sendfunc_;
   boost::shared_mutex access_;
+  std::map<std::string, std::string> wallet2room_;
 };
 
 }  // namespace nunchuk

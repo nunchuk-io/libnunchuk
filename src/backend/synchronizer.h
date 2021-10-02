@@ -27,7 +27,8 @@ class Synchronizer {
   void AddBalanceListener(std::function<void(std::string, Amount)> listener);
   void AddBlockListener(std::function<void(int, std::string)> listener);
   void AddTransactionListener(
-      std::function<void(std::string, TransactionStatus)> listener);
+      std::function<void(std::string, TransactionStatus, std::string)>
+          listener);
   void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int)> listener);
 
@@ -56,7 +57,7 @@ class Synchronizer {
   // Listener
   boost::signals2::signal<void(std::string, Amount)> balance_listener_;
   boost::signals2::signal<void(int, std::string)> block_listener_;
-  boost::signals2::signal<void(std::string, TransactionStatus)>
+  boost::signals2::signal<void(std::string, TransactionStatus, std::string)>
       transaction_listener_;
   boost::signals2::signal<void(ConnectionStatus, int)> connection_listener_;
 };
