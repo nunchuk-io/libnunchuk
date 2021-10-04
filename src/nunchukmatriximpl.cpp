@@ -535,7 +535,9 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
 }
 
 void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+                                         const std::string& sync_room_id,
                                          UploadFileFunc uploadfunction) {
+  sync_room_id_ = sync_room_id;
   nu->AddStorageUpdateListener([&]() { Backup(nu, uploadfunction); });
 }
 
