@@ -141,6 +141,11 @@ typedef std::function<std::string /* event_id */ (
     const std::string& /* event_content */)>
     SendEventFunc;
 
+typedef std::function<std::string /* url */ (
+    const std::string& /* file_name */, const std::string& /* mine_type */,
+    const char* /* data */, size_t /* data_length */)>
+    UploadFileFunc;
+
 class NUNCHUK_EXPORT NunchukMatrix {
  public:
   NunchukMatrix(const NunchukMatrix&) = delete;
@@ -182,9 +187,13 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
                                     const std::string& sync_room_id,
                                     const std::string& access_token = {}) = 0;
+  virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
+                                    UploadFileFunc uploadfunction) = 0;
   virtual void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                 const std::string& sync_room_id,
                                 const std::string& access_token) = 0;
+  virtual void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+                                UploadFileFunc uploadfunction) = 0;
   virtual void EnableGenerateReceiveEvent(
       const std::unique_ptr<Nunchuk>& nu) = 0;
 

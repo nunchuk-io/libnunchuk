@@ -81,7 +81,7 @@ inline std::string DecryptAttachment(const std::string& event_file) {
   return std::string((char*)ciphertext);
 }
 
-inline std::string EncryptAttachment(const std::string& accessToken,
+inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
                                      const std::string& body) {
   using json = nlohmann::json;
   json file;
@@ -107,9 +107,9 @@ inline std::string EncryptAttachment(const std::string& accessToken,
   aes_encrypt_key256(&key[0], cx);
   aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
 
-  auto upload = UploadAttachment(accessToken, (char*)ciphertext, buf.size());
-  file["url"] = json::parse(upload)["content_uri"];
   file["mimetype"] = "application/octet-stream";
+  file["url"] =
+      uploadfunc("Backup", file["mimetype"], (char*)ciphertext, buf.size());
 
   CSHA256 hasher;
   hasher.Write(ciphertext, buf.size());

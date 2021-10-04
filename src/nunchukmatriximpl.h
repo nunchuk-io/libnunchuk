@@ -61,9 +61,13 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
                             const std::string& sync_room_id = {},
                             const std::string& access_token = {}) override;
+  NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
+                            UploadFileFunc uploadfunction) override;
   void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
                         const std::string& access_token) override;
+  void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+                        UploadFileFunc uploadfunction) override;
   void EnableGenerateReceiveEvent(const std::unique_ptr<Nunchuk>& nu) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
