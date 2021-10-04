@@ -738,9 +738,10 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
   if (content["v"] == nullptr) return;
   std::string msgtype = content["msgtype"];
   if (msgtype == "io.nunchuk.sync.file") {
-    auto data = content["file"];
+    auto file = content["file"];
     db.SetSyncRoomId(event.get_room_id());
-    nu->SyncWithBackup(data.dump(), progress);
+    auto data = DecryptAttachment(file.dump());
+    nu->SyncWithBackup(data, progress);
   }
   db.SetEvent(event);
 }
