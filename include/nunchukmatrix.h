@@ -188,6 +188,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
                                     const std::string& sync_room_id,
                                     const std::string& access_token = {}) = 0;
   virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
+                                    const std::string& sync_room_id,
                                     UploadFileFunc uploadfunction) = 0;
   virtual void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                 const std::string& sync_room_id,

@@ -513,7 +513,13 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
+                                             const std::string& sync_room_id,
                                              UploadFileFunc uploadfunction) {
+  if (!sync_room_id.empty()) sync_room_id_ = sync_room_id;
+  if (sync_room_id_.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid room_id");
+  }
   auto data = nu->ExportBackup();
   auto file = json::parse(EncryptAttachment(uploadfunction, data));
   json content = {{"msgtype", "io.nunchuk.sync.file"},
@@ -538,7 +544,11 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                          const std::string& sync_room_id,
                                          UploadFileFunc uploadfunction) {
   sync_room_id_ = sync_room_id;
-  nu->AddStorageUpdateListener([&]() { Backup(nu, uploadfunction); });
+  if (sync_room_id_.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid room_id");
+  }
+  nu->AddStorageUpdateListener([&]() { Backup(nu, {}, uploadfunction); });
 }
 
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
