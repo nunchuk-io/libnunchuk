@@ -17,6 +17,8 @@ ElectrumSynchronizer::~ElectrumSynchronizer() {
   std::lock_guard<std::mutex> guard(status_mutex_);
   status_ = Status::STOPPED;
   status_cv_.notify_all();
+  sync_worker_.reset();
+  sync_thread_.join();
 }
 
 void ElectrumSynchronizer::WaitForReady() {

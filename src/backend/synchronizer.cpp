@@ -37,10 +37,7 @@ Synchronizer::Synchronizer(const AppSettings& app_settings,
   });
 }
 
-Synchronizer::~Synchronizer() {
-  sync_worker_.reset();
-  sync_thread_.join();
-}
+Synchronizer::~Synchronizer() {}
 
 bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
   if (app_settings_.get_backend_type() != new_settings.get_backend_type() ||

@@ -1845,7 +1845,8 @@ inline bool read_headers(Stream &strm, Headers &headers) {
     // the left or right side of the header value:
     //  - https://stackoverflow.com/questions/50179659/
     //  - https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html
-    static const std::regex re(R"(([^:]+):[\t ]*(.+))");
+    // Bakaoh: remove static
+    const std::regex re(R"(([^:]+):[\t ]*(.+))");
 
     std::cmatch m;
     if (std::regex_match(line_reader.ptr(), end, m, re)) {
@@ -3777,7 +3778,8 @@ inline bool Client::read_response_line(Stream &strm, Response &res) {
 
   if (!line_reader.getline()) { return false; }
 
-  const static std::regex re("(HTTP/1\\.[01]) (\\d+?) .*\r\n");
+  // Bakaoh: remove static
+  const std::regex re("(HTTP/1\\.[01]) (\\d+?) .*\r\n");
 
   std::cmatch m;
   if (std::regex_match(line_reader.ptr(), m, re)) {

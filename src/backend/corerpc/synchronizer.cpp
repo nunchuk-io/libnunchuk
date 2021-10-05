@@ -15,7 +15,12 @@ CoreRpcSynchronizer::CoreRpcSynchronizer(const AppSettings& app_settings,
       interval_(60),
       timer_(io_service_, boost::posix_time::seconds(10)) {}
 
-CoreRpcSynchronizer::~CoreRpcSynchronizer() { stopped = true; }
+CoreRpcSynchronizer::~CoreRpcSynchronizer() {
+  stopped = true;
+  timer_.cancel();
+  sync_worker_.reset();
+  sync_thread_.join();
+}
 
 void CoreRpcSynchronizer::Run() {
   connection_listener_(ConnectionStatus::OFFLINE, 0);
@@ -129,6 +134,7 @@ void CoreRpcSynchronizer::BlockchainSync(
   auto all_txs = client_->ListTransactions();
   json descriptors;
   for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
+    if (stopped) return;
     auto wallet_id = *i;
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
     if (addresses.empty()) continue;
@@ -164,6 +170,7 @@ void CoreRpcSynchronizer::BlockchainSync(
 
     auto txs = storage_->GetTransactions(chain, wallet_id, 1000, 0);
     for (auto a = addresses.rbegin(); a != addresses.rend(); ++a) {
+      if (stopped) return;
       auto address = *a;
       json utxos;
       for (auto&& utxo : all_utxos) {
@@ -180,12 +187,14 @@ void CoreRpcSynchronizer::BlockchainSync(
 
         bool found = false;
         for (auto&& tx : txs) {
+          if (stopped) return;
           if (tx.get_txid() == tx_id) {
             if (tx.get_status() != TransactionStatus::CONFIRMED && height > 0) {
               auto tx = client_->GetTransaction(tx_id);
               storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
                                           tx["blocktime"]);
-              transaction_listener_(tx_id, TransactionStatus::CONFIRMED, wallet_id);
+              transaction_listener_(tx_id, TransactionStatus::CONFIRMED,
+                                    wallet_id);
             }
             found = true;
             break;
@@ -208,6 +217,7 @@ void CoreRpcSynchronizer::BlockchainSync(
     balance_listener_(wallet_id, balance);
   }
 
+  if (stopped) return;
   if (!descriptors.empty()) {
     connection_listener_(ConnectionStatus::SYNCING, 0);
     client_->ImportDescriptors(descriptors.dump());
