@@ -143,7 +143,8 @@ typedef std::function<std::string /* event_id */ (
 
 typedef std::function<std::string /* url */ (
     const std::string& /* file_name */, const std::string& /* mine_type */,
-    const char* /* data */, size_t /* data_length */)>
+    const std::string& /* file_json_info */, const char* /* data */,
+    size_t /* data_length */)>
     UploadFileFunc;
 
 class NUNCHUK_EXPORT NunchukMatrix {
@@ -190,6 +191,9 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
                                     const std::string& sync_room_id,
                                     UploadFileFunc uploadfunction) = 0;
+  virtual NunchukMatrixEvent BackupFile(const std::string& sync_room_id,
+                                        const std::string& file_json_info,
+                                        const std::string& file_url) = 0;
   virtual void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                 const std::string& sync_room_id,
                                 const std::string& access_token) = 0;

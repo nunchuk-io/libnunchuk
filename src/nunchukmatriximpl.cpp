@@ -493,22 +493,26 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
                                              const std::string& access_token) {
   if (!sync_room_id.empty()) sync_room_id_ = sync_room_id;
   if (!access_token.empty()) access_token_ = access_token;
-  if (sync_room_id_.empty() || access_token_.empty()) {
+  if (sync_room_id_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id or access_token");
+                           "invalid room_id");
+  }
+  if (access_token_.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid access_token");
   }
   auto data = nu->ExportBackup();
-  auto file = json::parse(EncryptAttachment(
-      [&](const std::string&, const std::string&, const char* body,
-          size_t length) {
+  auto file = EncryptAttachment(
+      [&](const std::string&, const std::string&, const std::string&,
+          const char* body, size_t length) {
         auto upload = UploadAttachment(access_token_, body, length);
         std::string url = json::parse(upload)["content_uri"];
         return url;
       },
-      data));
+      data);
   json content = {{"msgtype", "io.nunchuk.sync.file"},
                   {"v", NUNCHUK_EVENT_VER},
-                  {"file", file}};
+                  {"file", json::parse(file)}};
   return NewEvent(sync_room_id_, "io.nunchuk.sync", content.dump());
 }
 
@@ -521,7 +525,33 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
                            "invalid room_id");
   }
   auto data = nu->ExportBackup();
-  auto file = json::parse(EncryptAttachment(uploadfunction, data));
+  auto file = EncryptAttachment(uploadfunction, data);
+  if (file.empty()) return {};
+
+  json content = {{"msgtype", "io.nunchuk.sync.file"},
+                  {"v", NUNCHUK_EVENT_VER},
+                  {"file", json::parse(file)}};
+  return NewEvent(sync_room_id_, "io.nunchuk.sync", content.dump());
+}
+
+NunchukMatrixEvent NunchukMatrixImpl::BackupFile(
+    const std::string& sync_room_id, const std::string& file_json_info,
+    const std::string& file_url) {
+  if (!sync_room_id.empty()) sync_room_id_ = sync_room_id;
+  if (sync_room_id_.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid room_id");
+  }
+  if (file_json_info.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid file_json_info");
+  }
+  if (file_url.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid room_id or file_url");
+  }
+  auto file = json::parse(file_json_info);
+  file["url"] = file_url;
   json content = {{"msgtype", "io.nunchuk.sync.file"},
                   {"v", NUNCHUK_EVENT_VER},
                   {"file", file}};

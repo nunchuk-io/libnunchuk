@@ -185,7 +185,8 @@ class NunchukImpl : public Nunchuk {
   void AddBlockListener(
       std::function<void(int, std::string)> listener) override;
   void AddTransactionListener(
-      std::function<void(std::string, TransactionStatus, std::string)> listener) override;
+      std::function<void(std::string, TransactionStatus, std::string)> listener)
+      override;
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
@@ -212,6 +213,7 @@ class NunchukImpl : public Nunchuk {
   std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
   boost::signals2::signal<void()> storage_listener_;
+  std::vector<std::future<void>> scan_new_wallet_;
 
   // Cache
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];

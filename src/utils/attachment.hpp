@@ -107,15 +107,18 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
   aes_encrypt_key256(&key[0], cx);
   aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
 
-  file["mimetype"] = "application/octet-stream";
-  file["url"] =
-      uploadfunc("Backup", file["mimetype"], (char*)ciphertext, buf.size());
-
   CSHA256 hasher;
   hasher.Write(ciphertext, buf.size());
   uint256 hash;
   hasher.Finalize(hash.begin());
+
   file["hashes"] = {{"sha256", EncodeBase64(hash)}};
+  file["mimetype"] = "application/octet-stream";
+  auto url = uploadfunc("Backup", file["mimetype"], file.dump(),
+                        (char*)ciphertext, buf.size());
+  if (url.empty()) return "";
+
+  file["url"] = url;
   return file.dump();
 }
 

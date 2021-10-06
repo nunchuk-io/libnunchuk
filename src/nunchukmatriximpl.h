@@ -64,6 +64,9 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
                             const std::string& sync_room_id,
                             UploadFileFunc uploadfunction) override;
+  NunchukMatrixEvent BackupFile(const std::string& sync_room_id,
+                                const std::string& file_json_info,
+                                const std::string& file_url) override;
   void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
                         const std::string& access_token) override;
