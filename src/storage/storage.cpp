@@ -907,6 +907,7 @@ std::string NunchukStorage::ExportBackup() {
     auto sids = ListMasterSigners(chain);
     for (auto&& id : sids) {
       auto signerDb = GetSignerDb(chain, id);
+      if (signerDb.GetId().empty()) continue;
       json signer = {{"id", signerDb.GetId()},
                      {"name", signerDb.GetName()},
                      {"device_type", signerDb.GetDeviceType()},
@@ -948,6 +949,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
     json signers = d["signers"];
     for (auto&& signer : signers) {
       std::string id = signer["id"];
+      if (id.empty()) continue;
       fs::path db_file = GetSignerDir(chain, id);
       NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
       db.InitSigner(signer["name"],
@@ -967,6 +969,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
     json wallets = d["wallets"];
     for (auto&& wallet : wallets) {
       std::string id = wallet["id"];
+      if (id.empty()) continue;
       fs::path db_file = GetWalletDir(chain, id);
       if (!fs::exists(db_file)) {
         AddressType a;

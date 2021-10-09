@@ -73,12 +73,13 @@ inline std::string DecryptAttachment(const std::string& event_file) {
   auto key = DecodeBase64(file["key"]["k"].get<std::string>().c_str());
   auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
 
-  unsigned char ciphertext[buf.size()];
+  std::vector<unsigned char> ciphertext(buf.size());
   aes_encrypt_ctx cx[1];
   aes_init();
   aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
-  return std::string((char*)ciphertext);
+  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
+                cx);
+  return std::string(ciphertext.begin(), ciphertext.end());
 }
 
 inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
@@ -101,21 +102,22 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
   iv.resize(8);
 
   std::vector<unsigned char> buf(body.begin(), body.end());
-  unsigned char ciphertext[buf.size()];
+  std::vector<unsigned char> ciphertext(buf.size());
   aes_encrypt_ctx cx[1];
   aes_init();
   aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
+  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
+                cx);
 
   CSHA256 hasher;
-  hasher.Write(ciphertext, buf.size());
+  hasher.Write(&ciphertext[0], buf.size());
   uint256 hash;
   hasher.Finalize(hash.begin());
 
   file["hashes"] = {{"sha256", EncodeBase64(hash)}};
   file["mimetype"] = "application/octet-stream";
   auto url = uploadfunc("Backup", file["mimetype"], file.dump(),
-                        (char*)ciphertext, buf.size());
+                        (char*)(&ciphertext[0]), buf.size());
   if (url.empty()) return "";
 
   file["url"] = url;
@@ -137,12 +139,13 @@ inline std::string DecryptTxId(const std::string& descriptor,
   auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
   auto buf = DecodeBase64(file["d"].get<std::string>().c_str());
 
-  unsigned char ciphertext[buf.size()];
+  std::vector<unsigned char> ciphertext(buf.size());
   aes_encrypt_ctx cx[1];
   aes_init();
   aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
-  return std::string((char*)ciphertext);
+  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
+                cx);
+  return std::string(ciphertext.begin(), ciphertext.end());
 }
 
 inline std::string EncryptTxId(const std::string& descriptor,
@@ -164,15 +167,14 @@ inline std::string EncryptTxId(const std::string& descriptor,
   iv.resize(8);
 
   std::vector<unsigned char> buf(txId.begin(), txId.end());
-  unsigned char ciphertext[buf.size()];
+  std::vector<unsigned char> ciphertext(buf.size());
   aes_encrypt_ctx cx[1];
   aes_init();
   aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], ciphertext, buf.size(), &iv[0], aes_ctr_cbuf_inc, cx);
+  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
+                cx);
 
-  std::vector<unsigned char> d(
-      ciphertext, ciphertext + sizeof(ciphertext) / sizeof(ciphertext[0]));
-  encrypted["d"] = EncodeBase64(d);
+  encrypted["d"] = EncodeBase64(ciphertext);
   return encrypted.dump();
 }
 
