@@ -610,6 +610,19 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<std::string>& qr_data) = 0;
   virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                                   const std::string& description = {}) = 0;
+
+  virtual SingleSigner CreateKeystoneSigner(const std::string& name,
+                                            const std::string& qr_data) = 0;
+  virtual std::vector<std::string> ExportKeystoneWallet(
+      const std::string& wallet_id) = 0;
+  virtual std::vector<std::string> ExportKeystoneTransaction(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual Transaction ImportKeystoneTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) = 0;
+  virtual Wallet ImportKeystoneWallet(const std::vector<std::string>& qr_data,
+                                      const std::string& description = {}) = 0;
+
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
@@ -631,7 +644,8 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(int /* height */, std::string /* hex_header */)>
           listener) = 0;
   virtual void AddTransactionListener(
-      std::function<void(std::string /* tx_id */, TransactionStatus, std::string /* wallet_id */)>
+      std::function<void(std::string /* tx_id */, TransactionStatus,
+                         std::string /* wallet_id */)>
           listener) = 0;
   virtual void AddDeviceListener(
       std::function<void(std::string /* fingerprint */, bool /* connected */)>

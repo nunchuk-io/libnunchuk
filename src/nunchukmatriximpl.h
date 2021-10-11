@@ -14,7 +14,6 @@
 #include <storage/roomdb.h>
 #include <storage/storage.h>
 #include <boost/thread/shared_mutex.hpp>
-#include <boost/signals2.hpp>
 
 namespace nunchuk {
 
@@ -106,11 +105,9 @@ class NunchukMatrixImpl : public NunchukMatrix {
   std::string sender_;
   Chain chain_;
   SendEventFunc sendfunc_;
+  UploadFileFunc uploadfunc_;
   boost::shared_mutex access_;
   std::map<std::string, std::string> wallet2room_;
-  boost::signals2::signal<std::string(const std::string&, const std::string&,
-                                      const std::string&, const char*, size_t)>
-      upload_;
 };
 
 }  // namespace nunchuk

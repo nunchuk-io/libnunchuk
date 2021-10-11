@@ -17,16 +17,23 @@
 #include <utils/quote.hpp>
 #include <utils/multisigconfig.hpp>
 #include <utils/bsms.hpp>
+#include <utils/bcr2.hpp>
 #include <boost/algorithm/string.hpp>
 #include <ur.h>
+#include <ur-encoder.hpp>
+#include <ur-decoder.hpp>
+#include <cbor-lite.hpp>
+#include <util/bip32.h>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
+using namespace nunchuk::bcr2;
 
 namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
+static int MAX_FRAGMENT_LEN = 30;
 
 // Nunchuk implement
 NunchukImpl::NunchukImpl(const AppSettings& appsettings,
@@ -822,6 +829,7 @@ void NunchukImpl::DisplayAddressOnDevice(
     hwi_.DisplayAddress(Device{device_fingerprint}, desc);
   }
 }
+
 SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
                                            const std::string& json_info) {
   json info = json::parse(json_info);
@@ -862,18 +870,110 @@ Transaction NunchukImpl::ImportCoboTransaction(
   return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
 }
 
-std::string NunchukImpl::ExportBackup() { return storage_.ExportBackup(); }
-
-bool NunchukImpl::SyncWithBackup(const std::string& data,
-                                 std::function<bool(int)> progress) {
-  return storage_.SyncWithBackup(data, progress);
-}
-
 Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
                                      const std::string& description) {
   auto config = nunchuk::bcr::DecodeUniformResource(qr_data);
   std::string config_str(config.begin(), config.end());
   return ImportWalletFromConfig(config_str, description);
+}
+
+void u8from32(uint8_t b[4], uint32_t u32) {
+  b[3] = (uint8_t)u32;
+  b[2] = (uint8_t)(u32 >>= 8);
+  b[1] = (uint8_t)(u32 >>= 8);
+  b[0] = (uint8_t)(u32 >>= 8);
+};
+
+SingleSigner NunchukImpl::CreateKeystoneSigner(const std::string& name,
+                                               const std::string& qr_data) {
+  auto decoded = ur::URDecoder::decode(qr_data);
+  auto i = decoded.cbor().begin();
+  auto end = decoded.cbor().end();
+  CryptoAccount account{};
+  decodeCryptoAccount(i, end, account);
+  CryptoHDKey key = account.outputDescriptors[0];
+
+  CExtPubKey xpub{};
+  xpub.chaincode = ChainCode(key.chaincode);
+  xpub.pubkey = CPubKey(key.keydata);
+  xpub.nChild = key.origin.childNumber;
+  xpub.nDepth = key.origin.depth;
+  u8from32(xpub.vchFingerprint, key.parentFingerprint);
+
+  std::stringstream xfp;
+  xfp << std::hex << account.masterFingerprint;
+  std::stringstream path;
+  path << "m" << FormatHDKeypath(key.origin.keypath);
+  return CreateSigner(name, EncodeExtPubKey(xpub), {}, path.str(), xfp.str());
+}
+
+std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
+    const std::string& wallet_id) {
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  std::vector<uint8_t> data(content.begin(), content.end());
+  auto encoder = ur::UREncoder(ur::UR("bytes", data), MAX_FRAGMENT_LEN);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(encoder.next_part());
+  } while (!encoder.is_complete());
+  return parts;
+}
+
+std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
+    const std::string& wallet_id, const std::string& tx_id) {
+  std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  bool invalid;
+  auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
+  if (invalid) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+  }
+  CryptoPSBT psbt{data};
+  ur::ByteVector cbor;
+  encodeCryptoPSBT(cbor, psbt);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(encoder.next_part());
+  } while (!encoder.is_complete());
+  return parts;
+}
+
+Transaction NunchukImpl::ImportKeystoneTransaction(
+    const std::string& wallet_id, const std::vector<std::string>& qr_data) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw std::runtime_error("invalid input");
+  }
+  auto decoded = decoder.result_ur();
+  auto i = decoded.cbor().begin();
+  auto end = decoded.cbor().end();
+  CryptoPSBT psbt{};
+  decodeCryptoPSBT(i, end, psbt);
+  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt.data)));
+}
+
+Wallet NunchukImpl::ImportKeystoneWallet(
+    const std::vector<std::string>& qr_data, const std::string& description) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw std::runtime_error("invalid input");
+  }
+  auto config = decoder.result_ur().cbor();
+  std::string config_str(config.begin(), config.end());
+  return ImportWalletFromConfig(config_str, description);
+}
+
+std::string NunchukImpl::ExportBackup() { return storage_.ExportBackup(); }
+
+bool NunchukImpl::SyncWithBackup(const std::string& data,
+                                 std::function<bool(int)> progress) {
+  return storage_.SyncWithBackup(data, progress);
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
