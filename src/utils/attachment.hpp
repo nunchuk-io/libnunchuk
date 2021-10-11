@@ -30,6 +30,43 @@ namespace {
 
 static const std::string DEFAULT_MATRIX_SERVER = "https://matrix.nunchuk.io";
 
+inline void TestAESEncrypt() {
+  using json = nlohmann::json;
+  json b;
+  for (int i = 0; i < 32000; i++) {
+    b[i] = i;
+  }
+  std::string body = b.dump();
+  std::vector<unsigned char> key(32, 0);
+  GetStrongRandBytes(key.data(), 32);
+  std::vector<unsigned char> iv(16, 0);
+  GetStrongRandBytes(iv.data(), 8);
+  std::string base64iv = EncodeBase64(iv);
+
+  std::vector<unsigned char> buf(body.begin(), body.end());
+  std::vector<unsigned char> encrypted(buf.size());
+  {
+    aes_encrypt_ctx cx[1];
+    aes_init();
+    aes_encrypt_key256(&key[0], cx);
+    aes_ctr_crypt(&buf[0], &encrypted[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
+                  cx);
+  }
+
+  std::vector<unsigned char> decrypted(buf.size());
+  auto iv2 = DecodeBase64(base64iv.c_str());
+  {
+    aes_encrypt_ctx cx[1];
+    aes_init();
+    aes_encrypt_key256(&key[0], cx);
+    aes_ctr_crypt(&encrypted[0], &decrypted[0], buf.size(), &iv2[0],
+                  aes_ctr_cbuf_inc, cx);
+  }
+  if (body != std::string(decrypted.begin(), decrypted.end())) {
+    throw std::runtime_error("TestAESEncrypt fail");
+  }
+}
+
 inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
   auto id = url.substr(5);
   std::string body;
