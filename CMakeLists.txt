@@ -46,6 +46,27 @@ target_include_directories(trezor-crypto PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
 )
 
+add_library(ur-2 STATIC 
+    "contrib/bc-ur-2/src/crc32.c"
+    "contrib/bc-ur-2/src/memzero.c"
+    "contrib/bc-ur-2/src/sha2.c"
+    "contrib/bc-ur-2/src/bytewords.cpp"
+    "contrib/bc-ur-2/src/fountain-decoder.cpp"
+    "contrib/bc-ur-2/src/fountain-encoder.cpp"
+    "contrib/bc-ur-2/src/fountain-utils.cpp"
+    "contrib/bc-ur-2/src/random-sampler.cpp"
+    "contrib/bc-ur-2/src/ur-decoder.cpp"
+    "contrib/bc-ur-2/src/ur-encoder.cpp"
+    "contrib/bc-ur-2/src/ur.cpp"
+    "contrib/bc-ur-2/src/utils.cpp"
+    "contrib/bc-ur-2/src/xoshiro256.cpp"
+)
+
+target_include_directories(ur-2 PUBLIC 
+    "contrib/bc-ur-2/src"
+    ${Boost_INCLUDE_DIRS}
+)
+
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
     src/coreutils.cpp
@@ -83,6 +104,7 @@ add_library("${PROJECT_NAME}" STATIC
 set(PROJECT_LIBRARIES
     embedded
     ur
+    ur-2
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
 )
