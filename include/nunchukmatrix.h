@@ -23,7 +23,6 @@ class NUNCHUK_EXPORT NunchukMatrixException : public BaseException {
   static const int MISMATCHED_NETWORKS = -5005;
   static const int MISMATCHED_KEY_TYPES = -5006;
   static const int DUPPLICATE_KEYS = -5007;
-
   using BaseException::BaseException;
 };
 

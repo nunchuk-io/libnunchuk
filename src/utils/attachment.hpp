@@ -9,22 +9,18 @@
 #include <boost/algorithm/string.hpp>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <regex>
 
 #include <util/strencodings.h>
 #include <random.h>
 #include <crypto/sha256.h>
+#include <crypto/aes.h>
 
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
-
-#include <fstream>
-
-extern "C" {
-#include <aes/aes.h>
-}
 
 namespace {
 
@@ -44,24 +40,17 @@ inline void TestAESEncrypt() {
   std::string base64iv = EncodeBase64(iv);
 
   std::vector<unsigned char> buf(body.begin(), body.end());
-  std::vector<unsigned char> encrypted(buf.size());
-  {
-    aes_encrypt_ctx cx[1];
-    aes_init();
-    aes_encrypt_key256(&key[0], cx);
-    aes_ctr_crypt(&buf[0], &encrypted[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
-                  cx);
-  }
+  std::vector<unsigned char> encrypted(buf.size() + 16);
+  AES256CBCEncrypt enc(key.data(), iv.data(), true);
+  int size = enc.Encrypt(buf.data(), buf.size(), encrypted.data());
+  encrypted.resize(size);
 
-  std::vector<unsigned char> decrypted(buf.size());
+  std::vector<unsigned char> decrypted(encrypted.size());
   auto iv2 = DecodeBase64(base64iv.c_str());
-  {
-    aes_encrypt_ctx cx[1];
-    aes_init();
-    aes_encrypt_key256(&key[0], cx);
-    aes_ctr_crypt(&encrypted[0], &decrypted[0], buf.size(), &iv2[0],
-                  aes_ctr_cbuf_inc, cx);
-  }
+  AES256CBCDecrypt dec(key.data(), iv2.data(), true);
+  size = dec.Decrypt(encrypted.data(), encrypted.size(), decrypted.data());
+  decrypted.resize(size);
+
   if (body != std::string(decrypted.begin(), decrypted.end())) {
     throw std::runtime_error("TestAESEncrypt fail");
   }
@@ -106,28 +95,32 @@ inline std::vector<unsigned char> LoadAttachmentFile(const std::string& path) {
 inline std::string DecryptAttachment(const std::string& event_file) {
   using json = nlohmann::json;
   json file = json::parse(event_file);
+  if ("v3" != file["v"].get<std::string>()) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
+        "version not supported");
+  }
+
   auto buf = DownloadAttachment(file["url"]);
   auto key = DecodeBase64(file["key"]["k"].get<std::string>().c_str());
   auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
 
-  std::vector<unsigned char> ciphertext(buf.size());
-  aes_encrypt_ctx cx[1];
-  aes_init();
-  aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
-                cx);
-  return std::string(ciphertext.begin(), ciphertext.end());
+  std::vector<unsigned char> decrypted(buf.size());
+  AES256CBCDecrypt dec(key.data(), iv.data(), true);
+  int size = dec.Decrypt(buf.data(), buf.size(), decrypted.data());
+  decrypted.resize(size);
+  return std::string(decrypted.begin(), decrypted.end());
 }
 
 inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
                                      const std::string& body) {
   using json = nlohmann::json;
   json file;
-  file["v"] = "v2";
+  file["v"] = "v3";
 
   std::vector<unsigned char> key(32, 0);
   GetStrongRandBytes(key.data(), 32);
-  file["key"] = {{"alg", "A256CTR"},
+  file["key"] = {{"alg", "A256CBC"},
                  {"ext", true},
                  {"k", EncodeBase64(key)},
                  {"key_ops", {"encrypt", "decrypt"}},
@@ -139,22 +132,20 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
   iv.resize(8);
 
   std::vector<unsigned char> buf(body.begin(), body.end());
-  std::vector<unsigned char> ciphertext(buf.size());
-  aes_encrypt_ctx cx[1];
-  aes_init();
-  aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
-                cx);
+  std::vector<unsigned char> encrypted(buf.size() + 16);
+  AES256CBCEncrypt enc(key.data(), iv.data(), true);
+  int size = enc.Encrypt(buf.data(), buf.size(), encrypted.data());
+  encrypted.resize(size);
 
   CSHA256 hasher;
-  hasher.Write(&ciphertext[0], buf.size());
+  hasher.Write(&encrypted[0], encrypted.size());
   uint256 hash;
   hasher.Finalize(hash.begin());
 
   file["hashes"] = {{"sha256", EncodeBase64(hash)}};
   file["mimetype"] = "application/octet-stream";
   auto url = uploadfunc("Backup", file["mimetype"], file.dump(),
-                        (char*)(&ciphertext[0]), buf.size());
+                        (char*)(&encrypted[0]), encrypted.size());
   if (url.empty()) return "";
 
   file["url"] = url;
@@ -165,6 +156,11 @@ inline std::string DecryptTxId(const std::string& descriptor,
                                const std::string& encrypted) {
   using json = nlohmann::json;
   json file = json::parse(encrypted);
+  if ("v2" != file["v"].get<std::string>()) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
+        "version not supported");
+  }
 
   std::vector<unsigned char> key(32, 0);
   CSHA256 hasher;
@@ -176,20 +172,18 @@ inline std::string DecryptTxId(const std::string& descriptor,
   auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
   auto buf = DecodeBase64(file["d"].get<std::string>().c_str());
 
-  std::vector<unsigned char> ciphertext(buf.size());
-  aes_encrypt_ctx cx[1];
-  aes_init();
-  aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
-                cx);
-  return std::string(ciphertext.begin(), ciphertext.end());
+  std::vector<unsigned char> decrypted(buf.size());
+  AES256CBCDecrypt dec(key.data(), iv.data(), true);
+  int size = dec.Decrypt(buf.data(), buf.size(), decrypted.data());
+  decrypted.resize(size);
+  return std::string(decrypted.begin(), decrypted.end());
 }
 
 inline std::string EncryptTxId(const std::string& descriptor,
                                const std::string& txId) {
   using json = nlohmann::json;
   json encrypted;
-  encrypted["v"] = "v1";
+  encrypted["v"] = "v2";
 
   std::vector<unsigned char> key(32, 0);
   CSHA256 hasher;
@@ -204,13 +198,10 @@ inline std::string EncryptTxId(const std::string& descriptor,
   iv.resize(8);
 
   std::vector<unsigned char> buf(txId.begin(), txId.end());
-  std::vector<unsigned char> ciphertext(buf.size());
-  aes_encrypt_ctx cx[1];
-  aes_init();
-  aes_encrypt_key256(&key[0], cx);
-  aes_ctr_crypt(&buf[0], &ciphertext[0], buf.size(), &iv[0], aes_ctr_cbuf_inc,
-                cx);
-
+  std::vector<unsigned char> ciphertext(buf.size() + 16);
+  AES256CBCEncrypt enc(key.data(), iv.data(), true);
+  int size = enc.Encrypt(buf.data(), buf.size(), ciphertext.data());
+  ciphertext.resize(size);
   encrypted["d"] = EncodeBase64(ciphertext);
   return encrypted.dump();
 }

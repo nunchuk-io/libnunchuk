@@ -1002,7 +1002,6 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   }
   importChain(Chain::TESTNET, data["testnet"]);
   importChain(Chain::MAIN, data["mainnet"]);
-  progress(100);
   return appState.SetLastSyncTs(ts);
 }
 

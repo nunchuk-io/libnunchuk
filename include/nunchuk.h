@@ -139,6 +139,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_FORMAT = -1020;
   static const int INVALID_SIGNER_PASSPHRASE = -1021;
   static const int INVALID_SIGNER_TYPE = -1022;
+  static const int VERSION_NOT_SUPPORTED = -1023;
   using BaseException::BaseException;
 };
 
