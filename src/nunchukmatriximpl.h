@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <future>
 #include <storage/roomdb.h>
 #include <storage/storage.h>
 #include <boost/thread/shared_mutex.hpp>
@@ -98,6 +99,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   void SendWalletReady(const std::string& room_id);
   void SendTransactionReady(const std::string& room_id,
                             const std::string& init_event_id);
+  void RandomDelay(std::function<void()> func);
 
   NunchukStorage storage_;
   std::string sync_room_id_;
@@ -108,6 +110,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   UploadFileFunc uploadfunc_;
   boost::shared_mutex access_;
   std::map<std::string, std::string> wallet2room_;
+  std::vector<std::future<void>> delay_;
 };
 
 }  // namespace nunchuk

@@ -6,6 +6,8 @@
 #include <iostream>
 #include <sstream>
 #include <set>
+#include <random>
+
 #include <utils/json.hpp>
 #include <utils/attachment.hpp>
 #include <boost/thread/locks.hpp>
@@ -484,7 +486,9 @@ void NunchukMatrixImpl::EnableGenerateReceiveEvent(
           return;
         if (wallet2room_.count(wallet_id) == 0) return;
         if (!nu->GetTransaction(wallet_id, tx_id).is_receive()) return;
-        SendReceiveTransaction(wallet2room_.at(wallet_id), tx_id);
+        auto room_id{wallet2room_.at(wallet_id)};
+        RandomDelay(
+            [this, room_id, tx_id] { SendReceiveTransaction(room_id, tx_id); });
       });
 }
 
@@ -646,11 +650,13 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     wallet.add_join_event_id(event.get_event_id());
     db.SetWallet(wallet);
     db.SetEvent(event);
-    SendWalletReady(event.get_room_id());
+    auto room_id{event.get_room_id()};
+    RandomDelay([this, room_id] { SendWalletReady(room_id); });
   } else if (msgtype == "io.nunchuk.wallet.leave") {
     auto wallet = db.GetWallet(init_event_id, false);
     wallet.set_room_id(event.get_room_id());
     wallet.add_leave_event_id(event.get_event_id());
+    wallet.set_ready_event_id("");
     db.SetWallet(wallet);
   } else if (msgtype == "io.nunchuk.wallet.cancel") {
     auto wallet = db.GetWallet(init_event_id, false);
@@ -750,7 +756,10 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     db.SetTransaction(tx);
     if (msgtype == "io.nunchuk.transaction.sign") {
       db.SetEvent(event);
-      SendTransactionReady(event.get_room_id(), init_event_id);
+      auto room_id{event.get_room_id()};
+      RandomDelay([this, room_id, init_event_id] {
+        SendTransactionReady(room_id, init_event_id);
+      });
     }
   }
   db.SetEvent(event);
@@ -776,6 +785,17 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
     nu->SyncWithBackup(data, progress);
   }
   db.SetEvent(event);
+}
+
+void NunchukMatrixImpl::RandomDelay(std::function<void()> exec) {
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  static std::uniform_int_distribution<> distr(3, 15);
+
+  delay_.push_back(std::async(std::launch::async, [exec] {
+    std::this_thread::sleep_for(std::chrono::seconds(distr(gen)));
+    exec();
+  }));
 }
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(

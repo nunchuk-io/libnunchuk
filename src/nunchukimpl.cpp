@@ -973,7 +973,16 @@ std::string NunchukImpl::ExportBackup() { return storage_.ExportBackup(); }
 
 bool NunchukImpl::SyncWithBackup(const std::string& data,
                                  std::function<bool(int)> progress) {
-  return storage_.SyncWithBackup(data, progress);
+  auto rs = storage_.SyncWithBackup(data, progress);
+  if (rs) {
+    scan_new_wallet_.push_back(std::async(std::launch::async, [&] {
+      auto wallets = GetWallets();
+      for (auto&& wallet : wallets) {
+        ScanNewWallet(wallet.get_id(), wallet.is_escrow());
+      }
+    }));
+  }
+  return rs;
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
