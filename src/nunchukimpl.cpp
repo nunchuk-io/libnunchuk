@@ -764,8 +764,8 @@ Amount NunchukImpl::EstimateFee(int conf_target, bool use_mempool) {
       current_time - estimate_fee_cached_time_[cached_index] <= CACHE_SECOND) {
     return estimate_fee_cached_value_[cached_index];
   } else if (use_mempool && chain_ == Chain::MAIN) {
-    httplib::Client cli("https://mempool.space");
-    auto res = cli.Get("/api/v1/fees/recommended");
+    httplib::Client cli("https://api.nunchuk.io");
+    auto res = cli.Get("/v1.1/fees/recommended");
     if (res) {
       json recommended = json::parse(res->body);
       estimate_fee_cached_time_[3] = current_time;
