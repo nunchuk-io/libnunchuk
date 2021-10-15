@@ -146,6 +146,11 @@ typedef std::function<std::string /* url */ (
     size_t /* data_length */)>
     UploadFileFunc;
 
+typedef std::function<std::vector<unsigned char> /* file_data */ (
+    const std::string& /* file_name */, const std::string& /* mine_type */,
+    const std::string& /* file_json_info */, const std::string& /* mxc_uri */)>
+    DownloadFileFunc;
+
 class NUNCHUK_EXPORT NunchukMatrix {
  public:
   NunchukMatrix(const NunchukMatrix&) = delete;
@@ -199,6 +204,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                 const std::string& sync_room_id,
                                 UploadFileFunc uploadfunction) = 0;
+  virtual void RegisterDownloadFileFunc(DownloadFileFunc downloadfunction) = 0;
   virtual void EnableGenerateReceiveEvent(
       const std::unique_ptr<Nunchuk>& nu) = 0;
 
@@ -215,6 +221,10 @@ class NUNCHUK_EXPORT NunchukMatrix {
                             const NunchukMatrixEvent& event) = 0;
   virtual void ConsumeSyncEvent(
       const std::unique_ptr<Nunchuk>& nu, const NunchukMatrixEvent& event,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual void ConsumeSyncFile(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& file_json_info,
+      const std::vector<unsigned char>& file_data,
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
  protected:

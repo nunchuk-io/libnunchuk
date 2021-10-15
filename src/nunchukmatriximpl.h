@@ -74,6 +74,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
                         UploadFileFunc uploadfunction) override;
+  void RegisterDownloadFileFunc(DownloadFileFunc downloadfunction) override;
   void EnableGenerateReceiveEvent(const std::unique_ptr<Nunchuk>& nu) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
@@ -88,6 +89,10 @@ class NunchukMatrixImpl : public NunchukMatrix {
                     const NunchukMatrixEvent& event) override;
   void ConsumeSyncEvent(
       const std::unique_ptr<Nunchuk>& nu, const NunchukMatrixEvent& event,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
+  void ConsumeSyncFile(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& file_json_info,
+      const std::vector<unsigned char>& file_data,
       std::function<bool /* stop */ (int /* percent */)> progress) override;
 
  private:
@@ -108,6 +113,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   Chain chain_;
   SendEventFunc sendfunc_;
   UploadFileFunc uploadfunc_;
+  DownloadFileFunc downloadfunc_;
   boost::shared_mutex access_;
   std::map<std::string, std::string> wallet2room_;
   std::vector<std::future<void>> delay_;

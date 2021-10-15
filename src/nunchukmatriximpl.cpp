@@ -116,7 +116,12 @@ NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
       access_token_(access_token),
       sender_(account),
       chain_(appsettings.get_chain()),
-      sendfunc_(sendfunc) {}
+      sendfunc_(sendfunc) {
+  downloadfunc_ = [](const std::string&, const std::string&, const std::string&,
+                     const std::string& mxc_uri) {
+    return DownloadAttachment(mxc_uri);
+  };
+}
 NunchukMatrix::~NunchukMatrix() = default;
 NunchukMatrixImpl::~NunchukMatrixImpl() {}
 
@@ -577,7 +582,6 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
 void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                          const std::string& sync_room_id,
                                          UploadFileFunc uploadfunction) {
-  TestAESEncrypt();
   sync_room_id_ = sync_room_id;
   if (sync_room_id_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -585,6 +589,11 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
   }
   uploadfunc_ = uploadfunction;
   nu->AddStorageUpdateListener([&]() { Backup(nu, {}, uploadfunc_); });
+}
+
+void NunchukMatrixImpl::RegisterDownloadFileFunc(
+    DownloadFileFunc downloadfunction) {
+  downloadfunc_ = downloadfunction;
 }
 
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
@@ -781,10 +790,18 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
   if (msgtype == "io.nunchuk.sync.file") {
     auto file = content["file"];
     db.SetSyncRoomId(event.get_room_id());
-    auto data = DecryptAttachment(file.dump());
-    nu->SyncWithBackup(data, progress);
+    auto data = DecryptAttachment(downloadfunc_, file.dump());
+    if (!data.empty()) nu->SyncWithBackup(data, progress);
   }
   db.SetEvent(event);
+}
+
+void NunchukMatrixImpl::ConsumeSyncFile(
+    const std::unique_ptr<Nunchuk>& nu, const std::string& file_json_info,
+    const std::vector<unsigned char>& file_data,
+    std::function<bool /* stop */ (int /* percent */)> progress) {
+  auto data = DecryptAttachment(file_data, file_json_info);
+  nu->SyncWithBackup(data, progress);
 }
 
 void NunchukMatrixImpl::RandomDelay(std::function<void()> exec) {

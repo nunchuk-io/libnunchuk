@@ -26,36 +26,6 @@ namespace {
 
 static const std::string DEFAULT_MATRIX_SERVER = "https://matrix.nunchuk.io";
 
-inline void TestAESEncrypt() {
-  using json = nlohmann::json;
-  json b;
-  for (int i = 0; i < 32000; i++) {
-    b[i] = i;
-  }
-  std::string body = b.dump();
-  std::vector<unsigned char> key(32, 0);
-  GetStrongRandBytes(key.data(), 32);
-  std::vector<unsigned char> iv(16, 0);
-  GetStrongRandBytes(iv.data(), 8);
-  std::string base64iv = EncodeBase64(iv);
-
-  std::vector<unsigned char> buf(body.begin(), body.end());
-  std::vector<unsigned char> encrypted(buf.size() + 16);
-  AES256CBCEncrypt enc(key.data(), iv.data(), true);
-  int size = enc.Encrypt(buf.data(), buf.size(), encrypted.data());
-  encrypted.resize(size);
-
-  std::vector<unsigned char> decrypted(encrypted.size());
-  auto iv2 = DecodeBase64(base64iv.c_str());
-  AES256CBCDecrypt dec(key.data(), iv2.data(), true);
-  size = dec.Decrypt(encrypted.data(), encrypted.size(), decrypted.data());
-  decrypted.resize(size);
-
-  if (body != std::string(decrypted.begin(), decrypted.end())) {
-    throw std::runtime_error("TestAESEncrypt fail");
-  }
-}
-
 inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
   auto id = url.substr(5);
   std::string body;
@@ -92,7 +62,9 @@ inline std::vector<unsigned char> LoadAttachmentFile(const std::string& path) {
                                     std::istreambuf_iterator<char>()};
 }
 
-inline std::string DecryptAttachment(const std::string& event_file) {
+inline std::string DecryptAttachment(
+    const std::vector<unsigned char>& file_data,
+    const std::string& event_file) {
   using json = nlohmann::json;
   json file = json::parse(event_file);
   if ("v3" != file["v"].get<std::string>()) {
@@ -101,15 +73,31 @@ inline std::string DecryptAttachment(const std::string& event_file) {
         "version not supported");
   }
 
-  auto buf = DownloadAttachment(file["url"]);
   auto key = DecodeBase64(file["key"]["k"].get<std::string>().c_str());
   auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
 
-  std::vector<unsigned char> decrypted(buf.size());
+  std::vector<unsigned char> decrypted(file_data.size());
   AES256CBCDecrypt dec(key.data(), iv.data(), true);
-  int size = dec.Decrypt(buf.data(), buf.size(), decrypted.data());
+  int size = dec.Decrypt(file_data.data(), file_data.size(), decrypted.data());
   decrypted.resize(size);
   return std::string(decrypted.begin(), decrypted.end());
+}
+
+inline std::string DecryptAttachment(
+    const nunchuk::DownloadFileFunc& downloadfunc,
+    const std::string& event_file) {
+  using json = nlohmann::json;
+  json file = json::parse(event_file);
+  if ("v3" != file["v"].get<std::string>()) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
+        "version not supported");
+  }
+
+  auto buf = downloadfunc("Backup", "application/octet-stream", event_file,
+                          file["url"]);
+  if (buf.empty()) return "";
+  return DecryptAttachment(buf, event_file);
 }
 
 inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
