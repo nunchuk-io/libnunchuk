@@ -63,7 +63,7 @@ add_library(ur-2 STATIC
 )
 
 target_include_directories(ur-2 PUBLIC 
-    "contrib/bc-ur-2/src"
+    "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"
     ${Boost_INCLUDE_DIRS}
 )
 
