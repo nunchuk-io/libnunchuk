@@ -402,6 +402,7 @@ void NunchukStorage::CacheMasterSignerXPub(
 
   int count = 0;
   auto total = first ? 7 : TOTAL_CACHE_NUMBER;
+  progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
   if (first) {
