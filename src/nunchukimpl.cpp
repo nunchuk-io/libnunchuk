@@ -884,8 +884,7 @@ void u8from32(uint8_t b[4], uint32_t u32) {
   b[0] = (uint8_t)(u32 >>= 8);
 };
 
-SingleSigner NunchukImpl::CreateKeystoneSigner(const std::string& name,
-                                               const std::string& qr_data) {
+SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   auto decoded = ur::URDecoder::decode(qr_data);
   auto i = decoded.cbor().begin();
   auto end = decoded.cbor().end();
@@ -904,7 +903,8 @@ SingleSigner NunchukImpl::CreateKeystoneSigner(const std::string& name,
   xfp << std::hex << account.masterFingerprint;
   std::stringstream path;
   path << "m" << FormatHDKeypath(key.origin.keypath);
-  return CreateSigner(name, EncodeExtPubKey(xpub), {}, path.str(), xfp.str());
+  return SingleSigner{
+      "Keystone", EncodeExtPubKey(xpub), {}, path.str(), xfp.str(), 0};
 }
 
 std::vector<std::string> NunchukImpl::ExportKeystoneWallet(

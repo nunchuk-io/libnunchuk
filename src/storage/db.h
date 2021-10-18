@@ -8,6 +8,7 @@
 #include "common.h"
 #include <nunchuk.h>
 #include <string>
+#include <map>
 
 namespace nunchuk {
 
@@ -39,6 +40,8 @@ class NunchukDb {
   NunchukDb() = delete;
   void close();
   std::string db_file_name_;
+  static std::map<std::string, std::map<int, std::string>> vstr_cache_;
+  static std::map<std::string, std::map<int, int64_t>> vint_cache_;
   friend class NunchukStorage;
 };
 

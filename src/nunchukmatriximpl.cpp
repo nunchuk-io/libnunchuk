@@ -61,14 +61,6 @@ SignerType SignerTypeFromStr(const std::string& value) {
                          "invalid signer type");
 }
 
-std::string SignerToStr(const SingleSigner& value) {
-  std::stringstream key;
-  key << "[" << value.get_master_fingerprint()
-      << FormalizePath(value.get_derivation_path()) << "]"
-      << (value.get_xpub().empty() ? value.get_public_key() : value.get_xpub());
-  return key.str();
-}
-
 json GetInitBody(const json& body) {
   return body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
 }
@@ -175,7 +167,7 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
     leave_ids.insert(join_id);
   }
 
-  std::string key = SignerToStr(signer);
+  std::string key = signer.get_descriptor();
   for (auto&& join_event_id : wallet.get_join_event_ids()) {
     if (leave_ids.count(join_event_id)) continue;
     auto join_event = db.GetEvent(join_event_id);

@@ -4,6 +4,8 @@
 
 #include <nunchuk.h>
 #include <vector>
+#include <sstream>
+#include <descriptor.h>
 
 namespace nunchuk {
 
@@ -41,6 +43,12 @@ bool SingleSigner::has_master_signer() const {
 }
 time_t SingleSigner::get_last_health_check() const {
   return last_health_check_;
+}
+std::string SingleSigner::get_descriptor() const {
+  std::stringstream key;
+  key << "[" << master_fingerprint_ << FormalizePath(derivation_path_) << "]"
+      << (xpub_.empty() ? public_key_ : xpub_);
+  return key.str();
 }
 void SingleSigner::set_name(const std::string& value) { name_ = value; }
 void SingleSigner::set_used(bool value) { used_ = value; }

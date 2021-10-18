@@ -257,6 +257,7 @@ class NUNCHUK_EXPORT SingleSigner {
   bool is_used() const;
   bool has_master_signer() const;
   time_t get_last_health_check() const;
+  std::string get_descriptor() const;
   void set_name(const std::string& value);
   void set_used(bool value);
   void set_type(SignerType value);
@@ -612,8 +613,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                                   const std::string& description = {}) = 0;
 
-  virtual SingleSigner CreateKeystoneSigner(const std::string& name,
-                                            const std::string& qr_data) = 0;
+  virtual SingleSigner ParseKeystoneSigner(const std::string& qr_data) = 0;
   virtual std::vector<std::string> ExportKeystoneWallet(
       const std::string& wallet_id) = 0;
   virtual std::vector<std::string> ExportKeystoneTransaction(

@@ -9,6 +9,9 @@
 
 namespace nunchuk {
 
+std::map<std::string, std::map<int, std::string>> NunchukDb::vstr_cache_;
+std::map<std::string, std::map<int, int64_t>> NunchukDb::vint_cache_;
+
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
                      const std::string& passphrase)
@@ -88,6 +91,7 @@ bool NunchukDb::PutString(int key, const std::string& value) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (updated) vstr_cache_[db_file_name_][key] = value;
   return updated;
 }
 
@@ -103,10 +107,14 @@ bool NunchukDb::PutInt(int key, int64_t value) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (updated) vint_cache_[db_file_name_][key] = value;
   return updated;
 }
 
 std::string NunchukDb::GetString(int key) const {
+  if (vstr_cache_[db_file_name_].count(key)) {
+    return vstr_cache_[db_file_name_][key];
+  }
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VSTR WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -115,12 +123,16 @@ std::string NunchukDb::GetString(int key) const {
   std::string value;
   if (sqlite3_column_text(stmt, 0)) {
     value = std::string((char*)sqlite3_column_text(stmt, 1));
+    vstr_cache_[db_file_name_][key] = value;
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return value;
 }
 
 int64_t NunchukDb::GetInt(int key) const {
+  if (vint_cache_[db_file_name_].count(key)) {
+    return vint_cache_[db_file_name_][key];
+  }
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VINT WHERE ID = ?;";
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
@@ -129,6 +141,7 @@ int64_t NunchukDb::GetInt(int key) const {
   int64_t value = 0;
   if (sqlite3_column_text(stmt, 0)) {
     value = sqlite3_column_int64(stmt, 1);
+    vint_cache_[db_file_name_][key] = value;
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return value;

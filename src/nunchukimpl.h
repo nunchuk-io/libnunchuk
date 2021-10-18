@@ -179,8 +179,7 @@ class NunchukImpl : public Nunchuk {
   Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                           const std::string& description = {}) override;
 
-  SingleSigner CreateKeystoneSigner(const std::string& name,
-                                    const std::string& qr_data) override;
+  SingleSigner ParseKeystoneSigner(const std::string& qr_data) override;
   std::vector<std::string> ExportKeystoneWallet(
       const std::string& wallet_id) override;
   std::vector<std::string> ExportKeystoneTransaction(
