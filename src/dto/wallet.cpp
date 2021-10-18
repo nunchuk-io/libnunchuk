@@ -8,6 +8,7 @@
 
 namespace nunchuk {
 
+Wallet::Wallet() {}
 Wallet::Wallet(const std::string& id, int m, int n,
                const std::vector<SingleSigner>& signers,
                AddressType address_type, bool is_escrow, time_t create_date)

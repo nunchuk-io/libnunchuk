@@ -7,6 +7,7 @@
 
 namespace nunchuk {
 
+Device::Device() {}
 Device::Device(const std::string &master_fingerprint)
     : master_fingerprint_(master_fingerprint), connected_(false) {}
 Device::Device(const std::string &type, const std::string &model,

@@ -9,6 +9,7 @@
 
 namespace nunchuk {
 
+SingleSigner::SingleSigner() {}
 SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
                            const std::string& public_key,
                            const std::string& derivation_path,

@@ -7,6 +7,7 @@
 
 namespace nunchuk {
 
+MasterSigner::MasterSigner() {}
 MasterSigner::MasterSigner(const std::string& id, const Device& device,
                            time_t last_health_check, bool software)
     : id_(id),

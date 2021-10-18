@@ -210,6 +210,7 @@ class NUNCHUK_EXPORT HWIException : public BaseException {
 
 class NUNCHUK_EXPORT Device {
  public:
+  Device();
   Device(const std::string& fingerprint);
   Device(const std::string& type, const std::string& model,
          const std::string& master_fingerprint);
@@ -241,6 +242,7 @@ class NUNCHUK_EXPORT Device {
 
 class NUNCHUK_EXPORT SingleSigner {
  public:
+  SingleSigner();
   SingleSigner(const std::string& name, const std::string& xpub,
                const std::string& public_key,
                const std::string& derivation_path,
@@ -276,6 +278,7 @@ class NUNCHUK_EXPORT SingleSigner {
 
 class NUNCHUK_EXPORT MasterSigner {
  public:
+  MasterSigner();
   MasterSigner(const std::string& id, const Device& device,
                time_t last_health_check, bool software = false);
 
@@ -296,6 +299,7 @@ class NUNCHUK_EXPORT MasterSigner {
 
 class NUNCHUK_EXPORT Wallet {
  public:
+  Wallet();
   Wallet(const std::string& id, int m, int n,
          const std::vector<SingleSigner>& signers, AddressType address_type,
          bool is_escrow, time_t create_date);
