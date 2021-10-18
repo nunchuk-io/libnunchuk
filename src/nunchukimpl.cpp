@@ -65,9 +65,10 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::string& description) {
   Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
                                         address_type, is_escrow, description);
-  scan_new_wallet_.push_back(std::async(std::launch::async, [&] {
-    ScanNewWallet(wallet.get_id(), wallet.is_escrow());
-  }));
+  std::string wid = wallet.get_id();
+  scan_new_wallet_.push_back(
+      std::async(std::launch::async,
+                 [this, wid, is_escrow] { ScanNewWallet(wid, is_escrow); }));
   storage_listener_();
   return storage_.GetWallet(chain_, wallet.get_id(), true);
 }
@@ -975,7 +976,7 @@ bool NunchukImpl::SyncWithBackup(const std::string& data,
                                  std::function<bool(int)> progress) {
   auto rs = storage_.SyncWithBackup(data, progress);
   if (rs) {
-    scan_new_wallet_.push_back(std::async(std::launch::async, [&] {
+    scan_new_wallet_.push_back(std::async(std::launch::async, [this] {
       auto wallets = GetWallets();
       for (auto&& wallet : wallets) {
         ScanNewWallet(wallet.get_id(), wallet.is_escrow());
