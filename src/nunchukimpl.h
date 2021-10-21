@@ -191,6 +191,7 @@ class NunchukImpl : public Nunchuk {
                               const std::string& description = {}) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
+  void ScanWalletAddress(const std::string& wallet_id) override;
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
@@ -213,10 +214,9 @@ class NunchukImpl : public Nunchuk {
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
-  void ScanNewWallet(const std::string wallet_id, bool is_escrow);
+  void RunScanWalletAddress(const std::string& wallet_id);
   // Find the first unused address that the next 19 addresses are unused too
-  std::string GetUnusedAddress(const std::string wallet_id, int& index,
-                               bool internal);
+  std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
 
   AppSettings app_settings_;
   NunchukStorage storage_;
@@ -225,7 +225,7 @@ class NunchukImpl : public Nunchuk {
   std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
   boost::signals2::signal<void()> storage_listener_;
-  std::vector<std::future<void>> scan_new_wallet_;
+  std::vector<std::future<void>> scan_wallet_;
 
   // Cache
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];

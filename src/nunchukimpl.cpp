@@ -65,10 +65,7 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::string& description) {
   Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
                                         address_type, is_escrow, description);
-  std::string wid = wallet.get_id();
-  scan_new_wallet_.push_back(
-      std::async(std::launch::async,
-                 [this, wid, is_escrow] { ScanNewWallet(wid, is_escrow); }));
+  ScanWalletAddress(wallet.get_id());
   storage_listener_();
   return storage_.GetWallet(chain_, wallet.get_id(), true);
 }
@@ -175,35 +172,44 @@ Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
   return CreateWallet(name, m, n, signers, address_type, false, description);
 }
 
-void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
-  int index = is_escrow ? -1 : 0;
+void NunchukImpl::ScanWalletAddress(const std::string& wallet_id) {
+  scan_wallet_.push_back(std::async(std::launch::async, [this, wallet_id] {
+    RunScanWalletAddress(wallet_id);
+  }));
+}
+
+void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
+  auto wallet = GetWallet(wallet_id);
+  int index = -1;
   std::string address;
-  if (is_escrow) {
-    synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
-    auto descriptor =
-        GetWallet(wallet_id).get_descriptor(DescriptorPath::EXTERNAL_ALL);
+  if (wallet.is_escrow()) {
+    auto descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
     address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
   } else {
-    int change_index = 0;
-    GetUnusedAddress(wallet_id, change_index, true);  // scan change address
-    address = GetUnusedAddress(wallet_id, index, false);
+    // scan internal address
+    index = storage_.GetCurrentAddressIndex(chain_, wallet_id, true) + 1;
+    address = GetUnusedAddress(wallet, index, true);
+    storage_.AddAddress(chain_, wallet_id, address, index, true);
+    // scan external address
+    index = storage_.GetCurrentAddressIndex(chain_, wallet_id, false) + 1;
+    address = GetUnusedAddress(wallet, index, false);
   }
 
   // auto create an unused external address
   storage_.AddAddress(chain_, wallet_id, address, index, false);
 }
 
-std::string NunchukImpl::GetUnusedAddress(const std::string wallet_id,
-                                          int& index, bool internal) {
-  auto descriptor = GetWallet(wallet_id).get_descriptor(
+std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
+                                          bool internal) {
+  auto descriptor = wallet.get_descriptor(
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int consecutive_unused = 0;
   std::vector<std::string> unused_addresses;
+  std::string wallet_id = wallet.get_id();
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
-    bool used =
-        synchronizer_->LookAhead(chain_, wallet_id, address, index, internal);
-    if (used) {
+    if (synchronizer_->LookAhead(chain_, wallet_id, address, index, internal)) {
       for (auto&& a : unused_addresses) {
         storage_.AddAddress(chain_, wallet_id, a, index, internal);
       }
@@ -976,12 +982,8 @@ bool NunchukImpl::SyncWithBackup(const std::string& data,
                                  std::function<bool(int)> progress) {
   auto rs = storage_.SyncWithBackup(data, progress);
   if (rs) {
-    scan_new_wallet_.push_back(std::async(std::launch::async, [this] {
-      auto wallets = GetWallets();
-      for (auto&& wallet : wallets) {
-        ScanNewWallet(wallet.get_id(), wallet.is_escrow());
-      }
-    }));
+    auto wallet_ids = storage_.ListWallets(chain_);
+    for (auto&& id : wallet_ids) ScanWalletAddress(id);
   }
   return rs;
 }
