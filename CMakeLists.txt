@@ -46,6 +46,22 @@ target_include_directories(trezor-crypto PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
 )
 
+if(WIN32)
+    include(TestBigEndian)
+    test_big_endian(BYTE_ORDER_BIG_ENDIAN)
+    add_compile_definitions(LITTLE_ENDIAN=1234)
+    add_compile_definitions(BIG_ENDIAN=4321)
+    add_compile_definitions(__ORDER_LITTLE_ENDIAN__=LITTLE_ENDIAN)
+    add_compile_definitions(__ORDER_BIG_ENDIAN__=BIG_ENDIAN)
+    if (BYTE_ORDER_BIG_ENDIAN)
+        add_compile_definitions(BYTE_ORDER=BIG_ENDIAN)
+        add_compile_definitions(__BYTE_ORDER__=BIG_ENDIAN)
+    else()
+        add_compile_definitions(BYTE_ORDER=LITTLE_ENDIAN)
+        add_compile_definitions(__BYTE_ORDER__=LITTLE_ENDIAN)
+    endif()
+endif()
+
 add_library(ur-2 STATIC 
     "contrib/bc-ur-2/src/crc32.c"
     "contrib/bc-ur-2/src/memzero.c"
