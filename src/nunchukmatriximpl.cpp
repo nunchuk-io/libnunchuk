@@ -504,11 +504,23 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
   }
   auto data = nu->ExportBackup();
   auto file = EncryptAttachment(
-      [&](const std::string&, const std::string&, const std::string&,
-          const char* body, size_t length) {
-        auto upload = UploadAttachment(access_token_, body, length);
-        std::string url = json::parse(upload)["content_uri"];
-        return url;
+      [this](const std::string&, const std::string&,
+             const std::string& file_json_info, const char* body,
+             size_t length) -> std::string {
+        try {
+          auto upload = UploadAttachment(access_token_, body, length);
+          std::string url = json::parse(upload)["content_uri"];
+          return url;
+        } catch (...) {
+          delay_.push_back(std::async(
+              std::launch::async, [this, file_json_info, body, length] {
+                std::this_thread::sleep_for(std::chrono::seconds(60));
+                auto upload = UploadAttachment(access_token_, body, length);
+                std::string url = json::parse(upload)["content_uri"];
+                BackupFile(sync_room_id_, file_json_info, url);
+              }));
+          return "";
+        }
       },
       data);
   json content = {{"msgtype", "io.nunchuk.sync.file"},
