@@ -35,6 +35,8 @@ static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
 static int MAX_FRAGMENT_LEN = 30;
 
+std::map<std::string, time_t> NunchukImpl::last_scan_;
+
 // Nunchuk implement
 NunchukImpl::NunchukImpl(const AppSettings& appsettings,
                          const std::string& passphrase,
@@ -173,6 +175,10 @@ Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
 }
 
 void NunchukImpl::ScanWalletAddress(const std::string& wallet_id) {
+  if (wallet_id.empty()) return;
+  time_t current = std::time(0);
+  if (current - last_scan_[wallet_id] < 600) return;
+  last_scan_[wallet_id] = current;
   scan_wallet_.push_back(std::async(std::launch::async, [this, wallet_id] {
     RunScanWalletAddress(wallet_id);
   }));

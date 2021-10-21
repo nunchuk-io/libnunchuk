@@ -11,6 +11,7 @@
 #include <coreutils.h>
 #include <storage/storage.h>
 #include <backend/synchronizer.h>
+#include <map>
 
 namespace nunchuk {
 
@@ -230,6 +231,7 @@ class NunchukImpl : public Nunchuk {
   // Cache
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
   Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
+  static std::map<std::string, time_t> last_scan_;
 };
 
 }  // namespace nunchuk

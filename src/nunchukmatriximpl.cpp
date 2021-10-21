@@ -723,6 +723,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   } else if (msgtype == "io.nunchuk.transaction.receive") {
     auto wallet = db.GetActiveWallet(event.get_room_id());
     if (!wallet.get_finalize_event_id().empty()) {
+      nu->ScanWalletAddress(wallet.get_wallet_id());
       auto encrypted = body["encrypted_tx_id"];
       auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
       std::string desc = json::parse(
@@ -742,6 +743,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto tx = db.GetTransaction(init_event_id);
     tx.set_room_id(event.get_room_id());
     tx.set_wallet_id(init_body["wallet_id"]);
+    nu->ScanWalletAddress(tx.get_wallet_id());
     if (tx.get_broadcast_event_id().empty()) {
       try {
         auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
