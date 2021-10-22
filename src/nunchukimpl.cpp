@@ -33,7 +33,7 @@ namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
-static int MAX_FRAGMENT_LEN = 30;
+static int MAX_FRAGMENT_LEN = 100;
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
 
@@ -924,7 +924,9 @@ std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
     const std::string& wallet_id) {
   auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
   std::vector<uint8_t> data(content.begin(), content.end());
-  auto encoder = ur::UREncoder(ur::UR("bytes", data), MAX_FRAGMENT_LEN);
+  ur::ByteVector cbor;
+  encodeBytes(cbor, data);
+  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), MAX_FRAGMENT_LEN);
   std::vector<std::string> parts;
   do {
     parts.push_back(encoder.next_part());
@@ -977,7 +979,11 @@ Wallet NunchukImpl::ImportKeystoneWallet(
   if (!decoder.is_complete() || !decoder.is_success()) {
     throw std::runtime_error("invalid input");
   }
-  auto config = decoder.result_ur().cbor();
+  auto cbor = decoder.result_ur().cbor();
+  auto i = cbor.begin();
+  auto end = cbor.end();
+  std::vector<char> config;
+  decodeBytes(i, end, config);
   std::string config_str(config.begin(), config.end());
   return ImportWalletFromConfig(config_str, description);
 }
