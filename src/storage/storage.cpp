@@ -303,7 +303,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
     auto master_id = signer.get_master_fingerprint();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
-    if (signer_db.IsMaster() && signer.has_master_signer()) {
+    if (signer_db.IsMaster()) {
       if (!signer_db.UseIndex(wallet_type, address_type,
                               GetIndexFromPath(signer.get_derivation_path()))) {
         throw StorageException(StorageException::SIGNER_USED, "signer used!");

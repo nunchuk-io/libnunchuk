@@ -70,7 +70,8 @@ inline std::string GetBip32Type(const std::string& path) {
   if (path.rfind("m/49h/", 0) == 0) return "bip49";
   if (path.rfind("m/84h/", 0) == 0) return "bip84";
   if (path.rfind("m/48h/0h/0h", 0) == 0 || path.rfind("m/48h/1h/0h", 0) == 0) return "escrow";
-  return "bip48";
+  if (path.rfind("m/48h/", 0) == 0) return "bip48";
+  return "custom";
 }
 
 inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
