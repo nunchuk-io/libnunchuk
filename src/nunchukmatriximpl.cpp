@@ -115,7 +115,7 @@ NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
   };
 }
 NunchukMatrix::~NunchukMatrix() = default;
-NunchukMatrixImpl::~NunchukMatrixImpl() {}
+NunchukMatrixImpl::~NunchukMatrixImpl() { stopped = true; }
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,
@@ -504,23 +504,11 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
   }
   auto data = nu->ExportBackup();
   auto file = EncryptAttachment(
-      [this](const std::string&, const std::string&,
-             const std::string& file_json_info, const char* body,
-             size_t length) -> std::string {
-        try {
-          auto upload = UploadAttachment(access_token_, body, length);
-          std::string url = json::parse(upload)["content_uri"];
-          return url;
-        } catch (...) {
-          delay_.push_back(std::async(
-              std::launch::async, [this, file_json_info, body, length] {
-                std::this_thread::sleep_for(std::chrono::seconds(60));
-                auto upload = UploadAttachment(access_token_, body, length);
-                std::string url = json::parse(upload)["content_uri"];
-                BackupFile(sync_room_id_, file_json_info, url);
-              }));
-          return "";
-        }
+      [this](const std::string&, const std::string&, const std::string&,
+             const char* body, size_t length) {
+        auto upload = UploadAttachment(access_token_, body, length);
+        std::string url = json::parse(upload)["content_uri"];
+        return url;
       },
       data);
   json content = {{"msgtype", "io.nunchuk.sync.file"},
@@ -571,6 +559,23 @@ NunchukMatrixEvent NunchukMatrixImpl::BackupFile(
   return NewEvent(sync_room_id_, "io.nunchuk.sync", content.dump());
 }
 
+void NunchukMatrixImpl::AsyncBackup(const std::unique_ptr<Nunchuk>& nu,
+                                    int sec) {
+  delay_.push_back(std::async(std::launch::async, [&] {
+    if (sec > 0) std::this_thread::sleep_for(std::chrono::seconds(sec));
+    if (stopped) return;
+    try {
+      if (uploadfunc_) {
+        Backup(nu, {}, uploadfunc_);
+      } else {
+        Backup(nu);
+      }
+    } catch (...) {
+      if (sec == 0) AsyncBackup(nu, 60);
+    }
+  }));
+}
+
 void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                          const std::string& sync_room_id,
                                          const std::string& access_token) {
@@ -580,7 +585,7 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "invalid room_id or access_token");
   }
-  nu->AddStorageUpdateListener([&]() { Backup(nu); });
+  nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
 }
 
 void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
@@ -592,7 +597,7 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                            "invalid room_id");
   }
   uploadfunc_ = uploadfunction;
-  nu->AddStorageUpdateListener([&]() { Backup(nu, {}, uploadfunc_); });
+  nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
 }
 
 void NunchukMatrixImpl::RegisterDownloadFileFunc(
