@@ -167,8 +167,13 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
 // existing signer Db. The single signer will become a master signer.
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 
-bool NunchukSignerDb::IsSoftware() const {
-  return !GetString(DbKeys::MNEMONIC).empty();
+SignerType NunchukSignerDb::GetSignerType() const {
+  if (!IsMaster()) return SignerType::AIRGAP;
+  if (GetDeviceType() == "software") {
+    return GetString(DbKeys::MNEMONIC).empty() ? SignerType::FOREIGN_SOFTWARE
+                                               : SignerType::SOFTWARE;
+  }
+  return SignerType::HARDWARE;
 }
 
 SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
@@ -326,7 +331,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
   std::string name = GetName();
   std::string master_fingerprint = GetFingerprint();
   time_t last_health_check = GetLastHealthCheck();
-  bool isSoftware = IsSoftware();
+  auto signer_type = GetSignerType();
 
   sqlite3_stmt* stmt;
   std::string sql = usedOnly ? "SELECT PATH, XPUB FROM BIP32 WHERE USED != -1;"
@@ -339,7 +344,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
     SingleSigner signer(name, xpub, "", path, master_fingerprint,
                         last_health_check, id_, true);
-    signer.set_type(isSoftware ? SignerType::SOFTWARE : SignerType::HARDWARE);
+    signer.set_type(signer_type);
     signers.push_back(signer);
     sqlite3_step(stmt);
   }

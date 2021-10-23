@@ -54,7 +54,7 @@ class NunchukSignerDb : public NunchukDb {
   bool SetRemoteLastHealthCheck(const std::string &derivation_path,
                                 time_t value);
   std::vector<SingleSigner> GetRemoteSigners() const;
-  bool IsSoftware() const;
+  SignerType GetSignerType() const;
   SoftwareSigner GetSoftwareSigner(const std::string &passphrase) const;
 
  private:

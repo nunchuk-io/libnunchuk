@@ -382,8 +382,7 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
       signer_db.GetName(), signer_db.GetXpub(wallet_type, address_type, index),
       "", path, signer_db.GetFingerprint(), signer_db.GetLastHealthCheck(),
       mastersigner_id);
-  bool isSoftware = signer_db.IsSoftware();
-  signer.set_type(isSoftware ? SignerType::SOFTWARE : SignerType::HARDWARE);
+  signer.set_type(signer_db.GetSignerType());
   return signer;
 }
 
@@ -494,8 +493,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     time_t last_health_check = signer.get_last_health_check();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
-    SignerType signer_type =
-        signer_db.IsSoftware() ? SignerType::SOFTWARE : SignerType::HARDWARE;
+    SignerType signer_type = signer_db.GetSignerType();
     if (signer_db.IsMaster()) {
       name = signer_db.GetName();
       last_health_check = signer_db.GetLastHealthCheck();
@@ -541,7 +539,8 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
   auto signer_db = GetSignerDb(chain, mid);
   Device device{signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
                 signer_db.GetFingerprint()};
-  if (signer_db.IsSoftware()) {
+  SignerType signer_type = signer_db.GetSignerType();
+  if (signer_type == SignerType::SOFTWARE) {
     if (signer_passphrase_.count(mid) == 0) {
       try {
         GetSignerDb(chain, mid).GetSoftwareSigner("");
@@ -551,8 +550,7 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
     }
     device.set_needs_pass_phrase_sent(signer_passphrase_.count(id) == 0);
   }
-  MasterSigner signer{id, device, signer_db.GetLastHealthCheck(),
-                      signer_db.IsSoftware()};
+  MasterSigner signer{id, device, signer_db.GetLastHealthCheck(), signer_type};
   signer.set_name(signer_db.GetName());
   return signer;
 }

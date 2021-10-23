@@ -275,7 +275,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   storage_listener_();
 
   storage_.ClearSignerPassphrase(chain_, id);
-  MasterSigner mastersigner{id, device, std::time(0), true};
+  MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
   mastersigner.set_name(name);
   return mastersigner;
 }
@@ -415,8 +415,12 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   bool existed = true;
   std::string id = fingerprint;
   try {
-    if (GetMasterSigner(id).is_software()) {
+    auto signer = GetMasterSigner(id);
+    if (signer.get_type() == SignerType::SOFTWARE) {
       return HealthStatus::SUCCESS;
+    } else if (signer.get_type() == SignerType::FOREIGN_SOFTWARE) {
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             "can not healthcheck foreign software signer");
     }
   } catch (StorageException& se) {
     if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
@@ -594,7 +598,11 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), psbt='%s'", psbt.c_str());
   auto mastersigner_id = device.get_master_fingerprint();
   std::string signed_psbt;
-  if (GetMasterSigner(mastersigner_id).is_software()) {
+  auto mastersigner = GetMasterSigner(mastersigner_id);
+  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "can not sign with foreign software signer");
+  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     signed_psbt = software_signer.SignTx(psbt);
   } else {
@@ -726,7 +734,11 @@ bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,
 
 void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
                                         std::function<bool(int)> progress) {
-  if (GetMasterSigner(mastersigner_id).is_software()) {
+  auto mastersigner = GetMasterSigner(mastersigner_id);
+  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "can not cache xpub with foreign software signer");
+  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     storage_.CacheMasterSignerXPub(
         chain_, mastersigner_id,

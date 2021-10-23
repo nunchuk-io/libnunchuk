@@ -280,13 +280,15 @@ class NUNCHUK_EXPORT MasterSigner {
  public:
   MasterSigner();
   MasterSigner(const std::string& id, const Device& device,
-               time_t last_health_check, bool software = false);
+               time_t last_health_check,
+               SignerType signer_type = SignerType::HARDWARE);
 
   std::string get_id() const;
   std::string get_name() const;
   Device get_device() const;
   time_t get_last_health_check() const;
   bool is_software() const;
+  SignerType get_type() const;
   void set_name(const std::string& value);
 
  private:
@@ -294,7 +296,7 @@ class NUNCHUK_EXPORT MasterSigner {
   std::string name_;
   Device device_;
   time_t last_health_check_;
-  bool software_;
+  SignerType type_;
 };
 
 class NUNCHUK_EXPORT Wallet {
