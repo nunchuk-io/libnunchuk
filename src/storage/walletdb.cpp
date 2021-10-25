@@ -23,6 +23,9 @@ namespace ba = boost::algorithm;
 
 namespace nunchuk {
 
+std::map<std::string, std::vector<AddressData>> NunchukWalletDb::addr_cache_;
+std::map<std::string, std::vector<SingleSigner>> NunchukWalletDb::signer_cache_;
+
 void NunchukWalletDb::InitWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
                                  AddressType address_type, bool is_escrow,
@@ -146,6 +149,9 @@ Wallet NunchukWalletDb::GetWallet() const {
 }
 
 std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
+  if (signer_cache_.count(db_file_name_)) {
+    return signer_cache_[db_file_name_];
+  }
   sqlite3_stmt* stmt;
   std::string sql =
       "SELECT KEY, NAME, MASTER_ID, LAST_HEALTHCHECK FROM SIGNER;";
@@ -170,6 +176,7 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  signer_cache_[db_file_name_] = signers;
   return signers;
 }
 
@@ -185,11 +192,20 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
   sqlite3_bind_int(stmt, 3, internal ? 1 : 0);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
+  addr_cache_.erase(db_file_name_);
   return true;
 }
 
-bool NunchukWalletDb::UseAddress(const std::string& address) {
+bool NunchukWalletDb::UseAddress(const std::string& address) const {
   if (address.empty()) return false;
+  auto all = GetAllAddressData();
+  for (auto&& a : all) {
+    if (a.address == address) {
+      if (a.used) return false;
+      a.used = true;
+      break;
+    }
+  }
   sqlite3_stmt* stmt;
   std::string sql = "UPDATE ADDRESS SET USED = 1 WHERE ADDR = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -200,22 +216,36 @@ bool NunchukWalletDb::UseAddress(const std::string& address) {
   return updated;
 }
 
-std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
-                                                       bool internal) const {
+std::vector<AddressData> NunchukWalletDb::GetAllAddressData() const {
+  if (addr_cache_.count(db_file_name_)) {
+    return addr_cache_[db_file_name_];
+  }
   sqlite3_stmt* stmt;
-  std::string sql =
-      "SELECT ADDR FROM ADDRESS WHERE USED = ?1 AND INTERNAL = ?2;";
+  std::string sql = "SELECT * FROM ADDRESS;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_int(stmt, 1, used ? 1 : 0);
-  sqlite3_bind_int(stmt, 2, internal ? 1 : 0);
   sqlite3_step(stmt);
-  std::vector<std::string> addresses;
+  std::vector<AddressData> addresses;
   while (sqlite3_column_text(stmt, 0)) {
-    addresses.push_back(std::string((char*)sqlite3_column_text(stmt, 0)));
+    addresses.push_back({std::string((char*)sqlite3_column_text(stmt, 0)),
+                         sqlite3_column_int(stmt, 1),
+                         sqlite3_column_int(stmt, 2) == 1,
+                         sqlite3_column_int(stmt, 3) == 1});
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  addr_cache_[db_file_name_] = addresses;
   return addresses;
+}
+
+std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
+                                                       bool internal) const {
+  auto all = GetAllAddressData();
+  std::vector<std::string> rs;
+  for (auto&& data : all) {
+    if (data.used == used && data.internal == internal)
+      rs.push_back(data.address);
+  }
+  return rs;
 }
 
 int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
@@ -243,17 +273,12 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
 }
 
 std::vector<std::string> NunchukWalletDb::GetAllAddresses() const {
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT ADDR FROM ADDRESS;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_step(stmt);
-  std::vector<std::string> addresses;
-  while (sqlite3_column_text(stmt, 0)) {
-    addresses.push_back(std::string((char*)sqlite3_column_text(stmt, 0)));
-    sqlite3_step(stmt);
+  auto all = GetAllAddressData();
+  std::vector<std::string> rs;
+  for (auto&& data : all) {
+    rs.push_back(data.address);
   }
-  SQLCHECK(sqlite3_finalize(stmt));
-  return addresses;
+  return rs;
 }
 
 int NunchukWalletDb::GetCurrentAddressIndex(bool internal) const {
@@ -546,6 +571,9 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
       FillExtra(extra, tx);
     }
     SQLCHECK(sqlite3_finalize(stmt));
+    if (tx.get_height() > 0) {
+      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    }
     return tx;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -749,6 +777,11 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  for (auto&& tx : rs) {
+    if (tx.get_height() > 0) {
+      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    }
+  }
   return rs;
 }
 

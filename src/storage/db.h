@@ -32,6 +32,7 @@ class NunchukDb {
   std::string GetString(int key) const;
   int64_t GetInt(int key) const;
   bool TableExists(const std::string &table_name) const;
+  std::string db_file_name_;
   sqlite3 *db_;
   std::string id_;
   Chain chain_;
@@ -39,7 +40,6 @@ class NunchukDb {
  private:
   NunchukDb() = delete;
   void close();
-  std::string db_file_name_;
   static std::map<std::string, std::map<int, std::string>> vstr_cache_;
   static std::map<std::string, std::map<int, int64_t>> vint_cache_;
   friend class NunchukStorage;
