@@ -29,7 +29,7 @@ void NunchukSignerDb::InitSigner(const std::string& name, const Device& device,
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
-  PutString(DbKeys::MNEMONIC, mnemonic);
+  if (!mnemonic.empty()) PutString(DbKeys::MNEMONIC, mnemonic);
   PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
   PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }

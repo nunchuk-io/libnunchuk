@@ -14,9 +14,11 @@ static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 100;
 
 ElectrumSynchronizer::~ElectrumSynchronizer() {
-  std::lock_guard<std::mutex> guard(status_mutex_);
-  status_ = Status::STOPPED;
-  status_cv_.notify_all();
+  {
+    std::lock_guard<std::mutex> guard(status_mutex_);
+    status_ = Status::STOPPED;
+    status_cv_.notify_all();
+  }
   sync_worker_.reset();
   sync_thread_.join();
 }
