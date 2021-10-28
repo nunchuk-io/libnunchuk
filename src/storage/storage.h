@@ -172,6 +172,9 @@ class NunchukStorage {
                        const std::vector<SingleSigner> &signers,
                        AddressType address_type, bool is_escrow,
                        const std::string &description, time_t create_date);
+  std::vector<std::string> ListWallets0(Chain chain);
+  std::vector<std::string> ListMasterSigners0(Chain chain);
+
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;

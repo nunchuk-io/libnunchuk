@@ -458,6 +458,10 @@ std::string NunchukStorage::GetMasterSignerXPub(
 
 std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
+  return ListWallets0(chain);
+}
+
+std::vector<std::string> NunchukStorage::ListWallets0(Chain chain) {
   fs::path directory = (datadir_ / ChainStr(chain) / "wallets");
   std::vector<std::string> ids;
   for (auto&& f : fs::directory_iterator(directory)) {
@@ -470,6 +474,10 @@ std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
 
 std::vector<std::string> NunchukStorage::ListMasterSigners(Chain chain) {
   boost::shared_lock<boost::shared_mutex> lock(access_);
+  return ListMasterSigners0(chain);
+}
+
+std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
   fs::path directory = (datadir_ / ChainStr(chain) / "signers");
   std::vector<std::string> ids;
   for (auto&& f : fs::directory_iterator(directory)) {
@@ -889,9 +897,10 @@ std::string NunchukStorage::ExportBackup() {
   auto exportChain = [&](Chain chain) {
     json rs;
     rs["wallets"] = json::array();
-    auto wids = ListWallets(chain);
+    auto wids = ListWallets0(chain);
     for (auto&& id : wids) {
-      auto w = GetWallet(chain, id, false);
+      auto wallet_db = GetWalletDb(chain, id);
+      auto w = wallet_db.GetWallet();
       json wallet = {
           {"id", w.get_id()},
           {"name", w.get_name()},
@@ -903,7 +912,7 @@ std::string NunchukStorage::ExportBackup() {
     }
 
     rs["signers"] = json::array();
-    auto sids = ListMasterSigners(chain);
+    auto sids = ListMasterSigners0(chain);
     for (auto&& id : sids) {
       auto signerDb = GetSignerDb(chain, id);
       if (signerDb.GetId().empty()) continue;
