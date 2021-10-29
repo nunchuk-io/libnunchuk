@@ -29,7 +29,8 @@ class NunchukImpl : public Nunchuk {
   Wallet CreateWallet(const std::string& name, int m, int n,
                       const std::vector<SingleSigner>& signers,
                       AddressType address_type, bool is_escrow,
-                      const std::string& description = {}) override;
+                      const std::string& description = {},
+                      bool allow_used_signer = false) override;
   std::string DraftWallet(const std::string& name, int m, int n,
                           const std::vector<SingleSigner>& signers,
                           AddressType address_type, bool is_escrow,

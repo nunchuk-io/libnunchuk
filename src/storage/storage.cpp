@@ -284,10 +284,11 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
                                     int n,
                                     const std::vector<SingleSigner>& signers,
                                     AddressType address_type, bool is_escrow,
-                                    const std::string& description) {
+                                    const std::string& description,
+                                    bool allow_used_signer) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
   return CreateWallet0(chain, name, m, n, signers, address_type, is_escrow,
-                       description, std::time(0));
+                       description, allow_used_signer, std::time(0));
 }
 
 Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
@@ -295,7 +296,16 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
                                      const std::string& description,
+                                     bool allow_used_signer,
                                      time_t create_date) {
+  if (m > n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid parameter: m > n");
+  }
+  if (n != signers.size()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "invalid parameter: n and signers are not match");
+  }
   WalletType wallet_type =
       n == 1 ? WalletType::SINGLE_SIG
              : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
@@ -303,9 +313,16 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
     auto master_id = signer.get_master_fingerprint();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
-    if (signer_db.IsMaster()) {
-      if (!signer_db.UseIndex(wallet_type, address_type,
-                              GetIndexFromPath(signer.get_derivation_path()))) {
+    if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
+      int index = GetIndexFromPath(signer.get_derivation_path());
+      if (GetBip32Path(chain, wallet_type, address_type, index) !=
+          signer.get_derivation_path()) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                               "invalid bip32 path!");
+      }
+      signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
+      if (!signer_db.UseIndex(wallet_type, address_type, index) &&
+          !allow_used_signer) {
         throw StorageException(StorageException::SIGNER_USED, "signer used!");
       }
     } else {
@@ -987,7 +1004,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         std::vector<SingleSigner> signers;
         if (ParseDescriptors(wallet["descriptor"], a, w, m, n, signers)) {
           CreateWallet0(chain, wallet["name"], m, n, signers, a,
-                        w == WalletType::ESCROW, wallet["description"],
+                        w == WalletType::ESCROW, wallet["description"], true,
                         wallet["create_date"]);
         }
       } else {

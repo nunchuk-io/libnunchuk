@@ -34,7 +34,7 @@ class NunchukStorage {
   Wallet CreateWallet(Chain chain, const std::string &name, int m, int n,
                       const std::vector<SingleSigner> &signers,
                       AddressType address_type, bool is_escrow,
-                      const std::string &description);
+                      const std::string &description, bool allow_used_signer);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
                                  const std::string &mnemonic = {});
@@ -171,7 +171,8 @@ class NunchukStorage {
   Wallet CreateWallet0(Chain chain, const std::string &name, int m, int n,
                        const std::vector<SingleSigner> &signers,
                        AddressType address_type, bool is_escrow,
-                       const std::string &description, time_t create_date);
+                       const std::string &description, bool allow_used_signer,
+                       time_t create_date);
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
 

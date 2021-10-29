@@ -64,9 +64,11 @@ void NunchukImpl::SetPassphrase(const std::string& passphrase) {
 Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
                                  AddressType address_type, bool is_escrow,
-                                 const std::string& description) {
-  Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
-                                        address_type, is_escrow, description);
+                                 const std::string& description,
+                                 bool allow_used_signer) {
+  Wallet wallet =
+      storage_.CreateWallet(chain_, name, m, n, signers, address_type,
+                            is_escrow, description, allow_used_signer);
   ScanWalletAddress(wallet.get_id());
   storage_listener_();
   return storage_.GetWallet(chain_, wallet.get_id(), true);
@@ -149,7 +151,7 @@ Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
     }
   }
   return CreateWallet(name, m, n, signers, address_type,
-                      wallet_type == WalletType::ESCROW, description);
+                      wallet_type == WalletType::ESCROW, description, true);
 }
 
 Wallet NunchukImpl::ImportWalletConfigFile(const std::string& file_path,
@@ -171,7 +173,8 @@ Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Could not parse multisig config");
   }
-  return CreateWallet(name, m, n, signers, address_type, false, description);
+  return CreateWallet(name, m, n, signers, address_type, false, description,
+                      true);
 }
 
 void NunchukImpl::ScanWalletAddress(const std::string& wallet_id) {

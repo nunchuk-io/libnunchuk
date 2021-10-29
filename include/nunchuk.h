@@ -140,6 +140,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_SIGNER_PASSPHRASE = -1021;
   static const int INVALID_SIGNER_TYPE = -1022;
   static const int VERSION_NOT_SUPPORTED = -1023;
+  static const int INVALID_BIP32_PATH = -1024;
   using BaseException::BaseException;
 };
 
@@ -497,7 +498,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet CreateWallet(const std::string& name, int m, int n,
                               const std::vector<SingleSigner>& signers,
                               AddressType address_type, bool is_escrow,
-                              const std::string& description = {}) = 0;
+                              const std::string& description = {},
+                              bool allow_used_signer = false) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
                                   const std::vector<SingleSigner>& signers,
                                   AddressType address_type, bool is_escrow,
