@@ -315,8 +315,9 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
     if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
       int index = GetIndexFromPath(signer.get_derivation_path());
-      if (GetBip32Path(chain, wallet_type, address_type, index) !=
-          signer.get_derivation_path()) {
+      if (FormalizePath(
+              GetBip32Path(chain, wallet_type, address_type, index)) !=
+          FormalizePath(signer.get_derivation_path())) {
         throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                                "invalid bip32 path!");
       }
@@ -507,7 +508,7 @@ std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
 
 Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                                  bool create_signers_if_not_exist) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  boost::unique_lock<boost::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
   Wallet wallet = wallet_db.GetWallet();
   std::vector<SingleSigner> signers;
@@ -673,7 +674,7 @@ Transaction NunchukStorage::InsertTransaction(
 
 std::vector<Transaction> NunchukStorage::GetTransactions(
     Chain chain, const std::string& wallet_id, int count, int skip) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  boost::unique_lock<boost::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto vtx = db.GetTransactions(count, skip);
 
@@ -713,7 +714,7 @@ std::vector<UnspentOutput> NunchukStorage::GetUnspentOutputs(
 Transaction NunchukStorage::GetTransaction(Chain chain,
                                            const std::string& wallet_id,
                                            const std::string& tx_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  boost::unique_lock<boost::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto tx = db.GetTransaction(tx_id);
   db.FillSendReceiveData(tx);
