@@ -656,6 +656,12 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto init_event = JsonToEvent(body["io.nunchuk.relates_to"]["init_event"]);
     if (!db.HasEvent(init_event.get_event_id())) db.SetEvent(init_event);
     init_event_id = init_event.get_event_id();
+    try {
+      json init_body = GetInitBody(body);
+      if (ChainFromStr(init_body["chain"]) != chain_) return;
+    } catch (...) {
+      return;
+    }
   }
 
   if (msgtype == "io.nunchuk.wallet.init") {
