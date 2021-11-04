@@ -17,6 +17,7 @@
 #include <univalue.h>
 #include <rpc/util.h>
 #include <policy/policy.h>
+#include <signingprovider.h>
 
 using json = nlohmann::json;
 namespace ba = boost::algorithm;
@@ -145,6 +146,11 @@ Wallet NunchukWalletDb::GetWallet() const {
   Wallet wallet(id_, m, n, signers, address_type, is_escrow, create_date);
   wallet.set_name(GetString(DbKeys::NAME));
   wallet.set_balance(balance);
+
+  auto desc = GetDescriptorsImportString(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+  SigningProviderCache::getInstance().PreCalculate(desc);
   return wallet;
 }
 
@@ -789,18 +795,12 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   auto psbt = DecodePsbt(base64_psbt);
   if (!psbt.tx.has_value()) return base64_psbt;
 
-  FlatSigningProvider provider;
   auto wallet = GetWallet();
-  std::string internal_desc =
-      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-  std::string external_desc =
-      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-  UniValue uv;
-  uv.read(GetDescriptorsImportString(external_desc, internal_desc));
-  auto descs = uv.get_array();
-  for (size_t i = 0; i < descs.size(); ++i) {
-    EvalDescriptorStringOrObject(descs[i], provider);
-  }
+  auto desc = GetDescriptorsImportString(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+  FlatSigningProvider provider =
+      SigningProviderCache::getInstance().GetProvider(desc);
 
   int nin = psbt.tx.get().vin.size();
   for (int i = 0; i < nin; i++) {

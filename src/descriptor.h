@@ -26,7 +26,7 @@ std::string FormalizePath(const std::string& path);
  */
 std::string GetDescriptorsImportString(const std::string& external,
                                        const std::string& internal = {},
-                                       int range = 1000,
+                                       int range = 100,
                                        int64_t timestamp = -1);
 
 std::string GetDescriptorForSigners(

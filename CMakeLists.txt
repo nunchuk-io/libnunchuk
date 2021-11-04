@@ -87,6 +87,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
+    src/signingprovider.cpp
     src/coinselector.cpp
     src/softwaresigner.cpp
     src/nunchukimpl.cpp

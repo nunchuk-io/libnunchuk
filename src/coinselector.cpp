@@ -10,6 +10,7 @@
 #include <tuple>
 #include <vector>
 #include <iostream>
+#include <signingprovider.h>
 
 namespace nunchuk {
 
@@ -32,20 +33,14 @@ CoinSelector::CoinSelector(const std::string descriptors,
                            const std::string example_address) {
   if (scriptsig_cache_.find(descriptors) == scriptsig_cache_.end() ||
       scriptwitness_cache_.find(descriptors) == scriptwitness_cache_.end()) {
-    UniValue uv;
-    uv.read(descriptors);
-    // Parse descriptors
-    FlatSigningProvider provider;
-    auto descs = uv.get_array();
-    for (size_t i = 0; i < descs.size(); ++i) {
-      EvalDescriptorStringOrObject(descs[i], provider);
-    }
+    FlatSigningProvider provider =
+        SigningProviderCache::getInstance().GetProvider(descriptors);
     CScript spk = GetScriptForDestination(DecodeDestination(example_address));
     SignatureData sigdata;
     if (!ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR, spk,
                           sigdata)) {
       throw NunchukException(NunchukException::CREATE_DUMMY_SIGNATURE_ERROR,
-                              "create dummy signature error");
+                             "create dummy signature error");
     }
     scriptsig_cache_[descriptors] = sigdata.scriptSig;
     scriptwitness_cache_[descriptors] = sigdata.scriptWitness;
