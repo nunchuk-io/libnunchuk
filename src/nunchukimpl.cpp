@@ -340,6 +340,19 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
   int index = GetCurrentIndexFromMasterSigner(mastersigner_id, wallet_type,
                                               address_type);
   if (index < 0) {
+    auto mastersigner = GetMasterSigner(mastersigner_id);
+    // Auto top up XPUBs for SOFTWARE signer
+    if (mastersigner.get_type() == SignerType::SOFTWARE) {
+      auto ss = storage_.GetSoftwareSigner(chain_, mastersigner_id);
+      storage_.CacheMasterSignerXPub(
+          chain_, mastersigner_id,
+          [&](const std::string& path) { return ss.GetXpubAtPath(path); },
+          [](int) { return true; }, false);
+      index = GetCurrentIndexFromMasterSigner(mastersigner_id, wallet_type,
+                                              address_type);
+    }
+  }
+  if (index < 0) {
     throw NunchukException(NunchukException::RUN_OUT_OF_CACHED_XPUB,
                            "run out of cached xpub!");
   }
