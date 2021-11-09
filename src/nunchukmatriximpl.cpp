@@ -561,17 +561,17 @@ NunchukMatrixEvent NunchukMatrixImpl::BackupFile(
 
 void NunchukMatrixImpl::AsyncBackup(const std::unique_ptr<Nunchuk>& nu,
                                     int sec) {
-  delay_.push_back(std::async(std::launch::async, [&] {
-    if (sec > 0) std::this_thread::sleep_for(std::chrono::seconds(sec));
-    if (stopped) return;
+  delay_.push_back(std::async(std::launch::async, [&, sec] {
     try {
+      if (sec > 0) std::this_thread::sleep_for(std::chrono::seconds(sec));
+      if (stopped) return;
       if (uploadfunc_) {
         Backup(nu, {}, uploadfunc_);
       } else {
         Backup(nu);
       }
     } catch (...) {
-      if (sec == 0) AsyncBackup(nu, 60);
+      if (sec == 0 && !stopped) AsyncBackup(nu, 60);
     }
   }));
 }
