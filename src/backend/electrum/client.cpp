@@ -87,12 +87,17 @@ ElectrumClient::~ElectrumClient() {
 
 void ElectrumClient::handle_error(const std::string& where,
                                   const std::string& message) {
-  LOG_F(ERROR, "%s: %s", where.c_str(), message.c_str());
-  stopped_ = true;
-  for (auto&& i : callback_) {
-    i.second.set_value({{"error", {{"code", 1}, {"message", "Disconnected"}}}});
+  try {
+    LOG_F(ERROR, "%s: %s", where.c_str(), message.c_str());
+    stopped_ = true;
+    for (auto&& i : callback_) {
+      i.second.set_value(
+          {{"error", {{"code", 1}, {"message", "Disconnected"}}}});
+    }
+    disconnect_signal_();
+  } catch (...) {
+    LOG_F(ERROR, "ElectrumClient::handle_error");
   }
-  disconnect_signal_();
 }
 
 void ElectrumClient::subscribe(const std::string& method,
