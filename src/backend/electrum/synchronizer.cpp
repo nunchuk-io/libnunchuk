@@ -231,6 +231,8 @@ bool ElectrumSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   UpdateTransactions(chain, wallet_id, history);
   json utxo = client_->blockchain_scripthash_listunspent(scripthash);
   storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
+  Amount balance = storage_->GetBalance(chain, wallet_id);
+  balance_listener_(wallet_id, balance);
   return true;
 }
 
