@@ -891,7 +891,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     }
   }
   if (is_send_tx) {
-    Amount send_amount(tx.get_fee());
+    Amount send_amount{0};
     for (size_t i = 0; i < tx.get_outputs().size(); i++) {
       auto output = tx.get_outputs()[i];
       total_amount -= output.second;
