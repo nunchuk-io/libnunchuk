@@ -32,9 +32,10 @@
 extern "C" {
 #include <bip39.h>
 #include <bip39_english.h>
-void random_buffer(uint8_t* buf, size_t len) { 
-  // Core's GetStrongRandBytes https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  GetStrongRandBytes(buf, len); 
+void random_buffer(uint8_t* buf, size_t len) {
+  // Core's GetStrongRandBytes
+  // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
+  GetStrongRandBytes(buf, len);
 }
 }
 
@@ -102,6 +103,7 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   auto master_fingerprint = GetMasterFingerprint();
   FillableSigningProvider provider{};
 
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
     const PSBTInput& input = psbtx.inputs[i];
     if (!input.hd_keypaths.empty()) {
@@ -117,7 +119,7 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   }
 
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
-    SignPSBTInput(provider, psbtx, i);
+    SignPSBTInput(provider, psbtx, i, &txdata);
   }
   return EncodePsbt(psbtx);
 }
