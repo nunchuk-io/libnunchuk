@@ -39,6 +39,7 @@ inline nunchuk::Chain ChainFromStr(const std::string& value) {
 inline std::string AddressTypeToStr(nunchuk::AddressType value) {
   if (value == nunchuk::AddressType::LEGACY) return "LEGACY";
   if (value == nunchuk::AddressType::NESTED_SEGWIT) return "NESTED_SEGWIT";
+  if (value == nunchuk::AddressType::TAPROOT) return "TAPROOT";
   return "NATIVE_SEGWIT";
 }
 
@@ -46,6 +47,7 @@ inline nunchuk::AddressType AddressTypeFromStr(const std::string& value) {
   if (value == "LEGACY") return nunchuk::AddressType::LEGACY;
   if (value == "NESTED_SEGWIT") return nunchuk::AddressType::NESTED_SEGWIT;
   if (value == "NATIVE_SEGWIT") return nunchuk::AddressType::NATIVE_SEGWIT;
+  if (value == "TAPROOT") return nunchuk::AddressType::TAPROOT;
   throw nunchuk::NunchukException(
       nunchuk::NunchukException::INVALID_ADDRESS_TYPE, "invalid address type");
 }

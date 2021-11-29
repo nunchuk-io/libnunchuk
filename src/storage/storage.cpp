@@ -440,7 +440,7 @@ void NunchukStorage::CacheMasterSignerXPub(
   auto signer_db = GetSignerDb(chain, id);
 
   int count = 0;
-  auto total = first ? 7 : TOTAL_CACHE_NUMBER;
+  auto total = first ? 8 : TOTAL_CACHE_NUMBER;
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
@@ -466,6 +466,8 @@ void NunchukStorage::CacheMasterSignerXPub(
              first ? 1 : MULTISIG_CACHE_NUMBER);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
              first ? 1 : SINGLESIG_BIP84_CACHE_NUMBER);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT,
+             first ? 1 : SINGLESIG_BIP86_CACHE_NUMBER);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
              first ? 1 : SINGLESIG_BIP49_CACHE_NUMBER);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY,
