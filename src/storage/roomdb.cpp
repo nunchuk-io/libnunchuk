@@ -305,7 +305,7 @@ NunchukMatrixEvent NunchukRoomDb::GetEvent(const std::string& event_id) {
 
 std::vector<RoomTransaction> NunchukRoomDb::GetPendingTransactions(
     const std::string& room_id) {
-  auto wallet_id = GetWallet(room_id).get_wallet_id();
+  auto wallet_id = GetActiveWallet(room_id).get_wallet_id();
   sqlite3_stmt* stmt;
   std::string sql = "SELECT VALUE FROM TXS;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
