@@ -9,6 +9,7 @@ set(files
     src/descriptor_test.cpp
     src/nunchukutils_test.cpp
     src/utils/addressutils_test.cpp
+    src/utils/attachment_test.cpp
     src/utils/bip32_test.cpp
     src/utils/txutils_test.cpp)
 

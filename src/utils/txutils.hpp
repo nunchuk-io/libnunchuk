@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_TXUTILS_H
 #define NUNCHUK_TXUTILS_H
@@ -13,6 +26,9 @@
 #include <vector>
 #include <psbt.h>
 #include <core_io.h>
+
+#include <signingprovider.h>
+#include <script/sign.h>
 
 namespace {
 
@@ -87,15 +103,30 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
 
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
     auto psbt = DecodePsbt(EncodePsbt(psbtx));
-    if (FinalizePSBT(psbt)) {
-      for (auto&& signer : signers) {
-        tx.set_signer(signer.get_master_fingerprint(), true);
+    for (auto&& signer : signers) {
+      tx.set_signer(signer.get_master_fingerprint(), false);
+    }
+
+    auto txCredit = psbt.tx.get();
+    auto input = psbt.inputs[0];
+    auto txIn = input.non_witness_utxo.get();
+    auto txSpend = CMutableTransaction(*txIn);
+    txCredit.vin[0].scriptSig = input.final_script_sig;
+    txCredit.vin[0].scriptWitness = input.final_script_witness;
+    auto extract = DataFromTransaction(txCredit, 0,
+                                       txSpend.vout[txCredit.vin[0].prevout.n]);
+    for (auto&& sig : extract.signatures) {
+      KeyOriginInfo info;
+      if (SigningProviderCache::getInstance().GetKeyOrigin(sig.first, info)) {
+        std::string master_fingerprint =
+            strprintf("%08x", ReadBE32(info.fingerprint));
+        tx.set_signer(master_fingerprint, true);
       }
+    }
+
+    if (FinalizePSBT(psbt)) {
       tx.set_status(TransactionStatus::READY_TO_BROADCAST);
     } else {
-      for (auto&& signer : signers) {
-        tx.set_signer(signer.get_master_fingerprint(), false);
-      }
       tx.set_status(TransactionStatus::PENDING_SIGNATURES);
     }
     return tx;

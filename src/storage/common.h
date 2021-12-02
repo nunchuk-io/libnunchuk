@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_STORAGE_COMMON_H
 #define NUNCHUK_STORAGE_COMMON_H
@@ -40,6 +53,8 @@ const int SELECTED_WALLET = 10;
 const int SIGNER_DEVICE_TYPE = 11;
 const int SIGNER_DEVICE_MODEL = 12;
 const int MNEMONIC = 13;
+const int SYNC_TS = 14;
+const int SYNC_ROOM_ID = 15;
 }  // namespace DbKeys
 
 }

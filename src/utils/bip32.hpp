@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_BIP32_H
 #define NUNCHUK_BIP32_H
@@ -18,8 +31,8 @@ namespace {
 static const int SINGLESIG_BIP48_CACHE_NUMBER = 1;
 static const int SINGLESIG_BIP49_CACHE_NUMBER = 1;
 static const int SINGLESIG_BIP84_CACHE_NUMBER = 3;
-static const int MULTISIG_CACHE_NUMBER = 10;
-static const int ESCROW_CACHE_NUMBER = 5;
+static const int MULTISIG_CACHE_NUMBER = 3;
+static const int ESCROW_CACHE_NUMBER = 1;
 static const int TOTAL_CACHE_NUMBER =
     SINGLESIG_BIP48_CACHE_NUMBER + SINGLESIG_BIP49_CACHE_NUMBER +
     SINGLESIG_BIP84_CACHE_NUMBER + MULTISIG_CACHE_NUMBER + ESCROW_CACHE_NUMBER;
@@ -63,6 +76,15 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
   }
   throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                          "invalid wallet type");
+}
+
+inline std::string GetBip32Type(const std::string& path) {
+  if (path.rfind("m/44h/", 0) == 0) return "bip44";
+  if (path.rfind("m/49h/", 0) == 0) return "bip49";
+  if (path.rfind("m/84h/", 0) == 0) return "bip84";
+  if (path.rfind("m/48h/0h/0h", 0) == 0 || path.rfind("m/48h/1h/0h", 0) == 0) return "escrow";
+  if (path.rfind("m/48h/", 0) == 0) return "bip48";
+  return "custom";
 }
 
 inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,

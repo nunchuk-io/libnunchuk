@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_STORAGE_H
 #define NUNCHUK_STORAGE_H
@@ -8,6 +21,7 @@
 #include "walletdb.h"
 #include "signerdb.h"
 #include "appstatedb.h"
+#include "roomdb.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/thread/shared_mutex.hpp>
@@ -33,7 +47,7 @@ class NunchukStorage {
   Wallet CreateWallet(Chain chain, const std::string &name, int m, int n,
                       const std::vector<SingleSigner> &signers,
                       AddressType address_type, bool is_escrow,
-                      const std::string &description);
+                      const std::string &description, bool allow_used_signer);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
                                  const std::string &mnemonic = {});
@@ -149,6 +163,10 @@ class NunchukStorage {
   void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                             const std::string &passphrase);
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
+  NunchukRoomDb GetRoomDb(Chain chain);
+  std::string ExportBackup();
+  bool SyncWithBackup(const std::string &data,
+                      std::function<bool(int)> progress);
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
@@ -160,8 +178,17 @@ class NunchukStorage {
   boost::filesystem::path GetSignerDir(Chain chain,
                                        const std::string &id) const;
   boost::filesystem::path GetAppStateDir(Chain chain) const;
+  boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
+  Wallet CreateWallet0(Chain chain, const std::string &name, int m, int n,
+                       const std::vector<SingleSigner> &signers,
+                       AddressType address_type, bool is_escrow,
+                       const std::string &description, bool allow_used_signer,
+                       time_t create_date);
+  std::vector<std::string> ListWallets0(Chain chain);
+  std::vector<std::string> ListMasterSigners0(Chain chain);
+
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;

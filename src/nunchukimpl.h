@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_NUNCHUKIMPL_H
 #define NUNCHUK_NUNCHUKIMPL_H
@@ -11,6 +24,7 @@
 #include <coreutils.h>
 #include <storage/storage.h>
 #include <backend/synchronizer.h>
+#include <map>
 
 namespace nunchuk {
 
@@ -28,7 +42,8 @@ class NunchukImpl : public Nunchuk {
   Wallet CreateWallet(const std::string& name, int m, int n,
                       const std::vector<SingleSigner>& signers,
                       AddressType address_type, bool is_escrow,
-                      const std::string& description = {}) override;
+                      const std::string& description = {},
+                      bool allow_used_signer = false) override;
   std::string DraftWallet(const std::string& name, int m, int n,
                           const std::vector<SingleSigner>& signers,
                           AddressType address_type, bool is_escrow,
@@ -122,6 +137,8 @@ class NunchukImpl : public Nunchuk {
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
+  Transaction ImportPsbt(const std::string& wallet_id,
+                         const std::string& psbt) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
@@ -160,6 +177,10 @@ class NunchukImpl : public Nunchuk {
       const std::string& device_fingerprint = {}) override;
   void PromtPinOnDevice(const Device& device) override;
   void SendPinToDevice(const Device& device, const std::string& pin) override;
+  std::string ExportBackup() override;
+  bool SyncWithBackup(
+      const std::string& data,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
 
   SingleSigner CreateCoboSigner(const std::string& name,
                                 const std::string& json_info) override;
@@ -172,18 +193,33 @@ class NunchukImpl : public Nunchuk {
       const std::vector<std::string>& qr_data) override;
   Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                           const std::string& description = {}) override;
+
+  SingleSigner ParseKeystoneSigner(const std::string& qr_data) override;
+  std::vector<std::string> ExportKeystoneWallet(
+      const std::string& wallet_id) override;
+  std::vector<std::string> ExportKeystoneTransaction(
+      const std::string& wallet_id, const std::string& tx_id) override;
+  Transaction ImportKeystoneTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) override;
+  Wallet ImportKeystoneWallet(const std::vector<std::string>& qr_data,
+                              const std::string& description = {}) override;
+
   void RescanBlockchain(int start_height, int stop_height = -1) override;
+  void ScanWalletAddress(const std::string& wallet_id) override;
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
   void AddBlockListener(
       std::function<void(int, std::string)> listener) override;
   void AddTransactionListener(
-      std::function<void(std::string, TransactionStatus)> listener) override;
+      std::function<void(std::string, TransactionStatus, std::string)> listener)
+      override;
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int)> listener) override;
+  void AddStorageUpdateListener(std::function<void()> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -191,13 +227,11 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput> inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
-  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
-  void ScanNewWallet(const std::string wallet_id, bool is_escrow);
+  void RunScanWalletAddress(const std::string& wallet_id);
   // Find the first unused address that the next 19 addresses are unused too
-  std::string GetUnusedAddress(const std::string wallet_id, int& index,
-                               bool internal);
+  std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
 
   AppSettings app_settings_;
   NunchukStorage storage_;
@@ -205,10 +239,13 @@ class NunchukImpl : public Nunchuk {
   HWIService hwi_;
   std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
+  boost::signals2::signal<void()> storage_listener_;
+  std::vector<std::future<void>> scan_wallet_;
 
   // Cache
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
   Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
+  static std::map<std::string, time_t> last_scan_;
 };
 
 }  // namespace nunchuk

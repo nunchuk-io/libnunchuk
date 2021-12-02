@@ -1,10 +1,23 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <backend/corerpc/client.h>
 #include <utils/loguru.hpp>
-#include <utils/httplib.h>
+#include "httplib5.h"
 #include <util/strencodings.h>
 #include <utils/json.hpp>
 
@@ -30,8 +43,8 @@ static json ParseResponse(const std::string& resp) {
 std::string CoreRpcClient::SendRequest(const std::string& path,
                                        const std::string& body) {
   std::string auth = (std::string("Basic ") + EncodeBase64(user_ + ":" + pw_));
-  httplib::Headers headers = {{"Authorization", auth}};
-  httplib::Client cli(host_, port_);
+  httplib5::Headers headers = {{"Authorization", auth}};
+  httplib5::Client cli(host_, port_);
 
   auto res = cli.Post(path.c_str(), headers, body, "text/plain");
   if (res) {

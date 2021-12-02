@@ -1,12 +1,28 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <nunchuk.h>
 #include <vector>
+#include <sstream>
+#include <descriptor.h>
 
 namespace nunchuk {
 
+SingleSigner::SingleSigner() {}
 SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
                            const std::string& public_key,
                            const std::string& derivation_path,
@@ -34,6 +50,7 @@ std::string SingleSigner::get_master_fingerprint() const {
 std::string SingleSigner::get_master_signer_id() const {
   return master_signer_id_;
 }
+SignerType SingleSigner::get_type() const { return type_; }
 bool SingleSigner::is_used() const { return used_; }
 bool SingleSigner::has_master_signer() const {
   return !master_signer_id_.empty();
@@ -41,7 +58,14 @@ bool SingleSigner::has_master_signer() const {
 time_t SingleSigner::get_last_health_check() const {
   return last_health_check_;
 }
+std::string SingleSigner::get_descriptor() const {
+  std::stringstream key;
+  key << "[" << master_fingerprint_ << FormalizePath(derivation_path_) << "]"
+      << (xpub_.empty() ? public_key_ : xpub_);
+  return key.str();
+}
 void SingleSigner::set_name(const std::string& value) { name_ = value; }
 void SingleSigner::set_used(bool value) { used_ = value; }
+void SingleSigner::set_type(SignerType value) { type_ = value; }
 
 }  // namespace nunchuk

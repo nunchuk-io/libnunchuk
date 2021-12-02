@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <backend/electrum/client.h>
 #include <utils/loguru.hpp>
@@ -89,8 +102,11 @@ void ElectrumClient::handle_error(const std::string& where,
                                   const std::string& message) {
   LOG_F(ERROR, "%s: %s", where.c_str(), message.c_str());
   stopped_ = true;
-  for (auto&& i : callback_) {
-    i.second.set_value({{"error", {{"code", 1}, {"message", "Disconnected"}}}});
+  for (auto &&it = callback_.begin(), next = it; it != callback_.end();
+       it = next) {
+    ++next;
+    it->second.set_value(
+        {{"error", {{"code", 1}, {"message", "Disconnected"}}}});
   }
   disconnect_signal_();
 }
@@ -120,6 +136,7 @@ json ElectrumClient::call_method(const std::string& method,
       std::promise<json>(std::allocator_arg, std::allocator<json>());
   enqueue_message(req.dump());
   json resp = callback_[id].get_future().get();
+  callback_.erase(id);
   if (resp["error"] != nullptr) {
     std::string message = resp["error"]["message"];
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, message);
@@ -307,7 +324,6 @@ void ElectrumClient::handle_read(const boost::system::error_code& error) {
       auto cb = callback_.find(id);
       if (cb != callback_.end()) {
         cb->second.set_value(response);
-        callback_.erase(cb);
       }
     }
   }

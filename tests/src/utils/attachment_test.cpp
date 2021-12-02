@@ -15,35 +15,17 @@
  * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NUNCHUK_STORAGE_APPDB_H
-#define NUNCHUK_STORAGE_APPDB_H
-
-#include "common.h"
-#include "db.h"
 #include <nunchuk.h>
-#include <sqlcipher/sqlite3.h>
-#include <string>
+#include <utils/attachment.hpp>
 
-namespace nunchuk {
+#include <doctest.h>
 
-class NunchukAppStateDb : public NunchukDb {
- public:
-  using NunchukDb::NunchukDb;
-
-  void Init();
-  int GetChainTip() const;
-  bool SetChainTip(int value);
-  std::string GetSelectedWallet() const;
-  bool SetSelectedWallet(const std::string &value);
-  int64_t GetStorageVersion() const;
-  bool SetStorageVersion(int64_t value);
-  time_t GetLastSyncTs() const;
-  bool SetLastSyncTs(time_t value);
-
- private:
-  friend class NunchukStorage;
-};
-
-}  // namespace nunchuk
-
-#endif  // NUNCHUK_STORAGE_APPDB_H
+TEST_CASE("testing encrypt and descrypt attachment") {
+  using namespace nunchuk;
+  std::string body = "testtesttest";
+  std::string accessToken = "";
+  if (accessToken.empty()) return;
+  auto event_file = EncryptAttachment(accessToken, body);
+  CHECK(!event_file.empty());
+  CHECK(DecryptAttachment(event_file) == body);
+}

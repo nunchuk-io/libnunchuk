@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "walletdb.h"
 
@@ -17,11 +30,15 @@
 #include <univalue.h>
 #include <rpc/util.h>
 #include <policy/policy.h>
+#include <signingprovider.h>
 
 using json = nlohmann::json;
 namespace ba = boost::algorithm;
 
 namespace nunchuk {
+
+std::map<std::string, std::vector<AddressData>> NunchukWalletDb::addr_cache_;
+std::map<std::string, std::vector<SingleSigner>> NunchukWalletDb::signer_cache_;
 
 void NunchukWalletDb::InitWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
@@ -142,10 +159,18 @@ Wallet NunchukWalletDb::GetWallet() const {
   Wallet wallet(id_, m, n, signers, address_type, is_escrow, create_date);
   wallet.set_name(GetString(DbKeys::NAME));
   wallet.set_balance(balance);
+
+  auto desc = GetDescriptorsImportString(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+  SigningProviderCache::getInstance().PreCalculate(desc);
   return wallet;
 }
 
 std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
+  if (signer_cache_.count(db_file_name_)) {
+    return signer_cache_[db_file_name_];
+  }
   sqlite3_stmt* stmt;
   std::string sql =
       "SELECT KEY, NAME, MASTER_ID, LAST_HEALTHCHECK FROM SIGNER;";
@@ -170,6 +195,7 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  signer_cache_[db_file_name_] = signers;
   return signers;
 }
 
@@ -185,11 +211,20 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
   sqlite3_bind_int(stmt, 3, internal ? 1 : 0);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
+  addr_cache_.erase(db_file_name_);
   return true;
 }
 
-bool NunchukWalletDb::UseAddress(const std::string& address) {
+bool NunchukWalletDb::UseAddress(const std::string& address) const {
   if (address.empty()) return false;
+  auto all = GetAllAddressData();
+  for (auto&& a : all) {
+    if (a.address == address) {
+      if (a.used) return false;
+      a.used = true;
+      break;
+    }
+  }
   sqlite3_stmt* stmt;
   std::string sql = "UPDATE ADDRESS SET USED = 1 WHERE ADDR = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -200,22 +235,36 @@ bool NunchukWalletDb::UseAddress(const std::string& address) {
   return updated;
 }
 
-std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
-                                                       bool internal) const {
+std::vector<AddressData> NunchukWalletDb::GetAllAddressData() const {
+  if (addr_cache_.count(db_file_name_)) {
+    return addr_cache_[db_file_name_];
+  }
   sqlite3_stmt* stmt;
-  std::string sql =
-      "SELECT ADDR FROM ADDRESS WHERE USED = ?1 AND INTERNAL = ?2;";
+  std::string sql = "SELECT * FROM ADDRESS;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_int(stmt, 1, used ? 1 : 0);
-  sqlite3_bind_int(stmt, 2, internal ? 1 : 0);
   sqlite3_step(stmt);
-  std::vector<std::string> addresses;
+  std::vector<AddressData> addresses;
   while (sqlite3_column_text(stmt, 0)) {
-    addresses.push_back(std::string((char*)sqlite3_column_text(stmt, 0)));
+    addresses.push_back({std::string((char*)sqlite3_column_text(stmt, 0)),
+                         sqlite3_column_int(stmt, 1),
+                         sqlite3_column_int(stmt, 2) == 1,
+                         sqlite3_column_int(stmt, 3) == 1});
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  addr_cache_[db_file_name_] = addresses;
   return addresses;
+}
+
+std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
+                                                       bool internal) const {
+  auto all = GetAllAddressData();
+  std::vector<std::string> rs;
+  for (auto&& data : all) {
+    if (data.used == used && data.internal == internal)
+      rs.push_back(data.address);
+  }
+  return rs;
 }
 
 int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
@@ -243,17 +292,12 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
 }
 
 std::vector<std::string> NunchukWalletDb::GetAllAddresses() const {
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT ADDR FROM ADDRESS;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_step(stmt);
-  std::vector<std::string> addresses;
-  while (sqlite3_column_text(stmt, 0)) {
-    addresses.push_back(std::string((char*)sqlite3_column_text(stmt, 0)));
-    sqlite3_step(stmt);
+  auto all = GetAllAddressData();
+  std::vector<std::string> rs;
+  for (auto&& data : all) {
+    rs.push_back(data.address);
   }
-  SQLCHECK(sqlite3_finalize(stmt));
-  return addresses;
+  return rs;
 }
 
 int NunchukWalletDb::GetCurrentAddressIndex(bool internal) const {
@@ -539,12 +583,16 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     // become false
     tx.set_receive(false);
     tx.set_sub_amount(0);
+    if (height == -1) tx.set_psbt(value);
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
       FillExtra(extra, tx);
     }
     SQLCHECK(sqlite3_finalize(stmt));
+    if (tx.get_height() > 0) {
+      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    }
     return tx;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -748,6 +796,11 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  for (auto&& tx : rs) {
+    if (tx.get_height() > 0) {
+      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    }
+  }
   return rs;
 }
 
@@ -755,18 +808,12 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   auto psbt = DecodePsbt(base64_psbt);
   if (!psbt.tx.has_value()) return base64_psbt;
 
-  FlatSigningProvider provider;
   auto wallet = GetWallet();
-  std::string internal_desc =
-      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-  std::string external_desc =
-      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-  UniValue uv;
-  uv.read(GetDescriptorsImportString(external_desc, internal_desc));
-  auto descs = uv.get_array();
-  for (size_t i = 0; i < descs.size(); ++i) {
-    EvalDescriptorStringOrObject(descs[i], provider);
-  }
+  auto desc = GetDescriptorsImportString(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+  FlatSigningProvider provider =
+      SigningProviderCache::getInstance().GetProvider(desc);
 
   int nin = psbt.tx.get().vin.size();
   for (int i = 0; i < nin; i++) {
@@ -844,7 +891,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     }
   }
   if (is_send_tx) {
-    Amount send_amount(tx.get_fee());
+    Amount send_amount{0};
     for (size_t i = 0; i < tx.get_outputs().size(); i++) {
       auto output = tx.get_outputs()[i];
       total_amount -= output.second;

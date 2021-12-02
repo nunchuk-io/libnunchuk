@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "signerdb.h"
 
@@ -29,7 +42,7 @@ void NunchukSignerDb::InitSigner(const std::string& name, const Device& device,
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
-  PutString(DbKeys::MNEMONIC, mnemonic);
+  if (!mnemonic.empty()) PutString(DbKeys::MNEMONIC, mnemonic);
   PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
   PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }
@@ -167,8 +180,13 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
 // existing signer Db. The single signer will become a master signer.
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 
-bool NunchukSignerDb::IsSoftware() const {
-  return !GetString(DbKeys::MNEMONIC).empty();
+SignerType NunchukSignerDb::GetSignerType() const {
+  if (!IsMaster()) return SignerType::AIRGAP;
+  if (GetDeviceType() == "software") {
+    return GetString(DbKeys::MNEMONIC).empty() ? SignerType::FOREIGN_SOFTWARE
+                                               : SignerType::SOFTWARE;
+  }
+  return SignerType::HARDWARE;
 }
 
 SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
@@ -236,6 +254,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     bool used = sqlite3_column_int(stmt, 4) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
+    signer.set_type(SignerType::AIRGAP);
     SQLCHECK(sqlite3_finalize(stmt));
     return signer;
   } else {
@@ -312,20 +331,24 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
-    signers.push_back(signer);
+    signer.set_type(SignerType::AIRGAP);
+    if (name != "import") signers.push_back(signer);
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return signers;
 }
 
-std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners() const {
+std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
+    bool usedOnly) const {
   std::string name = GetName();
   std::string master_fingerprint = GetFingerprint();
   time_t last_health_check = GetLastHealthCheck();
+  auto signer_type = GetSignerType();
 
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT PATH, XPUB FROM BIP32 WHERE USED != -1;";
+  std::string sql = usedOnly ? "SELECT PATH, XPUB FROM BIP32 WHERE USED != -1;"
+                             : "SELECT PATH, XPUB FROM BIP32;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
   std::vector<SingleSigner> signers;
@@ -334,6 +357,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners() const {
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
     SingleSigner signer(name, xpub, "", path, master_fingerprint,
                         last_health_check, id_, true);
+    signer.set_type(signer_type);
     signers.push_back(signer);
     sqlite3_step(stmt);
   }

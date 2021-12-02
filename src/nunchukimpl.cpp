@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "nunchukimpl.h"
 
@@ -17,16 +30,25 @@
 #include <utils/quote.hpp>
 #include <utils/multisigconfig.hpp>
 #include <utils/bsms.hpp>
+#include <utils/bcr2.hpp>
 #include <boost/algorithm/string.hpp>
 #include <ur.h>
+#include <ur-encoder.hpp>
+#include <ur-decoder.hpp>
+#include <cbor-lite.hpp>
+#include <util/bip32.h>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
+using namespace nunchuk::bcr2;
 
 namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
+static int MAX_FRAGMENT_LEN = 100;
+
+std::map<std::string, time_t> NunchukImpl::last_scan_;
 
 // Nunchuk implement
 NunchukImpl::NunchukImpl(const AppSettings& appsettings,
@@ -55,10 +77,13 @@ void NunchukImpl::SetPassphrase(const std::string& passphrase) {
 Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
                                  AddressType address_type, bool is_escrow,
-                                 const std::string& description) {
-  Wallet wallet = storage_.CreateWallet(chain_, name, m, n, signers,
-                                        address_type, is_escrow, description);
-  ScanNewWallet(wallet.get_id(), wallet.is_escrow());
+                                 const std::string& description,
+                                 bool allow_used_signer) {
+  Wallet wallet =
+      storage_.CreateWallet(chain_, name, m, n, signers, address_type,
+                            is_escrow, description, allow_used_signer);
+  ScanWalletAddress(wallet.get_id());
+  storage_listener_();
   return storage_.GetWallet(chain_, wallet.get_id(), true);
 }
 
@@ -99,11 +124,15 @@ Wallet NunchukImpl::GetWallet(const std::string& wallet_id) {
 }
 
 bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
-  return storage_.DeleteWallet(chain_, wallet_id);
+  bool rs = storage_.DeleteWallet(chain_, wallet_id);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
-  return storage_.UpdateWallet(chain_, wallet);
+  bool rs = storage_.UpdateWallet(chain_, wallet);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::ExportWallet(const std::string& wallet_id,
@@ -114,6 +143,7 @@ bool NunchukImpl::ExportWallet(const std::string& wallet_id,
 
 Wallet NunchukImpl::ImportWalletDb(const std::string& file_path) {
   std::string id = storage_.ImportWalletDb(chain_, file_path);
+  storage_listener_();
   return storage_.GetWallet(chain_, id, true);
 }
 
@@ -134,7 +164,7 @@ Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
     }
   }
   return CreateWallet(name, m, n, signers, address_type,
-                      wallet_type == WalletType::ESCROW, description);
+                      wallet_type == WalletType::ESCROW, description, true);
 }
 
 Wallet NunchukImpl::ImportWalletConfigFile(const std::string& file_path,
@@ -156,38 +186,52 @@ Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Could not parse multisig config");
   }
-  return CreateWallet(name, m, n, signers, address_type, false, description);
+  return CreateWallet(name, m, n, signers, address_type, false, description,
+                      true);
 }
 
-void NunchukImpl::ScanNewWallet(const std::string wallet_id, bool is_escrow) {
-  int index = is_escrow ? -1 : 0;
+void NunchukImpl::ScanWalletAddress(const std::string& wallet_id) {
+  if (wallet_id.empty()) return;
+  time_t current = std::time(0);
+  if (current - last_scan_[wallet_id] < 600) return;
+  last_scan_[wallet_id] = current;
+  scan_wallet_.push_back(std::async(std::launch::async, [this, wallet_id] {
+    RunScanWalletAddress(wallet_id);
+  }));
+}
+
+void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
+  auto wallet = GetWallet(wallet_id);
+  int index = -1;
   std::string address;
-  if (is_escrow) {
-    synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
-    auto descriptor =
-        GetWallet(wallet_id).get_descriptor(DescriptorPath::EXTERNAL_ALL);
+  if (wallet.is_escrow()) {
+    auto descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
     address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
   } else {
-    int change_index = 0;
-    GetUnusedAddress(wallet_id, change_index, true);  // scan change address
-    address = GetUnusedAddress(wallet_id, index, false);
+    // scan internal address
+    index = storage_.GetCurrentAddressIndex(chain_, wallet_id, true) + 1;
+    address = GetUnusedAddress(wallet, index, true);
+    storage_.AddAddress(chain_, wallet_id, address, index, true);
+    // scan external address
+    index = storage_.GetCurrentAddressIndex(chain_, wallet_id, false) + 1;
+    address = GetUnusedAddress(wallet, index, false);
   }
 
   // auto create an unused external address
   storage_.AddAddress(chain_, wallet_id, address, index, false);
 }
 
-std::string NunchukImpl::GetUnusedAddress(const std::string wallet_id,
-                                          int& index, bool internal) {
-  auto descriptor = GetWallet(wallet_id).get_descriptor(
+std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
+                                          bool internal) {
+  auto descriptor = wallet.get_descriptor(
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int consecutive_unused = 0;
   std::vector<std::string> unused_addresses;
+  std::string wallet_id = wallet.get_id();
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
-    bool used =
-        synchronizer_->LookAhead(chain_, wallet_id, address, index, internal);
-    if (used) {
+    if (synchronizer_->LookAhead(chain_, wallet_id, address, index, internal)) {
       for (auto&& a : unused_addresses) {
         storage_.AddAddress(chain_, wallet_id, a, index, internal);
       }
@@ -226,6 +270,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
       chain_, id,
       [&](std::string path) { return hwi_.GetXpubAtPath(device, path); },
       progress, true);
+  storage_listener_();
 
   MasterSigner mastersigner{id, device, std::time(0)};
   mastersigner.set_name(name);
@@ -243,8 +288,10 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   storage_.CacheMasterSignerXPub(
       chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
       progress, true);
+  storage_listener_();
+
   storage_.ClearSignerPassphrase(chain_, id);
-  MasterSigner mastersigner{id, device, std::time(0), true};
+  MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
   mastersigner.set_name(name);
   return mastersigner;
 }
@@ -286,8 +333,11 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
                            "invalid master fingerprint");
   }
   std::string name = trim_copy(raw_name);
-  return storage_.CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
-                                     derivation_path, master_fingerprint);
+  auto rs =
+      storage_.CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
+                                  derivation_path, master_fingerprint);
+  storage_listener_();
+  return rs;
 }
 
 int NunchukImpl::GetCurrentIndexFromMasterSigner(
@@ -302,6 +352,19 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
     const AddressType& address_type) {
   int index = GetCurrentIndexFromMasterSigner(mastersigner_id, wallet_type,
                                               address_type);
+  if (index < 0) {
+    auto mastersigner = GetMasterSigner(mastersigner_id);
+    // Auto top up XPUBs for SOFTWARE signer
+    if (mastersigner.get_type() == SignerType::SOFTWARE) {
+      auto ss = storage_.GetSoftwareSigner(chain_, mastersigner_id);
+      storage_.CacheMasterSignerXPub(
+          chain_, mastersigner_id,
+          [&](const std::string& path) { return ss.GetXpubAtPath(path); },
+          [](int) { return true; }, false);
+      index = GetCurrentIndexFromMasterSigner(mastersigner_id, wallet_type,
+                                              address_type);
+    }
+  }
   if (index < 0) {
     throw NunchukException(NunchukException::RUN_OUT_OF_CACHED_XPUB,
                            "run out of cached xpub!");
@@ -336,11 +399,15 @@ MasterSigner NunchukImpl::GetMasterSigner(const std::string& mastersigner_id) {
 }
 
 bool NunchukImpl::DeleteMasterSigner(const std::string& mastersigner_id) {
-  return storage_.DeleteMasterSigner(chain_, mastersigner_id);
+  bool rs = storage_.DeleteMasterSigner(chain_, mastersigner_id);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateMasterSigner(const MasterSigner& mastersigner) {
-  return storage_.UpdateMasterSigner(chain_, mastersigner);
+  bool rs = storage_.UpdateMasterSigner(chain_, mastersigner);
+  storage_listener_();
+  return rs;
 }
 
 std::vector<SingleSigner> NunchukImpl::GetRemoteSigners() {
@@ -349,12 +416,16 @@ std::vector<SingleSigner> NunchukImpl::GetRemoteSigners() {
 
 bool NunchukImpl::DeleteRemoteSigner(const std::string& master_fingerprint,
                                      const std::string& derivation_path) {
-  return storage_.DeleteRemoteSigner(chain_, master_fingerprint,
-                                     derivation_path);
+  bool rs =
+      storage_.DeleteRemoteSigner(chain_, master_fingerprint, derivation_path);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateRemoteSigner(const SingleSigner& remotesigner) {
-  return storage_.UpdateRemoteSigner(chain_, remotesigner);
+  bool rs = storage_.UpdateRemoteSigner(chain_, remotesigner);
+  storage_listener_();
+  return rs;
 }
 
 std::string NunchukImpl::GetHealthCheckPath() {
@@ -373,8 +444,12 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   bool existed = true;
   std::string id = fingerprint;
   try {
-    if (GetMasterSigner(id).is_software()) {
+    auto signer = GetMasterSigner(id);
+    if (signer.get_type() == SignerType::SOFTWARE) {
       return HealthStatus::SUCCESS;
+    } else if (signer.get_type() == SignerType::FOREIGN_SOFTWARE) {
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             "can not healthcheck foreign software signer");
     }
   } catch (StorageException& se) {
     if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
@@ -552,7 +627,11 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), psbt='%s'", psbt.c_str());
   auto mastersigner_id = device.get_master_fingerprint();
   std::string signed_psbt;
-  if (GetMasterSigner(mastersigner_id).is_software()) {
+  auto mastersigner = GetMasterSigner(mastersigner_id);
+  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "can not sign with foreign software signer");
+  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     signed_psbt = software_signer.SignTx(psbt);
   } else {
@@ -581,6 +660,7 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
         boost::starts_with(ne.what(),
                            "the transaction was rejected by network rules.")) {
       storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, ne.what());
+      return GetTransaction(wallet_id, new_txid);
     }
     throw;
   }
@@ -683,7 +763,11 @@ bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,
 
 void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
                                         std::function<bool(int)> progress) {
-  if (GetMasterSigner(mastersigner_id).is_software()) {
+  auto mastersigner = GetMasterSigner(mastersigner_id);
+  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "can not cache xpub with foreign software signer");
+  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     storage_.CacheMasterSignerXPub(
         chain_, mastersigner_id,
@@ -734,8 +818,8 @@ Amount NunchukImpl::EstimateFee(int conf_target, bool use_mempool) {
       current_time - estimate_fee_cached_time_[cached_index] <= CACHE_SECOND) {
     return estimate_fee_cached_value_[cached_index];
   } else if (use_mempool && chain_ == Chain::MAIN) {
-    httplib::Client cli("https://mempool.space");
-    auto res = cli.Get("/api/v1/fees/recommended");
+    httplib::Client cli("https://api.nunchuk.io");
+    auto res = cli.Get("/v1.1/fees/recommended");
     if (res) {
       json recommended = json::parse(res->body);
       estimate_fee_cached_time_[3] = current_time;
@@ -799,6 +883,7 @@ void NunchukImpl::DisplayAddressOnDevice(
     hwi_.DisplayAddress(Device{device_fingerprint}, desc);
   }
 }
+
 SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
                                            const std::string& json_info) {
   json info = json::parse(json_info);
@@ -846,6 +931,116 @@ Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
   return ImportWalletFromConfig(config_str, description);
 }
 
+void u8from32(uint8_t b[4], uint32_t u32) {
+  b[3] = (uint8_t)u32;
+  b[2] = (uint8_t)(u32 >>= 8);
+  b[1] = (uint8_t)(u32 >>= 8);
+  b[0] = (uint8_t)(u32 >>= 8);
+};
+
+SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
+  auto decoded = ur::URDecoder::decode(qr_data);
+  auto i = decoded.cbor().begin();
+  auto end = decoded.cbor().end();
+  CryptoAccount account{};
+  decodeCryptoAccount(i, end, account);
+  CryptoHDKey key = account.outputDescriptors[0];
+
+  CExtPubKey xpub{};
+  xpub.chaincode = ChainCode(key.chaincode);
+  xpub.pubkey = CPubKey(key.keydata);
+  xpub.nChild = key.origin.childNumber;
+  xpub.nDepth = key.origin.depth;
+  u8from32(xpub.vchFingerprint, key.parentFingerprint);
+
+  std::stringstream xfp;
+  xfp << std::hex << account.masterFingerprint;
+  std::stringstream path;
+  path << "m" << FormatHDKeypath(key.origin.keypath);
+  return SingleSigner{
+      "Keystone", EncodeExtPubKey(xpub), {}, path.str(), xfp.str(), 0};
+}
+
+std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
+    const std::string& wallet_id) {
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  std::vector<uint8_t> data(content.begin(), content.end());
+  ur::ByteVector cbor;
+  encodeBytes(cbor, data);
+  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), MAX_FRAGMENT_LEN);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(encoder.next_part());
+  } while (!encoder.is_complete());
+  return parts;
+}
+
+std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
+    const std::string& wallet_id, const std::string& tx_id) {
+  std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  bool invalid;
+  auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
+  if (invalid) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+  }
+  CryptoPSBT psbt{data};
+  ur::ByteVector cbor;
+  encodeCryptoPSBT(cbor, psbt);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(encoder.next_part());
+  } while (!encoder.is_complete());
+  return parts;
+}
+
+Transaction NunchukImpl::ImportKeystoneTransaction(
+    const std::string& wallet_id, const std::vector<std::string>& qr_data) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw std::runtime_error("invalid input");
+  }
+  auto decoded = decoder.result_ur();
+  auto i = decoded.cbor().begin();
+  auto end = decoded.cbor().end();
+  CryptoPSBT psbt{};
+  decodeCryptoPSBT(i, end, psbt);
+  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt.data)));
+}
+
+Wallet NunchukImpl::ImportKeystoneWallet(
+    const std::vector<std::string>& qr_data, const std::string& description) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw std::runtime_error("invalid input");
+  }
+  auto cbor = decoder.result_ur().cbor();
+  auto i = cbor.begin();
+  auto end = cbor.end();
+  std::vector<char> config;
+  decodeBytes(i, end, config);
+  std::string config_str(config.begin(), config.end());
+  return ImportWalletFromConfig(config_str, description);
+}
+
+std::string NunchukImpl::ExportBackup() { return storage_.ExportBackup(); }
+
+bool NunchukImpl::SyncWithBackup(const std::string& data,
+                                 std::function<bool(int)> progress) {
+  auto rs = storage_.SyncWithBackup(data, progress);
+  if (rs) {
+    auto wallet_ids = storage_.ListWallets(chain_);
+    for (auto&& id : wallet_ids) ScanWalletAddress(id);
+  }
+  return rs;
+}
+
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
   synchronizer_->RescanBlockchain(start_height, stop_height);
 }
@@ -861,7 +1056,7 @@ void NunchukImpl::AddBlockListener(
 }
 
 void NunchukImpl::AddTransactionListener(
-    std::function<void(std::string, TransactionStatus)> listener) {
+    std::function<void(std::string, TransactionStatus, std::string)> listener) {
   synchronizer_->AddTransactionListener(listener);
 }
 
@@ -873,6 +1068,10 @@ void NunchukImpl::AddDeviceListener(
 void NunchukImpl::AddBlockchainConnectionListener(
     std::function<void(ConnectionStatus, int)> listener) {
   synchronizer_->AddBlockchainConnectionListener(listener);
+}
+
+void NunchukImpl::AddStorageUpdateListener(std::function<void()> listener) {
+  storage_listener_.connect(listener);
 }
 
 std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
@@ -926,13 +1125,15 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase) {
-  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase, ""));
+  return std::unique_ptr<NunchukImpl>(
+      new NunchukImpl(appsettings, passphrase, ""));
 }
 
 std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
                                                const std::string& passphrase,
                                                const std::string& account) {
-  return std::unique_ptr<NunchukImpl>(new NunchukImpl(appsettings, passphrase, account));
+  return std::unique_ptr<NunchukImpl>(
+      new NunchukImpl(appsettings, passphrase, account));
 }
 
 }  // namespace nunchuk

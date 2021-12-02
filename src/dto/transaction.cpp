@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <nunchuk.h>
 
@@ -38,6 +51,7 @@ bool Transaction::subtract_fee_from_amount() const {
 }
 bool Transaction::is_receive() const { return is_receive_; }
 Amount Transaction::get_sub_amount() const { return sub_amount_; }
+std::string Transaction::get_psbt() const { return psbt_; }
 
 void Transaction::set_txid(const std::string& value) { txid_ = value; }
 void Transaction::set_height(int value) { height_ = value; }
@@ -69,5 +83,6 @@ void Transaction::set_subtract_fee_from_amount(bool value) {
 }
 void Transaction::set_receive(bool value) { is_receive_ = value; }
 void Transaction::set_sub_amount(const Amount& value) { sub_amount_ = value; }
+void Transaction::set_psbt(const std::string& value) { psbt_ = value; }
 
 }  // namespace nunchuk

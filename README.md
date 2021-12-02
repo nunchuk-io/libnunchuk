@@ -185,4 +185,4 @@ Read about our design philosophy at:
 
 ##  License
 
-libnunchuk is released under the terms of the MIT license. See [COPYING](COPYING) for more information or see https://opensource.org/licenses/MIT.
+libnunchuk is released under the terms of the GPLv3 license. See [COPYING](COPYING) for more information or see http://www.gnu.org/licenses/.

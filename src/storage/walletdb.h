@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_STORAGE_WALLETDB_H
 #define NUNCHUK_STORAGE_WALLETDB_H
@@ -13,6 +26,13 @@
 #include <string>
 
 namespace nunchuk {
+
+struct AddressData {
+  std::string address;
+  int index;
+  bool internal;
+  bool used;
+};
 
 class NunchukWalletDb : public NunchukDb {
  public:
@@ -29,7 +49,7 @@ class NunchukWalletDb : public NunchukDb {
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
   bool AddAddress(const std::string &address, int index, bool internal);
-  bool UseAddress(const std::string &address);
+  bool UseAddress(const std::string &address) const;
   Wallet GetWallet() const;
   std::vector<SingleSigner> GetSigners() const;
   std::vector<std::string> GetAddresses(bool used, bool internal) const;
@@ -66,6 +86,9 @@ class NunchukWalletDb : public NunchukDb {
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   bool AddSigner(const SingleSigner &signer);
+  std::vector<AddressData> GetAllAddressData() const;
+  static std::map<std::string, std::vector<AddressData>> addr_cache_;
+  static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   friend class NunchukStorage;
 };
 

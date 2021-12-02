@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "descriptor.h"
 
@@ -135,7 +148,7 @@ std::string GetPkhDescriptor(const std::string& address) {
   return AddChecksum(desc_without_checksum.str());
 }
 
-static std::regex SIGNER_REGEX("\\[([0-9a-f]{8})(.+)\\](.+?)(/.*\\*)?");
+static std::regex SIGNER_REGEX("\\[([0-9a-fA-F]{8})(.+)\\](.+?)(/.*\\*)?\n?");
 
 static std::map<std::string, std::pair<AddressType, WalletType>>
     PREFIX_MATCHER = {
@@ -151,10 +164,12 @@ static std::map<std::string, std::pair<AddressType, WalletType>>
 SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
   if (std::regex_match(signer_str, sm, SIGNER_REGEX)) {
-    if (sm[4].str().empty()) {
-      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), sm[1], 0);
+    const std::string xfp = boost::algorithm::to_lower_copy(sm[1].str());
+    if (sm[3].str().rfind("tpub", 0) == 0 ||
+        sm[3].str().rfind("xpub", 0) == 0) {
+      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), xfp, 0);
     } else {
-      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), sm[1], 0);
+      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), xfp, 0);
     }
   }
   throw NunchukException(NunchukException::INVALID_PARAMETER,

@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_STORAGE_DB_H
 #define NUNCHUK_STORAGE_DB_H
@@ -8,6 +21,7 @@
 #include "common.h"
 #include <nunchuk.h>
 #include <string>
+#include <map>
 
 namespace nunchuk {
 
@@ -31,6 +45,7 @@ class NunchukDb {
   std::string GetString(int key) const;
   int64_t GetInt(int key) const;
   bool TableExists(const std::string &table_name) const;
+  std::string db_file_name_;
   sqlite3 *db_;
   std::string id_;
   Chain chain_;
@@ -38,7 +53,8 @@ class NunchukDb {
  private:
   NunchukDb() = delete;
   void close();
-  std::string db_file_name_;
+  static std::map<std::string, std::map<int, std::string>> vstr_cache_;
+  static std::map<std::string, std::map<int, int64_t>> vint_cache_;
   friend class NunchukStorage;
 };
 

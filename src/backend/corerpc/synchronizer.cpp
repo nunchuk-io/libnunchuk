@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <backend/corerpc/synchronizer.h>
 
@@ -15,7 +28,12 @@ CoreRpcSynchronizer::CoreRpcSynchronizer(const AppSettings& app_settings,
       interval_(60),
       timer_(io_service_, boost::posix_time::seconds(10)) {}
 
-CoreRpcSynchronizer::~CoreRpcSynchronizer() { stopped = true; }
+CoreRpcSynchronizer::~CoreRpcSynchronizer() {
+  stopped = true;
+  timer_.cancel();
+  sync_worker_.reset();
+  sync_thread_.join();
+}
 
 void CoreRpcSynchronizer::Run() {
   connection_listener_(ConnectionStatus::OFFLINE, 0);
@@ -129,6 +147,7 @@ void CoreRpcSynchronizer::BlockchainSync(
   auto all_txs = client_->ListTransactions();
   json descriptors;
   for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
+    if (stopped) return;
     auto wallet_id = *i;
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
     if (addresses.empty()) continue;
@@ -164,6 +183,7 @@ void CoreRpcSynchronizer::BlockchainSync(
 
     auto txs = storage_->GetTransactions(chain, wallet_id, 1000, 0);
     for (auto a = addresses.rbegin(); a != addresses.rend(); ++a) {
+      if (stopped) return;
       auto address = *a;
       json utxos;
       for (auto&& utxo : all_utxos) {
@@ -180,12 +200,14 @@ void CoreRpcSynchronizer::BlockchainSync(
 
         bool found = false;
         for (auto&& tx : txs) {
+          if (stopped) return;
           if (tx.get_txid() == tx_id) {
             if (tx.get_status() != TransactionStatus::CONFIRMED && height > 0) {
               auto tx = client_->GetTransaction(tx_id);
               storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
                                           tx["blocktime"]);
-              transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
+              transaction_listener_(tx_id, TransactionStatus::CONFIRMED,
+                                    wallet_id);
             }
             found = true;
             break;
@@ -199,7 +221,7 @@ void CoreRpcSynchronizer::BlockchainSync(
                                       time);
           auto status = height <= 0 ? TransactionStatus::PENDING_CONFIRMATION
                                     : TransactionStatus::CONFIRMED;
-          transaction_listener_(tx_id, status);
+          transaction_listener_(tx_id, status, wallet_id);
         }
       }
     }
@@ -208,6 +230,7 @@ void CoreRpcSynchronizer::BlockchainSync(
     balance_listener_(wallet_id, balance);
   }
 
+  if (stopped) return;
   if (!descriptors.empty()) {
     connection_listener_(ConnectionStatus::SYNCING, 0);
     client_->ImportDescriptors(descriptors.dump());

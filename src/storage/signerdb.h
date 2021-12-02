@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_STORAGE_SIGNERDB_H
 #define NUNCHUK_STORAGE_SIGNERDB_H
@@ -40,7 +53,7 @@ class NunchukSignerDb : public NunchukDb {
   std::string GetDeviceType() const;
   std::string GetName() const;
   time_t GetLastHealthCheck() const;
-  std::vector<SingleSigner> GetSingleSigners() const;
+  std::vector<SingleSigner> GetSingleSigners(bool usedOnly = true) const;
   bool IsMaster() const;
   void InitRemote();
   bool AddRemote(const std::string &name, const std::string &xpub,
@@ -54,7 +67,7 @@ class NunchukSignerDb : public NunchukDb {
   bool SetRemoteLastHealthCheck(const std::string &derivation_path,
                                 time_t value);
   std::vector<SingleSigner> GetRemoteSigners() const;
-  bool IsSoftware() const;
+  SignerType GetSignerType() const;
   SoftwareSigner GetSoftwareSigner(const std::string &passphrase) const;
 
  private:

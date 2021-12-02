@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_DESCRIPTOR_H
 #define NUNCHUK_DESCRIPTOR_H
@@ -15,6 +28,8 @@ namespace nunchuk {
 
 std::string AddChecksum(const std::string& str);
 
+std::string FormalizePath(const std::string& path);
+
 /**
  * @param external External descriptor to import
  * @param internal Internal descriptor to import
@@ -24,7 +39,7 @@ std::string AddChecksum(const std::string& str);
  */
 std::string GetDescriptorsImportString(const std::string& external,
                                        const std::string& internal = {},
-                                       int range = 1000,
+                                       int range = 100,
                                        int64_t timestamp = -1);
 
 std::string GetDescriptorForSigners(

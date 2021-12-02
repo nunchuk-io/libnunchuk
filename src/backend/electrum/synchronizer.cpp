@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <backend/electrum/synchronizer.h>
 #include <utils/addressutils.hpp>
@@ -14,9 +27,13 @@ static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 100;
 
 ElectrumSynchronizer::~ElectrumSynchronizer() {
-  std::lock_guard<std::mutex> guard(status_mutex_);
-  status_ = Status::STOPPED;
-  status_cv_.notify_all();
+  {
+    std::lock_guard<std::mutex> guard(status_mutex_);
+    status_ = Status::STOPPED;
+    status_cv_.notify_all();
+  }
+  sync_worker_.reset();
+  sync_thread_.join();
 }
 
 void ElectrumSynchronizer::WaitForReady() {
@@ -87,7 +104,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
         auto tx = client_->blockchain_transaction_get(tx_id);
         storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
                                     tx["blocktime"]);
-        transaction_listener_(tx_id, TransactionStatus::CONFIRMED);
+        transaction_listener_(tx_id, TransactionStatus::CONFIRMED, wallet_id);
       }
     } catch (StorageException& se) {
       if (se.code() == StorageException::TX_NOT_FOUND) {
@@ -102,7 +119,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
                                     fee);
         auto status = height <= 0 ? TransactionStatus::PENDING_CONFIRMATION
                                   : TransactionStatus::CONFIRMED;
-        transaction_listener_(tx_id, status);
+        transaction_listener_(tx_id, status, wallet_id);
       }
     }
   }
@@ -214,6 +231,8 @@ bool ElectrumSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   UpdateTransactions(chain, wallet_id, history);
   json utxo = client_->blockchain_scripthash_listunspent(scripthash);
   storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
+  Amount balance = storage_->GetBalance(chain, wallet_id);
+  balance_listener_(wallet_id, balance);
   return true;
 }
 

@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "coinselector.h"
 
@@ -10,6 +23,7 @@
 #include <tuple>
 #include <vector>
 #include <iostream>
+#include <signingprovider.h>
 
 namespace nunchuk {
 
@@ -32,20 +46,14 @@ CoinSelector::CoinSelector(const std::string descriptors,
                            const std::string example_address) {
   if (scriptsig_cache_.find(descriptors) == scriptsig_cache_.end() ||
       scriptwitness_cache_.find(descriptors) == scriptwitness_cache_.end()) {
-    UniValue uv;
-    uv.read(descriptors);
-    // Parse descriptors
-    FlatSigningProvider provider;
-    auto descs = uv.get_array();
-    for (size_t i = 0; i < descs.size(); ++i) {
-      EvalDescriptorStringOrObject(descs[i], provider);
-    }
+    FlatSigningProvider provider =
+        SigningProviderCache::getInstance().GetProvider(descriptors);
     CScript spk = GetScriptForDestination(DecodeDestination(example_address));
     SignatureData sigdata;
     if (!ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR, spk,
                           sigdata)) {
       throw NunchukException(NunchukException::CREATE_DUMMY_SIGNATURE_ERROR,
-                              "create dummy signature error");
+                             "create dummy signature error");
     }
     scriptsig_cache_[descriptors] = sigdata.scriptSig;
     scriptwitness_cache_[descriptors] = sigdata.scriptWitness;

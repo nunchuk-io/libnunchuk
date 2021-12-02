@@ -10,3 +10,6 @@
 [submodule "contrib/trezor-firmware"]
 	path = contrib/trezor-firmware
 	url = https://github.com/trezor/trezor-firmware
+[submodule "contrib/bc-ur-2"]
+	path = contrib/bc-ur-2
+	url = https://github.com/bakaoh/bc-ur

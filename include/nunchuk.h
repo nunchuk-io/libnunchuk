@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_INCLUDE_H
 #define NUNCHUK_INCLUDE_H
@@ -93,6 +106,13 @@ enum class DescriptorPath {
   TEMPLATE,
 };
 
+enum class SignerType {
+  HARDWARE,
+  AIRGAP,
+  SOFTWARE,
+  FOREIGN_SOFTWARE,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -131,6 +151,9 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int APP_RESTART_REQUIRED = -1019;
   static const int INVALID_FORMAT = -1020;
   static const int INVALID_SIGNER_PASSPHRASE = -1021;
+  static const int INVALID_SIGNER_TYPE = -1022;
+  static const int VERSION_NOT_SUPPORTED = -1023;
+  static const int INVALID_BIP32_PATH = -1024;
   using BaseException::BaseException;
 };
 
@@ -195,11 +218,13 @@ class NUNCHUK_EXPORT HWIException : public BaseException {
   // Nunchuk-defined error codes
   static const int RUN_ERROR = -4099;
   static const int INVALID_RESULT = -4098;
+  static const int VERSION_NOT_SUPPORTED = -4097;
   using BaseException::BaseException;
 };
 
 class NUNCHUK_EXPORT Device {
  public:
+  Device();
   Device(const std::string& fingerprint);
   Device(const std::string& type, const std::string& model,
          const std::string& master_fingerprint);
@@ -231,6 +256,7 @@ class NUNCHUK_EXPORT Device {
 
 class NUNCHUK_EXPORT SingleSigner {
  public:
+  SingleSigner();
   SingleSigner(const std::string& name, const std::string& xpub,
                const std::string& public_key,
                const std::string& derivation_path,
@@ -243,11 +269,14 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string get_derivation_path() const;
   std::string get_master_fingerprint() const;
   std::string get_master_signer_id() const;
+  SignerType get_type() const;
   bool is_used() const;
   bool has_master_signer() const;
   time_t get_last_health_check() const;
+  std::string get_descriptor() const;
   void set_name(const std::string& value);
   void set_used(bool value);
+  void set_type(SignerType value);
 
  private:
   std::string name_;
@@ -258,18 +287,22 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string master_signer_id_;
   time_t last_health_check_;
   bool used_;
+  SignerType type_;
 };
 
 class NUNCHUK_EXPORT MasterSigner {
  public:
+  MasterSigner();
   MasterSigner(const std::string& id, const Device& device,
-               time_t last_health_check, bool software = false);
+               time_t last_health_check,
+               SignerType signer_type = SignerType::HARDWARE);
 
   std::string get_id() const;
   std::string get_name() const;
   Device get_device() const;
   time_t get_last_health_check() const;
   bool is_software() const;
+  SignerType get_type() const;
   void set_name(const std::string& value);
 
  private:
@@ -277,11 +310,12 @@ class NUNCHUK_EXPORT MasterSigner {
   std::string name_;
   Device device_;
   time_t last_health_check_;
-  bool software_;
+  SignerType type_;
 };
 
 class NUNCHUK_EXPORT Wallet {
  public:
+  Wallet();
   Wallet(const std::string& id, int m, int n,
          const std::vector<SingleSigner>& signers, AddressType address_type,
          bool is_escrow, time_t create_date);
@@ -365,6 +399,7 @@ class Transaction {
   bool subtract_fee_from_amount() const;
   bool is_receive() const;
   Amount get_sub_amount() const;
+  std::string get_psbt() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -384,6 +419,7 @@ class Transaction {
   void set_subtract_fee_from_amount(bool value);
   void set_receive(bool value);
   void set_sub_amount(const Amount& value);
+  void set_psbt(const std::string& value);
 
  private:
   std::string txid_;
@@ -404,6 +440,7 @@ class Transaction {
   bool subtract_fee_from_amount_;
   bool is_receive_;
   Amount sub_amount_;
+  std::string psbt_;
 };
 
 class NUNCHUK_EXPORT AppSettings {
@@ -474,7 +511,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet CreateWallet(const std::string& name, int m, int n,
                               const std::vector<SingleSigner>& signers,
                               AddressType address_type, bool is_escrow,
-                              const std::string& description = {}) = 0;
+                              const std::string& description = {},
+                              bool allow_used_signer = false) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
                                   const std::vector<SingleSigner>& signers,
                                   AddressType address_type, bool is_escrow,
@@ -554,6 +592,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& file_path) = 0;
   virtual Transaction ImportTransaction(const std::string& wallet_id,
                                         const std::string& file_path) = 0;
+  virtual Transaction ImportPsbt(const std::string& wallet_id,
+                                 const std::string& psbt) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
@@ -593,7 +633,20 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<std::string>& qr_data) = 0;
   virtual Wallet ImportCoboWallet(const std::vector<std::string>& qr_data,
                                   const std::string& description = {}) = 0;
+
+  virtual SingleSigner ParseKeystoneSigner(const std::string& qr_data) = 0;
+  virtual std::vector<std::string> ExportKeystoneWallet(
+      const std::string& wallet_id) = 0;
+  virtual std::vector<std::string> ExportKeystoneTransaction(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual Transaction ImportKeystoneTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) = 0;
+  virtual Wallet ImportKeystoneWallet(const std::vector<std::string>& qr_data,
+                                      const std::string& description = {}) = 0;
+
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
+  virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
   virtual MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
@@ -601,6 +654,10 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,
                                     const std::string& passphrase) = 0;
   virtual void ClearSignerPassphrase(const std::string& mastersigner_id) = 0;
+  virtual std::string ExportBackup() = 0;
+  virtual bool SyncWithBackup(
+      const std::string& data,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
@@ -610,13 +667,15 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(int /* height */, std::string /* hex_header */)>
           listener) = 0;
   virtual void AddTransactionListener(
-      std::function<void(std::string /* tx_id */, TransactionStatus)>
+      std::function<void(std::string /* tx_id */, TransactionStatus,
+                         std::string /* wallet_id */)>
           listener) = 0;
   virtual void AddDeviceListener(
       std::function<void(std::string /* fingerprint */, bool /* connected */)>
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int /* percent */)> listener) = 0;
+  virtual void AddStorageUpdateListener(std::function<void()> listener) = 0;
 
   // The following methods use HWI to interact with the devices. They might take
   // a long time or require user inputs on device. Depending on the platform,

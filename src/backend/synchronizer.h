@@ -1,6 +1,19 @@
-// Copyright (c) 2020 Enigmo
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * This file is part of libnunchuk (https://github.com/nunchuk-io/libnunchuk).
+ * Copyright (c) 2020 Enigmo.
+ *
+ * libnunchuk is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * libnunchuk is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NUNCHUK_SYNCHRONIZER_H
 #define NUNCHUK_SYNCHRONIZER_H
@@ -27,7 +40,8 @@ class Synchronizer {
   void AddBalanceListener(std::function<void(std::string, Amount)> listener);
   void AddBlockListener(std::function<void(int, std::string)> listener);
   void AddTransactionListener(
-      std::function<void(std::string, TransactionStatus)> listener);
+      std::function<void(std::string, TransactionStatus, std::string)>
+          listener);
   void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int)> listener);
 
@@ -56,7 +70,7 @@ class Synchronizer {
   // Listener
   boost::signals2::signal<void(std::string, Amount)> balance_listener_;
   boost::signals2::signal<void(int, std::string)> block_listener_;
-  boost::signals2::signal<void(std::string, TransactionStatus)>
+  boost::signals2::signal<void(std::string, TransactionStatus, std::string)>
       transaction_listener_;
   boost::signals2::signal<void(ConnectionStatus, int)> connection_listener_;
 };

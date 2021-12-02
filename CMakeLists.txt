@@ -46,14 +46,53 @@ target_include_directories(trezor-crypto PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
 )
 
+if(WIN32)
+    include(TestBigEndian)
+    test_big_endian(BYTE_ORDER_BIG_ENDIAN)
+    add_compile_definitions(LITTLE_ENDIAN=1234)
+    add_compile_definitions(BIG_ENDIAN=4321)
+    add_compile_definitions(__ORDER_LITTLE_ENDIAN__=LITTLE_ENDIAN)
+    add_compile_definitions(__ORDER_BIG_ENDIAN__=BIG_ENDIAN)
+    if (BYTE_ORDER_BIG_ENDIAN)
+        add_compile_definitions(BYTE_ORDER=BIG_ENDIAN)
+        add_compile_definitions(__BYTE_ORDER__=BIG_ENDIAN)
+    else()
+        add_compile_definitions(BYTE_ORDER=LITTLE_ENDIAN)
+        add_compile_definitions(__BYTE_ORDER__=LITTLE_ENDIAN)
+    endif()
+endif()
+
+add_library(ur-2 STATIC 
+    "contrib/bc-ur-2/src/crc32.c"
+    "contrib/bc-ur-2/src/memzero.c"
+    "contrib/bc-ur-2/src/sha2.c"
+    "contrib/bc-ur-2/src/bytewords.cpp"
+    "contrib/bc-ur-2/src/fountain-decoder.cpp"
+    "contrib/bc-ur-2/src/fountain-encoder.cpp"
+    "contrib/bc-ur-2/src/fountain-utils.cpp"
+    "contrib/bc-ur-2/src/random-sampler.cpp"
+    "contrib/bc-ur-2/src/ur-decoder.cpp"
+    "contrib/bc-ur-2/src/ur-encoder.cpp"
+    "contrib/bc-ur-2/src/ur.cpp"
+    "contrib/bc-ur-2/src/utils.cpp"
+    "contrib/bc-ur-2/src/xoshiro256.cpp"
+)
+
+target_include_directories(ur-2 PUBLIC 
+    "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"
+    ${Boost_INCLUDE_DIRS}
+)
+
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
+    src/signingprovider.cpp
     src/coinselector.cpp
     src/softwaresigner.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
+    src/nunchukmatriximpl.cpp
     src/backend/synchronizer.cpp
     src/backend/electrum/client.cpp
     src/backend/electrum/synchronizer.cpp
@@ -66,18 +105,23 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/transaction.cpp
     src/dto/unspentoutput.cpp
     src/dto/wallet.cpp
+    src/dto/roomevent.cpp
+    src/dto/roomtransaction.cpp
+    src/dto/roomwallet.cpp
     src/storage/appstatedb.cpp
     src/storage/common.cpp
     src/storage/db.cpp
     src/storage/signerdb.cpp
     src/storage/storage.cpp
     src/storage/walletdb.cpp
+    src/storage/roomdb.cpp
     src/utils/loguru.cpp
 )
 
 set(PROJECT_LIBRARIES
     embedded
     ur
+    ur-2
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
 )
