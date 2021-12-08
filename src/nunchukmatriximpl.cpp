@@ -687,8 +687,8 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     wallet.add_join_event_id(event.get_event_id());
     db.SetWallet(wallet);
     db.SetEvent(event);
-    auto room_id{event.get_room_id()};
-    RandomDelay([this, room_id] { SendWalletReady(room_id); });
+    // auto room_id{event.get_room_id()};
+    // RandomDelay([this, room_id] { SendWalletReady(room_id); });
   } else if (msgtype == "io.nunchuk.wallet.leave") {
     auto wallet = db.GetWallet(init_event_id, false);
     wallet.set_room_id(event.get_room_id());
@@ -793,13 +793,13 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     }
 
     db.SetTransaction(tx);
-    if (msgtype == "io.nunchuk.transaction.sign") {
-      db.SetEvent(event);
-      auto room_id{event.get_room_id()};
-      RandomDelay([this, room_id, init_event_id] {
-        SendTransactionReady(room_id, init_event_id);
-      });
-    }
+    // if (msgtype == "io.nunchuk.transaction.sign") {
+    //   db.SetEvent(event);
+    //   auto room_id{event.get_room_id()};
+    //   RandomDelay([this, room_id, init_event_id] {
+    //     SendTransactionReady(room_id, init_event_id);
+    //   });
+    // }
   }
   db.SetEvent(event);
 }
