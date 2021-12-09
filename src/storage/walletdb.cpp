@@ -819,7 +819,6 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
       SigningProviderCache::getInstance().GetProvider(desc);
 
   int nin = psbt.tx.value().vin.size();
-  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
   for (int i = 0; i < nin; i++) {
     std::string tx_id = psbt.tx.value().vin[i].prevout.hash.GetHex();
     sqlite3_stmt* stmt;
@@ -831,10 +830,16 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
       std::string raw_tx = std::string((char*)sqlite3_column_text(stmt, 0));
       psbt.inputs[i].non_witness_utxo =
           MakeTransactionRef(DecodeRawTransaction(raw_tx));
-      SignPSBTInput(provider, psbt, i, &txdata, 1);
+      psbt.inputs[i].witness_utxo.SetNull();
     }
     SQLCHECK(sqlite3_finalize(stmt));
   }
+
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
+  for (int i = 0; i < nin; i++) {
+    SignPSBTInput(provider, psbt, i, &txdata, 1);
+  }
+
   // Update script/keypath information using descriptor data.
   for (unsigned int i = 0; i < psbt.tx.value().vout.size(); ++i) {
     UpdatePSBTOutput(provider, psbt, i);

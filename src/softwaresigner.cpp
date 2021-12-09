@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
  */
+#include <embeddedrpc.h>
 
 #include "softwaresigner.h"
 
@@ -28,6 +29,7 @@
 #include <util/message.h>
 #include <util/bip32.h>
 #include <script/signingprovider.h>
+#include <rpc/util.h>
 
 extern "C" {
 #include <bip39.h>
@@ -120,6 +122,41 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
 
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
     SignPSBTInput(provider, psbtx, i, &txdata);
+  }
+  return EncodePsbt(psbtx);
+}
+
+std::string SoftwareSigner::SignTaprootTx(
+    const std::string& base64_psbt,
+    const std::vector<std::string>& keypaths) const {
+  auto psbtx = DecodePsbt(base64_psbt);
+  auto master_fingerprint = GetMasterFingerprint();
+  FlatSigningProvider provider;
+
+  for (auto&& path : keypaths) {
+    TaprootBuilder builder;
+    auto key = GetExtKeyAtPath(path);
+    CPubKey pubkey = key.Neuter().pubkey;
+    XOnlyPubKey xpk(pubkey);
+
+    builder.Finalize(xpk);
+    WitnessV1Taproot output = builder.GetOutput();
+    provider.tr_spenddata[output].Merge(builder.GetSpendData());
+    unsigned char b[33] = {0x02};
+    auto internal_key = provider.tr_spenddata[output].internal_key;
+    std::copy(internal_key.begin(), internal_key.end(), b + 1);
+    CPubKey fullpubkey;
+    fullpubkey.Set(b, b + 33);
+    CKeyID keyid = fullpubkey.GetID();
+    provider.keys[keyid] = key.key;
+  }
+
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
+  for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
+    SignatureData sigdata;
+    psbtx.inputs[i].FillSignatureData(sigdata);
+    SignPSBTInput(HidingSigningProvider(&provider, false, false), psbtx, i,
+                  &txdata, psbtx.inputs[i].sighash_type);
   }
   return EncodePsbt(psbtx);
 }

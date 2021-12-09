@@ -396,6 +396,7 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
 
   auto rtx = db.GetTransaction(init_event_id);
   if (rtx.get_sign_event_ids().size() < m) return;  // Transaction not ready
+  if (!rtx.get_ready_event_id().empty()) return;
   auto init_event = db.GetEvent(init_event_id);
   json content = {{"msgtype", "io.nunchuk.transaction.ready"},
                   {"v", NUNCHUK_EVENT_VER},
