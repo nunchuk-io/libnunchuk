@@ -633,6 +633,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     signed_psbt = software_signer.SignTx(psbt);
+    storage_.ClearSignerPassphrase(chain_, mastersigner_id);
   } else {
     signed_psbt = hwi_.SignTx(device, psbt);
   }
