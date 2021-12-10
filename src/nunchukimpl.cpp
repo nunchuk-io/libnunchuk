@@ -441,10 +441,9 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     throw std::runtime_error("message too short!");
   }
 
-  bool existed = true;
   std::string id = fingerprint;
+  auto signer = GetMasterSigner(id);
   try {
-    auto signer = GetMasterSigner(id);
     if (signer.get_type() == SignerType::SOFTWARE) {
       return HealthStatus::SUCCESS;
     } else if (signer.get_type() == SignerType::FOREIGN_SOFTWARE) {
@@ -452,9 +451,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
                              "can not healthcheck foreign software signer");
     }
   } catch (StorageException& se) {
-    if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
-      existed = false;
-    } else {
+    if (se.code() != StorageException::MASTERSIGNER_NOT_FOUND) {
       throw;
     }
   }
@@ -463,7 +460,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   path = chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                                : TESTNET_HEALTH_CHECK_PATH;
   std::string xpub = hwi_.GetXpubAtPath(device, path);
-  if (existed) {
+  if (signer.get_type() == SignerType::HARDWARE) {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
     if (master_xpub != storage_.GetMasterSignerXPub(chain_, id, "m")) {
       return HealthStatus::KEY_NOT_MATCHED;
@@ -479,7 +476,9 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   signature = hwi_.SignMessage(device, message, path);
 
   if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
-    if (existed) storage_.SetHealthCheckSuccess(chain_, id);
+    if (signer.get_type() == SignerType::HARDWARE) {
+      storage_.SetHealthCheckSuccess(chain_, id);
+    }
     return HealthStatus::SUCCESS;
   } else {
     return HealthStatus::SIGNATURE_INVALID;
