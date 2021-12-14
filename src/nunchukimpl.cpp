@@ -441,26 +441,30 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     throw std::runtime_error("message too short!");
   }
 
+  bool existed = true;
+  SignerType signerType = SignerType::HARDWARE;
   std::string id = fingerprint;
-  auto signer = GetMasterSigner(id);
   try {
-    if (signer.get_type() == SignerType::SOFTWARE) {
-      return HealthStatus::SUCCESS;
-    } else if (signer.get_type() == SignerType::FOREIGN_SOFTWARE) {
-      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                             "can not healthcheck foreign software signer");
-    }
+    signerType = GetMasterSigner(id).get_type();
   } catch (StorageException& se) {
-    if (se.code() != StorageException::MASTERSIGNER_NOT_FOUND) {
+    if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
+      existed = false;
+    } else {
       throw;
     }
+  }
+  if (signerType == SignerType::SOFTWARE) {
+    return HealthStatus::SUCCESS;
+  } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "can not healthcheck foreign software signer");
   }
 
   Device device{fingerprint};
   path = chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                                : TESTNET_HEALTH_CHECK_PATH;
   std::string xpub = hwi_.GetXpubAtPath(device, path);
-  if (signer.get_type() == SignerType::HARDWARE) {
+  if (existed && signerType == SignerType::HARDWARE) {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
     if (master_xpub != storage_.GetMasterSignerXPub(chain_, id, "m")) {
       return HealthStatus::KEY_NOT_MATCHED;
@@ -476,7 +480,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   signature = hwi_.SignMessage(device, message, path);
 
   if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
-    if (signer.get_type() == SignerType::HARDWARE) {
+    if (existed && signerType == SignerType::HARDWARE) {
       storage_.SetHealthCheckSuccess(chain_, id);
     }
     return HealthStatus::SUCCESS;
