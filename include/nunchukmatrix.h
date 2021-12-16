@@ -80,6 +80,7 @@ class NUNCHUK_EXPORT RoomWallet {
   std::string get_ready_event_id() const;
   std::string get_delete_event_id() const;
   std::string get_json_content() const;
+  Chain get_chain() const;
 
   void set_room_id(const std::string& value);
   void set_wallet_id(const std::string& value);
@@ -93,6 +94,7 @@ class NUNCHUK_EXPORT RoomWallet {
   void set_ready_event_id(const std::string& value);
   void set_delete_event_id(const std::string& value);
   void set_json_content(const std::string& value);
+  void set_chain(const Chain& value);
 
  private:
   std::string room_id_;
@@ -105,6 +107,7 @@ class NUNCHUK_EXPORT RoomWallet {
   std::string ready_event_id_;
   std::string delete_event_id_;
   std::string json_content_;
+  Chain chain_;
 };
 
 class NUNCHUK_EXPORT RoomTransaction {

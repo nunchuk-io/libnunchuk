@@ -26,6 +26,13 @@ using json = nlohmann::json;
 
 namespace nunchuk {
 
+Chain ChainFromStr(const std::string& value) {
+  if (value == "TESTNET") return Chain::TESTNET;
+  if (value == "REGTEST") return Chain::REGTEST;
+  if (value == "MAIN") return Chain::MAIN;
+  throw NunchukException(NunchukException::INVALID_CHAIN, "invalid chain");
+}
+
 void NunchukRoomDb::Init() {
   CreateTable();
   SQLCHECK(sqlite3_exec(db_,
@@ -130,11 +137,7 @@ RoomWallet NunchukRoomDb::GetWallet(const std::string& init_event_id,
       rs.set_ready_event_id(value["ready_event_id"]);
     }
     SQLCHECK(sqlite3_finalize(stmt));
-    if (fill_json) {
-      rs.set_join_event_ids(GetJoinIds(rs));
-      rs.set_leave_event_ids({});
-      rs.set_json_content(GetJsonContent(rs));
-    }
+    if (fill_json) FillWalletData(rs);
     return rs;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -169,11 +172,7 @@ std::vector<RoomWallet> NunchukRoomDb::GetWallets(bool fill_json) {
   }
   SQLCHECK(sqlite3_finalize(stmt));
   if (fill_json) {
-    for (auto&& rw : rs) {
-      rw.set_join_event_ids(GetJoinIds(rw));
-      rw.set_leave_event_ids({});
-      rw.set_json_content(GetJsonContent(rw));
-    }
+    for (auto&& rw : rs) FillWalletData(rw);
   }
   return rs;
 }
@@ -396,7 +395,7 @@ std::vector<std::string> NunchukRoomDb::GetJoinIds(const RoomWallet& wallet) {
   return join_event_ids;
 }
 
-std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
+void NunchukRoomDb::FillWalletData(RoomWallet& wallet) {
   json content;
   auto init_event = GetEvent(wallet.get_init_event_id());
   auto init_body = json::parse(init_event.get_content())["body"];
@@ -408,16 +407,22 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
   content["is_escrow"] = init_body["is_escrow"];
   content["init_sender"] = init_event.get_sender();
   content["init_ts"] = init_event.get_ts();
+
+  auto join_event_ids = GetJoinIds(wallet);
+  wallet.set_chain(ChainFromStr(init_body["chain"]));
+  wallet.set_join_event_ids(join_event_ids);
+  wallet.set_leave_event_ids({});
+
   if (!wallet.get_cancel_event_id().empty()) {
     content["canceled"] = true;
-    return content.dump();
+    wallet.set_json_content(content.dump());
+    return;
   }
   if (!wallet.get_finalize_event_id().empty()) {
     content["finalized"] = true;
     content["wallet_id"] = wallet.get_wallet_id();
   }
 
-  auto join_event_ids = GetJoinIds(wallet);
   for (auto&& join_event_id : join_event_ids) {
     auto join_event = GetEvent(join_event_id);
     auto body = json::parse(join_event.get_content())["body"];
@@ -434,7 +439,7 @@ std::string NunchukRoomDb::GetJsonContent(const RoomWallet& wallet) {
     };
     content["joins"][join_event.get_sender()].push_back(signer);
   }
-  return content.dump();
+  wallet.set_json_content(content.dump());
 }
 
 Transaction NunchukRoomDb::GetTransaction(const RoomTransaction& rtx) {

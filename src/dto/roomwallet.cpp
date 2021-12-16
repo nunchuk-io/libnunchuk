@@ -37,6 +37,7 @@ std::string RoomWallet::get_cancel_event_id() const { return cancel_event_id_; }
 std::string RoomWallet::get_ready_event_id() const { return ready_event_id_; }
 std::string RoomWallet::get_delete_event_id() const { return delete_event_id_; }
 std::string RoomWallet::get_json_content() const { return json_content_; }
+Chain RoomWallet::get_chain() const { return chain_; }
 
 void RoomWallet::set_room_id(const std::string& value) { room_id_ = value; }
 void RoomWallet::set_wallet_id(const std::string& value) { wallet_id_ = value; }
@@ -70,5 +71,6 @@ void RoomWallet::set_delete_event_id(const std::string& value) {
 void RoomWallet::set_json_content(const std::string& value) {
   json_content_ = value;
 }
+void RoomWallet::set_chain(const Chain& value) { chain_ = value; }
 
 }  // namespace nunchuk

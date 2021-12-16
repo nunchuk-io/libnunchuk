@@ -55,7 +55,7 @@ class NunchukRoomDb : public NunchukDb {
 
  private:
   bool IsActiveWallet(const RoomWallet& wallet) const;
-  std::string GetJsonContent(const RoomWallet& wallet);
+  void FillWalletData(RoomWallet& wallet);
   Transaction GetTransaction(const RoomTransaction& rtx);
   friend class NunchukStorage;
 };
