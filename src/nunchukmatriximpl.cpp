@@ -21,6 +21,7 @@
 #include <set>
 #include <random>
 
+#include <utils/enumconverter.hpp>
 #include <utils/json.hpp>
 #include <utils/attachment.hpp>
 #include <boost/thread/locks.hpp>
@@ -30,49 +31,6 @@
 using json = nlohmann::json;
 
 namespace nunchuk {
-
-std::string ChainToStr(Chain value) {
-  if (value == Chain::TESTNET) return "TESTNET";
-  if (value == Chain::REGTEST) return "REGTEST";
-  return "MAIN";
-}
-
-Chain ChainFromStr(const std::string& value) {
-  if (value == "TESTNET") return Chain::TESTNET;
-  if (value == "REGTEST") return Chain::REGTEST;
-  if (value == "MAIN") return Chain::MAIN;
-  throw NunchukException(NunchukException::INVALID_CHAIN, "invalid chain");
-}
-
-std::string AddressTypeToStr(AddressType value) {
-  if (value == AddressType::LEGACY) return "LEGACY";
-  if (value == AddressType::NESTED_SEGWIT) return "NESTED_SEGWIT";
-  return "NATIVE_SEGWIT";
-}
-
-AddressType AddressTypeFromStr(const std::string& value) {
-  if (value == "LEGACY") return AddressType::LEGACY;
-  if (value == "NESTED_SEGWIT") return AddressType::NESTED_SEGWIT;
-  if (value == "NATIVE_SEGWIT") return AddressType::NATIVE_SEGWIT;
-  throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
-                         "invalid address type");
-}
-
-std::string SignerTypeToStr(SignerType value) {
-  if (value == SignerType::SOFTWARE) return "SOFTWARE";
-  if (value == SignerType::FOREIGN_SOFTWARE) return "FOREIGN_SOFTWARE";
-  if (value == SignerType::AIRGAP) return "AIRGAP";
-  return "HARDWARE";
-}
-
-SignerType SignerTypeFromStr(const std::string& value) {
-  if (value == "SOFTWARE") return SignerType::SOFTWARE;
-  if (value == "FOREIGN_SOFTWARE") return SignerType::FOREIGN_SOFTWARE;
-  if (value == "AIRGAP") return SignerType::AIRGAP;
-  if (value == "HARDWARE") return SignerType::HARDWARE;
-  throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                         "invalid signer type");
-}
 
 json GetInitBody(const json& body) {
   return body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];

@@ -16,6 +16,7 @@
  */
 
 #include "roomdb.h"
+#include <utils/enumconverter.hpp>
 #include <utils/json.hpp>
 #include <utils/txutils.hpp>
 #include <set>
@@ -25,13 +26,6 @@
 using json = nlohmann::json;
 
 namespace nunchuk {
-
-Chain ChainFromStr(const std::string& value) {
-  if (value == "TESTNET") return Chain::TESTNET;
-  if (value == "REGTEST") return Chain::REGTEST;
-  if (value == "MAIN") return Chain::MAIN;
-  throw NunchukException(NunchukException::INVALID_CHAIN, "invalid chain");
-}
 
 void NunchukRoomDb::Init() {
   CreateTable();
