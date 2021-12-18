@@ -175,13 +175,14 @@ Format files using this shortcut: Ctrl+⇧+F on Windows, Ctrl+⇧+I on Linux, an
 }
 ```
 
-## Nunchuk Desktop
+## Nunchuk Applications
 
-The Nunchuk Desktop app is available at https://nunchuk.io.
+The Nunchuk Desktop and Mobile apps are available at https://nunchuk.io.
 
 Read about our design philosophy at:
 * [Introducing Nunchuk](https://nunchuk.medium.com/introducing-nunchuk-multisig-made-easy-30d3144d0e09)
 * [Introducing libnunchuk](https://nunchuk.medium.com/announcing-libnunchuk-a-lean-cross-platform-multisig-library-powered-by-bitcoin-core-a2f6e26c54df)
+* [Bitcoin self-custody: A path forward](https://nunchuk.medium.com/bitcoin-self-custody-a-path-forward-bf131663d19f))
 
 ##  License
 
