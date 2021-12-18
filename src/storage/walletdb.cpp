@@ -217,12 +217,13 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
 
 bool NunchukWalletDb::UseAddress(const std::string& address) const {
   if (address.empty()) return false;
-  auto all = GetAllAddressData();
-  for (auto&& a : all) {
-    if (a.address == address) {
-      if (a.used) return false;
-      a.used = true;
-      break;
+  if (addr_cache_.count(db_file_name_)) {
+    for (auto&& a : addr_cache_[db_file_name_]) {
+      if (a.address == address) {
+        if (a.used) return false;
+        a.used = true;
+        break;
+      }
     }
   }
   sqlite3_stmt* stmt;
