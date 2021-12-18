@@ -1,9 +1,9 @@
-[![Nunchuk Logo](https://nunchuk.io/images/logo.png)](https://nunchuk.io)
+[![Nunchuk Logo](https://nunchuk.io/wp-content/uploads/2021/03/Horizontal-Logo-2.png)](https://nunchuk.io)
 
 ## About
 `libnunchuk` is a lean & cross-platform C++ multisig library powered by Bitcoin Core.
 
-`libnunchuk` is used by [the Nunchuk desktop and mobile applications](https://nunchuk.io/#Download).
+`libnunchuk` is used by [the Nunchuk Desktop and Mobile applications](https://nunchuk.io/#Download).
 
 ## Why Bitcoin Core
 
