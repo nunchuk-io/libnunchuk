@@ -246,7 +246,7 @@ fs::path NunchukStorage::GetWalletDir(Chain chain,
 
 fs::path NunchukStorage::GetSignerDir(Chain chain,
                                       const std::string& id) const {
-  return datadir_ / ChainStr(chain) / "signers" / id;
+  return datadir_ / ChainStr(chain) / "signers" / ba::to_lower_copy(id);
 }
 
 fs::path NunchukStorage::GetAppStateDir(Chain chain) const {

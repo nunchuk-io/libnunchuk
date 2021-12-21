@@ -332,10 +332,10 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "invalid master fingerprint");
   }
+  std::string xfp = to_lower_copy(master_fingerprint);
   std::string name = trim_copy(raw_name);
-  auto rs =
-      storage_.CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
-                                  derivation_path, master_fingerprint);
+  auto rs = storage_.CreateSingleSigner(chain_, name, sanitized_xpub,
+                                        public_key, derivation_path, xfp);
   storage_listener_();
   return rs;
 }
