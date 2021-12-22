@@ -205,6 +205,16 @@ class NunchukImpl : public Nunchuk {
   Wallet ImportKeystoneWallet(const std::vector<std::string>& qr_data,
                               const std::string& description = {}) override;
 
+  std::vector<SingleSigner> ParsePassportSigners(
+      const std::vector<std::string>& qr_data) override;
+  std::vector<std::string> ExportPassportWallet(
+      const std::string& wallet_id) override;
+  std::vector<std::string> ExportPassportTransaction(
+      const std::string& wallet_id, const std::string& tx_id) override;
+  Transaction ImportPassportTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) override;
+
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id) override;
 

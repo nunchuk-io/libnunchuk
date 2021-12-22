@@ -645,6 +645,16 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet ImportKeystoneWallet(const std::vector<std::string>& qr_data,
                                       const std::string& description = {}) = 0;
 
+  virtual std::vector<SingleSigner> ParsePassportSigners(
+      const std::vector<std::string>& qr_data) = 0;
+  virtual std::vector<std::string> ExportPassportWallet(
+      const std::string& wallet_id) = 0;
+  virtual std::vector<std::string> ExportPassportTransaction(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual Transaction ImportPassportTransaction(
+      const std::string& wallet_id,
+      const std::vector<std::string>& qr_data) = 0;
+
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
   virtual MasterSigner CreateSoftwareSigner(
