@@ -157,6 +157,10 @@ class NunchukImpl : public Nunchuk {
   Transaction ReplaceTransaction(const std::string& wallet_id,
                                  const std::string& tx_id,
                                  Amount new_fee_rate) override;
+  Transaction UpdateTransaction(const std::string& wallet_id,
+                                const std::string& tx_id,
+                                const std::string& new_txid,
+                                const std::string& raw_tx) override;
   bool UpdateTransactionMemo(const std::string& wallet_id,
                              const std::string& tx_id,
                              const std::string& new_memo) override;

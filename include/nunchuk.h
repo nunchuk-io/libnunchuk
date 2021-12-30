@@ -400,6 +400,7 @@ class Transaction {
   bool is_receive() const;
   Amount get_sub_amount() const;
   std::string get_psbt() const;
+  std::string get_raw() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -420,6 +421,7 @@ class Transaction {
   void set_receive(bool value);
   void set_sub_amount(const Amount& value);
   void set_psbt(const std::string& value);
+  void set_raw(const std::string& value);
 
  private:
   std::string txid_;
@@ -441,6 +443,7 @@ class Transaction {
   bool is_receive_;
   Amount sub_amount_;
   std::string psbt_;
+  std::string raw_;
 };
 
 class NUNCHUK_EXPORT AppSettings {
@@ -608,6 +611,10 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction ReplaceTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
                                          Amount new_fee_rate) = 0;
+  virtual Transaction UpdateTransaction(const std::string& wallet_id,
+                                        const std::string& tx_id,
+                                        const std::string& new_txid,
+                                        const std::string& raw_tx) = 0;
   virtual bool UpdateTransactionMemo(const std::string& wallet_id,
                                      const std::string& tx_id,
                                      const std::string& new_memo) = 0;

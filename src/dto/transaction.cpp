@@ -52,6 +52,7 @@ bool Transaction::subtract_fee_from_amount() const {
 bool Transaction::is_receive() const { return is_receive_; }
 Amount Transaction::get_sub_amount() const { return sub_amount_; }
 std::string Transaction::get_psbt() const { return psbt_; }
+std::string Transaction::get_raw() const { return raw_; }
 
 void Transaction::set_txid(const std::string& value) { txid_ = value; }
 void Transaction::set_height(int value) { height_ = value; }
@@ -84,5 +85,6 @@ void Transaction::set_subtract_fee_from_amount(bool value) {
 void Transaction::set_receive(bool value) { is_receive_ = value; }
 void Transaction::set_sub_amount(const Amount& value) { sub_amount_ = value; }
 void Transaction::set_psbt(const std::string& value) { psbt_ = value; }
+void Transaction::set_raw(const std::string& value) { raw_ = value; }
 
 }  // namespace nunchuk

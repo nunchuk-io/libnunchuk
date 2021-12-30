@@ -584,7 +584,11 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     // become false
     tx.set_receive(false);
     tx.set_sub_amount(0);
-    if (height == -1) tx.set_psbt(value);
+    if (height == -1) {
+      tx.set_psbt(value);
+    } else {
+      tx.set_raw(value);
+    }
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
@@ -788,6 +792,13 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
+    tx.set_receive(false);
+    tx.set_sub_amount(0);
+    if (height == -1) {
+      tx.set_psbt(value);
+    } else {
+      tx.set_raw(value);
+    }
 
     if (sqlite3_column_text(stmt, 7)) {
       std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));

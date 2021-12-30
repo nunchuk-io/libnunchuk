@@ -373,6 +373,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
                   {"v", NUNCHUK_EVENT_VER},
                   {"body",
                    {{"tx_id", tx.get_txid()},
+                    {"raw_tx", tx.get_raw()},
                     {"io.nunchuk.relates_to",
                      {{"init_event", EventToJson(init_event)},
                       {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
@@ -747,6 +748,13 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       tx.set_ready_event_id(event.get_event_id());
     } else if (msgtype == "io.nunchuk.transaction.broadcast") {
       tx.set_broadcast_event_id(event.get_event_id());
+      if (body["raw_tx"] != nullptr) {
+        try {
+          nu->UpdateTransaction(tx.get_wallet_id(), tx.get_tx_id(),
+                                body["tx_id"], body["raw_tx"]);
+        } catch (...) {
+        }
+      }
       tx.set_tx_id(body["tx_id"]);
     }
 
