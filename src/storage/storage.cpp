@@ -681,8 +681,11 @@ Transaction NunchukStorage::InsertTransaction(
     int height, time_t blocktime, Amount fee, const std::string& memo,
     int change_pos) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id)
-      .InsertTransaction(raw_tx, height, blocktime, fee, memo, change_pos);
+  auto db = GetWalletDb(chain, wallet_id);
+  auto tx =
+      db.InsertTransaction(raw_tx, height, blocktime, fee, memo, change_pos);
+  db.FillSendReceiveData(tx);
+  return tx;
 }
 
 std::vector<Transaction> NunchukStorage::GetTransactions(
@@ -765,9 +768,11 @@ Transaction NunchukStorage::CreatePsbt(
     const std::map<std::string, Amount>& outputs, Amount fee_rate,
     bool subtract_fee_from_amount, const std::string& replace_tx) {
   boost::unique_lock<boost::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id)
-      .CreatePsbt(psbt, fee, memo, change_pos, outputs, fee_rate,
-                  subtract_fee_from_amount, replace_tx);
+  auto db = GetWalletDb(chain, wallet_id);
+  auto tx = db.CreatePsbt(psbt, fee, memo, change_pos, outputs, fee_rate,
+                          subtract_fee_from_amount, replace_tx);
+  db.FillSendReceiveData(tx);
+  return tx;
 }
 
 bool NunchukStorage::UpdatePsbt(Chain chain, const std::string& wallet_id,
