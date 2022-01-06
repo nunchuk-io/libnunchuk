@@ -590,8 +590,10 @@ Transaction NunchukImpl::CreateTransaction(
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto psbt = CreatePsbt(wallet_id, outputs, inputs, fee_rate,
                          subtract_fee_from_amount, true, fee, change_pos);
-  return storage_.CreatePsbt(chain_, wallet_id, psbt, fee, memo, change_pos,
-                             outputs, fee_rate, subtract_fee_from_amount);
+  auto rs = storage_.CreatePsbt(chain_, wallet_id, psbt, fee, memo, change_pos,
+                                outputs, fee_rate, subtract_fee_from_amount);
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
@@ -610,9 +612,12 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
     std::string combined_psbt =
         CoreUtils::getInstance().CombinePsbt({psbt, existed_psbt});
     storage_.UpdatePsbt(chain_, wallet_id, combined_psbt);
+    storage_listener_();
     return GetTransaction(wallet_id, tx_id);
   }
-  return storage_.CreatePsbt(chain_, wallet_id, psbt);
+  auto rs = storage_.CreatePsbt(chain_, wallet_id, psbt);
+  storage_listener_();
+  return rs;
 }
 
 Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
@@ -645,6 +650,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
          signed_psbt.c_str());
   storage_.UpdatePsbt(chain_, wallet_id, signed_psbt);
+  storage_listener_();
   return GetTransaction(wallet_id, tx_id);
 }
 
@@ -770,9 +776,11 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   int change_pos = 0;
   auto psbt = CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
                          tx.subtract_fee_from_amount(), true, fee, change_pos);
-  return storage_.CreatePsbt(chain_, wallet_id, psbt, fee, tx.get_memo(),
-                             change_pos, outputs, new_fee_rate,
-                             tx.subtract_fee_from_amount(), tx.get_txid());
+  auto rs = storage_.CreatePsbt(chain_, wallet_id, psbt, fee, tx.get_memo(),
+                                change_pos, outputs, new_fee_rate,
+                                tx.subtract_fee_from_amount(), tx.get_txid());
+  storage_listener_();
+  return rs;
 }
 
 bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,

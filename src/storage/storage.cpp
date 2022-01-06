@@ -943,7 +943,25 @@ std::string NunchukStorage::ExportBackup() {
           {"descriptor", w.get_descriptor(DescriptorPath::ANY)},
           {"create_date", w.get_create_date()},
           {"description", w.get_description()},
+          {"pending_signatures", json::array()},
       };
+      auto txs = wallet_db.GetTransactions();
+      for (auto&& tx : txs) {
+        if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
+        json outputs = json::array();
+        for (auto&& output : tx.get_user_outputs()) {
+          outputs.push_back(
+              {{"address", output.first}, {"amount", output.second}});
+        }
+        wallet["pending_signatures"].push_back(
+            {{"psbt", tx.get_psbt()},
+             {"fee", tx.get_fee()},
+             {"memo", tx.get_memo()},
+             {"change_pos", tx.get_change_index()},
+             {"fee_rate", tx.get_fee_rate()},
+             {"subtract_fee_from_amount", tx.subtract_fee_from_amount()},
+             {"outputs", outputs}});
+      }
       rs["wallets"].push_back(wallet);
     }
 
@@ -1030,6 +1048,22 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         auto db = GetWalletDb(chain, id);
         db.SetName(wallet["name"]);
         db.SetDescription(wallet["description"]);
+      }
+
+      if (wallet["pending_signatures"] == nullptr) continue;
+      auto wallet_db = GetWalletDb(chain, id);
+      json txs = wallet["pending_signatures"];
+      for (auto&& tx : txs) {
+        std::map<std::string, Amount> outputs;
+        for (auto&& output : tx["outputs"]) {
+          outputs[output["address"]] = output["amount"];
+        }
+        try {
+          wallet_db.CreatePsbt(tx["psbt"], tx["fee"], tx["memo"],
+                               tx["change_pos"], outputs, tx["fee_rate"],
+                               tx["subtract_fee_from_amount"], {});
+        } catch (...) {
+        }
       }
     }
     percent += 25;
