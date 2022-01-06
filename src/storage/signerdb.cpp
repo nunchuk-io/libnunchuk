@@ -266,7 +266,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
 
 bool NunchukSignerDb::DeleteRemoteSigner(const std::string& path) {
   sqlite3_stmt* stmt;
-  std::string sql = "DELETE FROM REMOTE WHERE PATH = ? AND USED = -1;";
+  std::string sql = "DELETE FROM REMOTE WHERE PATH = ?;";
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_step(stmt);
