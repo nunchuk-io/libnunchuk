@@ -24,7 +24,7 @@
 #include "roomdb.h"
 
 #include <boost/filesystem.hpp>
-#include <boost/thread/shared_mutex.hpp>
+#include <shared_mutex>
 #include <iostream>
 #include <map>
 #include <string>
@@ -194,7 +194,7 @@ class NunchukStorage {
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;
-  boost::shared_mutex access_;
+  std::shared_mutex access_;
   std::map<std::string, std::string> signer_passphrase_;
 };
 

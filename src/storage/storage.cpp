@@ -26,7 +26,7 @@
 #include <boost/filesystem/string_file.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
-#include <boost/thread/locks.hpp>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <cstring>
@@ -90,7 +90,7 @@ std::string NunchukStorage::LoadFile(const std::string& file_path) {
 bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
                                   const std::string& file_path,
                                   ExportFormat format) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet_id);
   switch (format) {
     case ExportFormat::COLDCARD:
@@ -116,7 +116,7 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
 
 std::string NunchukStorage::ImportWalletDb(Chain chain,
                                            const std::string& file_path) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = NunchukWalletDb{chain, "", file_path, ""};
   std::string id = wallet_db.GetId();
   auto wallet_file = GetWalletDir(chain, id);
@@ -175,7 +175,7 @@ void NunchukStorage::SetPassphrase(const std::string& value) {
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   auto wallets = ListWallets(chain);
   auto signers = ListMasterSigners(chain);
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   if (passphrase_.empty()) {
     for (auto&& wallet_id : wallets) {
       auto old_file = GetWalletDir(chain, wallet_id);
@@ -308,7 +308,7 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
                                     AddressType address_type, bool is_escrow,
                                     const std::string& description,
                                     bool allow_used_signer) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return CreateWallet0(chain, name, m, n, signers, address_type, is_escrow,
                        description, allow_used_signer, std::time(0));
 }
@@ -384,7 +384,7 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
                                                const std::string& name,
                                                const Device& device,
                                                const std::string& mnemonic) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = ba::to_lower_copy(device.get_master_fingerprint());
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
@@ -396,7 +396,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
     Chain chain, const std::string& name, const std::string& xpub,
     const std::string& public_key, const std::string& derivation_path,
     const std::string& master_fingerprint) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = master_fingerprint;
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
@@ -415,7 +415,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
 SingleSigner NunchukStorage::GetSignerFromMasterSigner(
     Chain chain, const std::string& mastersigner_id,
     const WalletType& wallet_type, const AddressType& address_type, int index) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, mastersigner_id);
   std::string path = GetBip32Path(chain, wallet_type, address_type, index);
   auto signer = SingleSigner(
@@ -428,7 +428,7 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
 
 std::vector<SingleSigner> NunchukStorage::GetSignersFromMasterSigner(
     Chain chain, const std::string& mastersigner_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, mastersigner_id).GetSingleSigners();
 }
 
@@ -436,7 +436,7 @@ void NunchukStorage::CacheMasterSignerXPub(
     Chain chain, const std::string& id,
     std::function<std::string(std::string)> getxpub,
     std::function<bool(int)> progress, bool first) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
 
   int count = 0;
@@ -479,7 +479,7 @@ void NunchukStorage::CacheMasterSignerXPub(
 int NunchukStorage::GetCurrentIndexFromMasterSigner(
     Chain chain, const std::string& mastersigner_id,
     const WalletType& wallet_type, const AddressType& address_type) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, mastersigner_id)
       .GetUnusedIndex(wallet_type, address_type);
 }
@@ -487,19 +487,19 @@ int NunchukStorage::GetCurrentIndexFromMasterSigner(
 int NunchukStorage::GetCachedIndexFromMasterSigner(
     Chain chain, const std::string& mastersigner_id,
     const WalletType& wallet_type, const AddressType& address_type) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, mastersigner_id)
       .GetCachedIndex(wallet_type, address_type);
 }
 
 std::string NunchukStorage::GetMasterSignerXPub(
     Chain chain, const std::string& mastersigner_id, const std::string& path) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, mastersigner_id).GetXpub(path);
 }
 
 std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return ListWallets0(chain);
 }
 
@@ -515,7 +515,7 @@ std::vector<std::string> NunchukStorage::ListWallets0(Chain chain) {
 }
 
 std::vector<std::string> NunchukStorage::ListMasterSigners(Chain chain) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return ListMasterSigners0(chain);
 }
 
@@ -532,7 +532,7 @@ std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
 
 Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                                  bool create_signers_if_not_exist) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
   Wallet wallet = wallet_db.GetWallet();
   std::vector<SingleSigner> signers;
@@ -584,7 +584,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
 
 MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
                                              const std::string& id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto mid = ba::to_lower_copy(id);
   auto signer_db = GetSignerDb(chain, mid);
   Device device{signer_db.GetDeviceType(), signer_db.GetDeviceModel(),
@@ -607,7 +607,7 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
 
 SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
                                                  const std::string& id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto mid = ba::to_lower_copy(id);
   if (signer_passphrase_.count(mid) == 0) {
     auto software_signer = GetSignerDb(chain, mid).GetSoftwareSigner("");
@@ -618,7 +618,7 @@ SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
 }
 
 bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
   return wallet_db.SetName(wallet.get_name()) &&
          wallet_db.SetDescription(wallet.get_description());
@@ -626,31 +626,31 @@ bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
 
 bool NunchukStorage::UpdateMasterSigner(Chain chain,
                                         const MasterSigner& signer) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, signer.get_id()).SetName(signer.get_name());
 }
 
 bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   GetWalletDb(chain, id).DeleteWallet();
   return fs::remove(GetWalletDir(chain, id));
 }
 
 bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   GetSignerDb(chain, id).DeleteSigner();
   return fs::remove(GetSignerDir(chain, id));
 }
 
 bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
                                            const std::string& mastersigner_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, mastersigner_id).SetLastHealthCheck(std::time(0));
 }
 
 bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
                                            const SingleSigner& signer) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, signer.get_master_fingerprint())
       .SetRemoteLastHealthCheck(signer.get_derivation_path(), std::time(0));
 }
@@ -658,32 +658,32 @@ bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
 bool NunchukStorage::AddAddress(Chain chain, const std::string& wallet_id,
                                 const std::string& address, int index,
                                 bool internal) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).AddAddress(address, index, internal);
 }
 
 bool NunchukStorage::UseAddress(Chain chain, const std::string& wallet_id,
                                 const std::string& address) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).UseAddress(address);
 }
 
 std::vector<std::string> NunchukStorage::GetAddresses(
     Chain chain, const std::string& wallet_id, bool used, bool internal) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetAddresses(used, internal);
 }
 
 std::vector<std::string> NunchukStorage::GetAllAddresses(
     Chain chain, const std::string& wallet_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetAllAddresses();
 }
 
 int NunchukStorage::GetCurrentAddressIndex(Chain chain,
                                            const std::string& wallet_id,
                                            bool internal) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetCurrentAddressIndex(internal);
 }
 
@@ -691,7 +691,7 @@ Transaction NunchukStorage::InsertTransaction(
     Chain chain, const std::string& wallet_id, const std::string& raw_tx,
     int height, time_t blocktime, Amount fee, const std::string& memo,
     int change_pos) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto tx =
       db.InsertTransaction(raw_tx, height, blocktime, fee, memo, change_pos);
@@ -701,7 +701,7 @@ Transaction NunchukStorage::InsertTransaction(
 
 std::vector<Transaction> NunchukStorage::GetTransactions(
     Chain chain, const std::string& wallet_id, int count, int skip) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto vtx = db.GetTransactions(count, skip);
 
@@ -734,14 +734,14 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 
 std::vector<UnspentOutput> NunchukStorage::GetUnspentOutputs(
     Chain chain, const std::string& wallet_id, bool remove_locked) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetUnspentOutputs(remove_locked);
 }
 
 Transaction NunchukStorage::GetTransaction(Chain chain,
                                            const std::string& wallet_id,
                                            const std::string& tx_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto tx = db.GetTransaction(tx_id);
   db.FillSendReceiveData(tx);
@@ -753,7 +753,7 @@ bool NunchukStorage::UpdateTransaction(Chain chain,
                                        const std::string& raw_tx, int height,
                                        time_t blocktime,
                                        const std::string& reject_msg) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id)
       .UpdateTransaction(raw_tx, height, blocktime, reject_msg);
 }
@@ -762,14 +762,14 @@ bool NunchukStorage::UpdateTransactionMemo(Chain chain,
                                            const std::string& wallet_id,
                                            const std::string& tx_id,
                                            const std::string& memo) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).UpdateTransactionMemo(tx_id, memo);
 }
 
 bool NunchukStorage::DeleteTransaction(Chain chain,
                                        const std::string& wallet_id,
                                        const std::string& tx_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).DeleteTransaction(tx_id);
 }
 
@@ -778,7 +778,7 @@ Transaction NunchukStorage::CreatePsbt(
     Amount fee, const std::string& memo, int change_pos,
     const std::map<std::string, Amount>& outputs, Amount fee_rate,
     bool subtract_fee_from_amount, const std::string& replace_tx) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto db = GetWalletDb(chain, wallet_id);
   auto tx = db.CreatePsbt(psbt, fee, memo, change_pos, outputs, fee_rate,
                           subtract_fee_from_amount, replace_tx);
@@ -788,37 +788,37 @@ Transaction NunchukStorage::CreatePsbt(
 
 bool NunchukStorage::UpdatePsbt(Chain chain, const std::string& wallet_id,
                                 const std::string& psbt) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).UpdatePsbt(psbt);
 }
 
 bool NunchukStorage::UpdatePsbtTxId(Chain chain, const std::string& wallet_id,
                                     const std::string& old_id,
                                     const std::string& new_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).UpdatePsbtTxId(old_id, new_id);
 }
 
 std::string NunchukStorage::GetPsbt(Chain chain, const std::string& wallet_id,
                                     const std::string& tx_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetPsbt(tx_id);
 }
 
 bool NunchukStorage::SetUtxos(Chain chain, const std::string& wallet_id,
                               const std::string& address,
                               const std::string& utxo) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).SetUtxos(address, utxo);
 }
 
 Amount NunchukStorage::GetBalance(Chain chain, const std::string& wallet_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetBalance();
 }
 std::string NunchukStorage::FillPsbt(Chain chain, const std::string& wallet_id,
                                      const std::string& psbt) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).FillPsbt(psbt);
 }
 
@@ -828,7 +828,7 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
   std::call_once(flag, [&] {
     auto wallets = ListWallets(chain);
     {
-      boost::unique_lock<boost::shared_mutex> lock(access_);
+      std::unique_lock<std::shared_mutex> lock(access_);
       for (auto&& wallet_id : wallets) {
         GetWalletDb(chain, wallet_id).MaybeMigrate();
       }
@@ -849,28 +849,28 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
 }
 
 int NunchukStorage::GetChainTip(Chain chain) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(chain).GetChainTip();
 }
 
 bool NunchukStorage::SetChainTip(Chain chain, int value) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(chain).SetChainTip(value);
 }
 
 std::string NunchukStorage::GetSelectedWallet(Chain chain) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(chain).GetSelectedWallet();
 }
 
 bool NunchukStorage::SetSelectedWallet(Chain chain, const std::string& value) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(chain).SetSelectedWallet(value);
 }
 
 std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {
   auto signers = ListMasterSigners(chain);
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   std::vector<SingleSigner> rs;
   for (auto&& signer_id : signers) {
     auto remote = GetSignerDb(chain, signer_id).GetRemoteSigners();
@@ -882,27 +882,27 @@ std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {
 bool NunchukStorage::DeleteRemoteSigner(Chain chain,
                                         const std::string& master_fingerprint,
                                         const std::string& derivation_path) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, master_fingerprint)
       .DeleteRemoteSigner(derivation_path);
 }
 
 bool NunchukStorage::UpdateRemoteSigner(Chain chain,
                                         const SingleSigner& remotesigner) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, remotesigner.get_master_fingerprint())
       .SetRemoteName(remotesigner.get_derivation_path(),
                      remotesigner.get_name());
 }
 
 bool NunchukStorage::IsMasterSigner(Chain chain, const std::string& id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetSignerDb(chain, id).IsMaster();
 }
 
 int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
                                     const std::string& address) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   int index = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
   if (index < 0)
     throw StorageException(StorageException::ADDRESS_NOT_FOUND,
@@ -913,33 +913,33 @@ int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
 Amount NunchukStorage::GetAddressBalance(Chain chain,
                                          const std::string& wallet_id,
                                          const std::string& address) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
 std::string NunchukStorage::GetMultisigConfig(Chain chain,
                                               const std::string& wallet_id,
                                               bool is_cobo) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetMultisigConfig(is_cobo);
 }
 
 void NunchukStorage::SendSignerPassphrase(Chain chain,
                                           const std::string& mastersigner_id,
                                           const std::string& passphrase) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   GetSignerDb(chain, mastersigner_id).GetSoftwareSigner(passphrase);
   signer_passphrase_[ba::to_lower_copy(mastersigner_id)] = passphrase;
 }
 
 void NunchukStorage::ClearSignerPassphrase(Chain chain,
                                            const std::string& mastersigner_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   signer_passphrase_.erase(ba::to_lower_copy(mastersigner_id));
 }
 
 std::string NunchukStorage::ExportBackup() {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
 
   auto exportChain = [&](Chain chain) {
     json rs;
@@ -1017,7 +1017,7 @@ std::string NunchukStorage::ExportBackup() {
 
 bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
                                     std::function<bool(int)> progress) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
 
   int percent = 0;
   auto importChain = [&](Chain chain, const json& d) {
@@ -1102,12 +1102,12 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
 }
 
 time_t NunchukStorage::GetLastSyncTs() {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(Chain::MAIN).GetLastSyncTs();
 }
 
 time_t NunchukStorage::GetLastExportTs() {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(Chain::MAIN).GetLastExportTs();
 }
 

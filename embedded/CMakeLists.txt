@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(Boost_USE_STATIC_LIBS ON)
 
 find_package(Threads REQUIRED)
-find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
+find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options)
 
 if(WIN32)
     find_package(Libevent CONFIG REQUIRED)
