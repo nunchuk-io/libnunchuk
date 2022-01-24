@@ -1059,25 +1059,10 @@ Wallet NunchukImpl::ImportKeystoneWallet(
 
 std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
     const std::vector<std::string>& qr_data) {
-  auto decoder = ur::URDecoder();
-  for (auto&& part : qr_data) {
-    decoder.receive_part(part);
-  }
-  if (!decoder.is_complete() || !decoder.is_success()) {
-    throw std::runtime_error("invalid input");
-  }
-  auto cbor = decoder.result_ur().cbor();
-
-  auto i = cbor.begin();
-  auto end = cbor.end();
-  Tag tag;
-  Tag t;
-  std::vector<char> config;
-  decodeBytes(i, end, config);
+  auto config = nunchuk::bcr::DecodeUniformResource(qr_data);
   std::string config_str(config.begin(), config.end());
-
   std::vector<SingleSigner> signers;
-  if (ParsePassportSignerConfig(Chain::TESTNET, config_str, signers)) {
+  if (ParsePassportSignerConfig(chain_, config_str, signers)) {
     return signers;
   } else {
     throw std::runtime_error("invalid data format");
@@ -1088,50 +1073,24 @@ std::vector<std::string> NunchukImpl::ExportPassportWallet(
     const std::string& wallet_id) {
   auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
   std::vector<uint8_t> data(content.begin(), content.end());
-  ur::ByteVector cbor;
-  encodeBytes(cbor, data);
-  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), MAX_FRAGMENT_LEN);
-  std::vector<std::string> parts;
-  do {
-    parts.push_back(encoder.next_part());
-  } while (!encoder.is_complete());
-  return parts;
+  return nunchuk::bcr::EncodeUniformResource(data);
 }
 
 std::vector<std::string> NunchukImpl::ExportPassportTransaction(
     const std::string& wallet_id, const std::string& tx_id) {
   std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
   bool invalid;
-  auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
+  auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  CryptoPSBT psbt{data};
-  ur::ByteVector cbor;
-  encodeCryptoPSBT(cbor, psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
-  std::vector<std::string> parts;
-  do {
-    parts.push_back(encoder.next_part());
-  } while (!encoder.is_complete());
-  return parts;
+  return nunchuk::bcr::EncodeUniformResource(psbt);
 }
 
 Transaction NunchukImpl::ImportPassportTransaction(
     const std::string& wallet_id, const std::vector<std::string>& qr_data) {
-  auto decoder = ur::URDecoder();
-  for (auto&& part : qr_data) {
-    decoder.receive_part(part);
-  }
-  if (!decoder.is_complete() || !decoder.is_success()) {
-    throw std::runtime_error("invalid input");
-  }
-  auto decoded = decoder.result_ur();
-  auto i = decoded.cbor().begin();
-  auto end = decoded.cbor().end();
-  CryptoPSBT psbt{};
-  decodeCryptoPSBT(i, end, psbt);
-  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt.data)));
+  auto psbt = nunchuk::bcr::DecodeUniformResource(qr_data);
+  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
 }
 
 std::string NunchukImpl::ExportBackup() { return storage_.ExportBackup(); }

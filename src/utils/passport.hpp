@@ -21,6 +21,7 @@
 #include <nunchuk.h>
 #include <utils/json.hpp>
 #include <boost/algorithm/string.hpp>
+#include <iomanip>
 
 namespace {
 
@@ -30,11 +31,27 @@ inline bool ParsePassportSignerConfig(
   using namespace nunchuk;
   using namespace boost::algorithm;
   using json = nlohmann::json;
+  std::string target_format = chain == Chain::MAIN ? "xpub" : "tpub";
 
   json data = json::parse(content);
+  if (data["keystore"] != nullptr) {
+    json j = data["keystore"];
+    std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
+
+    auto getXfp = [](int n) {
+      int r = ((n << 24) | (((n >> 16) << 24) >> 16) |
+               (((n << 16) >> 24) << 16) | (n >> 24));
+      std::stringstream s;
+      s << std::setfill('0') << std::setw(8) << std::hex << r;
+      return s.str();
+    };
+    signers.push_back(
+        {"Passport", xpub, {}, j["derivation"], getXfp(j["ckcc_xfp"]), 0});
+    return true;
+  }
+
   if (data["xfp"] == nullptr) return false;
   std::string xfp = to_lower_copy(data["xfp"].get<std::string>());
-  std::string target_format = chain == Chain::MAIN ? "xpub" : "tpub";
 
   auto addSigner = [&](const json& j) {
     if (j == nullptr) return;
