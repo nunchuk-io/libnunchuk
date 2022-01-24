@@ -1061,6 +1061,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
     const std::vector<std::string>& qr_data) {
   auto config = nunchuk::bcr::DecodeUniformResource(qr_data);
   std::string config_str(config.begin(), config.end());
+  std::cout << "ParsePassportSigners " << config_str << std::endl;
   std::vector<SingleSigner> signers;
   if (ParsePassportSignerConfig(chain_, config_str, signers)) {
     return signers;
