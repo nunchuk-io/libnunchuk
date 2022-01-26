@@ -38,6 +38,7 @@
 #include <ur-decoder.hpp>
 #include <cbor-lite.hpp>
 #include <util/bip32.h>
+#include <regex>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -48,6 +49,7 @@ namespace nunchuk {
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
 static int MAX_FRAGMENT_LEN = 100;
+static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
 
@@ -1029,7 +1031,8 @@ Transaction NunchukImpl::ImportKeystoneTransaction(
     decoder.receive_part(part);
   }
   if (!decoder.is_complete() || !decoder.is_success()) {
-    throw std::runtime_error("invalid input");
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
   }
   auto decoded = decoder.result_ur();
   auto i = decoded.cbor().begin();
@@ -1046,7 +1049,8 @@ Wallet NunchukImpl::ImportKeystoneWallet(
     decoder.receive_part(part);
   }
   if (!decoder.is_complete() || !decoder.is_success()) {
-    throw std::runtime_error("invalid input");
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
   }
   auto cbor = decoder.result_ur().cbor();
   auto i = cbor.begin();
@@ -1059,18 +1063,39 @@ Wallet NunchukImpl::ImportKeystoneWallet(
 
 std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
     const std::vector<std::string>& qr_data) {
-  std::cout << "ParsePassportSigners" << std::endl;
-  for (auto&& s : qr_data) {
-    std::cout << "ParsePassportSigners data " << s << std::endl;
+  if (qr_data.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "QR data is empty");
   }
-  auto config = nunchuk::bcr::DecodeUniformResource(qr_data);
+  std::smatch sm;
+  std::vector<unsigned char> config;
+
+  if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
+    config = nunchuk::bcr::DecodeUniformResource(qr_data);
+  } else {  // BC_UR2 format
+    auto decoder = ur::URDecoder();
+    for (auto&& part : qr_data) {
+      decoder.receive_part(part);
+    }
+    if (!decoder.is_complete() || !decoder.is_success()) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid BC-UR2 input");
+    }
+    auto cbor = decoder.result_ur().cbor();
+    auto i = cbor.begin();
+    auto end = cbor.end();
+    Tag tag;
+    Tag t;
+    decodeBytes(i, end, config);
+  }
+
   std::string config_str(config.begin(), config.end());
-  std::cout << "ParsePassportSigners " << config_str << std::endl;
   std::vector<SingleSigner> signers;
   if (ParsePassportSignerConfig(chain_, config_str, signers)) {
     return signers;
   } else {
-    throw std::runtime_error("invalid data format");
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
   }
 }
 
