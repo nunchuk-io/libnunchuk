@@ -1103,7 +1103,12 @@ std::vector<std::string> NunchukImpl::ExportPassportWallet(
     const std::string& wallet_id) {
   auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
   std::vector<uint8_t> data(content.begin(), content.end());
-  return nunchuk::bcr::EncodeUniformResource(data);
+  auto qr_data = nunchuk::bcr::EncodeUniformResource(data);
+  for(std::string &s : qr_data){
+    std::transform(s.begin(), s.end(), s.begin(), 
+        [](char c){ return std::toupper(c); });
+  }
+  return qr_data;
 }
 
 std::vector<std::string> NunchukImpl::ExportPassportTransaction(
@@ -1114,7 +1119,12 @@ std::vector<std::string> NunchukImpl::ExportPassportTransaction(
   if (invalid) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  return nunchuk::bcr::EncodeUniformResource(psbt);
+  auto qr_data = nunchuk::bcr::EncodeUniformResource(psbt);
+  for(std::string &s : qr_data){
+    std::transform(s.begin(), s.end(), s.begin(), 
+        [](char c){ return std::toupper(c); });
+  }
+  return qr_data;
 }
 
 Transaction NunchukImpl::ImportPassportTransaction(
