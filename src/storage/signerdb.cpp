@@ -205,6 +205,7 @@ SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
 }
 
 void NunchukSignerDb::InitRemote() {
+  CreateTable();
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS REMOTE("
                         "PATH VARCHAR(20) PRIMARY KEY     NOT NULL,"
