@@ -38,7 +38,7 @@ inline bool ParsePassportSignerConfig(
     json j = data["keystore"];
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
 
-    auto getXfp = [](int n) {
+    auto getXfp = [](unsigned int n) {
       int r = ((n << 24) | (((n >> 16) << 24) >> 16) |
                (((n << 16) >> 24) << 16) | (n >> 24));
       std::stringstream s;
@@ -58,9 +58,9 @@ inline bool ParsePassportSignerConfig(
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
     signers.push_back({"Passport", xpub, {}, j["deriv"], xfp, 0});
   };
+  addSigner(data["bip84"]);
   addSigner(data["bip49"]);
   addSigner(data["bip44"]);
-  addSigner(data["bip84"]);
   addSigner(data["bip48_2"]);
   addSigner(data["bip48_1"]);
 
@@ -70,9 +70,9 @@ inline bool ParsePassportSignerConfig(
     std::string xpub = Utils::SanitizeBIP32Input(data[k], target_format);
     signers.push_back({"Passport", xpub, {}, data[deriv], xfp, 0});
   };
-  addMSigner("p2sh");
-  addMSigner("p2wsh_p2sh");
   addMSigner("p2wsh");
+  addMSigner("p2wsh_p2sh");
+  // addMSigner("p2sh");
   return true;
 }
 
