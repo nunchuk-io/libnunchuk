@@ -987,8 +987,10 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   xfp << std::hex << account.masterFingerprint;
   std::stringstream path;
   path << "m" << FormatHDKeypath(key.origin.keypath);
-  return SingleSigner{
-      "Keystone", EncodeExtPubKey(xpub), {}, path.str(), xfp.str(), 0};
+  auto signer = SingleSigner("Keystone", EncodeExtPubKey(xpub), {}, path.str(),
+                             xfp.str(), 0);
+  signer.set_type(SignerType::AIRGAP);
+  return signer;
 }
 
 std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
@@ -1092,6 +1094,9 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
   std::string config_str(config.begin(), config.end());
   std::vector<SingleSigner> signers;
   if (ParsePassportSignerConfig(chain_, config_str, signers)) {
+    for (auto&& signer : signers) {
+      signer.set_type(SignerType::AIRGAP);
+    }
     return signers;
   } else {
     throw NunchukException(NunchukException::INVALID_FORMAT,
