@@ -1014,11 +1014,13 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       if (id.empty()) continue;
       fs::path db_file = GetSignerDir(chain, id);
       NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
-      db.InitSigner(signer["name"],
-                    {signer["device_type"], signer["device_model"], id}, "");
-      db.SetLastHealthCheck(signer["last_health_check"]);
-      for (auto&& ss : signer["bip32"]) {
-        db.AddXPub(ss["path"], ss["xpub"], GetBip32Type(ss["path"]));
+      if (!signer["name"].get<std::string>().empty()) {
+        db.InitSigner(signer["name"],
+                      {signer["device_type"], signer["device_model"], id}, "");
+        db.SetLastHealthCheck(signer["last_health_check"]);
+        for (auto&& ss : signer["bip32"]) {
+          db.AddXPub(ss["path"], ss["xpub"], GetBip32Type(ss["path"]));
+        }
       }
       for (auto&& ss : signer["remote"]) {
         db.AddRemote(ss["name"], ss["xpub"], ss["pubkey"], ss["path"]);

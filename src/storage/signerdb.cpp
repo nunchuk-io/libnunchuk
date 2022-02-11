@@ -225,7 +225,8 @@ bool NunchukSignerDb::AddRemote(const std::string& name,
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO REMOTE(PATH, XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED)"
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6);";
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+      "ON CONFLICT(PATH) DO UPDATE SET XPUB=excluded.XPUB;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_bind_text(stmt, 2, xpub.c_str(), xpub.size(), NULL);
