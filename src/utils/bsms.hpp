@@ -26,6 +26,7 @@
 
 #include <descriptor.h>
 #include <coreutils.h>
+#include <utils/stringutils.hpp>
 
 namespace {
 
@@ -67,18 +68,18 @@ inline bool ParseDescriptorRecord(const std::string bsms,
   n = 0;
   std::istringstream content_stream(bsms);
   std::string line;
-  if (!std::getline(content_stream, line) || line != "BSMS 1.0") {
+  if (!safeGetline(content_stream, line) || line != "BSMS 1.0") {
     return false; // Invalid BSMS version
   }
-  if (!std::getline(content_stream, line) ||
+  if (!safeGetline(content_stream, line) ||
       !ParseDescriptors(line, a, w, m, n, signers)) {
     return false; // Invalid Descriptor template
   }
-  if (!std::getline(content_stream, line) ||
+  if (!safeGetline(content_stream, line) ||
       (line != "/0/*,/1/*" && line != "No path restrictions")) {
     return false; // Invalid path restrictions
   }
-  if (!std::getline(content_stream, line) ||
+  if (!safeGetline(content_stream, line) ||
       line != CoreUtils::getInstance().DeriveAddresses(
                   GetDescriptorForSigners(
                       signers, m, DescriptorPath::EXTERNAL_ALL, a, w,

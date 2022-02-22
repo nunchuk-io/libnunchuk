@@ -23,6 +23,7 @@
 #include <sstream>
 #include <iostream>
 #include <regex>
+#include <utils/stringutils.hpp>
 
 namespace {
 
@@ -46,7 +47,7 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
     std::istringstream content_stream(content);
     std::string line;
     std::string derivation_path = "";
-    while (std::getline(content_stream, line)) {
+    while (safeGetline(content_stream, line)) {
       if (boost::starts_with(line, "#")) continue;
       std::smatch sm;
       if (std::regex_match(line, sm, NAME_REGEX)) {
