@@ -742,8 +742,16 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       }
     } else if (msgtype == "io.nunchuk.transaction.reject") {
       tx.add_reject_event_id(event.get_event_id());
+      try {
+        nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
+      } catch (...) {
+      }
     } else if (msgtype == "io.nunchuk.transaction.cancel") {
       tx.set_cancel_event_id(event.get_event_id());
+      try {
+        nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
+      } catch (...) {
+      }
     } else if (msgtype == "io.nunchuk.transaction.ready") {
       tx.set_ready_event_id(event.get_event_id());
     } else if (msgtype == "io.nunchuk.transaction.broadcast") {
