@@ -181,6 +181,8 @@ class NunchukImpl : public Nunchuk {
       const std::string& device_fingerprint = {}) override;
   void PromtPinOnDevice(const Device& device) override;
   void SendPinToDevice(const Device& device, const std::string& pin) override;
+  void SendPassphraseToDevice(const Device& device,
+                              const std::string& passphrase) override;
   std::string ExportBackup() override;
   bool SyncWithBackup(
       const std::string& data,

@@ -45,6 +45,8 @@ class HWIService {
                              const std::string &desc) const;
   void PromptPin(const Device &device) const;
   void SendPin(const Device &device, const std::string &pin) const;
+  void SendPassphrase(const Device &device,
+                      const std::string &passphrase) const;
 
  private:
   void CheckVersion();

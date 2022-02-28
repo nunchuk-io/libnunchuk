@@ -718,6 +718,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void PromtPinOnDevice(const Device& device) = 0;
   virtual void SendPinToDevice(const Device& device,
                                const std::string& pin) = 0;
+  virtual void SendPassphraseToDevice(const Device& device,
+                                      const std::string& passphrase) = 0;
 
  protected:
   Nunchuk() = default;

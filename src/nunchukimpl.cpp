@@ -263,6 +263,11 @@ void NunchukImpl::SendPinToDevice(const Device& device,
   hwi_.SendPin(device, pin);
 }
 
+void NunchukImpl::SendPassphraseToDevice(const Device& device,
+                                         const std::string& passphrase) {
+  hwi_.SendPassphrase(device, passphrase);
+}
+
 MasterSigner NunchukImpl::CreateMasterSigner(
     const std::string& raw_name, const Device& device,
     std::function<bool(int)> progress) {

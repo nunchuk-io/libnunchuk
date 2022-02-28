@@ -250,4 +250,13 @@ void HWIService::SendPin(const Device &device, const std::string &pin) const {
   ParseResponse(RunCmd(cmd_args));
 }
 
+void HWIService::SendPassphrase(const Device &device,
+                                const std::string &passphrase) const {
+  ValidateDevice(device);
+  std::vector<std::string> cmd_args = {
+      "-t",       device.get_type(), "-d", device.get_path(), "--password",
+      passphrase, "togglepassphrase"};
+  ParseResponse(RunCmd(cmd_args));
+}
+
 }  // namespace nunchuk
