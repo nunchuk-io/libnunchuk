@@ -245,17 +245,19 @@ void HWIService::PromptPin(const Device &device) const {
 
 void HWIService::SendPin(const Device &device, const std::string &pin) const {
   ValidateDevice(device);
+  std::string quoted_pin = "\"" + pin + "\"";
   std::vector<std::string> cmd_args = {
-      "-t", device.get_type(), "-d", device.get_path(), "sendpin", pin};
+      "-t", device.get_type(), "-d", device.get_path(), "sendpin", quoted_pin};
   ParseResponse(RunCmd(cmd_args));
 }
 
 void HWIService::SendPassphrase(const Device &device,
                                 const std::string &passphrase) const {
   ValidateDevice(device);
+  std::string password = "\"" + passphrase + "\"";
   std::vector<std::string> cmd_args = {
-      "-t",       device.get_type(), "-d", device.get_path(), "--password",
-      passphrase, "togglepassphrase"};
+      "-t",     device.get_type(), "-d", device.get_path(), "--password",
+      password, "togglepassphrase"};
   ParseResponse(RunCmd(cmd_args));
 }
 
