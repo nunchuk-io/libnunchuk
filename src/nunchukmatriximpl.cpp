@@ -800,7 +800,8 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
   if (msgtype == "io.nunchuk.sync.file") {
     auto file = content["file"];
     db.SetSyncRoomId(event.get_room_id());
-    auto data = DecryptAttachment(downloadfunc_, file.dump());
+    auto data =
+        DecryptAttachment(downloadfunc_, file.dump(), storage_.GetLastSyncTs());
     if (!data.empty()) nu->SyncWithBackup(data, progress);
   }
   db.SetEvent(event);

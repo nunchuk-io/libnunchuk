@@ -167,6 +167,7 @@ class NunchukStorage {
   std::string ExportBackup();
   bool SyncWithBackup(const std::string &data,
                       std::function<bool(int)> progress);
+  time_t GetLastSyncTs();
 
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);

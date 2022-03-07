@@ -98,13 +98,17 @@ inline std::string DecryptAttachment(
 
 inline std::string DecryptAttachment(
     const nunchuk::DownloadFileFunc& downloadfunc,
-    const std::string& event_file) {
+    const std::string& event_file, time_t lastSyncTs = 0) {
   using json = nlohmann::json;
   json file = json::parse(event_file);
   if ("v3" != file["v"].get<std::string>()) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
         "version not supported");
+  }
+  if (file["ts"] != nullptr) {
+    time_t ts = file["ts"];
+    if (lastSyncTs > ts) return "";  // old backup file
   }
 
   auto buf = downloadfunc("Backup", "application/octet-stream", event_file,
@@ -118,6 +122,10 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
   using json = nlohmann::json;
   json file;
   file["v"] = "v3";
+  try {
+    file["ts"] = json::parse(body)["ts"];
+  } catch (...) {
+  }
 
   std::vector<unsigned char> key(32, 0);
   GetStrongRandBytes(key.data(), 32);

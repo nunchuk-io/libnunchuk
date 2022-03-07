@@ -242,11 +242,19 @@ std::string NunchukStorage::ChainStr(Chain chain) const {
 
 fs::path NunchukStorage::GetWalletDir(Chain chain,
                                       const std::string& id) const {
+  if (id.empty()) {
+    throw StorageException(StorageException::WALLET_NOT_FOUND,
+                           "wallet id can not empty!");
+  }
   return datadir_ / ChainStr(chain) / "wallets" / id;
 }
 
 fs::path NunchukStorage::GetSignerDir(Chain chain,
                                       const std::string& id) const {
+  if (id.empty()) {
+    throw StorageException(StorageException::SIGNER_NOT_FOUND,
+                           "signer id can not empty!");
+  }
   return datadir_ / ChainStr(chain) / "signers" / ba::to_lower_copy(id);
 }
 
@@ -1084,6 +1092,12 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   importChain(Chain::TESTNET, data["testnet"]);
   importChain(Chain::MAIN, data["mainnet"]);
   return appState.SetLastSyncTs(ts);
+}
+
+time_t NunchukStorage::GetLastSyncTs() {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  auto appState = GetAppStateDb(Chain::MAIN);
+  return appState.GetLastSyncTs();
 }
 
 }  // namespace nunchuk
