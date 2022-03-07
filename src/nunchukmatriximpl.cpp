@@ -377,6 +377,10 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
                     {"io.nunchuk.relates_to",
                      {{"init_event", EventToJson(init_event)},
                       {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
+  if (tx.get_status() == TransactionStatus::NETWORK_REJECTED) {
+    content["body"]["reject_msg"] =
+        "the transaction was rejected by network rules";
+  }
   rtx.set_tx_id(tx.get_txid());
   db.SetTransaction(rtx);
   return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
@@ -758,8 +762,10 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       tx.set_broadcast_event_id(event.get_event_id());
       if (body["raw_tx"] != nullptr) {
         try {
+          std::string reject_msg{};
+          if (body["reject_msg"] != nullptr) reject_msg = body["reject_msg"];
           nu->UpdateTransaction(tx.get_wallet_id(), tx.get_tx_id(),
-                                body["tx_id"], body["raw_tx"]);
+                                body["tx_id"], body["raw_tx"], reject_msg);
         } catch (...) {
         }
       }

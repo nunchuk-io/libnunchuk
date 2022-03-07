@@ -614,7 +614,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction UpdateTransaction(const std::string& wallet_id,
                                         const std::string& tx_id,
                                         const std::string& new_txid,
-                                        const std::string& raw_tx) = 0;
+                                        const std::string& raw_tx,
+                                        const std::string& reject_msg = {}) = 0;
   virtual bool UpdateTransactionMemo(const std::string& wallet_id,
                                      const std::string& tx_id,
                                      const std::string& new_memo) = 0;

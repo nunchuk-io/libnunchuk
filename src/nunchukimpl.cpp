@@ -689,14 +689,17 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
 Transaction NunchukImpl::UpdateTransaction(const std::string& wallet_id,
                                            const std::string& tx_id,
                                            const std::string& new_txid,
-                                           const std::string& raw_tx) {
-  if (!tx_id.empty() && !storage_.GetPsbt(chain_, wallet_id, tx_id).empty()) {
-    if (!new_txid.empty() && tx_id != new_txid) {
-      storage_.UpdatePsbtTxId(chain_, wallet_id, tx_id, new_txid);
-    }
+                                           const std::string& raw_tx,
+                                           const std::string& reject_msg) {
+  if (tx_id.empty() || storage_.GetPsbt(chain_, wallet_id, tx_id).empty()) {
+    storage_.InsertTransaction(chain_, wallet_id, raw_tx, 0, 0);
+  } else if (!new_txid.empty() && tx_id != new_txid) {
+    storage_.UpdatePsbtTxId(chain_, wallet_id, tx_id, new_txid);
+  }
+  if (reject_msg.empty()) {
     storage_.UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
   } else {
-    storage_.InsertTransaction(chain_, wallet_id, raw_tx, 0, 0);
+    storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, reject_msg);
   }
   return GetTransaction(wallet_id, new_txid);
 }
