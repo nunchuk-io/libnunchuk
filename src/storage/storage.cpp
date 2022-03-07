@@ -142,8 +142,9 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
   }
 
   if (!account_.empty()) {
+    std::string aid = ba::to_lower_copy(account_);
     CSHA256 hasher;
-    std::vector<unsigned char> stream(account_.begin(), account_.end());
+    std::vector<unsigned char> stream(aid.begin(), aid.end());
     hasher.Write((unsigned char*)&(*stream.begin()),
                  stream.end() - stream.begin());
     uint256 hash;
