@@ -338,9 +338,7 @@ Transaction NunchukWalletDb::InsertTransaction(const std::string& raw_tx,
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
   Transaction tx = GetTransaction(tx_id);
-  if (height > 0) {
-    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
-  }
+  for (auto&& output : tx.get_outputs()) UseAddress(output.first);
   return tx;
 }
 
@@ -423,11 +421,9 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  if (updated && height > 0) {
+  if (updated) {
     Transaction tx = GetTransaction(tx_id);
-    if (height > 0) {
-      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
-    }
+    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
   }
   return updated;
 }
@@ -595,9 +591,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
       FillExtra(extra, tx);
     }
     SQLCHECK(sqlite3_finalize(stmt));
-    if (tx.get_height() > 0) {
-      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
-    }
+    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
     return tx;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -624,11 +618,10 @@ std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
           << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
           << std::endl
           << "Format: "
-          << (wallet.get_address_type() == AddressType::LEGACY
-                  ? "P2SH"
-                  : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
-                        ? "P2WSH"
-                        : "P2WSH-P2SH")
+          << (wallet.get_address_type() == AddressType::LEGACY ? "P2SH"
+              : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
+                  ? "P2WSH"
+                  : "P2WSH-P2SH")
           << std::endl;
 
   content << std::endl;
@@ -809,9 +802,7 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
   }
   SQLCHECK(sqlite3_finalize(stmt));
   for (auto&& tx : rs) {
-    if (tx.get_height() > 0) {
-      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
-    }
+    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
   }
   return rs;
 }
