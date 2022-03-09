@@ -39,6 +39,8 @@ class NunchukAppStateDb : public NunchukDb {
   bool SetStorageVersion(int64_t value);
   time_t GetLastSyncTs() const;
   bool SetLastSyncTs(time_t value);
+  time_t GetLastExportTs() const;
+  bool SetLastExportTs(time_t value);
 
  private:
   friend class NunchukStorage;

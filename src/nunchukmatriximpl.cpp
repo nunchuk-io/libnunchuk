@@ -561,6 +561,9 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "invalid room_id or access_token");
   }
+  if (storage_.GetLastSyncTs() < storage_.GetLastExportTs()) {
+    AsyncBackup(nu);
+  }
   nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
 }
 
@@ -573,6 +576,9 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                            "invalid room_id");
   }
   uploadfunc_ = uploadfunction;
+  if (storage_.GetLastSyncTs() < storage_.GetLastExportTs()) {
+    AsyncBackup(nu);
+  }
   nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
 }
 
@@ -800,8 +806,8 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
   if (msgtype == "io.nunchuk.sync.file") {
     auto file = content["file"];
     db.SetSyncRoomId(event.get_room_id());
-    auto data =
-        DecryptAttachment(downloadfunc_, file.dump(), storage_.GetLastSyncTs());
+    time_t lastSync = storage_.GetLastSyncTs();
+    auto data = DecryptAttachment(downloadfunc_, file.dump(), lastSync);
     if (!data.empty()) nu->SyncWithBackup(data, progress);
   }
   db.SetEvent(event);

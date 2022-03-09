@@ -711,7 +711,9 @@ Transaction NunchukImpl::GetTransaction(const std::string& wallet_id,
 
 bool NunchukImpl::DeleteTransaction(const std::string& wallet_id,
                                     const std::string& tx_id) {
-  return storage_.DeleteTransaction(chain_, wallet_id, tx_id);
+  auto rs = storage_.DeleteTransaction(chain_, wallet_id, tx_id);
+  storage_listener_();
+  return rs;
 }
 
 AppSettings NunchukImpl::GetAppSettings() { return app_settings_; }

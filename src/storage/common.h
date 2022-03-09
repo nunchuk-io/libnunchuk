@@ -55,8 +55,9 @@ const int SIGNER_DEVICE_MODEL = 12;
 const int MNEMONIC = 13;
 const int SYNC_TS = 14;
 const int SYNC_ROOM_ID = 15;
+const int EXPORT_TS = 16;
 }  // namespace DbKeys
 
-}
+}  // namespace nunchuk
 
 #endif  // NUNCHUK_STORAGE_COMMON_H

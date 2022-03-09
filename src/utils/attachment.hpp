@@ -108,7 +108,7 @@ inline std::string DecryptAttachment(
   }
   if (file["ts"] != nullptr) {
     time_t ts = file["ts"];
-    if (lastSyncTs > ts) return "";  // old backup file
+    if (lastSyncTs >= ts) return "";  // old backup file
   }
 
   auto buf = downloadfunc("Backup", "application/octet-stream", event_file,

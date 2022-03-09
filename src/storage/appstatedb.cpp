@@ -51,4 +51,12 @@ bool NunchukAppStateDb::SetLastSyncTs(time_t value) {
   return PutInt(DbKeys::SYNC_TS, value);
 }
 
+time_t NunchukAppStateDb::GetLastExportTs() const {
+  return GetInt(DbKeys::EXPORT_TS);
+}
+
+bool NunchukAppStateDb::SetLastExportTs(time_t value) {
+  return PutInt(DbKeys::EXPORT_TS, value);
+}
+
 }  // namespace nunchuk

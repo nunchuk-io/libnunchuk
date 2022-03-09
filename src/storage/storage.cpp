@@ -937,7 +937,7 @@ void NunchukStorage::ClearSignerPassphrase(Chain chain,
 }
 
 std::string NunchukStorage::ExportBackup() {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  boost::unique_lock<boost::shared_mutex> lock(access_);
 
   auto exportChain = [&](Chain chain) {
     json rs;
@@ -1005,9 +1005,11 @@ std::string NunchukStorage::ExportBackup() {
     return rs;
   };
 
+  time_t ts = std::time(0);
   json data = {{"testnet", exportChain(Chain::TESTNET)},
                {"mainnet", exportChain(Chain::MAIN)},
-               {"ts", std::time(0)}};
+               {"ts", ts}};
+  GetAppStateDb(Chain::MAIN).SetLastExportTs(ts);
   return data.dump();
 }
 
@@ -1084,20 +1086,27 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   auto appState = GetAppStateDb(Chain::MAIN);
   json data = json::parse(dataStr);
   time_t ts = data["ts"];
-  time_t lastSyncTs = appState.GetLastSyncTs();
-  if (lastSyncTs > ts) {
+  if (appState.GetLastSyncTs() >= ts) {
     progress(100);
     return false;  // old backup
   }
-  importChain(Chain::TESTNET, data["testnet"]);
-  importChain(Chain::MAIN, data["mainnet"]);
+  if (ts != appState.GetLastExportTs()) {
+    importChain(Chain::TESTNET, data["testnet"]);
+    importChain(Chain::MAIN, data["mainnet"]);
+  } else {
+    progress(100);
+  }
   return appState.SetLastSyncTs(ts);
 }
 
 time_t NunchukStorage::GetLastSyncTs() {
   boost::shared_lock<boost::shared_mutex> lock(access_);
-  auto appState = GetAppStateDb(Chain::MAIN);
-  return appState.GetLastSyncTs();
+  return GetAppStateDb(Chain::MAIN).GetLastSyncTs();
+}
+
+time_t NunchukStorage::GetLastExportTs() {
+  boost::shared_lock<boost::shared_mutex> lock(access_);
+  return GetAppStateDb(Chain::MAIN).GetLastExportTs();
 }
 
 }  // namespace nunchuk
