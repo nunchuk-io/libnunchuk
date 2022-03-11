@@ -60,14 +60,15 @@ NunchukMatrixEvent JsonToEvent(const json& j) {
 
 NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
                                                const std::string& event_type,
-                                               const std::string& content) {
+                                               const std::string& content,
+                                               bool ignore_error) {
   NunchukMatrixEvent event{};
   event.set_room_id(room_id);
   event.set_type(event_type);
   event.set_content(content);
   event.set_sender(sender_);
   event.set_ts(std::time(0));
-  sendfunc_(room_id, event_type, content);
+  sendfunc_(room_id, event_type, content, ignore_error);
   return event;
 }
 
@@ -87,6 +88,14 @@ NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
 }
 NunchukMatrix::~NunchukMatrix() = default;
 NunchukMatrixImpl::~NunchukMatrixImpl() { stopped = true; }
+
+NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
+    const std::string& room_id, int code, const std::string& message) {
+  json content = {{"msgtype", "io.nunchuk.exception"},
+                  {"v", NUNCHUK_EVENT_VER},
+                  {"body", {{"code", code}, {"message", message}}}};
+  return NewEvent(room_id, "io.nunchuk.exception", content.dump(), true);
+}
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,

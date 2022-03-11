@@ -153,7 +153,7 @@ class NUNCHUK_EXPORT RoomTransaction {
 
 typedef std::function<std::string /* event_id */ (
     const std::string& /* room_id */, const std::string& /* event_type */,
-    const std::string& /* event_content */)>
+    const std::string& /* event_content */, bool /* ignore_error */)>
     SendEventFunc;
 
 typedef std::function<std::string /* url */ (
@@ -173,6 +173,10 @@ class NUNCHUK_EXPORT NunchukMatrix {
   NunchukMatrix& operator=(const NunchukMatrix&) = delete;
 
   virtual ~NunchukMatrix();
+
+  virtual NunchukMatrixEvent SendErrorEvent(const std::string& room_id,
+                                            int code,
+                                            const std::string& message) = 0;
 
   virtual NunchukMatrixEvent InitWallet(
       const std::string& room_id, const std::string& name, int m, int n,
