@@ -16,7 +16,6 @@
  */
 
 #include <backend/corerpc/client.h>
-#include <cctype>
 #include <utils/loguru.hpp>
 #include "httplib5.h"
 #include <util/strencodings.h>

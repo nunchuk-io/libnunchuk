@@ -121,7 +121,8 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
   std::string id = wallet_db.GetId();
   auto wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
-    throw StorageException(StorageException::WALLET_EXISTED, "Wallet existed!");
+    throw StorageException(StorageException::WALLET_EXISTED,
+                           strprintf("Wallet existed! id = '%s'", id));
   }
   wallet_db.EncryptDb(wallet_file.string(), passphrase_);
   return id;
@@ -271,7 +272,7 @@ NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
   fs::path db_file = GetWalletDir(chain, id);
   if (!fs::exists(db_file)) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
-                           "Wallet not exists!");
+                           strprintf("Wallet not exists! id = '%s'", id));
   }
   return NunchukWalletDb{chain, id, db_file.string(), passphrase_};
 }
@@ -281,7 +282,7 @@ NunchukSignerDb NunchukStorage::GetSignerDb(Chain chain,
   fs::path db_file = GetSignerDir(chain, id);
   if (!fs::exists(db_file)) {
     throw StorageException(StorageException::MASTERSIGNER_NOT_FOUND,
-                           "Signer not exists!");
+                           strprintf("Signer not exists! id = '%s'", id));
   }
   return NunchukSignerDb{chain, id, db_file.string(), passphrase_};
 }
@@ -340,13 +341,16 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
       if (FormalizePath(
               GetBip32Path(chain, wallet_type, address_type, index)) !=
           FormalizePath(signer.get_derivation_path())) {
-        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                               "Invalid bip32 path!");
+        throw NunchukException(
+            NunchukException::INVALID_BIP32_PATH,
+            strprintf("Invalid bip32 path! master_id = '%s'", master_id));
       }
       signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
       if (!signer_db.UseIndex(wallet_type, address_type, index) &&
           !allow_used_signer) {
-        throw StorageException(StorageException::SIGNER_USED, "Signer used!");
+        throw StorageException(
+            StorageException::SIGNER_USED,
+            strprintf("Signer used! master_id = '%s'", master_id));
       }
     } else {
       try {
@@ -368,7 +372,8 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
   std::string id = GetDescriptorChecksum(external_desc);
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
-    throw StorageException(StorageException::WALLET_EXISTED, "Wallet existed!");
+    throw StorageException(StorageException::WALLET_EXISTED,
+                           strprintf("Wallet existed! id = '%s'", id));
   }
   NunchukWalletDb wallet_db{chain, id, wallet_file.string(), passphrase_};
   wallet_db.InitWallet(name, m, n, signers, address_type, is_escrow,
@@ -401,10 +406,12 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
   if (signer_db.IsMaster()) {
-    throw StorageException(StorageException::SIGNER_EXISTS, "Signer exists");
+    throw StorageException(StorageException::SIGNER_EXISTS,
+                           strprintf("Signer exists id = '%s'", id));
   }
   if (!signer_db.AddRemote(name, xpub, public_key, derivation_path)) {
-    throw StorageException(StorageException::SIGNER_EXISTS, "Signer exists");
+    throw StorageException(StorageException::SIGNER_EXISTS,
+                           strprintf("Signer exists id = '%s'", id));
   }
   auto signer = SingleSigner(name, xpub, public_key, derivation_path,
                              master_fingerprint, 0);
@@ -903,8 +910,9 @@ int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
   boost::shared_lock<boost::shared_mutex> lock(access_);
   int index = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
   if (index < 0)
-    throw StorageException(StorageException::ADDRESS_NOT_FOUND,
-                           "Address not found");
+    throw StorageException(
+        StorageException::ADDRESS_NOT_FOUND,
+        strprintf("Address not found wallet_id = '%s'", wallet_id));
   return index;
 }
 

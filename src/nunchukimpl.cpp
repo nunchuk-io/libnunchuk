@@ -374,8 +374,10 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
     }
   }
   if (index < 0) {
-    throw NunchukException(NunchukException::RUN_OUT_OF_CACHED_XPUB,
-                           "Run out of cached xpub!");
+    throw NunchukException(
+        NunchukException::RUN_OUT_OF_CACHED_XPUB,
+        strprintf("Run out of cached xpub! mastersigner_id = '%s'",
+                  mastersigner_id));
   }
   return GetSignerFromMasterSigner(mastersigner_id, wallet_type, address_type,
                                    index);
@@ -465,8 +467,9 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   if (signerType == SignerType::SOFTWARE) {
     return HealthStatus::SUCCESS;
   } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "Can not healthcheck foreign software signer");
+    throw NunchukException(
+        NunchukException::INVALID_SIGNER_TYPE,
+        strprintf("Can not healthcheck foreign software id = '%s'", id));
   }
 
   Device device{fingerprint};
@@ -646,8 +649,11 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   std::string signed_psbt;
   auto mastersigner = GetMasterSigner(mastersigner_id);
   if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "Can not sign with foreign software signer");
+    throw NunchukException(
+        NunchukException::INVALID_SIGNER_TYPE,
+        strprintf("Can not sign with foreign software "
+                  "signer wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
+                  wallet_id, tx_id, mastersigner_id));
   } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     signed_psbt = software_signer.SignTx(psbt);
@@ -764,8 +770,10 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
                                             Amount new_fee_rate) {
   auto tx = storage_.GetTransaction(chain_, wallet_id, tx_id);
   if (new_fee_rate < tx.get_fee_rate()) {
-    throw NunchukException(NunchukException::INVALID_FEE_RATE,
-                           "Invalid new fee rate");
+    throw NunchukException(
+        NunchukException::INVALID_FEE_RATE,
+        strprintf("Invalid new fee rate wallet_id = '%s' tx_id = '%s'",
+                  wallet_id, tx_id));
   }
 
   std::map<std::string, Amount> outputs;
@@ -807,7 +815,9 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
   auto mastersigner = GetMasterSigner(mastersigner_id);
   if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "Can not cache xpub with foreign software signer");
+                           strprintf("Can not cache xpub with foreign software "
+                                     "signer mastersigner_id = '%s'",
+                                     mastersigner_id));
   } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     storage_.CacheMasterSignerXPub(
@@ -954,7 +964,10 @@ std::vector<std::string> NunchukImpl::ExportCoboTransaction(
   bool invalid;
   auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
-    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+    throw NunchukException(
+        NunchukException::INVALID_PSBT,
+        strprintf("Invalid base64 wallet_id = '%s' tx_id = '%s'", wallet_id,
+                  tx_id));
   }
   return nunchuk::bcr::EncodeUniformResource(psbt);
 }
@@ -1024,7 +1037,10 @@ std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
   bool invalid;
   auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
-    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+    throw NunchukException(
+        NunchukException::INVALID_PSBT,
+        strprintf("Invalid base64 wallet_id = '%s' tx_id = '%s'", wallet_id,
+                  tx_id));
   }
   CryptoPSBT psbt{data};
   ur::ByteVector cbor;
@@ -1044,8 +1060,9 @@ Transaction NunchukImpl::ImportKeystoneTransaction(
     decoder.receive_part(part);
   }
   if (!decoder.is_complete() || !decoder.is_success()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid BC-UR2 input");
+    throw NunchukException(
+        NunchukException::INVALID_PARAMETER,
+        strprintf("Invalid BC-UR2 input wallet_id = '%s'", wallet_id));
   }
   auto decoded = decoder.result_ur();
   auto i = decoded.cbor().begin();
@@ -1133,7 +1150,10 @@ std::vector<std::string> NunchukImpl::ExportPassportTransaction(
   bool invalid;
   auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
-    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+    throw NunchukException(
+        NunchukException::INVALID_PSBT,
+        strprintf("Invalid base64 wallet_id = '%s' tx_id = '%s'", wallet_id,
+                  tx_id));
   }
   auto qr_data = nunchuk::bcr::EncodeUniformResource(psbt);
   for (std::string& s : qr_data) {
@@ -1234,7 +1254,8 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
                        change_address, subtract_fee_from_amount,
                        selector_outputs, selector_inputs, fee, error,
                        change_pos)) {
-    throw NunchukException(NunchukException::COIN_SELECTION_ERROR, error);
+    throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                           error + strprintf(" wallet_id = '%s'", wallet_id));
   }
 
   std::string psbt =
