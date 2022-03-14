@@ -104,7 +104,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasActiveWallet(room_id)) {
     throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_EXISTS,
-                                 "shared wallet exists");
+                                 "Shared wallet exists");
   }
   json content = {{"msgtype", "io.nunchuk.wallet.init"},
                   {"v", NUNCHUK_EVENT_VER},
@@ -131,12 +131,12 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
   auto chain = ChainFromStr(init_body["chain"]);
   if (chain_ != chain) {
     throw NunchukMatrixException(NunchukMatrixException::MISMATCHED_NETWORKS,
-                                 "mismatched networks");
+                                 "Mismatched networks");
   }
   bool is_escrow = init_body["is_escrow"];
   if (is_escrow && !signer.get_xpub().empty()) {
     throw NunchukMatrixException(NunchukMatrixException::MISMATCHED_KEY_TYPES,
-                                 "mismatched key types");
+                                 "Mismatched key types");
   }
 
   std::set<std::string> leave_ids;
@@ -155,7 +155,7 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
     std::string join_key = join_body["key"];
     if (key == join_key) {
       throw NunchukMatrixException(NunchukMatrixException::DUPPLICATE_KEYS,
-                                   "dupplicate keys");
+                                   "Dupplicate keys");
     }
   }
 
@@ -426,7 +426,7 @@ std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
   if (wallet.get_finalize_event_id().empty()) {
     throw NunchukMatrixException(
         NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
-        "shared wallet not finalized");
+        "Shared wallet not finalized");
   }
   auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
   std::string desc =
@@ -481,11 +481,11 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
   if (!access_token.empty()) access_token_ = access_token;
   if (sync_room_id_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id");
+                           "Invalid room_id");
   }
   if (access_token_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid access_token");
+                           "Invalid access_token");
   }
   auto data = nu->ExportBackup();
   auto file = EncryptAttachment(
@@ -508,7 +508,7 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(const std::unique_ptr<Nunchuk>& nu,
   if (!sync_room_id.empty()) sync_room_id_ = sync_room_id;
   if (sync_room_id_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id");
+                           "Invalid room_id");
   }
   auto data = nu->ExportBackup();
   auto file = EncryptAttachment(uploadfunction, data);
@@ -526,15 +526,15 @@ NunchukMatrixEvent NunchukMatrixImpl::BackupFile(
   if (!sync_room_id.empty()) sync_room_id_ = sync_room_id;
   if (sync_room_id_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id");
+                           "Invalid room_id");
   }
   if (file_json_info.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid file_json_info");
+                           "Invalid file_json_info");
   }
   if (file_url.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id or file_url");
+                           "Invalid room_id or file_url");
   }
   auto file = json::parse(file_json_info);
   file["url"] = file_url;
@@ -568,7 +568,7 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
   access_token_ = access_token;
   if (sync_room_id_.empty() || access_token_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id or access_token");
+                           "Invalid room_id or access_token");
   }
   if (storage_.GetLastSyncTs() < storage_.GetLastExportTs()) {
     AsyncBackup(nu);
@@ -582,7 +582,7 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
   sync_room_id_ = sync_room_id;
   if (sync_room_id_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id");
+                           "Invalid room_id");
   }
   uploadfunc_ = uploadfunction;
   if (storage_.GetLastSyncTs() < storage_.GetLastExportTs()) {

@@ -50,7 +50,7 @@ inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
                      });
   if (!res || res->status != 200) {
     throw nunchuk::NunchukException(
-        nunchuk::NunchukException::SERVER_REQUEST_ERROR, "download file error");
+        nunchuk::NunchukException::SERVER_REQUEST_ERROR, "Download file error");
   }
   return std::vector<unsigned char>(body.begin(), body.end());
 }
@@ -64,7 +64,7 @@ inline std::string UploadAttachment(const std::string& accessToken,
                       "application/octet-stream");
   if (!res || res->status != 200) {
     throw nunchuk::NunchukException(
-        nunchuk::NunchukException::SERVER_REQUEST_ERROR, "upload file error");
+        nunchuk::NunchukException::SERVER_REQUEST_ERROR, "Upload file error");
   }
   return res->body;
 }
@@ -83,7 +83,7 @@ inline std::string DecryptAttachment(
   if ("v3" != file["v"].get<std::string>()) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
-        "version not supported");
+        "Version not supported");
   }
 
   auto key = DecodeBase64(file["key"]["k"].get<std::string>().c_str());
@@ -104,7 +104,7 @@ inline std::string DecryptAttachment(
   if ("v3" != file["v"].get<std::string>()) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
-        "version not supported");
+        "Version not supported");
   }
   if (file["ts"] != nullptr) {
     time_t ts = file["ts"];
@@ -168,7 +168,7 @@ inline std::string DecryptTxId(const std::string& descriptor,
   if ("v2" != file["v"].get<std::string>()) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
-        "version not supported");
+        "Version not supported");
   }
 
   std::vector<unsigned char> key(32, 0);

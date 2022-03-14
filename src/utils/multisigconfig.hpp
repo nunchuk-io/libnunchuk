@@ -85,7 +85,7 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
         xpub = Utils::SanitizeBIP32Input(xpub, target_format);
         if (!Utils::IsValidXPub(xpub)) {
           throw NunchukException(NunchukException::INVALID_FORMAT,
-                                 "invalid xpub");
+                                 "Invalid xpub");
         }
         signers.push_back(SingleSigner{xfp, xpub, {}, derivation_path, xfp, 0});
       }

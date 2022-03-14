@@ -43,11 +43,11 @@ std::string Utils::SanitizeBIP32Input(const std::string& slip132_input,
   std::vector<unsigned char> result;
   if (!DecodeBase58Check(std::string(slip132_input), result, 78)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "can not decode slip132 input");
+                           "Can not decode slip132 input");
   }
   if (VERSION_PREFIXES.find(target_format) == VERSION_PREFIXES.end()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid target format");
+                           "Invalid target format");
   }
   auto prefix = VERSION_PREFIXES.at(target_format);
   std::copy(prefix.begin(), prefix.end(), result.begin());
@@ -93,15 +93,15 @@ Amount Utils::AmountFromValue(const std::string& value,
                               const bool allow_negative) {
   Amount amount;
   if (!ParseFixedPoint(value, 8, &amount))
-    throw NunchukException(NunchukException::INVALID_AMOUNT, "invalid amount");
+    throw NunchukException(NunchukException::INVALID_AMOUNT, "Invalid amount");
   if (!allow_negative) {
     if (!MoneyRange(amount))
       throw NunchukException(NunchukException::AMOUNT_OUT_OF_RANGE,
-                             "amount out of range");
+                             "Amount out of range");
   } else {
     if (abs(amount) > MAX_MONEY)
       throw NunchukException(NunchukException::AMOUNT_OUT_OF_RANGE,
-                             "amount out of range");
+                             "Amount out of range");
   }
   return amount;
 }

@@ -22,6 +22,7 @@
 #include <tinyformat.h>
 #include <util/strencodings.h>
 #include <utils/addressutils.hpp>
+#include <utils/errorutils.hpp>
 #include <string>
 #include <vector>
 #include <psbt.h>
@@ -37,7 +38,8 @@ inline PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
   PartiallySignedTransaction psbtx;
   std::string error;
   if (!DecodeBase64PSBT(psbtx, base64_psbt, error)) {
-    throw NunchukException(NunchukException::INVALID_PSBT, error.c_str());
+    throw NunchukException(NunchukException::INVALID_PSBT,
+                           NormalizeErrorMessage(std::move(error)));
   }
   return psbtx;
 }

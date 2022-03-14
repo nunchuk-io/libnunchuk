@@ -33,7 +33,7 @@ inline nunchuk::Chain ChainFromStr(const std::string& value) {
   if (value == "REGTEST") return nunchuk::Chain::REGTEST;
   if (value == "MAIN") return nunchuk::Chain::MAIN;
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_CHAIN,
-                                  "invalid chain");
+                                  "Invalid chain");
 }
 
 inline std::string AddressTypeToStr(nunchuk::AddressType value) {
@@ -47,7 +47,7 @@ inline nunchuk::AddressType AddressTypeFromStr(const std::string& value) {
   if (value == "NESTED_SEGWIT") return nunchuk::AddressType::NESTED_SEGWIT;
   if (value == "NATIVE_SEGWIT") return nunchuk::AddressType::NATIVE_SEGWIT;
   throw nunchuk::NunchukException(
-      nunchuk::NunchukException::INVALID_ADDRESS_TYPE, "invalid address type");
+      nunchuk::NunchukException::INVALID_ADDRESS_TYPE, "Invalid address type");
 }
 
 inline std::string SignerTypeToStr(nunchuk::SignerType value) {
@@ -63,7 +63,7 @@ inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
   if (value == "AIRGAP") return nunchuk::SignerType::AIRGAP;
   if (value == "HARDWARE") return nunchuk::SignerType::HARDWARE;
   throw nunchuk::NunchukException(
-      nunchuk::NunchukException::INVALID_SIGNER_TYPE, "invalid signer type");
+      nunchuk::NunchukException::INVALID_SIGNER_TYPE, "Invalid signer type");
 }
 
 }  // namespace

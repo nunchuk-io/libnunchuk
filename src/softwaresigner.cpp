@@ -76,7 +76,7 @@ CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
   std::replace(formalized.begin(), formalized.end(), 'h', '\'');
   if (!ParseHDKeypath(formalized, keypath)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid hd keypath");
+                           "Invalid hd keypath");
   }
 
   CExtKey xkey = bip32rootkey_;

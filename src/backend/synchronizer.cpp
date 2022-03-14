@@ -56,7 +56,7 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
   if (app_settings_.get_backend_type() != new_settings.get_backend_type() ||
       app_settings_.get_chain() != new_settings.get_chain())
     throw NunchukException(NunchukException::APP_RESTART_REQUIRED,
-                           "app restart required");
+                           "App restart required");
 
   if (app_settings_.use_proxy() != new_settings.use_proxy()) return true;
   if (new_settings.use_proxy() &&

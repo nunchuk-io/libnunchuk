@@ -36,6 +36,7 @@
 
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
+#include <utils/errorutils.hpp>
 
 using json = nlohmann::json;
 namespace bp = boost::process;
@@ -54,7 +55,7 @@ static json ParseResponse(const std::string &resp) {
   json rs = json::parse(resp);
   if (rs["error"] != nullptr) {
     throw HWIException(rs["code"].get<int>() - 4000,
-                       rs["error"].get<std::string>());
+                       NormalizeErrorMessage(rs["error"]));
   }
   return rs;
 }
@@ -112,13 +113,14 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
     c.wait();
     exitcode = c.exit_code();
   } catch (bp::process_error &pe) {
-    throw HWIException(HWIException::RUN_ERROR, pe.what());
+    throw HWIException(HWIException::RUN_ERROR,
+                       NormalizeErrorMessage(pe.what()));
   }
 
   if (exitcode != 0) {
     LOG_F(ERROR, "Run hwi command '%s' exit code: %d", cmd.str().c_str(),
           exitcode);
-    throw HWIException(HWIException::RUN_ERROR, "run command exit error!");
+    throw HWIException(HWIException::RUN_ERROR, "Run command exit error!");
   }
 
   LOG_F(INFO, "Run hwi command '%s' result: %s", cmd.str().c_str(),
@@ -129,7 +131,7 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
 std::vector<Device> HWIService::Enumerate() const {
   json enumerate = json::parse(RunCmd({"enumerate"}));
   if (!enumerate.is_array()) {
-    throw HWIException(HWIException::INVALID_RESULT, "enumerate is not array!");
+    throw HWIException(HWIException::INVALID_RESULT, "Enumerate is not array!");
   }
 
   std::vector<Device> rs{};
@@ -167,7 +169,7 @@ std::string HWIService::GetMasterFingerprint(const Device &device) const {
   std::string masterPubkey = GetXpubAtPath(device, "m/48h");
   std::vector<unsigned char> origin;
   if (!DecodeBase58(masterPubkey.c_str(), origin, 100)) {
-    throw HWIException(HWIException::INVALID_RESULT, "can't decode pubkey!");
+    throw HWIException(HWIException::INVALID_RESULT, "Can't decode pubkey!");
   }
 
   std::stringstream ss;

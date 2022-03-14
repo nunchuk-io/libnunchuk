@@ -330,15 +330,15 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
   if (!Utils::IsValidXPub(sanitized_xpub) &&
       !Utils::IsValidPublicKey(public_key)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid xpub and public_key");
+                           "Invalid xpub and public_key");
   }
   if (!Utils::IsValidDerivationPath(derivation_path)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid derivation path");
+                           "Invalid derivation path");
   }
   if (!Utils::IsValidFingerPrint(master_fingerprint)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid master fingerprint");
+                           "Invalid master fingerprint");
   }
   std::string xfp = to_lower_copy(master_fingerprint);
   std::string name = trim_copy(raw_name);
@@ -375,7 +375,7 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
   }
   if (index < 0) {
     throw NunchukException(NunchukException::RUN_OUT_OF_CACHED_XPUB,
-                           "run out of cached xpub!");
+                           "Run out of cached xpub!");
   }
   return GetSignerFromMasterSigner(mastersigner_id, wallet_type, address_type,
                                    index);
@@ -446,7 +446,8 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     std::string& signature, std::string& path) {
   message = message.empty() ? Utils::GenerateRandomMessage() : message;
   if (message.size() < MESSAGE_MIN_LEN) {
-    throw std::runtime_error("message too short!");
+    throw NunchukException(NunchukException::MESSAGE_TOO_SHORT,
+                           "Message too short!");
   }
 
   bool existed = true;
@@ -465,7 +466,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     return HealthStatus::SUCCESS;
   } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "can not healthcheck foreign software signer");
+                           "Can not healthcheck foreign software signer");
   }
 
   Device device{fingerprint};
@@ -502,7 +503,7 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
     const std::string& signature) {
   if (message.size() < MESSAGE_MIN_LEN) {
     throw NunchukException(NunchukException::MESSAGE_TOO_SHORT,
-                           "message too short!");
+                           "Message too short!");
   }
 
   std::string address;
@@ -646,7 +647,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   auto mastersigner = GetMasterSigner(mastersigner_id);
   if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "can not sign with foreign software signer");
+                           "Can not sign with foreign software signer");
   } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     signed_psbt = software_signer.SignTx(psbt);
@@ -764,7 +765,7 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   auto tx = storage_.GetTransaction(chain_, wallet_id, tx_id);
   if (new_fee_rate < tx.get_fee_rate()) {
     throw NunchukException(NunchukException::INVALID_FEE_RATE,
-                           "invalid new fee rate");
+                           "Invalid new fee rate");
   }
 
   std::map<std::string, Amount> outputs;
@@ -806,7 +807,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
   auto mastersigner = GetMasterSigner(mastersigner_id);
   if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "can not cache xpub with foreign software signer");
+                           "Can not cache xpub with foreign software signer");
   } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
     storage_.CacheMasterSignerXPub(

@@ -37,7 +37,7 @@ NunchukDb::NunchukDb(Chain chain, const std::string& id,
   if (sqlite3_exec(db_, "SELECT count(*) FROM sqlite_master;", NULL, NULL,
                    NULL) != SQLITE_OK) {
     throw NunchukException(NunchukException::INVALID_PASSPHRASE,
-                           "invalid passphrase");
+                           "Invalid passphrase");
   }
 }
 
