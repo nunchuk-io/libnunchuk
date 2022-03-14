@@ -75,23 +75,19 @@ class NunchukMatrixImpl : public NunchukMatrix {
       const std::unique_ptr<Nunchuk>& nu,
       const std::string& init_event_id) override;
 
-  NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
-                            const std::string& sync_room_id = {},
-                            const std::string& access_token = {}) override;
-  NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu,
-                            const std::string& sync_room_id,
-                            UploadFileFunc uploadfunction) override;
-  NunchukMatrixEvent BackupFile(const std::string& sync_room_id,
-                                const std::string& file_json_info,
-                                const std::string& file_url) override;
   void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
                         const std::string& access_token) override;
-  void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
-                        const std::string& sync_room_id,
-                        UploadFileFunc uploadfunction) override;
-  void RegisterDownloadFileFunc(DownloadFileFunc downloadfunction) override;
   void EnableGenerateReceiveEvent(const std::unique_ptr<Nunchuk>& nu) override;
+
+  void RegisterFileFunc(UploadFileFunc upload,
+                        DownloadFileFunc download) override;
+  NunchukMatrixEvent UploadFileCallback(const std::string& json_info,
+                                        const std::string& file_url) override;
+  void DownloadFileCallback(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& json_info,
+      const std::vector<unsigned char>& file_data,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
   RoomWallet GetRoomWallet(const std::string& room_id) override;
@@ -106,10 +102,6 @@ class NunchukMatrixImpl : public NunchukMatrix {
   void ConsumeSyncEvent(
       const std::unique_ptr<Nunchuk>& nu, const NunchukMatrixEvent& event,
       std::function<bool /* stop */ (int /* percent */)> progress) override;
-  void ConsumeSyncFile(
-      const std::unique_ptr<Nunchuk>& nu, const std::string& file_json_info,
-      const std::vector<unsigned char>& file_data,
-      std::function<bool /* stop */ (int /* percent */)> progress) override;
 
  private:
   NunchukMatrixEvent NewEvent(const std::string& room_id,
@@ -123,6 +115,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
                             const std::string& init_event_id);
   void RandomDelay(std::function<void()> func);
   void AsyncBackup(const std::unique_ptr<Nunchuk>& nu, int delay_sec = 0);
+  NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu);
 
   NunchukStorage storage_;
   std::string sync_room_id_;

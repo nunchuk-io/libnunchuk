@@ -38,6 +38,7 @@
 namespace {
 
 static const std::string DEFAULT_MATRIX_SERVER = "https://matrix.nunchuk.io";
+static const std::string MIME_TYPE = "application/octet-stream";
 
 inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
   auto id = url.substr(5);
@@ -61,7 +62,7 @@ inline std::string UploadAttachment(const std::string& accessToken,
   httplib::Headers headers = {{"Authorization", auth}};
   httplib::Client cli(DEFAULT_MATRIX_SERVER.c_str());
   auto res = cli.Post("/_matrix/media/r0/upload", headers, body, length,
-                      "application/octet-stream");
+                      MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::SERVER_REQUEST_ERROR, "upload file error");
@@ -96,9 +97,10 @@ inline std::string DecryptAttachment(
   return std::string(decrypted.begin(), decrypted.end());
 }
 
-inline std::string DecryptAttachment(
-    const nunchuk::DownloadFileFunc& downloadfunc,
-    const std::string& event_file, time_t lastSyncTs = 0) {
+inline std::string DecryptAttachment(const nunchuk::DownloadFileFunc& download,
+                                     const std::string& event_file,
+                                     const std::string& info,
+                                     time_t lastSyncTs = 0) {
   using json = nlohmann::json;
   json file = json::parse(event_file);
   if ("v3" != file["v"].get<std::string>()) {
@@ -106,19 +108,19 @@ inline std::string DecryptAttachment(
         nunchuk::NunchukException::VERSION_NOT_SUPPORTED,
         "version not supported");
   }
-  if (file["ts"] != nullptr) {
+  if (lastSyncTs > 0 && file["ts"] != nullptr) {
     time_t ts = file["ts"];
     if (lastSyncTs >= ts) return "";  // old backup file
   }
 
-  auto buf = downloadfunc("Backup", "application/octet-stream", event_file,
-                          file["url"]);
+  auto buf = download("Backup", MIME_TYPE, info, file["url"]);
   if (buf.empty()) return "";
   return DecryptAttachment(buf, event_file);
 }
 
-inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
-                                     const std::string& body) {
+inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& upload,
+                                     const std::string& body,
+                                     const std::string& event) {
   using json = nlohmann::json;
   json file;
   file["v"] = "v3";
@@ -152,9 +154,12 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& uploadfunc,
   hasher.Finalize(hash.begin());
 
   file["hashes"] = {{"sha256", EncodeBase64(hash)}};
-  file["mimetype"] = "application/octet-stream";
-  auto url = uploadfunc("Backup", file["mimetype"], file.dump(),
-                        (char*)(&encrypted[0]), encrypted.size());
+  file["mimetype"] = MIME_TYPE;
+  json info;
+  info["file"] = file;
+  info["event"] = json::parse(event);
+  auto url = upload("Backup", MIME_TYPE, info.dump(), (char*)(&encrypted[0]),
+                    encrypted.size());
   if (url.empty()) return "";
 
   file["url"] = url;
