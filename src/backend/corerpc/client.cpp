@@ -16,10 +16,12 @@
  */
 
 #include <backend/corerpc/client.h>
+#include <cctype>
 #include <utils/loguru.hpp>
 #include "httplib5.h"
 #include <util/strencodings.h>
 #include <utils/json.hpp>
+#include <utils/errorutils.hpp>
 
 #include <iostream>
 
@@ -29,15 +31,21 @@ namespace nunchuk {
 
 static json ParseResponse(const std::string& resp) {
   if (resp.empty()) {
-    throw RPCException(RPCException::RPC_REQUEST_ERROR, "send request error");
+    throw RPCException(RPCException::RPC_REQUEST_ERROR, "Send request error");
   }
-  json rs = json::parse(resp);
-  if (rs["error"] != nullptr) {
-    int code = rs["error"]["code"];
-    std::string message = rs["error"]["message"];
-    throw RPCException(code - 3000, message.c_str());
+
+  try {
+    json rs = json::parse(resp);
+    if (rs["error"] != nullptr) {
+      int code = rs["error"]["code"];
+      throw RPCException(code - 3000,
+                         NormalizeErrorMessage(rs["error"]["message"]));
+    }
+    return rs["result"];
+  } catch (json::exception& se) {
+    throw RPCException(RPCException::RPC_DESERIALIZATION_ERROR,
+                       NormalizeErrorMessage(se.what()));
   }
-  return rs["result"];
 }
 
 std::string CoreRpcClient::SendRequest(const std::string& path,
@@ -106,7 +114,8 @@ void CoreRpcClient::ImportDescriptors(const std::string& descriptors) {
   json rs = ParseResponse(resp);
   for (auto& el : rs.items()) {
     if (!el.value()["success"]) {
-      throw std::runtime_error("import descriptors fail");
+      throw RPCException(RPCException::RPC_REQUEST_ERROR,
+                         "Import descriptors fail");
     }
   }
 }
@@ -134,7 +143,7 @@ void CoreRpcClient::CreateWallet() {
   std::string resp = SendRequest("/", req.dump());
   json rs = ParseResponse(resp);
   if (rs["name"] != name_) {
-    throw std::runtime_error("create wallet error");
+    throw RPCException(RPCException::RPC_REQUEST_ERROR, "Create wallet error");
   }
 }
 
@@ -145,7 +154,7 @@ void CoreRpcClient::LoadWallet() {
   std::string resp = SendRequest("/", req.dump());
   json rs = ParseResponse(resp);
   if (rs["name"] != name_) {
-    throw std::runtime_error("load wallet error");
+    throw RPCException(RPCException::RPC_REQUEST_ERROR, "Load wallet error");
   }
 }
 
