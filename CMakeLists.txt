@@ -17,6 +17,7 @@ find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 find_package(OpenSSL REQUIRED)
 
 if(WIN32)
+    string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus")
     find_package(sqlcipher CONFIG REQUIRED)
 else()
     find_library(sqlcipher_lib NAMES libsqlcipher.a PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)
