@@ -194,12 +194,12 @@ SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
   auto mnemonic = GetString(DbKeys::MNEMONIC);
   if (mnemonic.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "is not software signer");
+                           "Is not software signer");
   }
   auto signer = SoftwareSigner{mnemonic, passphrase};
   if (signer.GetMasterFingerprint() != id_) {
     throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
-                           "invalid software signer passphrase");
+                           "Invalid software signer passphrase");
   }
   return signer;
 }
@@ -262,7 +262,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
-                           "signer not found!");
+                           "Signer not found!");
   }
 }
 

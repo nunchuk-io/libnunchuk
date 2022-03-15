@@ -121,7 +121,8 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
   std::string id = wallet_db.GetId();
   auto wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
-    throw StorageException(StorageException::WALLET_EXISTED, "wallet existed!");
+    throw StorageException(StorageException::WALLET_EXISTED,
+                           strprintf("Wallet existed! id = '%s'", id));
   }
   wallet_db.EncryptDb(wallet_file.string(), passphrase_);
   return id;
@@ -135,7 +136,7 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
     datadir_ = fs::system_complete(datadir);
     if (!fs::is_directory(datadir_)) {
       throw StorageException(StorageException::INVALID_DATADIR,
-                             "datadir is not directory!");
+                             "Datadir is not directory!");
     }
   } else {
     datadir_ = GetDefaultDataDir();
@@ -165,7 +166,7 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
 void NunchukStorage::SetPassphrase(const std::string& value) {
   if (value == passphrase_) {
     throw NunchukException(NunchukException::PASSPHRASE_ALREADY_USED,
-                           "passphrase used");
+                           "Passphrase used");
   }
   SetPassphrase(Chain::MAIN, value);
   SetPassphrase(Chain::TESTNET, value);
@@ -244,7 +245,7 @@ fs::path NunchukStorage::GetWalletDir(Chain chain,
                                       const std::string& id) const {
   if (id.empty()) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
-                           "wallet id can not empty!");
+                           "Wallet id can not empty!");
   }
   return datadir_ / ChainStr(chain) / "wallets" / id;
 }
@@ -253,7 +254,7 @@ fs::path NunchukStorage::GetSignerDir(Chain chain,
                                       const std::string& id) const {
   if (id.empty()) {
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
-                           "signer id can not empty!");
+                           "Signer id can not empty!");
   }
   return datadir_ / ChainStr(chain) / "signers" / ba::to_lower_copy(id);
 }
@@ -271,7 +272,7 @@ NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
   fs::path db_file = GetWalletDir(chain, id);
   if (!fs::exists(db_file)) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
-                           "wallet not exists!");
+                           strprintf("Wallet not exists! id = '%s'", id));
   }
   return NunchukWalletDb{chain, id, db_file.string(), passphrase_};
 }
@@ -281,7 +282,7 @@ NunchukSignerDb NunchukStorage::GetSignerDb(Chain chain,
   fs::path db_file = GetSignerDir(chain, id);
   if (!fs::exists(db_file)) {
     throw StorageException(StorageException::MASTERSIGNER_NOT_FOUND,
-                           "signer not exists!");
+                           strprintf("Signer not exists! id = '%s'", id));
   }
   return NunchukSignerDb{chain, id, db_file.string(), passphrase_};
 }
@@ -322,11 +323,11 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
                                      time_t create_date) {
   if (m > n) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid parameter: m > n");
+                           "Invalid parameter: m > n");
   }
   if (n != signers.size()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid parameter: n and signers are not match");
+                           "Invalid parameter: n and signers are not match");
   }
   WalletType wallet_type =
       n == 1 ? WalletType::SINGLE_SIG
@@ -340,13 +341,16 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
       if (FormalizePath(
               GetBip32Path(chain, wallet_type, address_type, index)) !=
           FormalizePath(signer.get_derivation_path())) {
-        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                               "invalid bip32 path!");
+        throw NunchukException(
+            NunchukException::INVALID_BIP32_PATH,
+            strprintf("Invalid bip32 path! master_id = '%s'", master_id));
       }
       signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
       if (!signer_db.UseIndex(wallet_type, address_type, index) &&
           !allow_used_signer) {
-        throw StorageException(StorageException::SIGNER_USED, "signer used!");
+        throw StorageException(
+            StorageException::SIGNER_USED,
+            strprintf("Signer used! master_id = '%s'", master_id));
       }
     } else {
       try {
@@ -368,7 +372,8 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
   std::string id = GetDescriptorChecksum(external_desc);
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
-    throw StorageException(StorageException::WALLET_EXISTED, "wallet existed!");
+    throw StorageException(StorageException::WALLET_EXISTED,
+                           strprintf("Wallet existed! id = '%s'", id));
   }
   NunchukWalletDb wallet_db{chain, id, wallet_file.string(), passphrase_};
   wallet_db.InitWallet(name, m, n, signers, address_type, is_escrow,
@@ -401,10 +406,12 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
   if (signer_db.IsMaster()) {
-    throw StorageException(StorageException::SIGNER_EXISTS, "signer exists");
+    throw StorageException(StorageException::SIGNER_EXISTS,
+                           strprintf("Signer exists id = '%s'", id));
   }
   if (!signer_db.AddRemote(name, xpub, public_key, derivation_path)) {
-    throw StorageException(StorageException::SIGNER_EXISTS, "signer exists");
+    throw StorageException(StorageException::SIGNER_EXISTS,
+                           strprintf("Signer exists id = '%s'", id));
   }
   auto signer = SingleSigner(name, xpub, public_key, derivation_path,
                              master_fingerprint, 0);
@@ -903,8 +910,9 @@ int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
   boost::shared_lock<boost::shared_mutex> lock(access_);
   int index = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
   if (index < 0)
-    throw StorageException(StorageException::ADDRESS_NOT_FOUND,
-                           "address not found");
+    throw StorageException(
+        StorageException::ADDRESS_NOT_FOUND,
+        strprintf("Address not found wallet_id = '%s'", wallet_id));
   return index;
 }
 

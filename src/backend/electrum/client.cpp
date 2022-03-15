@@ -17,6 +17,7 @@
 
 #include <backend/electrum/client.h>
 #include <utils/loguru.hpp>
+#include <utils/errorutils.hpp>
 #include <boost/algorithm/string.hpp>
 
 using namespace boost::asio;
@@ -47,7 +48,7 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
     }
   } else {
     throw NunchukException(NunchukException::INVALID_CHAIN,
-                           "chain not supported");
+                           "Chain not supported");
   }
   size_t colonDoubleSlash = server_url.find("://");
   if (colonDoubleSlash != std::string::npos) {
@@ -138,8 +139,8 @@ json ElectrumClient::call_method(const std::string& method,
   json resp = callback_[id].get_future().get();
   callback_.erase(id);
   if (resp["error"] != nullptr) {
-    std::string message = resp["error"]["message"];
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, message);
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           NormalizeErrorMessage(resp["error"]["message"]));
   }
   return resp["result"];
 }

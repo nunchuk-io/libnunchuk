@@ -525,7 +525,7 @@ bool NunchukWalletDb::UpdatePsbtTxId(const std::string& old_id,
     SQLCHECK(sqlite3_finalize(insert_stmt));
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw StorageException(StorageException::TX_NOT_FOUND, "old tx not found!");
+    throw StorageException(StorageException::TX_NOT_FOUND, "Old tx not found!");
   }
   return DeleteTransaction(old_id);
 }
@@ -595,7 +595,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     return tx;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
-    throw StorageException(StorageException::TX_NOT_FOUND, "tx not found!");
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
 }
 

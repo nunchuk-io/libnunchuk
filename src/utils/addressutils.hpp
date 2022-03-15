@@ -35,7 +35,7 @@ inline std::string AddressToScriptPubKey(const std::string& address) {
   CTxDestination dest = DecodeDestination(address);
   if (!IsValidDestination(dest)) {
     throw NunchukException(NunchukException::INVALID_ADDRESS,
-                            "invalid address");
+                            "Invalid address");
   }
   CScript scriptPubKey = GetScriptForDestination(dest);
   return HexStr(scriptPubKey);

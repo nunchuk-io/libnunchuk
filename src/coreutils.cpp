@@ -20,6 +20,7 @@
 #include <embeddedrpc.h>
 #include <utils/json.hpp>
 #include <utils/addressutils.hpp>
+#include <utils/errorutils.hpp>
 #include <iostream>
 
 using json = nlohmann::json;
@@ -34,7 +35,7 @@ static std::string GetChainString(Chain chain) {
     case Chain::REGTEST:
       return "regtest";
   }
-  throw NunchukException(NunchukException::INVALID_CHAIN, "unknown chain");
+  throw NunchukException(NunchukException::INVALID_CHAIN, "Unknown chain");
 }
 
 CoreUtils &CoreUtils::getInstance() {
@@ -50,15 +51,21 @@ void CoreUtils::SetChain(Chain chain) {
 
 static json ParseResponse(const std::string &resp) {
   if (resp.empty()) {
-    throw RPCException(RPCException::RPC_REQUEST_ERROR, "send request error");
+    throw RPCException(RPCException::RPC_REQUEST_ERROR, "Send request error");
   }
-  json rs = json::parse(resp);
-  if (rs["error"] != nullptr) {
-    int code = rs["error"]["code"];
-    std::string message = rs["error"]["message"];
-    throw RPCException(code - 3000, message.c_str());
+
+  try {
+    json rs = json::parse(resp);
+    if (rs["error"] != nullptr) {
+      int code = rs["error"]["code"];
+      throw RPCException(code - 3000,
+                         NormalizeErrorMessage(rs["error"]["message"]));
+    }
+    return rs["result"];
+  } catch (json::exception &se) {
+    throw RPCException(RPCException::RPC_DESERIALIZATION_ERROR,
+                       NormalizeErrorMessage(se.what()));
   }
-  return rs["result"];
 }
 
 std::string CoreUtils::CombinePsbt(const std::vector<std::string> psbts) {
@@ -77,7 +84,7 @@ std::string CoreUtils::FinalizePsbt(const std::string &combined) {
   json rs = ParseResponse(resp);
   if (!rs["complete"]) {
     throw NunchukException(NunchukException::PSBT_INCOMPLETE,
-                           "psbt incomplete");
+                           "Psbt incomplete");
   }
   return rs["hex"];
 }

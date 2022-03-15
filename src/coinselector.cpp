@@ -53,7 +53,7 @@ CoinSelector::CoinSelector(const std::string descriptors,
     if (!ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR, spk,
                           sigdata)) {
       throw NunchukException(NunchukException::CREATE_DUMMY_SIGNATURE_ERROR,
-                             "create dummy signature error");
+                             "Create dummy signature error");
     }
     scriptsig_cache_[descriptors] = sigdata.scriptSig;
     scriptwitness_cache_[descriptors] = sigdata.scriptWitness;

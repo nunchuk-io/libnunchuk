@@ -60,14 +60,14 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
           return boost::str(boost::format{"m/84h/%dh/%dh"} % coin_type % index);
         default:
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
-                                 "invalid address type");
+                                 "Invalid address type");
       }
       break;
     case WalletType::MULTI_SIG:
       if (index == 0)
         throw NunchukException(
             NunchukException::INVALID_PARAMETER,
-            "multisig account index 0 is reserved for escrow wallets");
+            "Multisig account index 0 is reserved for escrow wallets");
       // Multi-sig BIP48 Wallets: m/48h/ch/ph, c = coin, p = index, p != 0
       return boost::str(boost::format{"m/48h/%dh/%dh"} % coin_type % index);
     case WalletType::ESCROW:
@@ -75,7 +75,7 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
       return boost::str(boost::format{"m/48h/%dh/0h/%dh"} % coin_type % index);
   }
   throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
-                         "invalid wallet type");
+                         "Invalid wallet type");
 }
 
 inline std::string GetBip32Type(const std::string& path) {
@@ -102,7 +102,7 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
           return "bip84";
         default:
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
-                                 "invalid address type");
+                                 "Invalid address type");
       }
       break;
     case WalletType::MULTI_SIG:
@@ -111,7 +111,7 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
       return "escrow";
   }
   throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
-                         "invalid wallet type");
+                         "Invalid wallet type");
 }
 
 inline int GetIndexFromPath(const std::string& path) {
