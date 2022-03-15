@@ -40,7 +40,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
   ~NunchukMatrixImpl() override;
 
-  NunchukMatrixEvent SendErrorEvent(const std::string& room_id, int code,
+  NunchukMatrixEvent SendErrorEvent(const std::string& room_id,
+                                    const std::string& platform, int code,
                                     const std::string& message) override;
 
   NunchukMatrixEvent InitWallet(const std::string& room_id,

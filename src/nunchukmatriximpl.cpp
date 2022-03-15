@@ -90,11 +90,13 @@ NunchukMatrix::~NunchukMatrix() = default;
 NunchukMatrixImpl::~NunchukMatrixImpl() { stopped = true; }
 
 NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
-    const std::string& room_id, int code, const std::string& message) {
-  json content = {{"msgtype", "io.nunchuk.exception"},
-                  {"v", NUNCHUK_EVENT_VER},
-                  {"body", {{"code", code}, {"message", message}}}};
-  return NewEvent(room_id, "io.nunchuk.exception", content.dump(), true);
+    const std::string& room_id, const std::string& platform, int code,
+    const std::string& message) {
+  json content = {
+      {"msgtype", "io.nunchuk.error"},
+      {"v", NUNCHUK_EVENT_VER},
+      {"body", {{"code", code}, {"message", message}, {"platform", platform}}}};
+  return NewEvent(room_id, "io.nunchuk.error", content.dump(), true);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
