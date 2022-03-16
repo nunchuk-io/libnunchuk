@@ -3,7 +3,7 @@ project(nunchuk VERSION 0.1.0)
 
 configure_file(src/config.h.in nunchuk-config.h)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
@@ -13,10 +13,11 @@ set(UR__DISABLE_TESTS ON)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 find_package(Threads REQUIRED)
-find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
+find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 find_package(OpenSSL REQUIRED)
 
 if(WIN32)
+    string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus")
     find_package(sqlcipher CONFIG REQUIRED)
 else()
     find_library(sqlcipher_lib NAMES libsqlcipher.a PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)

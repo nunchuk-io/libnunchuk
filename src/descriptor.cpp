@@ -93,7 +93,9 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     const SingleSigner& signer = signers[0];
     std::string path = FormalizePath(signer.get_derivation_path());
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
-    desc << (address_type == AddressType::LEGACY ? "pkh" : "wpkh");
+    desc << (address_type == AddressType::LEGACY
+                 ? "pkh"
+                 : address_type == AddressType::TAPROOT ? "tr" : "wpkh");
     desc << "([" << signer.get_master_fingerprint() << path << "]"
          << signer.get_xpub() << keypath << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
@@ -159,7 +161,8 @@ static std::map<std::string, std::pair<AddressType, WalletType>>
         {"sh(sortedmulti(", {AddressType::LEGACY, WalletType::MULTI_SIG}},
         {"wpkh(", {AddressType::NATIVE_SEGWIT, WalletType::SINGLE_SIG}},
         {"sh(wpkh(", {AddressType::NESTED_SEGWIT, WalletType::SINGLE_SIG}},
-        {"pkh(", {AddressType::LEGACY, WalletType::SINGLE_SIG}}};
+        {"pkh(", {AddressType::LEGACY, WalletType::SINGLE_SIG}},
+        {"tr(", {AddressType::TAPROOT, WalletType::SINGLE_SIG}}};
 
 SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;

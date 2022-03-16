@@ -88,8 +88,12 @@ std::vector<OutputGroup> GroupOutputs(const std::vector<UnspentOutput>& outputs,
         COutPoint(uint256S(output.get_txid()), output.get_vout());
 
     size_t ancestors = 0, descendants = 0;
-    groups.emplace_back(input_coin, output.get_height(), true, ancestors,
-                        descendants);
+
+    // Make an OutputGroup containing just this output
+    OutputGroup group{};
+    group.Insert(input_coin, output.get_height(), true, ancestors, descendants,
+                 true);
+    groups.push_back(group);
   }
   return groups;
 }
@@ -150,17 +154,15 @@ bool CoinSelector::SelectCoinsMinConf(
           }
           ++it;
         } else {
-          it = group.Discard(coin);
+          // Critical
+          // it = group.Discard(coin);
         }
       }
       if (group.effective_value > 0) utxo_pool.push_back(group);
     }
-    // Calculate the fees for things that aren't inputs
-    CAmount not_input_fees = coin_selection_params.effective_fee.GetFee(
-        coin_selection_params.tx_noinputs_size);
     bnb_used = true;
     return SelectCoinsBnB(utxo_pool, nTargetValue, cost_of_change, setCoinsRet,
-                          nValueRet, not_input_fees);
+                          nValueRet);
   } else {
     // Filter by the min conf specs and add to utxo_pool
     for (const OutputGroup& group : groups) {

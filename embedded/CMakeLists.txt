@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.1)
 project(embedded VERSION 0.1.0)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(Boost_USE_STATIC_LIBS ON)
 
 find_package(Threads REQUIRED)
-find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
+find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 
 if(WIN32)
     find_package(Libevent CONFIG REQUIRED)

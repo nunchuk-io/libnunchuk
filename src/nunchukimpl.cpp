@@ -656,7 +656,22 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                   wallet_id, tx_id, mastersigner_id));
   } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
     auto software_signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
-    signed_psbt = software_signer.SignTx(psbt);
+    auto wallet = GetWallet(wallet_id);
+    if (wallet.get_address_type() == AddressType::TAPROOT) {
+      std::vector<std::string> keypaths;
+      auto base = wallet.get_signers()[0].get_derivation_path();
+      int internal = storage_.GetCurrentAddressIndex(chain_, wallet_id, true);
+      for (int index = 0; index < internal; index++) {
+        keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base % index));
+      }
+      int external = storage_.GetCurrentAddressIndex(chain_, wallet_id, false);
+      for (int index = 0; index < external; index++) {
+        keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base % index));
+      }
+      signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
+    } else {
+      signed_psbt = software_signer.SignTx(psbt);
+    }
     storage_.ClearSignerPassphrase(chain_, mastersigner_id);
   } else {
     signed_psbt = hwi_.SignTx(device, psbt);

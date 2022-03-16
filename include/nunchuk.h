@@ -41,6 +41,7 @@ enum class AddressType {
   LEGACY,
   NESTED_SEGWIT,
   NATIVE_SEGWIT,
+  TAPROOT,
 };
 
 enum class Chain {

@@ -447,7 +447,7 @@ Transaction NunchukWalletDb::CreatePsbt(
     Amount fee_rate, bool subtract_fee_from_amount,
     const std::string& replace_tx) {
   PartiallySignedTransaction psbtx = DecodePsbt(psbt);
-  std::string tx_id = psbtx.tx.get().GetHash().GetHex();
+  std::string tx_id = psbtx.tx.value().GetHash().GetHex();
 
   json extra{};
   extra["outputs"] = outputs;
@@ -480,7 +480,7 @@ bool NunchukWalletDb::UpdatePsbt(const std::string& psbt) {
   sqlite3_stmt* stmt;
   std::string sql = "UPDATE VTX SET VALUE = ?1 WHERE ID = ?2 AND HEIGHT = -1;";
   PartiallySignedTransaction psbtx = DecodePsbt(psbt);
-  std::string tx_id = psbtx.tx.get().GetHash().GetHex();
+  std::string tx_id = psbtx.tx.value().GetHash().GetHex();
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, psbt.c_str(), psbt.size(), NULL);
   sqlite3_bind_text(stmt, 2, tx_id.c_str(), tx_id.size(), NULL);
@@ -818,9 +818,9 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   FlatSigningProvider provider =
       SigningProviderCache::getInstance().GetProvider(desc);
 
-  int nin = psbt.tx.get().vin.size();
+  int nin = psbt.tx.value().vin.size();
   for (int i = 0; i < nin; i++) {
-    std::string tx_id = psbt.tx.get().vin[i].prevout.hash.GetHex();
+    std::string tx_id = psbt.tx.value().vin[i].prevout.hash.GetHex();
     sqlite3_stmt* stmt;
     std::string sql = "SELECT VALUE FROM VTX WHERE ID = ? AND HEIGHT > -1;";
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -830,12 +830,18 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
       std::string raw_tx = std::string((char*)sqlite3_column_text(stmt, 0));
       psbt.inputs[i].non_witness_utxo =
           MakeTransactionRef(DecodeRawTransaction(raw_tx));
-      SignPSBTInput(provider, psbt, i, 1);
+      psbt.inputs[i].witness_utxo.SetNull();
     }
     SQLCHECK(sqlite3_finalize(stmt));
   }
+
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
+  for (int i = 0; i < nin; i++) {
+    SignPSBTInput(provider, psbt, i, &txdata, 1);
+  }
+
   // Update script/keypath information using descriptor data.
-  for (unsigned int i = 0; i < psbt.tx.get().vout.size(); ++i) {
+  for (unsigned int i = 0; i < psbt.tx.value().vout.size(); ++i) {
     UpdatePSBTOutput(provider, psbt, i);
   }
   return EncodePsbt(psbt);

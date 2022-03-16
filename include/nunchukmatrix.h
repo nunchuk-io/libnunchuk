@@ -124,6 +124,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string get_cancel_event_id() const;
   std::string get_ready_event_id() const;
   Transaction get_tx() const;
+  Chain get_chain() const;
 
   void set_room_id(const std::string& value);
   void set_tx_id(const std::string& value);
@@ -137,6 +138,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   void set_cancel_event_id(const std::string& value);
   void set_ready_event_id(const std::string& value);
   void set_tx(const Transaction& value);
+  void set_chain(const Chain& value);
 
  private:
   std::string room_id_;
@@ -149,6 +151,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string cancel_event_id_;
   std::string ready_event_id_;
   Transaction tx_;
+  Chain chain_;
 };
 
 typedef std::function<std::string /* event_id */ (

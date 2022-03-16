@@ -51,7 +51,7 @@ inline std::string EncodePsbt(const PartiallySignedTransaction& psbtx) {
 }
 
 inline std::string GetTxIdFromPsbt(const std::string& base64_psbt) {
-  return DecodePsbt(base64_psbt).tx.get().GetHash().GetHex();
+  return DecodePsbt(base64_psbt).tx.value().GetHash().GetHex();
 }
 
 inline CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
@@ -97,7 +97,7 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const std::vector<nunchuk::SingleSigner>& signers, int m) {
   using namespace nunchuk;
   Transaction tx =
-      GetTransactionFromCMutableTransaction(psbtx.tx.get(), signers, -1);
+      GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
   tx.set_m(m);
 
   // Parse partial sigs
@@ -109,7 +109,7 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       tx.set_signer(signer.get_master_fingerprint(), false);
     }
 
-    auto txCredit = psbt.tx.get();
+    auto txCredit = psbt.tx.value();
     auto input = psbt.inputs[0];
     auto txIn = input.non_witness_utxo.get();
     auto txSpend = CMutableTransaction(*txIn);
