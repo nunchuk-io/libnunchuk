@@ -148,7 +148,6 @@ add_library("${PROJECT_NAME}" STATIC
 )
 
 set(PROJECT_LIBRARIES
-    embedded
     ur
     ur-2
     OpenSSL::SSL OpenSSL::Crypto
@@ -167,9 +166,9 @@ elseif(UNIX)
 endif()
 
 if(ANDROID)
-    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group)
 else()
-    target_link_libraries("${PROJECT_NAME}" PUBLIC ${PROJECT_LIBRARIES} trezor-crypto)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto)
 endif()
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
