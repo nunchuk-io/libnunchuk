@@ -47,6 +47,7 @@ enum class AddressType {
 enum class Chain {
   MAIN,
   TESTNET,
+  SIGNET,
   REGTEST,
 };
 
@@ -456,6 +457,7 @@ class NUNCHUK_EXPORT AppSettings {
   Chain get_chain() const;
   BackendType get_backend_type() const;
   std::vector<std::string> get_mainnet_servers() const;
+  std::vector<std::string> get_signet_servers() const;
   std::vector<std::string> get_testnet_servers() const;
   std::string get_hwi_path() const;
   std::string get_storage_path() const;
@@ -473,6 +475,7 @@ class NUNCHUK_EXPORT AppSettings {
   void set_chain(Chain value);
   void set_backend_type(BackendType value);
   void set_mainnet_servers(const std::vector<std::string>& value);
+  void set_signet_servers(const std::vector<std::string>& value);
   void set_testnet_servers(const std::vector<std::string>& value);
   void set_hwi_path(const std::string& value);
   void set_storage_path(const std::string& value);
@@ -491,6 +494,7 @@ class NUNCHUK_EXPORT AppSettings {
   Chain chain_;
   BackendType backend_type_;
   std::vector<std::string> mainnet_servers_;
+  std::vector<std::string> signet_servers_;
   std::vector<std::string> testnet_servers_;
   std::string hwi_path_;
   std::string storage_path_;

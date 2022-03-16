@@ -23,15 +23,23 @@
 namespace {
 
 inline std::string ChainToStr(nunchuk::Chain value) {
-  if (value == nunchuk::Chain::TESTNET) return "TESTNET";
-  if (value == nunchuk::Chain::REGTEST) return "REGTEST";
-  return "MAIN";
+  switch (value) {
+    case nunchuk::Chain::MAIN:
+      return "MAIN";
+    case nunchuk::Chain::SIGNET:
+      return "SIGNET";
+    case nunchuk::Chain::TESTNET:
+      return "TESTNET";
+    case nunchuk::Chain::REGTEST:
+      return "REGTEST";
+  }
 }
 
 inline nunchuk::Chain ChainFromStr(const std::string& value) {
+  if (value == "MAIN") return nunchuk::Chain::MAIN;
+  if (value == "SIGNET") return nunchuk::Chain::SIGNET;
   if (value == "TESTNET") return nunchuk::Chain::TESTNET;
   if (value == "REGTEST") return nunchuk::Chain::REGTEST;
-  if (value == "MAIN") return nunchuk::Chain::MAIN;
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_CHAIN,
                                   "Invalid chain");
 }
