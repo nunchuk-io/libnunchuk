@@ -13,3 +13,6 @@
 [submodule "contrib/bc-ur-2"]
 	path = contrib/bc-ur-2
 	url = https://github.com/bakaoh/bc-ur
+[submodule "contrib/openssl"]
+	path = contrib/openssl
+	url = https://github.com/openssl/openssl.git
