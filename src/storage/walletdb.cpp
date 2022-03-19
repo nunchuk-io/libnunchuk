@@ -461,7 +461,9 @@ Transaction NunchukWalletDb::CreatePsbt(
   std::string sql =
       "INSERT INTO "
       "VTX(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, EXTRA)"
-      "VALUES (?1, ?2, -1, ?3, ?4, ?5, ?6, ?7);";
+      "VALUES (?1, ?2, -1, ?3, ?4, ?5, ?6, ?7)"
+      "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE, "
+      "HEIGHT=excluded.HEIGHT;";
   std::string extra_str = extra.dump();
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
@@ -618,10 +620,11 @@ std::string NunchukWalletDb::GetMultisigConfig(bool is_cobo) const {
           << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
           << std::endl
           << "Format: "
-          << (wallet.get_address_type() == AddressType::LEGACY ? "P2SH"
-              : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
-                  ? "P2WSH"
-                  : "P2WSH-P2SH")
+          << (wallet.get_address_type() == AddressType::LEGACY
+                  ? "P2SH"
+                  : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
+                        ? "P2WSH"
+                        : "P2WSH-P2SH")
           << std::endl;
 
   content << std::endl;

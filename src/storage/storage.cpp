@@ -1029,10 +1029,12 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
 
   int percent = 0;
   auto importChain = [&](Chain chain, const json& d) {
+    std::vector<std::string> keep{};
     json signers = d["signers"];
     for (auto&& signer : signers) {
       std::string id = signer["id"];
       if (id.empty()) continue;
+      keep.push_back(id);
       fs::path db_file = GetSignerDir(chain, id);
       NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
       if (!signer["name"].get<std::string>().empty()) {
@@ -1048,13 +1050,24 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         db.SetRemoteLastHealthCheck(ss["path"], ss["last_health_check"]);
       }
     }
+    auto sids = ListMasterSigners0(chain);
+    for (auto&& id : sids) {
+      if (std::find(keep.begin(), keep.end(), id) == keep.end()) {
+        try {
+          fs::remove(GetSignerDir(chain, id));
+        } catch (...) {
+        }
+      }
+    }
     percent += 25;
     progress(percent);
 
+    keep.clear();
     json wallets = d["wallets"];
     for (auto&& wallet : wallets) {
       std::string id = wallet["id"];
       if (id.empty()) continue;
+      keep.push_back(id);
       fs::path db_file = GetWalletDir(chain, id);
       if (!fs::exists(db_file)) {
         AddressType a;
@@ -1075,16 +1088,39 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
 
       if (wallet["pending_signatures"] == nullptr) continue;
       auto wallet_db = GetWalletDb(chain, id);
-      json txs = wallet["pending_signatures"];
-      for (auto&& tx : txs) {
+      json pending_txs = wallet["pending_signatures"];
+      std::vector<std::string> txids{};
+      for (auto&& tx : pending_txs) {
         std::map<std::string, Amount> outputs;
         for (auto&& output : tx["outputs"]) {
           outputs[output["address"]] = output["amount"];
         }
         try {
-          wallet_db.CreatePsbt(tx["psbt"], tx["fee"], tx["memo"],
-                               tx["change_pos"], outputs, tx["fee_rate"],
-                               tx["subtract_fee_from_amount"], {});
+          auto new_tx = wallet_db.CreatePsbt(
+              tx["psbt"], tx["fee"], tx["memo"], tx["change_pos"], outputs,
+              tx["fee_rate"], tx["subtract_fee_from_amount"], {});
+          txids.push_back(new_tx.get_txid());
+        } catch (...) {
+        }
+      }
+
+      auto txs = wallet_db.GetTransactions();
+      for (auto&& tx : txs) {
+        if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
+        auto id = tx.get_txid();
+        if (std::find(txids.begin(), txids.end(), id) == txids.end()) {
+          try {
+            wallet_db.DeleteTransaction(id);
+          } catch (...) {
+          }
+        }
+      }
+    }
+    auto wids = ListWallets0(chain);
+    for (auto&& id : wids) {
+      if (std::find(keep.begin(), keep.end(), id) == keep.end()) {
+        try {
+          fs::remove(GetWalletDir(chain, id));
         } catch (...) {
         }
       }
