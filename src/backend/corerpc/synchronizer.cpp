@@ -196,7 +196,7 @@ void CoreRpcSynchronizer::BlockchainSync(
       for (auto it = all_txs.begin(); it != all_txs.end(); ++it) {
         json item = it.value();
         std::string tx_id = item["txid"];
-        int height = item["blockheight"];
+        int height = item.value("blockheight", 0);
 
         bool found = false;
         for (auto&& tx : txs) {
