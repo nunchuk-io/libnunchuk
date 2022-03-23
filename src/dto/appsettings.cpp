@@ -26,6 +26,9 @@ BackendType AppSettings::get_backend_type() const { return backend_type_; }
 std::vector<std::string> AppSettings::get_mainnet_servers() const {
   return mainnet_servers_;
 }
+std::vector<std::string> AppSettings::get_signet_servers() const {
+  return signet_servers_;
+}
 std::vector<std::string> AppSettings::get_testnet_servers() const {
   return testnet_servers_;
 }
@@ -55,6 +58,9 @@ void AppSettings::set_mainnet_servers(const std::vector<std::string>& value) {
 }
 void AppSettings::set_testnet_servers(const std::vector<std::string>& value) {
   testnet_servers_ = value;
+}
+void AppSettings::set_signet_servers(const std::vector<std::string>& value) {
+  signet_servers_ = value;
 }
 void AppSettings::set_hwi_path(const std::string& value) { hwi_path_ = value; }
 void AppSettings::set_storage_path(const std::string& value) {

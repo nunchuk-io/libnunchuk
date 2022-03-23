@@ -160,6 +160,10 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
     fs::create_directories(datadir_ / "mainnet" / "wallets");
     fs::create_directories(datadir_ / "mainnet" / "signers");
   }
+  if (fs::create_directories(datadir_ / "signet")) {
+    fs::create_directories(datadir_ / "signet" / "wallets");
+    fs::create_directories(datadir_ / "signet" / "signers");
+  }
   fs::create_directories(datadir_ / "tmp");
 }
 
@@ -170,6 +174,7 @@ void NunchukStorage::SetPassphrase(const std::string& value) {
   }
   SetPassphrase(Chain::MAIN, value);
   SetPassphrase(Chain::TESTNET, value);
+  SetPassphrase(Chain::SIGNET, value);
   passphrase_ = value;
 }
 
@@ -233,12 +238,16 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
 }
 
 std::string NunchukStorage::ChainStr(Chain chain) const {
-  if (chain == Chain::TESTNET) {
-    return "testnet";
-  } else if (chain == Chain::REGTEST) {
-    return "regtest";
+  switch (chain) {
+    case Chain::MAIN:
+      return "mainnet";
+    case Chain::TESTNET:
+      return "testnet";
+    case Chain::REGTEST:
+      return "regtest";
+    case Chain::SIGNET:
+      return "signet";
   }
-  return "mainnet";
 }
 
 fs::path NunchukStorage::GetWalletDir(Chain chain,
@@ -1018,6 +1027,7 @@ std::string NunchukStorage::ExportBackup() {
   time_t ts = std::time(0);
   json data = {{"testnet", exportChain(Chain::TESTNET)},
                {"mainnet", exportChain(Chain::MAIN)},
+               {"signet", exportChain(Chain::SIGNET)},
                {"ts", ts}};
   GetAppStateDb(Chain::MAIN).SetLastExportTs(ts);
   return data.dump();
@@ -1139,6 +1149,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   if (ts != appState.GetLastExportTs()) {
     importChain(Chain::TESTNET, data["testnet"]);
     importChain(Chain::MAIN, data["mainnet"]);
+    importChain(Chain::SIGNET, data["signet"]);
   } else {
     progress(100);
   }

@@ -32,6 +32,8 @@ static std::string GetChainString(Chain chain) {
       return "main";
     case Chain::TESTNET:
       return "test";
+    case Chain::SIGNET:
+      return "signet";
     case Chain::REGTEST:
       return "regtest";
   }

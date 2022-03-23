@@ -25,6 +25,32 @@ namespace nunchuk {
 
 static std::string DEFAULT_SERVER = "127.0.0.1:50001";
 
+static std::string GetServerAddress(const AppSettings& appsettings) {
+  auto getFirstElementOrDefault = [](const std::vector<std::string>& elements,
+                                     const std::string& def) {
+    if (elements.empty()) {
+      return def;
+    }
+    return elements.front();
+  };
+
+  switch (appsettings.get_chain()) {
+    case Chain::TESTNET:
+      return getFirstElementOrDefault(appsettings.get_testnet_servers(),
+                                      DEFAULT_SERVER);
+    case Chain::MAIN:
+      return getFirstElementOrDefault(appsettings.get_mainnet_servers(),
+                                      DEFAULT_SERVER);
+    case Chain::SIGNET:
+      return getFirstElementOrDefault(appsettings.get_signet_servers(),
+                                      DEFAULT_SERVER);
+
+    default:
+      throw NunchukException(NunchukException::INVALID_CHAIN,
+                             "Chain not supported");
+  }
+}
+
 ElectrumClient::ElectrumClient(const AppSettings& appsettings,
                                const std::function<void()> on_disconnect)
     : io_thread_(),
@@ -33,23 +59,8 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
       interval_(60),
       timer_(io_service_, interval_) {
   disconnect_signal_.connect(on_disconnect);
-  std::string server_url;
-  if (appsettings.get_chain() == Chain::TESTNET) {
-    if (!appsettings.get_testnet_servers().empty()) {
-      server_url = appsettings.get_testnet_servers()[0];
-    } else {
-      server_url = DEFAULT_SERVER;
-    }
-  } else if (appsettings.get_chain() == Chain::MAIN) {
-    if (!appsettings.get_mainnet_servers().empty()) {
-      server_url = appsettings.get_mainnet_servers()[0];
-    } else {
-      server_url = DEFAULT_SERVER;
-    }
-  } else {
-    throw NunchukException(NunchukException::INVALID_CHAIN,
-                           "Chain not supported");
-  }
+  std::string server_url = GetServerAddress(appsettings);
+
   size_t colonDoubleSlash = server_url.find("://");
   if (colonDoubleSlash != std::string::npos) {
     protocol_ = server_url.substr(0, colonDoubleSlash);

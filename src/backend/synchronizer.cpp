@@ -81,7 +81,10 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
              new_settings.get_testnet_servers()) ||
         (new_settings.get_chain() == Chain::MAIN &&
          app_settings_.get_mainnet_servers() !=
-             new_settings.get_mainnet_servers()))
+             new_settings.get_mainnet_servers()) ||
+        (new_settings.get_chain() == Chain::SIGNET &&
+         app_settings_.get_signet_servers() !=
+             new_settings.get_signet_servers()))
       return true;
   }
   return false;
