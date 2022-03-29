@@ -104,6 +104,12 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
   const PSBTInput& input = psbtx.inputs[0];
 
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
+    if (signers.size() == 1) {
+      tx.set_signer(signers[0].get_master_fingerprint(), true);
+      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+      return tx;
+    }
+
     auto psbt = DecodePsbt(EncodePsbt(psbtx));
     for (auto&& signer : signers) {
       tx.set_signer(signer.get_master_fingerprint(), false);
