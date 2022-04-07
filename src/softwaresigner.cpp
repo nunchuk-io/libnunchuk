@@ -94,6 +94,11 @@ std::string SoftwareSigner::GetXpubAtPath(const std::string& path) const {
   return EncodeExtPubKey(xkey.Neuter());
 }
 
+std::string SoftwareSigner::GetAddressAtPath(const std::string& path) const {
+  auto xkey = GetExtKeyAtPath(path);
+  return EncodeDestination(PKHash(xkey.Neuter().pubkey.GetID()));
+}
+
 std::string SoftwareSigner::GetMasterFingerprint() const {
   CExtKey masterkey{};
   bip32rootkey_.Derive(masterkey, 0);

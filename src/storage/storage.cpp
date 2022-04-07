@@ -142,6 +142,7 @@ NunchukStorage::NunchukStorage(const std::string& datadir,
     datadir_ = GetDefaultDataDir();
   }
 
+  basedatadir_ = datadir_;
   if (!account_.empty()) {
     std::string aid = ba::to_lower_copy(account_);
     CSHA256 hasher;
@@ -272,6 +273,10 @@ fs::path NunchukStorage::GetAppStateDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "state";
 }
 
+fs::path NunchukStorage::GetPrimaryDir(Chain chain) const {
+  return basedatadir_ / ChainStr(chain) / "primary";
+}
+
 fs::path NunchukStorage::GetRoomDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "room";
 }
@@ -300,6 +305,14 @@ NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
   fs::path db_file = GetAppStateDir(chain);
   bool is_new = !fs::exists(db_file);
   auto db = NunchukAppStateDb{chain, "", db_file.string(), ""};
+  if (is_new) db.Init();
+  return db;
+}
+
+NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
+  fs::path db_file = GetPrimaryDir(chain);
+  bool is_new = !fs::exists(db_file);
+  auto db = NunchukPrimaryDb{chain, "", db_file.string(), ""};
   if (is_new) db.Init();
   return db;
 }
@@ -1164,6 +1177,16 @@ time_t NunchukStorage::GetLastSyncTs() {
 time_t NunchukStorage::GetLastExportTs() {
   std::shared_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(Chain::MAIN).GetLastExportTs();
+}
+
+std::vector<PrimaryKey> NunchukStorage::GetPrimaryKeys(Chain chain) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetPrimaryDb(chain).GetPrimaryKeys();
+}
+
+void NunchukStorage::AddPrimaryKey(Chain chain, const PrimaryKey& key) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetPrimaryDb(chain).AddPrimaryKey(key);
 }
 
 }  // namespace nunchuk

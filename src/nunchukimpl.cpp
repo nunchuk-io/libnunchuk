@@ -58,6 +58,7 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
                          const std::string& passphrase,
                          const std::string& account)
     : app_settings_(appsettings),
+      account_(account),
       storage_(app_settings_.get_storage_path(), passphrase, account),
       chain_(app_settings_.get_chain()),
       hwi_(app_settings_.get_hwi_path(), chain_) {
@@ -287,7 +288,8 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 
 MasterSigner NunchukImpl::CreateSoftwareSigner(
     const std::string& raw_name, const std::string& mnemonic,
-    const std::string& passphrase, std::function<bool(int)> progress) {
+    const std::string& passphrase, std::function<bool(int)> progress,
+    bool is_primary) {
   std::string name = trim_copy(raw_name);
   SoftwareSigner signer{mnemonic, passphrase};
   Device device{"software", "nunchuk", signer.GetMasterFingerprint()};
@@ -298,10 +300,25 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
       progress, true);
   storage_listener_();
 
+  if (is_primary) {
+    auto address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
+    storage_.AddPrimaryKey(chain_, {name, id, account_, address});
+  }
+
   storage_.ClearSignerPassphrase(chain_, id);
   MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
   mastersigner.set_name(name);
   return mastersigner;
+}
+
+std::vector<PrimaryKey> NunchukImpl::GetPrimaryKeys() {
+  return storage_.GetPrimaryKeys(chain_);
+}
+
+std::string NunchukImpl::SignLoginMessage(const std::string& mastersigner_id,
+                                          const std::string& message) {
+  auto signer = storage_.GetSoftwareSigner(chain_, mastersigner_id);
+  return signer.SignMessage(message, LOGIN_SIGNING_PATH);
 }
 
 void NunchukImpl::SendSignerPassphrase(const std::string& mastersigner_id,

@@ -41,6 +41,7 @@ static const int TOTAL_CACHE_NUMBER =
 
 static const std::string TESTNET_HEALTH_CHECK_PATH = "m/45'/1'/0'/1/0";
 static const std::string MAINNET_HEALTH_CHECK_PATH = "m/45'/0'/0'/1/0";
+static const std::string LOGIN_SIGNING_PATH = "m/45'/0'/0'/1/0";
 
 inline std::string GetBip32Path(nunchuk::Chain chain,
                                 const nunchuk::WalletType& wallet_type,

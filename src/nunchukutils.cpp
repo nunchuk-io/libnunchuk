@@ -19,6 +19,7 @@
 #include <coreutils.h>
 #include <softwaresigner.h>
 #include <utils/addressutils.hpp>
+#include <utils/bip32.hpp>
 #include <storage/storage.h>
 
 #include <base58.h>
@@ -143,6 +144,19 @@ void Utils::SetPassPhrase(const std::string& storage_path,
                           const std::string& new_passphrase) {
   NunchukStorage storage(storage_path, old_passphrase, account);
   storage.SetPassphrase(new_passphrase);
+}
+
+std::string Utils::GetPrimaryKeyAddress(const std::string& mnemonic,
+                                        const std::string& passphrase) {
+  SoftwareSigner signer{mnemonic, passphrase};
+  return signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
+}
+
+std::string Utils::SignLoginMessage(const std::string& mnemonic,
+                                    const std::string& passphrase,
+                                    const std::string& message) {
+  SoftwareSigner signer{mnemonic, passphrase};
+  return signer.SignMessage(message, LOGIN_SIGNING_PATH);
 }
 
 }  // namespace nunchuk

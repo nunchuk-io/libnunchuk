@@ -129,6 +129,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/backend/corerpc/synchronizer.cpp
     src/dto/appsettings.cpp
     src/dto/device.cpp
+    src/dto/primarykey.cpp
     src/dto/mastersigner.cpp
     src/dto/singlesigner.cpp
     src/dto/transaction.cpp
@@ -140,6 +141,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/storage/appstatedb.cpp
     src/storage/common.cpp
     src/storage/db.cpp
+    src/storage/primarydb.cpp
     src/storage/signerdb.cpp
     src/storage/storage.cpp
     src/storage/walletdb.cpp
