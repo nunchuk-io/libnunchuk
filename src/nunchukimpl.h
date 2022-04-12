@@ -68,7 +68,11 @@ class NunchukImpl : public Nunchuk {
   MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
-      std::function<bool /* stop */ (int /* percent */)> progress) override;
+      std::function<bool /* stop */ (int /* percent */)> progress,
+      bool is_primary = false) override;
+  std::vector<PrimaryKey> GetPrimaryKeys() override;
+  std::string SignLoginMessage(const std::string& mastersigner_id,
+                               const std::string& message) override;
   void SendSignerPassphrase(const std::string& mastersigner_id,
                             const std::string& passphrase) override;
   void ClearSignerPassphrase(const std::string& mastersigner_id) override;
@@ -251,6 +255,7 @@ class NunchukImpl : public Nunchuk {
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
 
   AppSettings app_settings_;
+  std::string account_;
   NunchukStorage storage_;
   Chain chain_;
   HWIService hwi_;

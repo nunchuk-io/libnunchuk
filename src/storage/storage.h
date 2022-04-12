@@ -18,13 +18,14 @@
 #ifndef NUNCHUK_STORAGE_H
 #define NUNCHUK_STORAGE_H
 
+#include "primarydb.h"
 #include "walletdb.h"
 #include "signerdb.h"
 #include "appstatedb.h"
 #include "roomdb.h"
 
 #include <boost/filesystem.hpp>
-#include <boost/thread/shared_mutex.hpp>
+#include <shared_mutex>
 #include <iostream>
 #include <map>
 #include <string>
@@ -170,16 +171,21 @@ class NunchukStorage {
   time_t GetLastSyncTs();
   time_t GetLastExportTs();
 
+  std::vector<PrimaryKey> GetPrimaryKeys(Chain chain);
+  void AddPrimaryKey(Chain chain, const PrimaryKey &key);
+
  private:
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   NunchukAppStateDb GetAppStateDb(Chain chain);
+  NunchukPrimaryDb GetPrimaryDb(Chain chain);
   std::string ChainStr(Chain chain) const;
   boost::filesystem::path GetWalletDir(Chain chain,
                                        const std::string &id) const;
   boost::filesystem::path GetSignerDir(Chain chain,
                                        const std::string &id) const;
   boost::filesystem::path GetAppStateDir(Chain chain) const;
+  boost::filesystem::path GetPrimaryDir(Chain chain) const;
   boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
@@ -191,10 +197,11 @@ class NunchukStorage {
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
 
+  boost::filesystem::path basedatadir_;
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;
-  boost::shared_mutex access_;
+  std::shared_mutex access_;
   std::map<std::string, std::string> signer_passphrase_;
 };
 

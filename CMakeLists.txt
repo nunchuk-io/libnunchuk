@@ -3,7 +3,7 @@ project(nunchuk VERSION 0.1.0)
 
 configure_file(src/config.h.in nunchuk-config.h)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
@@ -12,12 +12,38 @@ set(OPENSSL_USE_STATIC_LIBS ON)
 set(UR__DISABLE_TESTS ON)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
+if(ANDROID)
+    add_library(OpenSSL::SSL STATIC IMPORTED)
+    set_target_properties(OpenSSL::SSL PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/openssl/libssl.a")
+    add_library(OpenSSL::Crypto STATIC IMPORTED)
+    set_target_properties(OpenSSL::Crypto PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/openssl/libcrypto.a")
+
+    if(${ANDROID_ABI} STREQUAL "arm64-v8a")
+        set(ANDROID_TARGET "aarch64-linux-android")
+        set(ANDROID_ABI_ARM ON)
+        set(ANDROID_ABI_ARM_64 ON)
+    elseif(${ANDROID_ABI} STREQUAL "armeabi-v7a")
+        set(ANDROID_TARGET "armv7a-linux-androideabi")
+        set(ANDROID_ABI_ARM ON)
+        set(ANDROID_ABI_ARM_64 OFF)
+    else()
+        set(ANDROID_ABI_ARM OFF)
+        set(ANDROID_ABI_ARM_64 OFF)
+    endif()
+
+    set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/lib/cmake")
+else()
+    find_package(OpenSSL REQUIRED)
+endif()
+
 find_package(Threads REQUIRED)
-find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem program_options thread)
-find_package(OpenSSL REQUIRED)
+find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 
 if(WIN32)
+    string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus")
     find_package(sqlcipher CONFIG REQUIRED)
+elseif(ANDROID)
+    add_subdirectory(contrib/sqlite)
 else()
     find_library(sqlcipher_lib NAMES libsqlcipher.a PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)
     if (NOT sqlcipher_lib)
@@ -28,6 +54,8 @@ else()
 endif()
 
 add_subdirectory(embedded)
+
+set(UR__DISABLE_TESTS ON)
 add_subdirectory(contrib/bc-ur-cpp)
 
 add_library(trezor-crypto STATIC
@@ -81,6 +109,7 @@ add_library(ur-2 STATIC
 target_include_directories(ur-2 PUBLIC 
     "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"
     ${Boost_INCLUDE_DIRS}
+    "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/include"
 )
 
 add_library("${PROJECT_NAME}" STATIC 
@@ -100,6 +129,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/backend/corerpc/synchronizer.cpp
     src/dto/appsettings.cpp
     src/dto/device.cpp
+    src/dto/primarykey.cpp
     src/dto/mastersigner.cpp
     src/dto/singlesigner.cpp
     src/dto/transaction.cpp
@@ -111,6 +141,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/storage/appstatedb.cpp
     src/storage/common.cpp
     src/storage/db.cpp
+    src/storage/primarydb.cpp
     src/storage/signerdb.cpp
     src/storage/storage.cpp
     src/storage/walletdb.cpp
@@ -119,13 +150,13 @@ add_library("${PROJECT_NAME}" STATIC
 )
 
 set(PROJECT_LIBRARIES
-    embedded
     ur
     ur-2
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
+    Boost::filesystem
 )
-                            
+
 if(WIN32)
     target_compile_options("${PROJECT_NAME}" PUBLIC /MT)
     target_link_options("${PROJECT_NAME}" PUBLIC /INCREMENTAL:NO /NODEFAULTLIB:MSVCRT)
@@ -136,7 +167,12 @@ elseif(UNIX)
     set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} dl)
 endif()
 
-target_link_libraries("${PROJECT_NAME}" PUBLIC ${PROJECT_LIBRARIES} trezor-crypto)
+if(ANDROID)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group)
+else()
+    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto)
+endif()
+
 target_include_directories("${PROJECT_NAME}" PUBLIC 
     "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/include"
@@ -145,9 +181,6 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib"
     "${PROJECT_BINARY_DIR}"
 )
-
-include(CTest)
-add_subdirectory(tests)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

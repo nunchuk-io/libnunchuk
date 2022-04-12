@@ -20,11 +20,11 @@
 #include <sstream>
 #include <set>
 #include <random>
+#include <mutex>
 
 #include <utils/enumconverter.hpp>
 #include <utils/json.hpp>
 #include <utils/attachment.hpp>
-#include <boost/thread/locks.hpp>
 #include <descriptor.h>
 #include <coreutils.h>
 
@@ -111,21 +111,23 @@ NunchukMatrix::~NunchukMatrix() = default;
 NunchukMatrixImpl::~NunchukMatrixImpl() { stopped = true; }
 
 NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
-    const std::string& room_id, int code, const std::string& message) {
-  json content = {{"msgtype", "io.nunchuk.exception"},
-                  {"v", NUNCHUK_EVENT_VER},
-                  {"body", {{"code", code}, {"message", message}}}};
-  return NewEvent(room_id, "io.nunchuk.exception", content.dump(), true);
+    const std::string& room_id, const std::string& platform, int code,
+    const std::string& message) {
+  json content = {
+      {"msgtype", "io.nunchuk.error"},
+      {"v", NUNCHUK_EVENT_VER},
+      {"body", {{"code", code}, {"message", message}, {"platform", platform}}}};
+  return NewEvent(room_id, "io.nunchuk.error", content.dump(), true);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,
     AddressType address_type, bool is_escrow, const std::string& description) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasActiveWallet(room_id)) {
     throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_EXISTS,
-                                 "shared wallet exists");
+                                 "Shared wallet exists");
   }
   json content = {{"msgtype", "io.nunchuk.wallet.init"},
                   {"v", NUNCHUK_EVENT_VER},
@@ -143,7 +145,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
 
 NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
                                                  const SingleSigner& signer) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
 
@@ -152,12 +154,12 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
   auto chain = ChainFromStr(init_body["chain"]);
   if (chain_ != chain) {
     throw NunchukMatrixException(NunchukMatrixException::MISMATCHED_NETWORKS,
-                                 "mismatched networks");
+                                 "Mismatched networks");
   }
   bool is_escrow = init_body["is_escrow"];
   if (is_escrow && !signer.get_xpub().empty()) {
     throw NunchukMatrixException(NunchukMatrixException::MISMATCHED_KEY_TYPES,
-                                 "mismatched key types");
+                                 "Mismatched key types");
   }
 
   std::set<std::string> leave_ids;
@@ -176,7 +178,7 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
     std::string join_key = join_body["key"];
     if (key == join_key) {
       throw NunchukMatrixException(NunchukMatrixException::DUPPLICATE_KEYS,
-                                   "dupplicate keys");
+                                   "Dupplicate keys");
     }
   }
 
@@ -193,7 +195,7 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
 NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
     const std::string& room_id, const std::string& join_event_id,
     const std::string& reason) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
@@ -209,7 +211,7 @@ NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
 
 NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
                                                    const std::string& reason) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
@@ -224,7 +226,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
 
 NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
     const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   nu->DeleteWallet(wallet.get_wallet_id());
@@ -240,7 +242,7 @@ NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
 
 NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
     const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
 
@@ -325,7 +327,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
     const std::map<std::string, Amount> outputs, const std::string& memo,
     const std::vector<UnspentOutput> inputs, Amount fee_rate,
     bool subtract_fee_from_amount) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   auto tx = nu->CreateTransaction(wallet.get_wallet_id(), outputs, memo, inputs,
@@ -345,7 +347,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
 NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
     const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
     const Device& device) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
@@ -363,7 +365,7 @@ NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
 
 NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
     const std::string& init_event_id, const std::string& reason) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
@@ -378,7 +380,7 @@ NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
 
 NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
     const std::string& init_event_id, const std::string& reason) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
@@ -393,7 +395,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
 
 NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
     const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
@@ -426,6 +428,7 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
 
   auto rtx = db.GetTransaction(init_event_id);
   if (rtx.get_sign_event_ids().size() < m) return;  // Transaction not ready
+  if (!rtx.get_ready_event_id().empty()) return;
   auto init_event = db.GetEvent(init_event_id);
   json content = {{"msgtype", "io.nunchuk.transaction.ready"},
                   {"v", NUNCHUK_EVENT_VER},
@@ -437,7 +440,7 @@ void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
 }
 
 std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
 
   auto event = db.GetEvent(event_id);
@@ -447,7 +450,7 @@ std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
   if (wallet.get_finalize_event_id().empty()) {
     throw NunchukMatrixException(
         NunchukMatrixException::SHARED_WALLET_NOT_FOUND,
-        "shared wallet not finalized");
+        "Shared wallet not finalized");
   }
   auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
   std::string desc =
@@ -458,7 +461,7 @@ std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
 
 void NunchukMatrixImpl::SendReceiveTransaction(const std::string& room_id,
                                                const std::string& tx_id) {
-  // boost::shared_lock<boost::shared_mutex> lock(access_);
+  // std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   if (db.HasTransactionNotify(tx_id)) return;
   auto wallet = db.GetActiveWallet(room_id);
@@ -524,7 +527,7 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
   access_token_ = access_token;
   if (sync_room_id_.empty() || access_token_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid room_id or access_token");
+                           "Invalid room_id or access_token");
   }
   if (storage_.GetLastSyncTs() < storage_.GetLastExportTs()) AsyncBackup(nu);
   nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
@@ -574,40 +577,40 @@ void NunchukMatrixImpl::DownloadFileCallback(
 }
 
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   return db.GetWallets();
 }
 
 RoomWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   return db.GetActiveWallet(room_id);
 }
 
 std::vector<RoomTransaction> NunchukMatrixImpl::GetPendingTransactions(
     const std::string& room_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   return db.GetPendingTransactions(room_id);
 }
 
 RoomTransaction NunchukMatrixImpl::GetRoomTransaction(
     const std::string& init_event_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   return db.GetTransaction(init_event_id);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::GetEvent(const std::string& event_id) {
-  boost::shared_lock<boost::shared_mutex> lock(access_);
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   return db.GetEvent(event_id);
 }
 
 void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
                                      const NunchukMatrixEvent& event) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   if (event.get_type().rfind("io.nunchuk.sync", 0) == 0) return;
   if (event.get_type().rfind("io.nunchuk", 0) != 0) return;
   if (event.get_event_id().empty()) return;
@@ -789,7 +792,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
 void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
                                          const NunchukMatrixEvent& event,
                                          std::function<bool(int)> progress) {
-  boost::unique_lock<boost::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   if (event.get_type().rfind("io.nunchuk.sync", 0) != 0) return;
   if (event.get_event_id().empty()) return;
   if (event.get_event_id().rfind("$local", 0) == 0) return;

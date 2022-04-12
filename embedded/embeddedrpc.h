@@ -22,10 +22,8 @@
 // Bitcoin cannot be compiled without assertions
 #undef NDEBUG
 
-#include <node/context.h>
 #include <rpc/register.h>
 #include <rpc/server.h>
-#include <util/ref.h>
 #include <util/translation.h>
 
 #include <string>
@@ -62,8 +60,6 @@ class EmbeddedRpc {
   bool initialized_;
   std::string chain_;
   CRPCTable table_;
-  NodeContext node_context_;
-  util::Ref context_ref_{node_context_};
 };
 
 #endif  // NUNCHUK_EMBEDDEDRPC_H

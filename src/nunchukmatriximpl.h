@@ -27,7 +27,7 @@
 #include <future>
 #include <storage/roomdb.h>
 #include <storage/storage.h>
-#include <boost/thread/shared_mutex.hpp>
+#include <shared_mutex>
 
 namespace nunchuk {
 
@@ -40,7 +40,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
   ~NunchukMatrixImpl() override;
 
-  NunchukMatrixEvent SendErrorEvent(const std::string& room_id, int code,
+  NunchukMatrixEvent SendErrorEvent(const std::string& room_id,
+                                    const std::string& platform, int code,
                                     const std::string& message) override;
 
   NunchukMatrixEvent InitWallet(const std::string& room_id,
@@ -126,7 +127,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   SendEventFunc sendfunc_;
   UploadFileFunc uploadfunc_;
   DownloadFileFunc downloadfunc_;
-  boost::shared_mutex access_;
+  std::shared_mutex access_;
   std::map<std::string, std::string> wallet2room_;
   std::vector<std::future<void>> delay_;
 };

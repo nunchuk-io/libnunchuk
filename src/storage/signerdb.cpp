@@ -194,12 +194,12 @@ SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
   auto mnemonic = GetString(DbKeys::MNEMONIC);
   if (mnemonic.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "is not software signer");
+                           "Is not software signer");
   }
   auto signer = SoftwareSigner{mnemonic, passphrase};
   if (signer.GetMasterFingerprint() != id_) {
     throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
-                           "invalid software signer passphrase");
+                           "Invalid software signer passphrase");
   }
   return signer;
 }
@@ -226,7 +226,7 @@ bool NunchukSignerDb::AddRemote(const std::string& name,
   std::string sql =
       "INSERT INTO REMOTE(PATH, XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED)"
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
-      "ON CONFLICT(PATH) DO UPDATE SET XPUB=excluded.XPUB;";
+      "ON CONFLICT(PATH) DO UPDATE SET XPUB=excluded.XPUB, NAME=excluded.NAME;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_bind_text(stmt, 2, xpub.c_str(), xpub.size(), NULL);
@@ -262,7 +262,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
-                           "signer not found!");
+                           "Signer not found!");
   }
 }
 

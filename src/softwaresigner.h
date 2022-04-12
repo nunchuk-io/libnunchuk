@@ -35,8 +35,11 @@ class SoftwareSigner {
   SoftwareSigner(const std::string& mnemonic, const std::string& passphrase);
   CExtKey GetExtKeyAtPath(const std::string& derivation_path) const;
   std::string GetXpubAtPath(const std::string& derivation_path) const;
+  std::string GetAddressAtPath(const std::string& derivation_path) const;
   std::string GetMasterFingerprint() const;
   std::string SignTx(const std::string& base64_psbt) const;
+  std::string SignTaprootTx(const std::string& base64_psbt,
+                            const std::vector<std::string>& keypaths) const;
   std::string SignMessage(const std::string& message,
                           const std::string& derivation_path) const;
 

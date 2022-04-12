@@ -56,7 +56,7 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
   if (app_settings_.get_backend_type() != new_settings.get_backend_type() ||
       app_settings_.get_chain() != new_settings.get_chain())
     throw NunchukException(NunchukException::APP_RESTART_REQUIRED,
-                           "app restart required");
+                           "App restart required");
 
   if (app_settings_.use_proxy() != new_settings.use_proxy()) return true;
   if (new_settings.use_proxy() &&
@@ -81,7 +81,10 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
              new_settings.get_testnet_servers()) ||
         (new_settings.get_chain() == Chain::MAIN &&
          app_settings_.get_mainnet_servers() !=
-             new_settings.get_mainnet_servers()))
+             new_settings.get_mainnet_servers()) ||
+        (new_settings.get_chain() == Chain::SIGNET &&
+         app_settings_.get_signet_servers() !=
+             new_settings.get_signet_servers()))
       return true;
   }
   return false;

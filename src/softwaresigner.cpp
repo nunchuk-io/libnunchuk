@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
  */
+#include <embeddedrpc.h>
 
 #include "softwaresigner.h"
 
@@ -28,13 +29,15 @@
 #include <util/message.h>
 #include <util/bip32.h>
 #include <script/signingprovider.h>
+#include <rpc/util.h>
 
 extern "C" {
 #include <bip39.h>
 #include <bip39_english.h>
-void random_buffer(uint8_t* buf, size_t len) { 
-  // Core's GetStrongRandBytes https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  GetStrongRandBytes(buf, len); 
+void random_buffer(uint8_t* buf, size_t len) {
+  // Core's GetStrongRandBytes
+  // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
+  GetStrongRandBytes(buf, len);
 }
 }
 
@@ -76,7 +79,7 @@ CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
   std::replace(formalized.begin(), formalized.end(), 'h', '\'');
   if (!ParseHDKeypath(formalized, keypath)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "invalid hd keypath");
+                           "Invalid hd keypath");
   }
 
   CExtKey xkey = bip32rootkey_;
@@ -91,6 +94,11 @@ std::string SoftwareSigner::GetXpubAtPath(const std::string& path) const {
   return EncodeExtPubKey(xkey.Neuter());
 }
 
+std::string SoftwareSigner::GetAddressAtPath(const std::string& path) const {
+  auto xkey = GetExtKeyAtPath(path);
+  return EncodeDestination(PKHash(xkey.Neuter().pubkey.GetID()));
+}
+
 std::string SoftwareSigner::GetMasterFingerprint() const {
   CExtKey masterkey{};
   bip32rootkey_.Derive(masterkey, 0);
@@ -102,6 +110,7 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   auto master_fingerprint = GetMasterFingerprint();
   FillableSigningProvider provider{};
 
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
     const PSBTInput& input = psbtx.inputs[i];
     if (!input.hd_keypaths.empty()) {
@@ -117,7 +126,42 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   }
 
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
-    SignPSBTInput(provider, psbtx, i);
+    SignPSBTInput(provider, psbtx, i, &txdata);
+  }
+  return EncodePsbt(psbtx);
+}
+
+std::string SoftwareSigner::SignTaprootTx(
+    const std::string& base64_psbt,
+    const std::vector<std::string>& keypaths) const {
+  auto psbtx = DecodePsbt(base64_psbt);
+  auto master_fingerprint = GetMasterFingerprint();
+  FlatSigningProvider provider;
+
+  for (auto&& path : keypaths) {
+    TaprootBuilder builder;
+    auto key = GetExtKeyAtPath(path);
+    CPubKey pubkey = key.Neuter().pubkey;
+    XOnlyPubKey xpk(pubkey);
+
+    builder.Finalize(xpk);
+    WitnessV1Taproot output = builder.GetOutput();
+    provider.tr_spenddata[output].Merge(builder.GetSpendData());
+    unsigned char b[33] = {0x02};
+    auto internal_key = provider.tr_spenddata[output].internal_key;
+    std::copy(internal_key.begin(), internal_key.end(), b + 1);
+    CPubKey fullpubkey;
+    fullpubkey.Set(b, b + 33);
+    CKeyID keyid = fullpubkey.GetID();
+    provider.keys[keyid] = key.key;
+  }
+
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
+  for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
+    SignatureData sigdata;
+    psbtx.inputs[i].FillSignatureData(sigdata);
+    SignPSBTInput(HidingSigningProvider(&provider, false, false), psbtx, i,
+                  &txdata, psbtx.inputs[i].sighash_type);
   }
   return EncodePsbt(psbtx);
 }

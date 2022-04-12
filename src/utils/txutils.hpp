@@ -22,6 +22,7 @@
 #include <tinyformat.h>
 #include <util/strencodings.h>
 #include <utils/addressutils.hpp>
+#include <utils/errorutils.hpp>
 #include <string>
 #include <vector>
 #include <psbt.h>
@@ -37,7 +38,8 @@ inline PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
   PartiallySignedTransaction psbtx;
   std::string error;
   if (!DecodeBase64PSBT(psbtx, base64_psbt, error)) {
-    throw NunchukException(NunchukException::INVALID_PSBT, error.c_str());
+    throw NunchukException(NunchukException::INVALID_PSBT,
+                           NormalizeErrorMessage(std::move(error)));
   }
   return psbtx;
 }
@@ -49,7 +51,7 @@ inline std::string EncodePsbt(const PartiallySignedTransaction& psbtx) {
 }
 
 inline std::string GetTxIdFromPsbt(const std::string& base64_psbt) {
-  return DecodePsbt(base64_psbt).tx.get().GetHash().GetHex();
+  return DecodePsbt(base64_psbt).tx.value().GetHash().GetHex();
 }
 
 inline CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
@@ -95,19 +97,25 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const std::vector<nunchuk::SingleSigner>& signers, int m) {
   using namespace nunchuk;
   Transaction tx =
-      GetTransactionFromCMutableTransaction(psbtx.tx.get(), signers, -1);
+      GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
   tx.set_m(m);
 
   // Parse partial sigs
   const PSBTInput& input = psbtx.inputs[0];
 
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
+    if (signers.size() == 1) {
+      tx.set_signer(signers[0].get_master_fingerprint(), true);
+      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+      return tx;
+    }
+
     auto psbt = DecodePsbt(EncodePsbt(psbtx));
     for (auto&& signer : signers) {
       tx.set_signer(signer.get_master_fingerprint(), false);
     }
 
-    auto txCredit = psbt.tx.get();
+    auto txCredit = psbt.tx.value();
     auto input = psbt.inputs[0];
     auto txIn = input.non_witness_utxo.get();
     auto txSpend = CMutableTransaction(*txIn);

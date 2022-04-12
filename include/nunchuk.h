@@ -41,11 +41,13 @@ enum class AddressType {
   LEGACY,
   NESTED_SEGWIT,
   NATIVE_SEGWIT,
+  TAPROOT,
 };
 
 enum class Chain {
   MAIN,
   TESTNET,
+  SIGNET,
   REGTEST,
 };
 
@@ -119,6 +121,8 @@ class NUNCHUK_EXPORT BaseException : public std::exception {
       : code_(code), message_(message) {}
   explicit BaseException(int code, const std::string& message)
       : code_(code), message_(message) {}
+  explicit BaseException(int code, std::string&& message)
+      : code_(code), message_(std::move(message)) {}
   int code() const noexcept { return code_; }
   const char* what() const noexcept { return message_.c_str(); }
 
@@ -313,6 +317,25 @@ class NUNCHUK_EXPORT MasterSigner {
   SignerType type_;
 };
 
+class NUNCHUK_EXPORT PrimaryKey {
+ public:
+  PrimaryKey();
+  PrimaryKey(const std::string& name, const std::string& master_fingerprint,
+             const std::string& account, const std::string& address);
+
+  std::string get_name() const;
+  std::string get_master_fingerprint() const;
+  std::string get_account() const;
+  std::string get_address() const;
+  void set_name(const std::string& value);
+
+ private:
+  std::string name_;
+  std::string master_fingerprint_;
+  std::string account_;
+  std::string address_;
+};
+
 class NUNCHUK_EXPORT Wallet {
  public:
   Wallet();
@@ -453,6 +476,7 @@ class NUNCHUK_EXPORT AppSettings {
   Chain get_chain() const;
   BackendType get_backend_type() const;
   std::vector<std::string> get_mainnet_servers() const;
+  std::vector<std::string> get_signet_servers() const;
   std::vector<std::string> get_testnet_servers() const;
   std::string get_hwi_path() const;
   std::string get_storage_path() const;
@@ -470,6 +494,7 @@ class NUNCHUK_EXPORT AppSettings {
   void set_chain(Chain value);
   void set_backend_type(BackendType value);
   void set_mainnet_servers(const std::vector<std::string>& value);
+  void set_signet_servers(const std::vector<std::string>& value);
   void set_testnet_servers(const std::vector<std::string>& value);
   void set_hwi_path(const std::string& value);
   void set_storage_path(const std::string& value);
@@ -488,6 +513,7 @@ class NUNCHUK_EXPORT AppSettings {
   Chain chain_;
   BackendType backend_type_;
   std::vector<std::string> mainnet_servers_;
+  std::vector<std::string> signet_servers_;
   std::vector<std::string> testnet_servers_;
   std::string hwi_path_;
   std::string storage_path_;
@@ -668,7 +694,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
-      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+      std::function<bool /* stop */ (int /* percent */)> progress,
+      bool is_primary = false) = 0;
+  virtual std::vector<PrimaryKey> GetPrimaryKeys() = 0;
+  virtual std::string SignLoginMessage(const std::string& mastersigner_id,
+                                       const std::string& message) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,
                                     const std::string& passphrase) = 0;
   virtual void ClearSignerPassphrase(const std::string& mastersigner_id) = 0;
@@ -749,6 +779,11 @@ class NUNCHUK_EXPORT Utils {
                             const std::string& account,
                             const std::string& old_passphrase,
                             const std::string& new_passphrase);
+  static std::string GetPrimaryKeyAddress(const std::string& mnemonic,
+                                          const std::string& passphrase);
+  static std::string SignLoginMessage(const std::string& mnemonic,
+                                      const std::string& passphrase,
+                                      const std::string& message);
 
  private:
   Utils() {}
