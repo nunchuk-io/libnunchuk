@@ -111,8 +111,8 @@ NunchukMatrix::~NunchukMatrix() = default;
 NunchukMatrixImpl::~NunchukMatrixImpl() { stopped = true; }
 
 NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
-    const std::string& room_id, const std::string& platform, int code,
-    const std::string& message) {
+    const std::string& room_id, const std::string& platform,
+    const std::string& code, const std::string& message) {
   json content = {
       {"msgtype", "io.nunchuk.error"},
       {"v", NUNCHUK_EVENT_VER},
