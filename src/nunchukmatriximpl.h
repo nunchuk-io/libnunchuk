@@ -96,6 +96,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
       std::function<bool /* stop */ (int /* percent */)> progress) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
+  bool HasRoomWallet(const std::string& room_id) override;
   RoomWallet GetRoomWallet(const std::string& room_id) override;
   std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) override;

@@ -590,6 +590,12 @@ std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
   return db.GetWallets();
 }
 
+bool NunchukMatrixImpl::HasRoomWallet(const std::string& room_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto db = storage_.GetRoomDb(chain_);
+  return db.HasActiveWallet(room_id);
+}
+
 RoomWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);

@@ -233,6 +233,7 @@ class NUNCHUK_EXPORT NunchukMatrix {
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
   virtual std::vector<RoomWallet> GetAllRoomWallets() = 0;
+  virtual bool HasRoomWallet(const std::string& room_id) = 0;
   virtual RoomWallet GetRoomWallet(const std::string& room_id) = 0;
   virtual std::vector<RoomTransaction> GetPendingTransactions(
       const std::string& room_id) = 0;
