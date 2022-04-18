@@ -630,6 +630,9 @@ bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
                                     const std::string& tx_id,
                                     const std::string& file_path) {
   std::string psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  if (psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
   return storage_.WriteFile(file_path, psbt);
 }
 
@@ -663,6 +666,9 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
                                          const Device& device) {
   std::string psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  if (psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), psbt='%s'", psbt.c_str());
   auto mastersigner_id = device.get_master_fingerprint();
   std::string signed_psbt;
@@ -705,6 +711,9 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
 Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
   std::string psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  if (psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
   std::string raw_tx = CoreUtils::getInstance().FinalizePsbt(psbt);
   // finalizepsbt will change the txid for legacy and nested-segwit
   // transactions. We need to update our PSBT record in the DB
@@ -995,6 +1004,9 @@ std::vector<std::string> NunchukImpl::ExportCoboWallet(
 std::vector<std::string> NunchukImpl::ExportCoboTransaction(
     const std::string& wallet_id, const std::string& tx_id) {
   std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  if (base64_psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
   bool invalid;
   auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
@@ -1068,6 +1080,9 @@ std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
 std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
     const std::string& wallet_id, const std::string& tx_id) {
   std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  if (base64_psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
   bool invalid;
   auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
@@ -1181,6 +1196,9 @@ std::vector<std::string> NunchukImpl::ExportPassportWallet(
 std::vector<std::string> NunchukImpl::ExportPassportTransaction(
     const std::string& wallet_id, const std::string& tx_id) {
   std::string base64_psbt = storage_.GetPsbt(chain_, wallet_id, tx_id);
+  if (base64_psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
   bool invalid;
   auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
   if (invalid) {
