@@ -481,7 +481,11 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
       throw;
     }
   }
+  path = chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
+                               : TESTNET_HEALTH_CHECK_PATH;
   if (signerType == SignerType::SOFTWARE) {
+    auto ss = storage_.GetSoftwareSigner(chain_, id);
+    signature = ss.SignMessage(message, path);
     return HealthStatus::SUCCESS;
   } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(
@@ -490,8 +494,6 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   Device device{fingerprint};
-  path = chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
-                               : TESTNET_HEALTH_CHECK_PATH;
   std::string xpub = hwi_.GetXpubAtPath(device, path);
   if (existed && signerType == SignerType::HARDWARE) {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
