@@ -576,6 +576,14 @@ void NunchukMatrixImpl::DownloadFileCallback(
   }
 }
 
+void NunchukMatrixImpl::WriteFileCallback(
+    const std::unique_ptr<Nunchuk>& nu, const std::string& json_info,
+    const std::string& file_path,
+    std::function<bool /* stop */ (int /* percent */)> progress) {
+  auto file_data = LoadAttachmentFile(file_path);
+  DownloadFileCallback(nu, json_info, file_data, progress);
+}
+
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);

@@ -93,6 +93,10 @@ inline std::string DecryptAttachment(
   std::vector<unsigned char> decrypted(file_data.size());
   AES256CBCDecrypt dec(key.data(), iv.data(), true);
   int size = dec.Decrypt(file_data.data(), file_data.size(), decrypted.data());
+  if (size == 0) {
+    throw nunchuk::NunchukException(nunchuk::NunchukException::DECRYPT_FAIL,
+                                    "Decrypt attachment fail");
+  }
   decrypted.resize(size);
   return std::string(decrypted.begin(), decrypted.end());
 }

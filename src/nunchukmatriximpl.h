@@ -90,6 +90,10 @@ class NunchukMatrixImpl : public NunchukMatrix {
       const std::unique_ptr<Nunchuk>& nu, const std::string& json_info,
       const std::vector<unsigned char>& file_data,
       std::function<bool /* stop */ (int /* percent */)> progress) override;
+  void WriteFileCallback(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& json_info,
+      const std::string& file_path,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
 
   std::vector<RoomWallet> GetAllRoomWallets() override;
   RoomWallet GetRoomWallet(const std::string& room_id) override;
