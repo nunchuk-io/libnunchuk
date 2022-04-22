@@ -49,7 +49,7 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
                                 int index) {
   using namespace nunchuk;
 
-  int coin_type = chain == Chain::TESTNET ? 1 : 0;
+  int coin_type = chain == Chain::MAIN ? 0 : 1;
   switch (wallet_type) {
     case WalletType::SINGLE_SIG:
       switch (address_type) {
