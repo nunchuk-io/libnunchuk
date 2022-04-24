@@ -52,7 +52,7 @@ class HWIService {
   void CheckVersion();
   std::string RunCmd(const std::vector<std::string> &) const;
   std::string hwi_;
-  bool testnet_;
+  Chain chain_;
   int version_;
 };
 
