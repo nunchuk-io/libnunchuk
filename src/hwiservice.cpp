@@ -61,7 +61,7 @@ static json ParseResponse(const std::string &resp) {
 }
 
 HWIService::HWIService(std::string path, Chain chain)
-    : hwi_(path), testnet_(chain == Chain::TESTNET) {
+    : hwi_(path), chain_(chain) {
   CheckVersion();
 }
 
@@ -70,7 +70,7 @@ void HWIService::SetPath(const std::string &path) {
   CheckVersion();
 }
 
-void HWIService::SetChain(Chain chain) { testnet_ = chain == Chain::TESTNET; }
+void HWIService::SetChain(Chain chain) { chain_ = chain; }
 
 void HWIService::CheckVersion() {
   try {
@@ -86,9 +86,13 @@ void HWIService::CheckVersion() {
 
 std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   std::vector<std::string> args(cmd_args);
-  if (testnet_) {
+
+  if (chain_ == Chain::TESTNET) {
     if (version_ == 1) args.insert(args.begin(), "--testnet");
     if (version_ == 2) args.insert(args.begin(), "--chain test");
+  } else if (chain_ == Chain::SIGNET) {
+    if (version_ == 1) args.insert(args.begin(), "--signet");
+    if (version_ == 2) args.insert(args.begin(), "--chain signet");
   }
 
   // build command string
