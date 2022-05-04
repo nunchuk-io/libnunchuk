@@ -662,12 +662,14 @@ bool NunchukStorage::UpdateMasterSigner(Chain chain,
 bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   GetWalletDb(chain, id).DeleteWallet();
+  GetAppStateDb(chain).AddDeletedWallets(id);
   return fs::remove(GetWalletDir(chain, id));
 }
 
 bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   GetSignerDb(chain, id).DeleteSigner();
+  GetAppStateDb(chain).AddDeletedSigners(id);
   return fs::remove(GetSignerDir(chain, id));
 }
 
@@ -1034,6 +1036,9 @@ std::string NunchukStorage::ExportBackup() {
       }
       rs["signers"].push_back(signer);
     }
+    auto appstate = GetAppStateDb(chain);
+    rs["deleted_wallets"] = appstate.GetDeletedWallets();
+    rs["deleted_signers"] = appstate.GetDeletedSigners();
     return rs;
   };
 
@@ -1052,12 +1057,11 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
 
   int percent = 0;
   auto importChain = [&](Chain chain, const json& d) {
-    std::vector<std::string> keep{};
+    auto appstate = GetAppStateDb(chain);
     json signers = d["signers"];
     for (auto&& signer : signers) {
       std::string id = signer["id"];
       if (id.empty()) continue;
-      keep.push_back(id);
       fs::path db_file = GetSignerDir(chain, id);
       NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
       if (!signer["name"].get<std::string>().empty()) {
@@ -1073,24 +1077,20 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         db.SetRemoteLastHealthCheck(ss["path"], ss["last_health_check"]);
       }
     }
-    auto sids = ListMasterSigners0(chain);
-    for (auto&& id : sids) {
-      if (std::find(keep.begin(), keep.end(), id) == keep.end()) {
-        try {
-          fs::remove(GetSignerDir(chain, id));
-        } catch (...) {
-        }
+    if (d["deleted_signers"] != nullptr) {
+      std::vector<std::string> deleted_signers = d["deleted_signers"];
+      for (auto&& id : deleted_signers) {
+        appstate.AddDeletedSigners(id);
+        fs::remove(GetSignerDir(chain, id));
       }
     }
     percent += 25;
     progress(percent);
 
-    keep.clear();
     json wallets = d["wallets"];
     for (auto&& wallet : wallets) {
       std::string id = wallet["id"];
       if (id.empty()) continue;
-      keep.push_back(id);
       fs::path db_file = GetWalletDir(chain, id);
       if (!fs::exists(db_file)) {
         AddressType a;
@@ -1139,13 +1139,11 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         }
       }
     }
-    auto wids = ListWallets0(chain);
-    for (auto&& id : wids) {
-      if (std::find(keep.begin(), keep.end(), id) == keep.end()) {
-        try {
-          fs::remove(GetWalletDir(chain, id));
-        } catch (...) {
-        }
+    if (d["deleted_wallets"] != nullptr) {
+      std::vector<std::string> deleted_wallets = d["deleted_wallets"];
+      for (auto&& id : deleted_wallets) {
+        appstate.AddDeletedWallets(id);
+        fs::remove(GetWalletDir(chain, id));
       }
     }
     percent += 25;

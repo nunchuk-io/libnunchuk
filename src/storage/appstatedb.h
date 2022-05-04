@@ -23,6 +23,7 @@
 #include <nunchuk.h>
 #include <sqlcipher/sqlite3.h>
 #include <string>
+#include <vector>
 
 namespace nunchuk {
 
@@ -41,6 +42,10 @@ class NunchukAppStateDb : public NunchukDb {
   bool SetLastSyncTs(time_t value);
   time_t GetLastExportTs() const;
   bool SetLastExportTs(time_t value);
+  std::vector<std::string> GetDeletedSigners() const;
+  bool AddDeletedSigners(const std::string &id);
+  std::vector<std::string> GetDeletedWallets() const;
+  bool AddDeletedWallets(const std::string &id);
 
  private:
   friend class NunchukStorage;

@@ -16,6 +16,9 @@
  */
 
 #include "appstatedb.h"
+#include <utils/stringutils.hpp>
+#include <algorithm>
+#include <iostream>
 
 namespace nunchuk {
 
@@ -31,7 +34,7 @@ std::string NunchukAppStateDb::GetSelectedWallet() const {
   return GetString(DbKeys::SELECTED_WALLET);
 }
 
-bool NunchukAppStateDb::SetSelectedWallet(const std::string& value) {
+bool NunchukAppStateDb::SetSelectedWallet(const std::string &value) {
   return PutString(DbKeys::SELECTED_WALLET, value);
 }
 
@@ -57,6 +60,30 @@ time_t NunchukAppStateDb::GetLastExportTs() const {
 
 bool NunchukAppStateDb::SetLastExportTs(time_t value) {
   return PutInt(DbKeys::EXPORT_TS, value);
+}
+
+std::vector<std::string> NunchukAppStateDb::GetDeletedSigners() const {
+  auto str = GetString(DbKeys::DELETED_SIGNERS);
+  return split(str, ',');
+}
+
+bool NunchukAppStateDb::AddDeletedSigners(const std::string &id) {
+  auto ids = GetDeletedSigners();
+  if (std::find(ids.begin(), ids.end(), id) != ids.end()) return false;
+  ids.push_back(id);
+  return PutString(DbKeys::DELETED_SIGNERS, join(ids, ','));
+}
+
+std::vector<std::string> NunchukAppStateDb::GetDeletedWallets() const {
+  auto str = GetString(DbKeys::DELETED_WALLETS);
+  return split(str, ',');
+}
+
+bool NunchukAppStateDb::AddDeletedWallets(const std::string &id) {
+  auto ids = GetDeletedWallets();
+  if (std::find(ids.begin(), ids.end(), id) != ids.end()) return false;
+  ids.push_back(id);
+  return PutString(DbKeys::DELETED_WALLETS, join(ids, ','));
 }
 
 }  // namespace nunchuk

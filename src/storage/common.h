@@ -56,6 +56,8 @@ const int MNEMONIC = 13;
 const int SYNC_TS = 14;
 const int SYNC_ROOM_ID = 15;
 const int EXPORT_TS = 16;
+const int DELETED_SIGNERS = 17;
+const int DELETED_WALLETS = 18;
 }  // namespace DbKeys
 
 }  // namespace nunchuk
