@@ -16,10 +16,40 @@
  */
 
 #include <nunchukmatrix.h>
+#include <utils/json.hpp>
+
+using json = nlohmann::json;
 
 namespace nunchuk {
 
 RoomWallet::RoomWallet() {}
+RoomWallet::RoomWallet(const std::string& from_json) {
+  json value = json::parse(from_json);
+  set_room_id(value["room_id"]);
+  set_wallet_id(value["wallet_id"]);
+  set_init_event_id(value["init_event_id"]);
+  set_join_event_ids(value["join_event_ids"]);
+  set_leave_event_ids(value["leave_event_ids"]);
+  set_finalize_event_id(value["finalize_event_id"]);
+  set_cancel_event_id(value["cancel_event_id"]);
+  set_delete_event_id(value["delete_event_id"]);
+  if (value["ready_event_id"] != nullptr) {
+    set_ready_event_id(value["ready_event_id"]);
+  }
+}
+std::string RoomWallet::to_json() const {
+  json value{};
+  value["room_id"] = get_room_id();
+  value["wallet_id"] = get_wallet_id();
+  value["init_event_id"] = get_init_event_id();
+  value["join_event_ids"] = get_join_event_ids();
+  value["leave_event_ids"] = get_leave_event_ids();
+  value["finalize_event_id"] = get_finalize_event_id();
+  value["cancel_event_id"] = get_cancel_event_id();
+  value["delete_event_id"] = get_delete_event_id();
+  value["ready_event_id"] = get_ready_event_id();
+  return value.dump();
+}
 
 std::string RoomWallet::get_room_id() const { return room_id_; }
 std::string RoomWallet::get_wallet_id() const { return wallet_id_; }

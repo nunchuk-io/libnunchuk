@@ -16,10 +16,32 @@
  */
 
 #include <nunchukmatrix.h>
+#include <utils/json.hpp>
+
+using json = nlohmann::json;
 
 namespace nunchuk {
 
 NunchukMatrixEvent::NunchukMatrixEvent() {}
+NunchukMatrixEvent::NunchukMatrixEvent(const std::string& from_json) {
+  json value = json::parse(from_json);
+  type_ = value["type"];
+  content_ = value["content"];
+  event_id_ = value["event_id"];
+  room_id_ = value["room_id"];
+  sender_ = value["sender"];
+  ts_ = value["ts"];
+}
+std::string NunchukMatrixEvent::to_json() const {
+  json value{};
+  value["type"] = type_;
+  value["content"] = content_;
+  value["event_id"] = event_id_;
+  value["room_id"] = room_id_;
+  value["sender"] = sender_;
+  value["ts"] = ts_;
+  return value.dump();
+}
 
 std::string NunchukMatrixEvent::get_type() const { return type_; }
 std::string NunchukMatrixEvent::get_content() const { return content_; }

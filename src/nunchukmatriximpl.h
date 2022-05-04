@@ -123,6 +123,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
   void RandomDelay(std::function<void()> func);
   void AsyncBackup(const std::unique_ptr<Nunchuk>& nu, int delay_sec = 0);
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu);
+  void SyncWithBackup(const std::string& dataStr);
+  std::string ExportBackup();
 
   NunchukStorage storage_;
   std::string sync_room_id_;

@@ -42,6 +42,7 @@ class NUNCHUK_EXPORT NunchukMatrixException : public BaseException {
 class NUNCHUK_EXPORT NunchukMatrixEvent {
  public:
   NunchukMatrixEvent();
+  NunchukMatrixEvent(const std::string& from_json);
 
   std::string get_type() const;
   std::string get_content() const;
@@ -49,6 +50,7 @@ class NUNCHUK_EXPORT NunchukMatrixEvent {
   std::string get_room_id() const;
   std::string get_sender() const;
   time_t get_ts() const;
+  std::string to_json() const;
 
   void set_type(const std::string& value);
   void set_content(const std::string& value);
@@ -69,6 +71,7 @@ class NUNCHUK_EXPORT NunchukMatrixEvent {
 class NUNCHUK_EXPORT RoomWallet {
  public:
   RoomWallet();
+  RoomWallet(const std::string& from_json);
 
   std::string get_room_id() const;
   std::string get_wallet_id() const;
@@ -81,6 +84,7 @@ class NUNCHUK_EXPORT RoomWallet {
   std::string get_delete_event_id() const;
   std::string get_json_content() const;
   Chain get_chain() const;
+  std::string to_json() const;
 
   void set_room_id(const std::string& value);
   void set_wallet_id(const std::string& value);
@@ -113,6 +117,7 @@ class NUNCHUK_EXPORT RoomWallet {
 class NUNCHUK_EXPORT RoomTransaction {
  public:
   RoomTransaction();
+  RoomTransaction(const std::string& from_json);
 
   std::string get_room_id() const;
   std::string get_tx_id() const;
@@ -125,6 +130,7 @@ class NUNCHUK_EXPORT RoomTransaction {
   std::string get_ready_event_id() const;
   Transaction get_tx() const;
   Chain get_chain() const;
+  std::string to_json() const;
 
   void set_room_id(const std::string& value);
   void set_tx_id(const std::string& value);

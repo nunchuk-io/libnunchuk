@@ -501,9 +501,15 @@ void NunchukMatrixImpl::EnableGenerateReceiveEvent(
 NunchukMatrixEvent NunchukMatrixImpl::Backup(
     const std::unique_ptr<Nunchuk>& nu) {
   auto data = nu->ExportBackup();
+  auto body = json::parse(data);
+  try {
+    auto matrix_data = ExportBackup();
+    body["matrix"] = json::parse(matrix_data);
+  } catch (...) {
+  }
   json content = {{"msgtype", "io.nunchuk.sync.file"},
                   {"v", NUNCHUK_EVENT_VER},
-                  {"body", json::parse(data)}};
+                  {"body", body}};
   return NewEvent(sync_room_id_, "io.nunchuk.sync", content.dump());
 }
 
@@ -567,7 +573,13 @@ void NunchukMatrixImpl::DownloadFileCallback(
   }
   auto data = DecryptAttachment(file_data, content["file"].dump());
   if (event.get_type().rfind("io.nunchuk.sync", 0) == 0) {
-    nu->SyncWithBackup(data, progress);
+    if (nu->SyncWithBackup(data, progress)) {
+      std::unique_lock<std::shared_mutex> lock(access_);
+      try {
+        SyncWithBackup(data);
+      } catch (...) {
+      }
+    }
   } else {
     content["body"] = json::parse(data);
     event.set_content(content.dump());
@@ -820,9 +832,70 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
                                EventToJson(event).dump(),
                                storage_.GetLastSyncTs());
     }
-    if (!data.empty()) nu->SyncWithBackup(data, progress);
+    if (!data.empty() && nu->SyncWithBackup(data, progress)) {
+      try {
+        SyncWithBackup(data);
+      } catch (...) {
+      }
+    }
   }
   db.SetEvent(event);
+}
+
+void NunchukMatrixImpl::SyncWithBackup(const std::string& dataStr) {
+  json data = json::parse(dataStr);
+  if (data["matrix"] == nullptr) return;
+
+  auto importChain = [&](Chain chain, const json& d) {
+    if (d == nullptr) return;
+    auto db = storage_.GetRoomDb(chain);
+    json events = d["events"];
+    for (auto&& e : events) db.SetEvent({e.dump()});
+    json wallets = d["wallets"];
+    for (auto&& w : wallets) db.SetEvent({w.dump()});
+  };
+
+  importChain(Chain::TESTNET, data["matrix"]["testnet"]);
+  importChain(Chain::MAIN, data["matrix"]["mainnet"]);
+  importChain(Chain::SIGNET, data["matrix"]["signet"]);
+}
+
+std::string NunchukMatrixImpl::ExportBackup() {
+  std::unique_lock<std::shared_mutex> lock(access_);
+
+  auto exportChain = [&](Chain chain) {
+    auto db = storage_.GetRoomDb(chain);
+    json rs;
+    rs["events"] = json::array();
+    auto exportEvent = [&](const std::string& event_id) {
+      if (event_id.empty()) return;
+      rs["events"].push_back(json::parse(db.GetEvent(event_id).to_json()));
+    };
+
+    rs["wallets"] = json::array();
+    auto wallets = db.GetWallets(false);
+    for (auto&& wallet : wallets) {
+      if (!wallet.get_cancel_event_id().empty() ||
+          !wallet.get_delete_event_id().empty())
+        continue;
+      exportEvent(wallet.get_room_id());
+      exportEvent(wallet.get_wallet_id());
+      exportEvent(wallet.get_init_event_id());
+      for (auto& id : wallet.get_join_event_ids()) exportEvent(id);
+      for (auto& id : wallet.get_leave_event_ids()) exportEvent(id);
+      exportEvent(wallet.get_finalize_event_id());
+      exportEvent(wallet.get_cancel_event_id());
+      exportEvent(wallet.get_delete_event_id());
+      exportEvent(wallet.get_ready_event_id());
+      rs["wallets"].push_back(json::parse(wallet.to_json()));
+    }
+    return rs;
+  };
+
+  json data = {{"testnet", exportChain(Chain::TESTNET)},
+               {"mainnet", exportChain(Chain::MAIN)},
+               {"signet", exportChain(Chain::SIGNET)}};
+  return data.dump();
 }
 
 void NunchukMatrixImpl::RandomDelay(std::function<void()> exec) {

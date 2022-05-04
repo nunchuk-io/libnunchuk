@@ -1057,6 +1057,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
 
   int percent = 0;
   auto importChain = [&](Chain chain, const json& d) {
+    if (d == nullptr) return;
     auto appstate = GetAppStateDb(chain);
     json signers = d["signers"];
     for (auto&& signer : signers) {
