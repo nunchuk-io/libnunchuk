@@ -1056,7 +1056,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   std::unique_lock<std::shared_mutex> lock(access_);
 
   int percent = 0;
-  auto importChain = [&](Chain chain, const json& d) {
+  auto importChain = [&](Chain chain, json& d) {
     if (d == nullptr) return;
     auto appstate = GetAppStateDb(chain);
     json signers = d["signers"];

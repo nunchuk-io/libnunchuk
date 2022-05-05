@@ -846,7 +846,7 @@ void NunchukMatrixImpl::SyncWithBackup(const std::string& dataStr) {
   json data = json::parse(dataStr);
   if (data["matrix"] == nullptr) return;
 
-  auto importChain = [&](Chain chain, const json& d) {
+  auto importChain = [&](Chain chain, json& d) {
     if (d == nullptr) return;
     auto db = storage_.GetRoomDb(chain);
     json events = d["events"];
@@ -878,8 +878,6 @@ std::string NunchukMatrixImpl::ExportBackup() {
       if (!wallet.get_cancel_event_id().empty() ||
           !wallet.get_delete_event_id().empty())
         continue;
-      exportEvent(wallet.get_room_id());
-      exportEvent(wallet.get_wallet_id());
       exportEvent(wallet.get_init_event_id());
       for (auto& id : wallet.get_join_event_ids()) exportEvent(id);
       for (auto& id : wallet.get_leave_event_ids()) exportEvent(id);
