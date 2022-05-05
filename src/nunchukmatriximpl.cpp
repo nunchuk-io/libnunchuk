@@ -852,7 +852,7 @@ void NunchukMatrixImpl::SyncWithBackup(const std::string& dataStr) {
     json events = d["events"];
     for (auto&& e : events) db.SetEvent({e.dump()});
     json wallets = d["wallets"];
-    for (auto&& w : wallets) db.SetEvent({w.dump()});
+    for (auto&& w : wallets) db.SetWallet({w.dump()});
   };
 
   importChain(Chain::TESTNET, data["matrix"]["testnet"]);
