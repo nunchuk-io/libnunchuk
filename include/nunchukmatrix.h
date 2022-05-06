@@ -99,6 +99,7 @@ class NUNCHUK_EXPORT RoomWallet {
   void set_delete_event_id(const std::string& value);
   void set_json_content(const std::string& value);
   void set_chain(const Chain& value);
+  void merge(const RoomWallet& value);
 
  private:
   std::string room_id_;

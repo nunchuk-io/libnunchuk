@@ -729,11 +729,19 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       wallet.set_wallet_id(wallet_id);
       wallet2room_[wallet_id] = event.get_room_id();
 
+      // Note: update db first to make sure sync file has the latest data
+      db.SetWallet(wallet);
+      NunchukMatrixEvent event_hasbody = JsonToEvent(EventToJson(event));
+      content["body"] = body;
+      event_hasbody.set_content(content.dump());
+      db.SetEvent(event_hasbody);
+
       try {
         nu->CreateWallet(name, m, n, signers, a, w == WalletType::ESCROW, d);
       } catch (...) {
         // Most likely the wallet existed
       }
+      return;
     }
     db.SetWallet(wallet);
   } else if (msgtype == "io.nunchuk.transaction.receive") {
@@ -852,7 +860,18 @@ void NunchukMatrixImpl::SyncWithBackup(const std::string& dataStr) {
     json events = d["events"];
     for (auto&& e : events) db.SetEvent({e.dump()});
     json wallets = d["wallets"];
-    for (auto&& w : wallets) db.SetWallet({w.dump()});
+    for (auto&& w : wallets) {
+      RoomWallet w1{w.dump()};
+      if (db.HasActiveWallet(w1.get_room_id())) {
+        auto w0 = db.GetActiveWallet(w1.get_room_id(), false);
+        if (w0.get_init_event_id() == w1.get_init_event_id()) {
+          w0.merge(w1);
+          db.SetWallet(w0);
+          continue;
+        }
+      }
+      db.SetWallet(w1);
+    }
   };
 
   importChain(Chain::TESTNET, data["matrix"]["testnet"]);
