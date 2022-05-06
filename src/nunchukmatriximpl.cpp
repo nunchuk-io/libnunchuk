@@ -276,13 +276,6 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   auto w = n == 1 ? WalletType::SINGLE_SIG
                   : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
 
-  std::string external_desc =
-      GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w);
-  auto wallet_id = GetDescriptorChecksum(external_desc);
-  wallet.set_wallet_id(wallet_id);
-  wallet2room_[wallet_id] = room_id;
-  nu->CreateWallet(name, m, n, signers, a, is_escrow, description);
-
   std::string descriptor = GetDescriptorForSigners(
       signers, m, DescriptorPath::TEMPLATE, a, w, 0, true);
   std::string first_address = CoreUtils::getInstance().DeriveAddresses(
@@ -299,7 +292,6 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
                     {"io.nunchuk.relates_to",
                      {{"init_event", EventToJson(init_event)},
                       {"join_event_ids", join_event_ids}}}}}};
-  db.SetWallet(wallet);
   return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
 }
 
@@ -888,7 +880,10 @@ std::string NunchukMatrixImpl::ExportBackup() {
     rs["events"] = json::array();
     auto exportEvent = [&](const std::string& event_id) {
       if (event_id.empty()) return;
-      rs["events"].push_back(json::parse(db.GetEvent(event_id).to_json()));
+      try {
+        rs["events"].push_back(json::parse(db.GetEvent(event_id).to_json()));
+      } catch (...) {
+      }
     };
 
     rs["wallets"] = json::array();
@@ -898,8 +893,8 @@ std::string NunchukMatrixImpl::ExportBackup() {
           !wallet.get_delete_event_id().empty())
         continue;
       exportEvent(wallet.get_init_event_id());
-      for (auto& id : wallet.get_join_event_ids()) exportEvent(id);
-      for (auto& id : wallet.get_leave_event_ids()) exportEvent(id);
+      for (auto&& id : wallet.get_join_event_ids()) exportEvent(id);
+      for (auto&& id : wallet.get_leave_event_ids()) exportEvent(id);
       exportEvent(wallet.get_finalize_event_id());
       exportEvent(wallet.get_cancel_event_id());
       exportEvent(wallet.get_delete_event_id());
