@@ -50,6 +50,15 @@ std::string RoomWallet::to_json() const {
   value["ready_event_id"] = get_ready_event_id();
   return value.dump();
 }
+void RoomWallet::merge(const RoomWallet& w) {
+  if (!w.wallet_id_.empty()) wallet_id_ = w.wallet_id_;
+  if (!w.join_event_ids_.empty()) join_event_ids_ = w.join_event_ids_;
+  if (!w.leave_event_ids_.empty()) leave_event_ids_ = w.leave_event_ids_;
+  if (!w.finalize_event_id_.empty()) finalize_event_id_ = w.finalize_event_id_;
+  if (!w.cancel_event_id_.empty()) cancel_event_id_ = w.cancel_event_id_;
+  if (!w.delete_event_id_.empty()) delete_event_id_ = w.delete_event_id_;
+  if (!w.ready_event_id_.empty()) ready_event_id_ = w.ready_event_id_;
+}
 
 std::string RoomWallet::get_room_id() const { return room_id_; }
 std::string RoomWallet::get_wallet_id() const { return wallet_id_; }
