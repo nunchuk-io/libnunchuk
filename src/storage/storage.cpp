@@ -992,9 +992,8 @@ std::string NunchukStorage::ExportBackup() {
       for (auto&& tx : txs) {
         if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
         json outputs = json::array();
-        for (auto&& output : tx.get_user_outputs()) {
-          outputs.push_back(
-              {{"address", output.first}, {"amount", output.second}});
+        for (auto&& o : tx.get_user_outputs()) {
+          outputs.push_back({{"address", o.first}, {"amount", o.second}});
         }
         wallet["pending_signatures"].push_back(
             {{"psbt", tx.get_psbt()},
@@ -1114,29 +1113,34 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       auto wallet_db = GetWalletDb(chain, id);
       json pending_txs = wallet["pending_signatures"];
       std::vector<std::string> txids{};
+      auto txs = wallet_db.GetTransactions();
       for (auto&& tx : pending_txs) {
+        std::string psbt = tx["psbt"];
+        PartiallySignedTransaction psbtx = DecodePsbt(psbt);
+        std::string tx_id = psbtx.tx.value().GetHash().GetHex();
+        txids.push_back(tx_id);
+        if (std::any_of(txs.begin(), txs.end(), [tx_id](const Transaction& t) {
+              return t.get_txid() == tx_id;
+            })) {
+          continue;
+        }
         std::map<std::string, Amount> outputs;
         for (auto&& output : tx["outputs"]) {
           outputs[output["address"]] = output["amount"];
         }
         try {
-          auto new_tx = wallet_db.CreatePsbt(
-              tx["psbt"], tx["fee"], tx["memo"], tx["change_pos"], outputs,
-              tx["fee_rate"], tx["subtract_fee_from_amount"], {});
-          txids.push_back(new_tx.get_txid());
+          wallet_db.CreatePsbt(psbt, tx["fee"], tx["memo"], tx["change_pos"],
+                               outputs, tx["fee_rate"],
+                               tx["subtract_fee_from_amount"], {});
         } catch (...) {
         }
       }
 
-      auto txs = wallet_db.GetTransactions();
       for (auto&& tx : txs) {
         if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
         auto id = tx.get_txid();
         if (std::find(txids.begin(), txids.end(), id) == txids.end()) {
-          try {
-            wallet_db.DeleteTransaction(id);
-          } catch (...) {
-          }
+          wallet_db.DeleteTransaction(id);
         }
       }
     }
