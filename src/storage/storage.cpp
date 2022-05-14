@@ -1136,13 +1136,13 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         }
       }
 
-      for (auto&& tx : txs) {
-        if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
-        auto id = tx.get_txid();
-        if (std::find(txids.begin(), txids.end(), id) == txids.end()) {
-          wallet_db.DeleteTransaction(id);
-        }
-      }
+      // for (auto&& tx : txs) {
+      //   if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
+      //   auto id = tx.get_txid();
+      //   if (std::find(txids.begin(), txids.end(), id) == txids.end()) {
+      //     wallet_db.DeleteTransaction(id);
+      //   }
+      // }
     }
     if (d["deleted_wallets"] != nullptr) {
       std::vector<std::string> deleted_wallets = d["deleted_wallets"];
