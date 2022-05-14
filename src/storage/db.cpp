@@ -18,6 +18,7 @@
 #include "db.h"
 #include <sstream>
 #include <utils/loguru.hpp>
+#include <utils/stringutils.hpp>
 #include <cstring>
 
 namespace nunchuk {
@@ -158,6 +159,25 @@ int64_t NunchukDb::GetInt(int key) const {
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return value;
+}
+
+std::vector<std::string> NunchukDb::GetListStr(int key) const {
+  return split(GetString(key), ',');
+}
+
+bool NunchukDb::AddToListStr(int key, const std::string& id) {
+  auto ids = GetListStr(key);
+  if (std::find(ids.begin(), ids.end(), id) != ids.end()) return false;
+  ids.push_back(id);
+  return PutString(key, join(ids, ','));
+}
+
+bool NunchukDb::RemoveFromListStr(int key, const std::string& id) {
+  auto ids = GetListStr(key);
+  auto new_end = std::remove(ids.begin(), ids.end(), id);
+  if (new_end == ids.end()) return false;
+  ids.resize(new_end - ids.begin());
+  return PutString(key, join(ids, ','));
 }
 
 bool NunchukDb::TableExists(const std::string& table_name) const {

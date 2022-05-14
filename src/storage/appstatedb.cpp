@@ -16,7 +16,6 @@
  */
 
 #include "appstatedb.h"
-#include <utils/stringutils.hpp>
 #include <algorithm>
 #include <iostream>
 
@@ -63,27 +62,39 @@ bool NunchukAppStateDb::SetLastExportTs(time_t value) {
 }
 
 std::vector<std::string> NunchukAppStateDb::GetDeletedSigners() const {
-  auto str = GetString(DbKeys::DELETED_SIGNERS);
-  return split(str, ',');
+  return GetListStr(DbKeys::DELETED_SIGNERS);
 }
 
-bool NunchukAppStateDb::AddDeletedSigners(const std::string &id) {
-  auto ids = GetDeletedSigners();
-  if (std::find(ids.begin(), ids.end(), id) != ids.end()) return false;
-  ids.push_back(id);
-  return PutString(DbKeys::DELETED_SIGNERS, join(ids, ','));
+bool NunchukAppStateDb::AddDeletedSigner(const std::string &id) {
+  return AddToListStr(DbKeys::DELETED_SIGNERS, id);
+}
+
+bool NunchukAppStateDb::RemoveDeletedSigner(const std::string &id) {
+  return RemoveFromListStr(DbKeys::DELETED_SIGNERS, id);
 }
 
 std::vector<std::string> NunchukAppStateDb::GetDeletedWallets() const {
-  auto str = GetString(DbKeys::DELETED_WALLETS);
-  return split(str, ',');
+  return GetListStr(DbKeys::DELETED_WALLETS);
 }
 
-bool NunchukAppStateDb::AddDeletedWallets(const std::string &id) {
-  auto ids = GetDeletedWallets();
-  if (std::find(ids.begin(), ids.end(), id) != ids.end()) return false;
-  ids.push_back(id);
-  return PutString(DbKeys::DELETED_WALLETS, join(ids, ','));
+bool NunchukAppStateDb::AddDeletedWallet(const std::string &id) {
+  return AddToListStr(DbKeys::DELETED_WALLETS, id);
+}
+
+bool NunchukAppStateDb::RemoveDeletedWallet(const std::string &id) {
+  return RemoveFromListStr(DbKeys::DELETED_WALLETS, id);
+}
+
+std::vector<std::string> NunchukAppStateDb::GetDeletedTransactions() const {
+  return GetListStr(DbKeys::DELETED_TRANSACTIONS);
+}
+
+bool NunchukAppStateDb::AddDeletedTransaction(const std::string &id) {
+  return AddToListStr(DbKeys::DELETED_TRANSACTIONS, id);
+}
+
+bool NunchukAppStateDb::RemoveDeletedTransaction(const std::string &id) {
+  return RemoveFromListStr(DbKeys::DELETED_TRANSACTIONS, id);
 }
 
 }  // namespace nunchuk

@@ -44,6 +44,9 @@ class NunchukDb {
   bool PutInt(int key, int64_t value);
   std::string GetString(int key) const;
   int64_t GetInt(int key) const;
+  std::vector<std::string> GetListStr(int key) const;
+  bool AddToListStr(int key, const std::string &value);
+  bool RemoveFromListStr(int key, const std::string &value);
   bool TableExists(const std::string &table_name) const;
   std::string db_file_name_;
   sqlite3 *db_;

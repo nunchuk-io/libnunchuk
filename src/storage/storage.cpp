@@ -404,6 +404,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
   wallet.set_name(name);
   wallet.set_description(description);
   wallet.set_balance(0);
+  GetAppStateDb(chain).RemoveDeletedWallet(id);
   return wallet;
 }
 
@@ -416,6 +417,7 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
   signer_db.InitSigner(name, device, mnemonic);
+  GetAppStateDb(chain).RemoveDeletedSigner(id);
   return id;
 }
 
@@ -438,6 +440,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   auto signer = SingleSigner(name, xpub, public_key, derivation_path,
                              master_fingerprint, 0);
   signer.set_type(SignerType::AIRGAP);
+  GetAppStateDb(chain).RemoveDeletedSigner(id);
   return signer;
 }
 
@@ -662,14 +665,14 @@ bool NunchukStorage::UpdateMasterSigner(Chain chain,
 bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   GetWalletDb(chain, id).DeleteWallet();
-  GetAppStateDb(chain).AddDeletedWallets(id);
+  GetAppStateDb(chain).AddDeletedWallet(id);
   return fs::remove(GetWalletDir(chain, id));
 }
 
 bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   GetSignerDb(chain, id).DeleteSigner();
-  GetAppStateDb(chain).AddDeletedSigners(id);
+  GetAppStateDb(chain).AddDeletedSigner(id);
   return fs::remove(GetSignerDir(chain, id));
 }
 
@@ -801,6 +804,7 @@ bool NunchukStorage::DeleteTransaction(Chain chain,
                                        const std::string& wallet_id,
                                        const std::string& tx_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
+  GetAppStateDb(chain).AddDeletedTransaction(tx_id);
   return GetWalletDb(chain, wallet_id).DeleteTransaction(tx_id);
 }
 
@@ -814,6 +818,7 @@ Transaction NunchukStorage::CreatePsbt(
   auto tx = db.CreatePsbt(psbt, fee, memo, change_pos, outputs, fee_rate,
                           subtract_fee_from_amount, replace_tx);
   db.FillSendReceiveData(tx);
+  GetAppStateDb(chain).RemoveDeletedTransaction(tx.get_txid());
   return tx;
 }
 
@@ -1038,6 +1043,7 @@ std::string NunchukStorage::ExportBackup() {
     auto appstate = GetAppStateDb(chain);
     rs["deleted_wallets"] = appstate.GetDeletedWallets();
     rs["deleted_signers"] = appstate.GetDeletedSigners();
+    rs["deleted_txs"] = appstate.GetDeletedTransactions();
     return rs;
   };
 
@@ -1055,6 +1061,16 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   std::unique_lock<std::shared_mutex> lock(access_);
 
   int percent = 0;
+
+  auto hasTx = [](const std::vector<Transaction>& txs, const std::string& id,
+                  bool pendingOnly) {
+    auto check = [id, pendingOnly](const Transaction& t) {
+      return t.get_txid() == id &&
+             (!pendingOnly ||
+              t.get_status() == TransactionStatus::PENDING_SIGNATURES);
+    };
+    return std::any_of(txs.begin(), txs.end(), check);
+  };
   auto importChain = [&](Chain chain, json& d) {
     if (d == nullptr) return;
     auto appstate = GetAppStateDb(chain);
@@ -1080,7 +1096,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
     if (d["deleted_signers"] != nullptr) {
       std::vector<std::string> deleted_signers = d["deleted_signers"];
       for (auto&& id : deleted_signers) {
-        appstate.AddDeletedSigners(id);
+        appstate.AddDeletedSigner(id);
         fs::remove(GetSignerDir(chain, id));
       }
     }
@@ -1112,18 +1128,12 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       if (wallet["pending_signatures"] == nullptr) continue;
       auto wallet_db = GetWalletDb(chain, id);
       json pending_txs = wallet["pending_signatures"];
-      std::vector<std::string> txids{};
       auto txs = wallet_db.GetTransactions();
       for (auto&& tx : pending_txs) {
         std::string psbt = tx["psbt"];
         PartiallySignedTransaction psbtx = DecodePsbt(psbt);
         std::string tx_id = psbtx.tx.value().GetHash().GetHex();
-        txids.push_back(tx_id);
-        if (std::any_of(txs.begin(), txs.end(), [tx_id](const Transaction& t) {
-              return t.get_txid() == tx_id;
-            })) {
-          continue;
-        }
+        if (hasTx(txs, tx_id, false)) continue;
         std::map<std::string, Amount> outputs;
         for (auto&& output : tx["outputs"]) {
           outputs[output["address"]] = output["amount"];
@@ -1136,18 +1146,18 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         }
       }
 
-      // for (auto&& tx : txs) {
-      //   if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
-      //   auto id = tx.get_txid();
-      //   if (std::find(txids.begin(), txids.end(), id) == txids.end()) {
-      //     wallet_db.DeleteTransaction(id);
-      //   }
-      // }
+      if (d["deleted_txs"] != nullptr) {
+        std::vector<std::string> deleted_txs = d["deleted_txs"];
+        for (auto&& id : deleted_txs) {
+          appstate.AddDeletedTransaction(id);
+          if (hasTx(txs, id, true)) wallet_db.DeleteTransaction(id);
+        }
+      }
     }
     if (d["deleted_wallets"] != nullptr) {
       std::vector<std::string> deleted_wallets = d["deleted_wallets"];
       for (auto&& id : deleted_wallets) {
-        appstate.AddDeletedWallets(id);
+        appstate.AddDeletedWallet(id);
         fs::remove(GetWalletDir(chain, id));
       }
     }

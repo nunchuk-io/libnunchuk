@@ -43,9 +43,14 @@ class NunchukAppStateDb : public NunchukDb {
   time_t GetLastExportTs() const;
   bool SetLastExportTs(time_t value);
   std::vector<std::string> GetDeletedSigners() const;
-  bool AddDeletedSigners(const std::string &id);
+  bool AddDeletedSigner(const std::string &id);
+  bool RemoveDeletedSigner(const std::string &id);
   std::vector<std::string> GetDeletedWallets() const;
-  bool AddDeletedWallets(const std::string &id);
+  bool AddDeletedWallet(const std::string &id);
+  bool RemoveDeletedWallet(const std::string &id);
+  std::vector<std::string> GetDeletedTransactions() const;
+  bool AddDeletedTransaction(const std::string &id);
+  bool RemoveDeletedTransaction(const std::string &id);
 
  private:
   friend class NunchukStorage;
