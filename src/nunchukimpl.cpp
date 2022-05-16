@@ -725,7 +725,7 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
     synchronizer_->Broadcast(raw_tx);
   } catch (NunchukException& ne) {
     if (ne.code() == NunchukException::SERVER_REQUEST_ERROR &&
-        boost::starts_with(ne.what(),
+        boost::istarts_with(ne.what(),
                            "the transaction was rejected by network rules.")) {
       storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, ne.what());
       return GetTransaction(wallet_id, new_txid);
