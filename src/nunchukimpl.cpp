@@ -20,6 +20,7 @@
 #include <coinselector.h>
 #include <softwaresigner.h>
 #include <key_io.h>
+#include <validation.h>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -50,6 +51,8 @@ static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
 static int MAX_FRAGMENT_LEN = 100;
 static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
+static std::string NETWORK_REJECTED_PREFIX =
+    "the transaction was rejected by network rules.";
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
 
@@ -715,25 +718,21 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
   std::string raw_tx = CoreUtils::getInstance().FinalizePsbt(psbt);
-  // finalizepsbt will change the txid for legacy and nested-segwit
-  // transactions. We need to update our PSBT record in the DB
-  std::string new_txid = DecodeRawTransaction(raw_tx).GetHash().GetHex();
-  if (tx_id != new_txid) {
-    storage_.UpdatePsbtTxId(chain_, wallet_id, tx_id, new_txid);
-  }
-  try {
-    synchronizer_->Broadcast(raw_tx);
-  } catch (NunchukException& ne) {
-    if (ne.code() == NunchukException::SERVER_REQUEST_ERROR &&
-        boost::istarts_with(ne.what(),
-                           "the transaction was rejected by network rules.")) {
-      storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, ne.what());
-      return GetTransaction(wallet_id, new_txid);
+  auto tx = DecodeRawTransaction(raw_tx);
+  std::string new_txid = tx.GetHash().GetHex();
+  std::string reject_msg{};
+  if (GetTransactionWeight(CTransaction(tx)) > MAX_STANDARD_TX_WEIGHT) {
+    reject_msg = "Tx too large";
+  } else {
+    try {
+      synchronizer_->Broadcast(raw_tx);
+    } catch (NunchukException& ne) {
+      if (ne.code() != NunchukException::SERVER_REQUEST_ERROR) throw;
+      if (!boost::istarts_with(ne.what(), NETWORK_REJECTED_PREFIX)) throw;
+      reject_msg = ne.what();
     }
-    throw;
   }
-  storage_.UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
-  return GetTransaction(wallet_id, new_txid);
+  return UpdateTransaction(wallet_id, tx_id, new_txid, raw_tx, reject_msg);
 }
 
 Transaction NunchukImpl::UpdateTransaction(const std::string& wallet_id,
@@ -744,6 +743,8 @@ Transaction NunchukImpl::UpdateTransaction(const std::string& wallet_id,
   if (tx_id.empty() || storage_.GetPsbt(chain_, wallet_id, tx_id).empty()) {
     storage_.InsertTransaction(chain_, wallet_id, raw_tx, 0, 0);
   } else if (!new_txid.empty() && tx_id != new_txid) {
+    // finalizepsbt will change the txid for legacy and nested-segwit
+    // transactions. We need to update our PSBT record in the DB
     storage_.UpdatePsbtTxId(chain_, wallet_id, tx_id, new_txid);
   }
   if (reject_msg.empty()) {

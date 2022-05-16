@@ -189,6 +189,13 @@ SignerType NunchukSignerDb::GetSignerType() const {
   return SignerType::HARDWARE;
 }
 
+bool NunchukSignerDb::IsSoftware(const std::string& passphrase) const {
+  auto mnemonic = GetString(DbKeys::MNEMONIC);
+  if (mnemonic.empty()) return false;
+  auto signer = SoftwareSigner{mnemonic, passphrase};
+  return signer.GetMasterFingerprint() == id_;
+}
+
 SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
     const std::string& passphrase) const {
   auto mnemonic = GetString(DbKeys::MNEMONIC);

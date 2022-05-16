@@ -623,12 +623,8 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
                 signer_db.GetFingerprint()};
   SignerType signer_type = signer_db.GetSignerType();
   if (signer_type == SignerType::SOFTWARE) {
-    if (signer_passphrase_.count(mid) == 0) {
-      try {
-        GetSignerDb(chain, mid).GetSoftwareSigner("");
-        signer_passphrase_[mid] = "";
-      } catch (...) {
-      }
+    if (signer_passphrase_.count(mid) == 0 && signer_db.IsSoftware("")) {
+      signer_passphrase_[mid] = "";
     }
     device.set_needs_pass_phrase_sent(signer_passphrase_.count(id) == 0);
   }
@@ -641,12 +637,13 @@ SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
                                                  const std::string& id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto mid = ba::to_lower_copy(id);
+  auto signer_db = GetSignerDb(chain, mid);
   if (signer_passphrase_.count(mid) == 0) {
-    auto software_signer = GetSignerDb(chain, mid).GetSoftwareSigner("");
+    auto software_signer = signer_db.GetSoftwareSigner("");
     signer_passphrase_[mid] = "";
     return software_signer;
   }
-  return GetSignerDb(chain, mid).GetSoftwareSigner(signer_passphrase_.at(mid));
+  return signer_db.GetSoftwareSigner(signer_passphrase_.at(mid));
 }
 
 bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
