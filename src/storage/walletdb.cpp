@@ -501,7 +501,7 @@ bool NunchukWalletDb::UpdatePsbtTxId(const std::string& old_id,
   sqlite3_step(stmt);
   if (sqlite3_column_text(stmt, 0)) {
     std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
-    int fee = sqlite3_column_int(stmt, 3);
+    int64_t fee = sqlite3_column_int64(stmt, 3);
     std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
     int change_pos = sqlite3_column_int(stmt, 5);
     std::string extra;
@@ -557,7 +557,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
   if (sqlite3_column_text(stmt, 0)) {
     std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
     int height = sqlite3_column_int(stmt, 2);
-    int fee = sqlite3_column_int(stmt, 3);
+    int64_t fee = sqlite3_column_int64(stmt, 3);
     std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
     int change_pos = sqlite3_column_int(stmt, 5);
     time_t blocktime = sqlite3_column_int64(stmt, 6);
@@ -769,7 +769,7 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     std::string tx_id = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
     int height = sqlite3_column_int(stmt, 2);
-    int fee = sqlite3_column_int(stmt, 3);
+    int64_t fee = sqlite3_column_int64(stmt, 3);
     std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
     int change_pos = sqlite3_column_int(stmt, 5);
     time_t blocktime = sqlite3_column_int64(stmt, 6);
