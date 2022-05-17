@@ -33,7 +33,6 @@
 #include <utils/bsms.hpp>
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
-#include <boost/algorithm/string.hpp>
 #include <ur.h>
 #include <ur-encoder.hpp>
 #include <ur-decoder.hpp>
@@ -51,8 +50,6 @@ static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
 static int MAX_FRAGMENT_LEN = 100;
 static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
-static std::string NETWORK_REJECTED_PREFIX =
-    "the transaction was rejected by network rules.";
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
 
@@ -721,14 +718,14 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
   auto tx = DecodeRawTransaction(raw_tx);
   std::string new_txid = tx.GetHash().GetHex();
   std::string reject_msg{};
+
   if (GetTransactionWeight(CTransaction(tx)) > MAX_STANDARD_TX_WEIGHT) {
-    reject_msg = "Tx too large";
+    reject_msg = "Tx-size";
   } else {
     try {
       synchronizer_->Broadcast(raw_tx);
     } catch (NunchukException& ne) {
-      if (ne.code() != NunchukException::SERVER_REQUEST_ERROR) throw;
-      if (!boost::istarts_with(ne.what(), NETWORK_REJECTED_PREFIX)) throw;
+      if (ne.code() != NunchukException::NETWORK_REJECTED) throw;
       reject_msg = ne.what();
     }
   }

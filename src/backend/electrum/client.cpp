@@ -16,14 +16,20 @@
  */
 
 #include <backend/electrum/client.h>
+#include <iterator>
 #include <utils/loguru.hpp>
 #include <utils/errorutils.hpp>
+#include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
 
 using namespace boost::asio;
+
 namespace nunchuk {
 
-static std::string DEFAULT_SERVER = "127.0.0.1:50001";
+static const std::string DEFAULT_SERVER = "127.0.0.1:50001";
+
+static const std::string NETWORK_REJECTED_PREFIX =
+    "the transaction was rejected by network rules.";
 
 static std::string GetServerAddress(const AppSettings& appsettings) {
   auto getFirstElementOrDefault = [](const std::vector<std::string>& elements,
@@ -49,6 +55,25 @@ static std::string GetServerAddress(const AppSettings& appsettings) {
       throw NunchukException(NunchukException::INVALID_CHAIN,
                              "Chain not supported");
   }
+}
+
+static NunchukException MakeElectrumException(const std::string& error) {
+  if (!boost::istarts_with(error, NETWORK_REJECTED_PREFIX)) {
+    return NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                            NormalizeErrorMessage(error));
+  }
+
+  boost::char_separator<char> sep("\n");
+  boost::tokenizer<boost::char_separator<char>> tokens(error, sep);
+
+  if (tokens.begin() != tokens.end() &&
+      std::next(tokens.begin()) != tokens.end()) {
+    return NunchukException(NunchukException::NETWORK_REJECTED,
+                            NormalizeErrorMessage(*std::next(tokens.begin())));
+  }
+
+  return NunchukException(NunchukException::NETWORK_REJECTED,
+                          NormalizeErrorMessage(error));
 }
 
 ElectrumClient::ElectrumClient(const AppSettings& appsettings,
@@ -149,9 +174,8 @@ json ElectrumClient::call_method(const std::string& method,
   enqueue_message(req.dump());
   json resp = callback_[id].get_future().get();
   callback_.erase(id);
-  if (resp["error"] != nullptr) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           NormalizeErrorMessage(resp["error"]["message"]));
+  if (resp.contains("error")) {
+    throw MakeElectrumException(resp["error"]["message"]);
   }
   return resp["result"];
 }
