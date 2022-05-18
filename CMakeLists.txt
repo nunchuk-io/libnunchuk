@@ -179,6 +179,7 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     ${Boost_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIR}
     "${PROJECT_SOURCE_DIR}/contrib"
+    "${PROJECT_SOURCE_DIR}/contrib/sqlite"
     "${PROJECT_BINARY_DIR}"
 )
 
