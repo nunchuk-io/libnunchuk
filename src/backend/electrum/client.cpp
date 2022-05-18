@@ -293,13 +293,17 @@ void ElectrumClient::socket_write() {
   if (request_queue_.empty() || !connected_) {
     return;
   }
+
+  std::ostream request(&request_buffer_);
+  request << request_queue_.front() << "\n";
+
   if (is_secure_) {
     async_write(
-        *secure_socket_, buffer(request_queue_.front() + "\n"),
+        *secure_socket_, request_buffer_,
         boost::bind(&ElectrumClient::handle_write, this, placeholders::error));
   } else {
     async_write(
-        *socket_, buffer(request_queue_.front() + "\n"),
+        *socket_, request_buffer_,
         boost::bind(&ElectrumClient::handle_write, this, placeholders::error));
   }
 }
