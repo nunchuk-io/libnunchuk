@@ -93,6 +93,7 @@ class ElectrumClient {
   std::atomic<bool> stopped_{false};
   std::atomic<int> id_{0};
   boost::asio::streambuf receive_buffer_;
+  boost::asio::streambuf request_buffer_;
   std::deque<std::string> request_queue_;
   std::map<std::string, NotifySignal> sigmap_;
   std::map<int, std::promise<json>> callback_;
