@@ -747,7 +747,8 @@ Transaction NunchukImpl::UpdateTransaction(const std::string& wallet_id,
   if (reject_msg.empty()) {
     storage_.UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
   } else {
-    storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, 0, reject_msg);
+    time_t t = std::time(0);
+    storage_.UpdateTransaction(chain_, wallet_id, raw_tx, -2, t, reject_msg);
   }
   return GetTransaction(wallet_id, new_txid);
 }

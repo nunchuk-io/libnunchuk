@@ -402,8 +402,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
                      {{"init_event", EventToJson(init_event)},
                       {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
   if (tx.get_status() == TransactionStatus::NETWORK_REJECTED) {
-    content["body"]["reject_msg"] =
-        "the transaction was rejected by network rules";
+    content["body"]["reject_msg"] = tx.get_reject_msg();
   }
   rtx.set_tx_id(tx.get_txid());
   db.SetTransaction(rtx);

@@ -426,6 +426,7 @@ class Transaction {
   Amount get_sub_amount() const;
   std::string get_psbt() const;
   std::string get_raw() const;
+  std::string get_reject_msg() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -447,6 +448,7 @@ class Transaction {
   void set_sub_amount(const Amount& value);
   void set_psbt(const std::string& value);
   void set_raw(const std::string& value);
+  void set_reject_msg(const std::string& value);
 
  private:
   std::string txid_;
@@ -469,6 +471,7 @@ class Transaction {
   Amount sub_amount_;
   std::string psbt_;
   std::string raw_;
+  std::string reject_msg_;
 };
 
 class NUNCHUK_EXPORT AppSettings {

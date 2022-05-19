@@ -877,6 +877,9 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
         extra_json["replaced_by_txid"] != nullptr) {
       tx.set_status(TransactionStatus::REPLACED);
       tx.set_replaced_by_txid(extra_json["replaced_by_txid"]);
+    } else if (tx.get_status() == TransactionStatus::NETWORK_REJECTED &&
+               extra_json["reject_msg"] != nullptr) {
+      tx.set_reject_msg(extra_json["reject_msg"]);
     }
   }
 }
