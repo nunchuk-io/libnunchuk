@@ -28,6 +28,9 @@
 #include <storage/roomdb.h>
 #include <storage/storage.h>
 #include <shared_mutex>
+#include <utils/json.hpp>
+
+using json = nlohmann::json;
 
 namespace nunchuk {
 
@@ -35,7 +38,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
  public:
   NunchukMatrixImpl(const AppSettings& appsettings,
                     const std::string& access_token, const std::string& account,
-                    SendEventFunc sendfunc);
+                    const std::string& device_id, SendEventFunc sendfunc);
   NunchukMatrixImpl(const NunchukMatrixImpl&) = delete;
   NunchukMatrixImpl& operator=(const NunchukMatrixImpl&) = delete;
   ~NunchukMatrixImpl() override;
@@ -112,14 +115,10 @@ class NunchukMatrixImpl : public NunchukMatrix {
 
  private:
   NunchukMatrixEvent NewEvent(const std::string& room_id,
-                              const std::string& event_type,
-                              const std::string& content,
+                              const std::string& event_type, json& json_content,
                               bool ignore_error = false);
   void SendReceiveTransaction(const std::string& room_id,
                               const std::string& tx_id);
-  void SendWalletReady(const std::string& room_id);
-  void SendTransactionReady(const std::string& room_id,
-                            const std::string& init_event_id);
   void RandomDelay(std::function<void()> func);
   void AsyncBackup(const std::unique_ptr<Nunchuk>& nu, int delay_sec = 0);
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu);
@@ -130,6 +129,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   std::string sync_room_id_;
   std::string access_token_;
   std::string sender_;
+  std::string device_id_;
   bool stopped = false;
   Chain chain_;
   SendEventFunc sendfunc_;

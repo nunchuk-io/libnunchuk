@@ -261,7 +261,8 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(
     const AppSettings& appsettings, const std::string& access_token,
-    const std::string& account, SendEventFunc sendfunction);
+    const std::string& account, const std::string& device_id,
+    SendEventFunc sendfunction);
 
 }  // namespace nunchuk
 

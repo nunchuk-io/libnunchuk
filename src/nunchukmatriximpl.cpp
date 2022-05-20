@@ -62,8 +62,12 @@ NunchukMatrixEvent JsonToEvent(const json& j) {
 
 NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
                                                const std::string& event_type,
-                                               const std::string& content,
+                                               json& json_content,
                                                bool ignore_error) {
+  json_content["v"] = NUNCHUK_EVENT_VER;
+  json_content["device_id"] = device_id_;
+
+  std::string content = json_content.dump();
   NunchukMatrixEvent event{};
   event.set_room_id(room_id);
   event.set_type(event_type);
@@ -72,16 +76,15 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
   event.set_ts(std::time(0));
 
   if (content.length() > CONTENT_MAX_LEN) {
-    auto new_content = json::parse(content);
-    auto body = new_content["body"].dump();
-    new_content.erase("body");
-    event.set_content(new_content.dump());
+    auto body = json_content["body"].dump();
+    json_content.erase("body");
+    event.set_content(json_content.dump());
 
     auto file = EncryptAttachment(uploadfunc_, body, EventToJson(event).dump());
     if (file.empty()) return event;
 
-    new_content["file"] = json::parse(file);
-    event.set_content(new_content.dump());
+    json_content["file"] = json::parse(file);
+    event.set_content(json_content.dump());
   }
 
   sendfunc_(room_id, event_type, event.get_content(), ignore_error);
@@ -91,10 +94,12 @@ NunchukMatrixEvent NunchukMatrixImpl::NewEvent(const std::string& room_id,
 NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
                                      const std::string& access_token,
                                      const std::string& account,
+                                     const std::string& device_id,
                                      SendEventFunc sendfunc)
     : storage_(appsettings.get_storage_path(), "", account),
       access_token_(access_token),
       sender_(account),
+      device_id_(device_id),
       chain_(appsettings.get_chain()),
       sendfunc_(sendfunc) {
   uploadfunc_ = [this](const std::string&, const std::string&,
@@ -115,9 +120,8 @@ NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
     const std::string& code, const std::string& message) {
   json content = {
       {"msgtype", "io.nunchuk.error"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body", {{"code", code}, {"message", message}, {"platform", platform}}}};
-  return NewEvent(room_id, "io.nunchuk.error", content.dump(), true);
+  return NewEvent(room_id, "io.nunchuk.error", content, true);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
@@ -130,7 +134,6 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
                                  "Shared wallet exists");
   }
   json content = {{"msgtype", "io.nunchuk.wallet.init"},
-                  {"v", NUNCHUK_EVENT_VER},
                   {"body",
                    {{"name", name},
                     {"description", description},
@@ -140,7 +143,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
                     {"is_escrow", is_escrow},
                     {"members", json::array()},
                     {"chain", ChainToStr(chain_)}}}};
-  return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
@@ -184,12 +187,11 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
 
   json content = {
       {"msgtype", "io.nunchuk.wallet.join"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"key", key},
         {"type", SignerTypeToStr(signer.get_type())},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
-  return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
@@ -200,13 +202,12 @@ NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
   auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json content = {{"msgtype", "io.nunchuk.wallet.leave"},
-                  {"v", NUNCHUK_EVENT_VER},
                   {"body",
                    {{"reason", reason},
                     {"io.nunchuk.relates_to",
                      {{"init_event", EventToJson(init_event)},
                       {"join_event_id", join_event_id}}}}}};
-  return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
@@ -217,11 +218,10 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json content = {
       {"msgtype", "io.nunchuk.wallet.cancel"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"reason", reason},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
-  return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
@@ -233,11 +233,10 @@ NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json content = {
       {"msgtype", "io.nunchuk.wallet.delete"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"wallet_id", wallet.get_wallet_id()},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
-  return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
@@ -284,7 +283,6 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
       is_escrow ? -1 : 0);
 
   json content = {{"msgtype", "io.nunchuk.wallet.create"},
-                  {"v", NUNCHUK_EVENT_VER},
                   {"body",
                    {{"descriptor", descriptor},
                     {"path_restriction", "/0/*,/1/*"},
@@ -292,26 +290,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
                     {"io.nunchuk.relates_to",
                      {{"init_event", EventToJson(init_event)},
                       {"join_event_ids", join_event_ids}}}}}};
-  return NewEvent(room_id, "io.nunchuk.wallet", content.dump());
-}
-
-void NunchukMatrixImpl::SendWalletReady(const std::string& room_id) {
-  auto db = storage_.GetRoomDb(chain_);
-  auto wallet = db.GetActiveWallet(room_id, false);
-  if (!wallet.get_ready_event_id().empty()) return;  // Ready event sent
-
-  auto join_event_ids = db.GetJoinIds(wallet);
-  auto init_event = db.GetEvent(wallet.get_init_event_id());
-  json wallet_config = json::parse(init_event.get_content())["body"];
-  int n = wallet_config["n"];
-  if (join_event_ids.size() != n) return;  // Wallet not ready
-  json content = {{"msgtype", "io.nunchuk.wallet.ready"},
-                  {"v", NUNCHUK_EVENT_VER},
-                  {"body",
-                   {{"io.nunchuk.relates_to",
-                     {{"init_event", EventToJson(init_event)},
-                      {"join_event_ids", join_event_ids}}}}}};
-  NewEvent(room_id, "io.nunchuk.wallet", content.dump());
+  return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
@@ -325,7 +304,6 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
   auto tx = nu->CreateTransaction(wallet.get_wallet_id(), outputs, memo, inputs,
                                   fee_rate, subtract_fee_from_amount);
   json content = {{"msgtype", "io.nunchuk.transaction.init"},
-                  {"v", NUNCHUK_EVENT_VER},
                   {"body",
                    {{"wallet_id", wallet.get_wallet_id()},
                     {"memo", tx.get_memo()},
@@ -333,7 +311,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
                     {"fee_rate", tx.get_fee_rate()},
                     {"subtract_fee_from_amount", tx.subtract_fee_from_amount()},
                     {"chain", ChainToStr(chain_)}}}};
-  return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  return NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
@@ -347,12 +325,11 @@ NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
   auto tx = nu->SignTransaction(rtx.get_wallet_id(), rtx.get_tx_id(), device);
   json content = {
       {"msgtype", "io.nunchuk.transaction.sign"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"psbt", tx.get_psbt()},
         {"master_fingerprint", device.get_master_fingerprint()},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
-  return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  return NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
@@ -363,11 +340,10 @@ NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
   std::string room_id = init_event.get_room_id();
   json content = {
       {"msgtype", "io.nunchuk.transaction.reject"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"reason", reason},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
-  return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  return NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
@@ -378,11 +354,10 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
   std::string room_id = init_event.get_room_id();
   json content = {
       {"msgtype", "io.nunchuk.transaction.cancel"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body",
        {{"reason", reason},
         {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
-  return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  return NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
@@ -394,7 +369,6 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
   auto rtx = db.GetTransaction(init_event_id);
   auto tx = nu->BroadcastTransaction(rtx.get_wallet_id(), rtx.get_tx_id());
   json content = {{"msgtype", "io.nunchuk.transaction.broadcast"},
-                  {"v", NUNCHUK_EVENT_VER},
                   {"body",
                    {{"tx_id", tx.get_txid()},
                     {"raw_tx", tx.get_raw()},
@@ -406,28 +380,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
   }
   rtx.set_tx_id(tx.get_txid());
   db.SetTransaction(rtx);
-  return NewEvent(room_id, "io.nunchuk.transaction", content.dump());
-}
-
-void NunchukMatrixImpl::SendTransactionReady(const std::string& room_id,
-                                             const std::string& init_event_id) {
-  auto db = storage_.GetRoomDb(chain_);
-  auto wallet = db.GetActiveWallet(room_id);
-  auto wallet_init_event = db.GetEvent(wallet.get_init_event_id());
-  json wallet_config = json::parse(wallet_init_event.get_content())["body"];
-  int m = wallet_config["m"];
-
-  auto rtx = db.GetTransaction(init_event_id);
-  if (rtx.get_sign_event_ids().size() < m) return;  // Transaction not ready
-  if (!rtx.get_ready_event_id().empty()) return;
-  auto init_event = db.GetEvent(init_event_id);
-  json content = {{"msgtype", "io.nunchuk.transaction.ready"},
-                  {"v", NUNCHUK_EVENT_VER},
-                  {"body",
-                   {{"io.nunchuk.relates_to",
-                     {{"init_event", EventToJson(init_event)},
-                      {"sign_event_ids", rtx.get_sign_event_ids()}}}}}};
-  NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  return NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
 std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
@@ -463,9 +416,8 @@ void NunchukMatrixImpl::SendReceiveTransaction(const std::string& room_id,
   std::string encrypted_tx_id = EncryptTxId(desc, tx_id);
   json content = {
       {"msgtype", "io.nunchuk.transaction.receive"},
-      {"v", NUNCHUK_EVENT_VER},
       {"body", {{"encrypted_tx_id", json::parse(encrypted_tx_id)}}}};
-  NewEvent(room_id, "io.nunchuk.transaction", content.dump());
+  NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
 void NunchukMatrixImpl::EnableGenerateReceiveEvent(
@@ -498,10 +450,8 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(
     body["matrix"] = json::parse(matrix_data);
   } catch (...) {
   }
-  json content = {{"msgtype", "io.nunchuk.sync.file"},
-                  {"v", NUNCHUK_EVENT_VER},
-                  {"body", body}};
-  return NewEvent(sync_room_id_, "io.nunchuk.sync", content.dump());
+  json content = {{"msgtype", "io.nunchuk.sync.file"}, {"body", body}};
+  return NewEvent(sync_room_id_, "io.nunchuk.sync", content);
 }
 
 void NunchukMatrixImpl::AsyncBackup(const std::unique_ptr<Nunchuk>& nu,
@@ -549,7 +499,7 @@ NunchukMatrixEvent NunchukMatrixImpl::UploadFileCallback(
   json new_content = json::parse(event.get_content());
   new_content["file"] = file;
 
-  return NewEvent(event.get_room_id(), event.get_type(), new_content.dump());
+  return NewEvent(event.get_room_id(), event.get_type(), new_content);
 }
 
 void NunchukMatrixImpl::DownloadFileCallback(
@@ -683,11 +633,6 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     wallet.set_room_id(event.get_room_id());
     wallet.set_cancel_event_id(event.get_event_id());
     db.SetWallet(wallet);
-  } else if (msgtype == "io.nunchuk.wallet.ready") {
-    auto wallet = db.GetWallet(init_event_id, false);
-    wallet.set_room_id(event.get_room_id());
-    wallet.set_ready_event_id(event.get_event_id());
-    db.SetWallet(wallet);
   } else if (msgtype == "io.nunchuk.wallet.delete") {
     auto wallet = db.GetWallet(init_event_id, false);
     wallet.set_room_id(event.get_room_id());
@@ -784,8 +729,6 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
         nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
       } catch (...) {
       }
-    } else if (msgtype == "io.nunchuk.transaction.ready") {
-      tx.set_ready_event_id(event.get_event_id());
     } else if (msgtype == "io.nunchuk.transaction.broadcast") {
       tx.set_broadcast_event_id(event.get_event_id());
       if (body["raw_tx"] != nullptr) {
@@ -922,9 +865,10 @@ void NunchukMatrixImpl::RandomDelay(std::function<void()> exec) {
 
 std::unique_ptr<NunchukMatrix> MakeNunchukMatrixForAccount(
     const AppSettings& appsettings, const std::string& passphrase,
-    const std::string& account, SendEventFunc SendEventFunc) {
-  return std::unique_ptr<NunchukMatrixImpl>(
-      new NunchukMatrixImpl(appsettings, passphrase, account, SendEventFunc));
+    const std::string& account, const std::string& device_id,
+    SendEventFunc SendEventFunc) {
+  return std::unique_ptr<NunchukMatrixImpl>(new NunchukMatrixImpl(
+      appsettings, passphrase, account, device_id, SendEventFunc));
 }
 
 }  // namespace nunchuk
