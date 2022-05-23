@@ -674,15 +674,18 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     }
     db.SetWallet(wallet);
   } else if (msgtype == "io.nunchuk.transaction.receive") {
-    auto wallet = db.GetActiveWallet(event.get_room_id());
-    if (!wallet.get_finalize_event_id().empty()) {
-      nu->ScanWalletAddress(wallet.get_wallet_id());
-      auto encrypted = body["encrypted_tx_id"];
-      auto wallet_finalize_event = db.GetEvent(wallet.get_finalize_event_id());
-      std::string desc = json::parse(
-          wallet_finalize_event.get_content())["body"]["descriptor"];
-      db.SetTransactionNotify(DecryptTxId(desc, encrypted.dump()),
-                              event.get_event_id());
+    if (db.HasActiveWallet(event.get_room_id())) {
+      auto wallet = db.GetActiveWallet(event.get_room_id());
+      if (!wallet.get_finalize_event_id().empty()) {
+        nu->ScanWalletAddress(wallet.get_wallet_id());
+        auto encrypted = body["encrypted_tx_id"];
+        auto wallet_finalize_event =
+            db.GetEvent(wallet.get_finalize_event_id());
+        std::string desc = json::parse(
+            wallet_finalize_event.get_content())["body"]["descriptor"];
+        db.SetTransactionNotify(DecryptTxId(desc, encrypted.dump()),
+                                event.get_event_id());
+      }
     }
   } else if (msgtype.rfind("io.nunchuk.transaction", 0) == 0) {
     json init_body;
