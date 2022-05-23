@@ -30,8 +30,6 @@
 #include <shared_mutex>
 #include <utils/json.hpp>
 
-using json = nlohmann::json;
-
 namespace nunchuk {
 
 class NunchukMatrixImpl : public NunchukMatrix {
@@ -115,7 +113,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
 
  private:
   NunchukMatrixEvent NewEvent(const std::string& room_id,
-                              const std::string& event_type, json& json_content,
+                              const std::string& event_type,
+                              nlohmann::json& json_content,
                               bool ignore_error = false);
   void SendReceiveTransaction(const std::string& room_id,
                               const std::string& tx_id);

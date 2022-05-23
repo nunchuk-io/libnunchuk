@@ -445,11 +445,7 @@ NunchukMatrixEvent NunchukMatrixImpl::Backup(
     const std::unique_ptr<Nunchuk>& nu) {
   auto data = nu->ExportBackup();
   auto body = json::parse(data);
-  try {
-    auto matrix_data = ExportBackup();
-    body["matrix"] = json::parse(matrix_data);
-  } catch (...) {
-  }
+  body["matrix"] = json::parse(ExportBackup());
   json content = {{"msgtype", "io.nunchuk.sync.file"}, {"body", body}};
   return NewEvent(sync_room_id_, "io.nunchuk.sync", content);
 }
@@ -516,10 +512,7 @@ void NunchukMatrixImpl::DownloadFileCallback(
   if (event.get_type().rfind("io.nunchuk.sync", 0) == 0) {
     if (nu->SyncWithBackup(data, progress)) {
       std::unique_lock<std::shared_mutex> lock(access_);
-      try {
-        SyncWithBackup(data);
-      } catch (...) {
-      }
+      SyncWithBackup(data);
     }
   } else {
     content["body"] = json::parse(data);
@@ -593,7 +586,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     body = content["body"];
   } else if (content["file"] != nullptr) {
     auto data = DecryptAttachment(downloadfunc_, content["file"].dump(),
-                                  EventToJson(event).dump(), 0);
+                                  EventToJson(event).dump());
     if (data.empty()) return;
     body = json::parse(data);
   }
@@ -705,11 +698,8 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     tx.set_wallet_id(init_body["wallet_id"]);
     nu->ScanWalletAddress(tx.get_wallet_id());
     if (tx.get_broadcast_event_id().empty()) {
-      try {
-        auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
-        tx.set_tx_id(ntx.get_txid());
-      } catch (...) {
-      }
+      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
+      tx.set_tx_id(ntx.get_txid());
     }
 
     if (msgtype == "io.nunchuk.transaction.sign") {
@@ -719,16 +709,10 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       }
     } else if (msgtype == "io.nunchuk.transaction.reject") {
       tx.add_reject_event_id(event.get_event_id());
-      try {
-        nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
-      } catch (...) {
-      }
+      nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
     } else if (msgtype == "io.nunchuk.transaction.cancel") {
       tx.set_cancel_event_id(event.get_event_id());
-      try {
-        nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
-      } catch (...) {
-      }
+      nu->DeleteTransaction(tx.get_wallet_id(), tx.get_tx_id());
     } else if (msgtype == "io.nunchuk.transaction.broadcast") {
       tx.set_broadcast_event_id(event.get_event_id());
       if (body["raw_tx"] != nullptr) {
@@ -771,14 +755,10 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
       data = content["body"].dump();
     } else if (content["file"] != nullptr) {
       data = DecryptAttachment(downloadfunc_, content["file"].dump(),
-                               EventToJson(event).dump(),
-                               storage_.GetLastSyncTs());
+                               EventToJson(event).dump());
     }
     if (!data.empty() && nu->SyncWithBackup(data, progress)) {
-      try {
-        SyncWithBackup(data);
-      } catch (...) {
-      }
+      SyncWithBackup(data);
     }
   }
   db.SetEvent(event);

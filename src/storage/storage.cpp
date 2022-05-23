@@ -180,9 +180,9 @@ void NunchukStorage::SetPassphrase(const std::string& value) {
 }
 
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
-  auto wallets = ListWallets(chain);
-  auto signers = ListMasterSigners(chain);
   std::unique_lock<std::shared_mutex> lock(access_);
+  auto wallets = ListWallets0(chain);
+  auto signers = ListMasterSigners0(chain);
   if (passphrase_.empty()) {
     for (auto&& wallet_id : wallets) {
       auto old_file = GetWalletDir(chain, wallet_id);
@@ -859,12 +859,10 @@ std::string NunchukStorage::FillPsbt(Chain chain, const std::string& wallet_id,
 void NunchukStorage::MaybeMigrate(Chain chain) {
   static std::once_flag flag;
   std::call_once(flag, [&] {
-    auto wallets = ListWallets(chain);
-    {
-      std::unique_lock<std::shared_mutex> lock(access_);
-      for (auto&& wallet_id : wallets) {
-        GetWalletDb(chain, wallet_id).MaybeMigrate();
-      }
+    std::unique_lock<std::shared_mutex> lock(access_);
+    auto wallets = ListWallets0(chain);
+    for (auto&& wallet_id : wallets) {
+      GetWalletDb(chain, wallet_id).MaybeMigrate();
     }
 
     // migrate app state
@@ -902,8 +900,8 @@ bool NunchukStorage::SetSelectedWallet(Chain chain, const std::string& value) {
 }
 
 std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {
-  auto signers = ListMasterSigners(chain);
   std::shared_lock<std::shared_mutex> lock(access_);
+  auto signers = ListMasterSigners0(chain);
   std::vector<SingleSigner> rs;
   for (auto&& signer_id : signers) {
     auto remote = GetSignerDb(chain, signer_id).GetRemoteSigners();
@@ -1072,9 +1070,11 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
     if (d == nullptr) return;
     auto appstate = GetAppStateDb(chain);
     json signers = d["signers"];
+    auto dsids = appstate.GetDeletedSigners();
     for (auto&& signer : signers) {
       std::string id = signer["id"];
       if (id.empty()) continue;
+      if (std::find(dsids.begin(), dsids.end(), id) != dsids.end()) continue;
       fs::path db_file = GetSignerDir(chain, id);
       NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
       if (!signer["name"].get<std::string>().empty()) {
@@ -1101,9 +1101,11 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
     progress(percent);
 
     json wallets = d["wallets"];
+    auto dwids = appstate.GetDeletedWallets();
     for (auto&& wallet : wallets) {
       std::string id = wallet["id"];
       if (id.empty()) continue;
+      if (std::find(dwids.begin(), dwids.end(), id) != dwids.end()) continue;
       fs::path db_file = GetWalletDir(chain, id);
       if (!fs::exists(db_file)) {
         AddressType a;
@@ -1126,11 +1128,14 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       auto wallet_db = GetWalletDb(chain, id);
       json pending_txs = wallet["pending_signatures"];
       auto txs = wallet_db.GetTransactions();
+      auto dtxids = appstate.GetDeletedTransactions();
       for (auto&& tx : pending_txs) {
         std::string psbt = tx["psbt"];
         PartiallySignedTransaction psbtx = DecodePsbt(psbt);
         std::string tx_id = psbtx.tx.value().GetHash().GetHex();
         if (hasTx(txs, tx_id, false)) continue;
+        if (std::find(dtxids.begin(), dtxids.end(), tx_id) != dtxids.end())
+          continue;
         std::map<std::string, Amount> outputs;
         for (auto&& output : tx["outputs"]) {
           outputs[output["address"]] = output["amount"];
@@ -1165,10 +1170,6 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   auto appState = GetAppStateDb(Chain::MAIN);
   json data = json::parse(dataStr);
   time_t ts = data["ts"];
-  if (appState.GetLastSyncTs() >= ts) {
-    progress(100);
-    return false;  // old backup
-  }
   if (ts != appState.GetLastExportTs()) {
     importChain(Chain::TESTNET, data["testnet"]);
     importChain(Chain::MAIN, data["mainnet"]);
