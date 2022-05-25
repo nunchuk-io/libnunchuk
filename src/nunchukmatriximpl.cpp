@@ -277,7 +277,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
 
   std::string descriptor = GetDescriptorForSigners(
       signers, m, DescriptorPath::TEMPLATE, a, w, 0, true);
-  std::string first_address = CoreUtils::getInstance().DeriveAddresses(
+  std::string first_address = CoreUtils::getInstance().DeriveAddress(
       GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w,
                               is_escrow ? -1 : 0, true),
       is_escrow ? -1 : 0);

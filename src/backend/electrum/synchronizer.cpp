@@ -92,36 +92,29 @@ void ElectrumSynchronizer::Run() {
 void ElectrumSynchronizer::UpdateTransactions(Chain chain,
                                               const std::string& wallet_id,
                                               const json& history) {
+  using TS = TransactionStatus;
   if (!history.is_array()) return;
-  for (auto it = history.begin(); it != history.end(); ++it) {
-    json item = it.value();
+  auto txs = storage_->GetTransactions(chain, wallet_id, 10000, 0);
+  for (auto&& item : history) {
     std::string tx_id = item["tx_hash"];
     int height = item["height"];
-    try {
-      // TODO(Bakaoh): [optimize] use GetTransactions
-      Transaction tx = storage_->GetTransaction(chain, wallet_id, tx_id);
-      if (tx.get_status() != TransactionStatus::CONFIRMED && height > 0) {
-        auto tx = client_->blockchain_transaction_get(tx_id);
-        storage_->UpdateTransaction(chain, wallet_id, tx["hex"], height,
-                                    tx["blocktime"]);
-        transaction_listener_(tx_id, TransactionStatus::CONFIRMED, wallet_id);
-      }
-    } catch (StorageException& se) {
-      if (se.code() == StorageException::TX_NOT_FOUND) {
-        auto tx = client_->blockchain_transaction_get(tx_id);
-        time_t time = tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
-        Amount fee = 0;
-        if (height <= 0) {
-          height = 0;
-          fee = Amount(item["fee"]);
-        }
-        storage_->InsertTransaction(chain, wallet_id, tx["hex"], height, time,
-                                    fee);
-        auto status = height <= 0 ? TransactionStatus::PENDING_CONFIRMATION
-                                  : TransactionStatus::CONFIRMED;
-        transaction_listener_(tx_id, status, wallet_id);
-      }
+    auto t = std::find_if(
+        txs.begin(), txs.end(),
+        [tx_id](const Transaction& tx) { return tx.get_txid() == tx_id; });
+    if (t != txs.end() && (t->get_status() == TS::CONFIRMED || height <= 0))
+      continue;
+    auto tx = client_->blockchain_transaction_get(tx_id);
+    std::string raw = tx["hex"];
+    time_t time = tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
+    Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
+    auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
+    if (height <= 0) height = 0;
+    if (t == txs.end()) {
+      storage_->InsertTransaction(chain, wallet_id, raw, height, time, fee);
+    } else {
+      storage_->UpdateTransaction(chain, wallet_id, raw, height, time);
     }
+    transaction_listener_(tx_id, status, wallet_id);
   }
 }
 

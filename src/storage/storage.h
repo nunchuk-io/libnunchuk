@@ -97,8 +97,6 @@ class NunchukStorage {
   bool SetHealthCheckSuccess(Chain chain, const SingleSigner &signer);
   bool AddAddress(Chain chain, const std::string &wallet_id,
                   const std::string &address, int index, bool internal);
-  bool UseAddress(Chain chain, const std::string &wallet_id,
-                  const std::string &address);
   std::vector<std::string> GetAddresses(Chain chain,
                                         const std::string &wallet_id, bool used,
                                         bool internal);

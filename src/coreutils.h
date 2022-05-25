@@ -31,7 +31,9 @@ class CoreUtils {
   std::string CreatePsbt(const std::vector<TxInput> vin,
                          const std::vector<TxOutput> vout);
   std::string DecodePsbt(const std::string &base64_psbt);
-  std::string DeriveAddresses(const std::string &descriptor, int index = -1);
+  std::string DeriveAddress(const std::string &descriptor, int index = -1);
+  std::vector<std::string> DeriveAddresses(const std::string &descriptor,
+                                           int fromIndex, int toIndex);
   bool VerifyMessage(const std::string &address, const std::string &signature,
                      const std::string &message);
 

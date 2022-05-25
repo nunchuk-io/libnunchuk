@@ -693,12 +693,6 @@ bool NunchukStorage::AddAddress(Chain chain, const std::string& wallet_id,
   return GetWalletDb(chain, wallet_id).AddAddress(address, index, internal);
 }
 
-bool NunchukStorage::UseAddress(Chain chain, const std::string& wallet_id,
-                                const std::string& address) {
-  std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).UseAddress(address);
-}
-
 std::vector<std::string> NunchukStorage::GetAddresses(
     Chain chain, const std::string& wallet_id, bool used, bool internal) {
   std::shared_lock<std::shared_mutex> lock(access_);

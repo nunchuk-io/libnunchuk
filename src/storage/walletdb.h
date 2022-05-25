@@ -49,7 +49,6 @@ class NunchukWalletDb : public NunchukDb {
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
   bool AddAddress(const std::string &address, int index, bool internal);
-  bool UseAddress(const std::string &address) const;
   Wallet GetWallet() const;
   std::vector<SingleSigner> GetSigners() const;
   std::vector<std::string> GetAddresses(bool used, bool internal) const;
@@ -87,6 +86,7 @@ class NunchukWalletDb : public NunchukDb {
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   bool AddSigner(const SingleSigner &signer);
   std::vector<AddressData> GetAllAddressData() const;
+  void UseAddress(const std::string &address) const;
   static std::map<std::string, std::vector<AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   friend class NunchukStorage;

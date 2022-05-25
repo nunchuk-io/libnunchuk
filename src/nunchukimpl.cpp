@@ -210,7 +210,7 @@ void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
   std::string address;
   if (wallet.is_escrow()) {
     auto descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-    address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
   } else {
     // scan internal address
@@ -234,7 +234,7 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
   std::vector<std::string> unused_addresses;
   std::string wallet_id = wallet.get_id();
   while (true) {
-    auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     if (synchronizer_->LookAhead(chain_, wallet_id, address, index, internal)) {
       for (auto&& a : unused_addresses) {
         storage_.AddAddress(chain_, wallet_id, a, index, internal);
@@ -507,7 +507,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   std::string descriptor = GetPkhDescriptor(xpub);
-  std::string address = CoreUtils::getInstance().DeriveAddresses(descriptor);
+  std::string address = CoreUtils::getInstance().DeriveAddress(descriptor);
   signature = hwi_.SignMessage(device, message, path);
 
   if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
@@ -531,7 +531,7 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
   std::string address;
   if (signer.get_public_key().empty()) {
     std::string descriptor = GetPkhDescriptor(signer.get_xpub());
-    address = CoreUtils::getInstance().DeriveAddresses(descriptor);
+    address = CoreUtils::getInstance().DeriveAddress(descriptor);
   } else {
     CPubKey pubkey(ParseHex(signer.get_public_key()));
     address = EncodeDestination(PKHash(pubkey.GetID()));
@@ -576,7 +576,7 @@ std::string NunchukImpl::NewAddress(const std::string& wallet_id,
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int index = storage_.GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
   while (true) {
-    auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     if (!synchronizer_->LookAhead(chain_, wallet_id, address, index,
                                   internal)) {
       storage_.AddAddress(chain_, wallet_id, address, index, internal);

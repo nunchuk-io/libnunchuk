@@ -211,29 +211,24 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
   sqlite3_bind_int(stmt, 3, internal ? 1 : 0);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
-  addr_cache_.erase(db_file_name_);
+  if (addr_cache_.count(db_file_name_)) {
+    for (auto&& a : addr_cache_[db_file_name_]) {
+      if (a.address == address) return true;
+    }
+    addr_cache_[db_file_name_].push_back({address, index, internal, false});
+  }
   return true;
 }
 
-bool NunchukWalletDb::UseAddress(const std::string& address) const {
-  if (address.empty()) return false;
-  if (addr_cache_.count(db_file_name_)) {
-    for (auto&& a : addr_cache_[db_file_name_]) {
-      if (a.address == address) {
-        if (a.used) return false;
-        a.used = true;
-        break;
-      }
+void NunchukWalletDb::UseAddress(const std::string& address) const {
+  if (address.empty()) return;
+  if (!addr_cache_.count(db_file_name_)) return;
+  for (auto&& a : addr_cache_[db_file_name_]) {
+    if (a.address == address) {
+      a.used = true;
+      return;
     }
   }
-  sqlite3_stmt* stmt;
-  std::string sql = "UPDATE ADDRESS SET USED = 1 WHERE ADDR = ?;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
-  sqlite3_step(stmt);
-  bool updated = (sqlite3_changes(db_) == 1);
-  SQLCHECK(sqlite3_finalize(stmt));
-  return updated;
 }
 
 std::vector<AddressData> NunchukWalletDb::GetAllAddressData() const {
@@ -254,6 +249,10 @@ std::vector<AddressData> NunchukWalletDb::GetAllAddressData() const {
   }
   SQLCHECK(sqlite3_finalize(stmt));
   addr_cache_[db_file_name_] = addresses;
+  auto txs = GetTransactions();
+  for (auto&& tx : txs) {
+    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+  }
   return addresses;
 }
 
@@ -804,9 +803,6 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
-  for (auto&& tx : rs) {
-    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
-  }
   return rs;
 }
 

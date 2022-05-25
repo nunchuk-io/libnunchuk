@@ -355,7 +355,8 @@ class NUNCHUK_EXPORT Wallet {
   Amount get_balance() const;
   time_t get_create_date() const;
   std::string get_description() const;
-  std::string get_descriptor(DescriptorPath key_path, int index = -1) const;
+  std::string get_descriptor(DescriptorPath key_path, int index = -1,
+                             bool sorted = true) const;
   void set_name(const std::string& value);
   void set_balance(const Amount& value);
   void set_description(const std::string& value);

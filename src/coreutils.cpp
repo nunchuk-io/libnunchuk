@@ -127,8 +127,7 @@ std::string CoreUtils::DecodePsbt(const std::string &base64_psbt) {
   return ParseResponse(resp).dump();
 }
 
-std::string CoreUtils::DeriveAddresses(const std::string &descriptor,
-                                       int index) {
+std::string CoreUtils::DeriveAddress(const std::string &descriptor, int index) {
   json params = index >= 0
                     ? json::array({descriptor, json::array({index, index})})
                     : json::array({descriptor});
@@ -136,6 +135,15 @@ std::string CoreUtils::DeriveAddresses(const std::string &descriptor,
       {"method", "deriveaddresses"}, {"params", params}, {"id", "placeholder"}};
   std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
   return ParseResponse(resp)[0];
+}
+
+std::vector<std::string> CoreUtils::DeriveAddresses(
+    const std::string &descriptor, int fromIndex, int toIndex) {
+  json params = json::array({descriptor, json::array({fromIndex, toIndex})});
+  json req = {
+      {"method", "deriveaddresses"}, {"params", params}, {"id", "placeholder"}};
+  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  return ParseResponse(resp);
 }
 
 bool CoreUtils::VerifyMessage(const std::string &address,
