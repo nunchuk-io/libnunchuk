@@ -95,10 +95,8 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
                                      const std::string& description) {
-  return GetDescriptorForSigners(
-      signers, m, DescriptorPath::ANY, address_type,
-      n == 1 ? WalletType::SINGLE_SIG
-             : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG));
+  Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
+  return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets() {
@@ -593,7 +591,7 @@ Amount NunchukImpl::GetAddressBalance(const std::string& wallet_id,
 
 std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
     const std::string& wallet_id) {
-  return storage_.GetUnspentOutputs(chain_, wallet_id);
+  return storage_.GetUtxos(chain_, wallet_id);
 }
 
 bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,

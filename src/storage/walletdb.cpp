@@ -300,7 +300,7 @@ int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
 }
 
 Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
-  auto utxos = GetUnspentOutputs(true);
+  auto utxos = GetUtxos(true);
   Amount balance = 0;
   for (auto&& utxo : utxos) {
     // Only include confirmed Receive amount
@@ -640,7 +640,7 @@ bool NunchukWalletDb::SetUtxos(const std::string& address,
 }
 
 Amount NunchukWalletDb::GetBalance() const {
-  auto utxos = GetUnspentOutputs(true);
+  auto utxos = GetUtxos(true);
   Amount balance = 0;
   for (auto&& utxo : utxos) {
     // Only include confirmed Receive amount and in-mempool Change amount
@@ -651,8 +651,7 @@ Amount NunchukWalletDb::GetBalance() const {
   return balance;
 }
 
-std::vector<UnspentOutput> NunchukWalletDb::GetUnspentOutputs(
-    bool remove_locked) const {
+std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(bool remove_locked) const {
   std::vector<Transaction> transactions = GetTransactions();
   auto input_str = [](std::string tx_id, int vout) {
     return boost::str(boost::format{"%s:%d"} % tx_id % vout);

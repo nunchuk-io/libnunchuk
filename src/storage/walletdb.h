@@ -38,8 +38,6 @@ class NunchukWalletDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
 
-  static std::string GetSingleSignerKey(const SingleSigner &signer);
-
   void InitWallet(const std::string &name, int m, int n,
                   const std::vector<SingleSigner> &signers,
                   AddressType address_type, bool is_escrow, time_t create_date,
@@ -70,9 +68,9 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdatePsbt(const std::string &psbt);
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(const std::string &tx_id) const;
-  std::vector<UnspentOutput> GetUnspentOutputs(bool remove_locked) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
                                            int skip = 0) const;
+  std::vector<UnspentOutput> GetUtxos(bool remove_locked) const;
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance() const;
   std::string FillPsbt(const std::string &psbt);
@@ -83,6 +81,7 @@ class NunchukWalletDb : public NunchukDb {
 
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
+  std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
   std::vector<AddressData> GetAllAddressData() const;
   void UseAddress(const std::string &address) const;

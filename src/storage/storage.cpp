@@ -388,9 +388,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
       }
     }
   }
-  std::string external_desc = GetDescriptorForSigners(
-      signers, m, DescriptorPath::EXTERNAL_ALL, address_type, wallet_type);
-  std::string id = GetDescriptorChecksum(external_desc);
+  std::string id = GetWalletId(signers, m, address_type, wallet_type);
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
@@ -730,7 +728,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   auto vtx = db.GetTransactions(count, skip);
 
   // remove invalid, out-of-date Send transactions
-  auto utxos = db.GetUnspentOutputs(false);
+  auto utxos = db.GetUtxos(false);
   auto is_valid_input = [utxos](const TxInput& input) {
     for (auto&& utxo : utxos) {
       if (input.first == utxo.get_txid() && input.second == utxo.get_vout())
@@ -756,10 +754,10 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   return vtx;
 }
 
-std::vector<UnspentOutput> NunchukStorage::GetUnspentOutputs(
+std::vector<UnspentOutput> NunchukStorage::GetUtxos(
     Chain chain, const std::string& wallet_id, bool remove_locked) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetUnspentOutputs(remove_locked);
+  return GetWalletDb(chain, wallet_id).GetUtxos(remove_locked);
 }
 
 Transaction NunchukStorage::GetTransaction(Chain chain,

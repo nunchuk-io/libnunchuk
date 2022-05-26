@@ -30,6 +30,9 @@ std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
 
+std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
+                        AddressType address_type, WalletType wallet_type);
+
 /**
  * @param external External descriptor to import
  * @param internal Internal descriptor to import

@@ -149,6 +149,13 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   return desc_with_checksum;
 }
 
+std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
+                        AddressType address_type, WalletType wallet_type) {
+  auto external_desc = GetDescriptorForSigners(
+      signers, m, DescriptorPath::EXTERNAL_ALL, address_type, wallet_type);
+  return GetDescriptorChecksum(external_desc);
+}
+
 std::string GetPkhDescriptor(const std::string& address) {
   std::stringstream desc_without_checksum;
   desc_without_checksum << "pkh(" << address << ")";
