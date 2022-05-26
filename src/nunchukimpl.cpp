@@ -995,7 +995,7 @@ SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
 
 std::vector<std::string> NunchukImpl::ExportCoboWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   return nunchuk::bcr::EncodeUniformResource(data);
 }
@@ -1064,7 +1064,7 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
 
 std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   ur::ByteVector cbor;
   encodeBytes(cbor, data);
@@ -1182,7 +1182,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
 std::vector<std::string> NunchukImpl::ExportPassportWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   auto qr_data = nunchuk::bcr::EncodeUniformResource(data);
   for (std::string& s : qr_data) {
@@ -1291,12 +1291,7 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
     change_address = unused.empty() ? NewAddress(wallet_id, true) : unused[0];
   }
   std::string error;
-  std::string internal_desc =
-      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-  std::string external_desc =
-      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-  std::string desc = GetDescriptorsImportString(external_desc, internal_desc);
-  CoinSelector selector{desc, change_address};
+  CoinSelector selector{GetDescriptorsImportString(wallet), change_address};
   selector.set_fee_rate(CFeeRate(fee_rate));
   selector.set_discard_rate(CFeeRate(synchronizer_->RelayFee()));
 

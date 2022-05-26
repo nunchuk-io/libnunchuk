@@ -50,6 +50,12 @@ std::string GetDescriptorsImportString(const std::string& external,
   return descs.dump();
 }
 
+std::string GetDescriptorsImportString(const Wallet& wallet) {
+  return GetDescriptorsImportString(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+}
+
 std::string FormalizePath(const std::string& path) {
   std::string rs(path);
   if (rs.rfind("m", 0) == 0) rs.erase(0, 1);  // Remove leading m

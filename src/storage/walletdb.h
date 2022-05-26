@@ -49,7 +49,7 @@ class NunchukWalletDb : public NunchukDb {
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
   bool AddAddress(const std::string &address, int index, bool internal);
-  Wallet GetWallet() const;
+  Wallet GetWallet(bool skip_balance = false) const;
   std::vector<SingleSigner> GetSigners() const;
   std::vector<std::string> GetAddresses(bool used, bool internal) const;
   std::vector<std::string> GetAllAddresses() const;
@@ -76,7 +76,6 @@ class NunchukWalletDb : public NunchukDb {
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance() const;
   std::string FillPsbt(const std::string &psbt);
-  std::string GetMultisigConfig(bool is_cobo = false) const;
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
   int GetAddressIndex(const std::string &address) const;
@@ -87,6 +86,8 @@ class NunchukWalletDb : public NunchukDb {
   bool AddSigner(const SingleSigner &signer);
   std::vector<AddressData> GetAllAddressData() const;
   void UseAddress(const std::string &address) const;
+  bool IsMyAddress(const std::string &address) const;
+  bool IsMyChange(const std::string &address) const;
   static std::map<std::string, std::vector<AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   friend class NunchukStorage;

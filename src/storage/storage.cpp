@@ -23,6 +23,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/bsms.hpp>
+#include <utils/multisigconfig.hpp>
 #include <boost/filesystem/string_file.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
@@ -92,16 +93,14 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
                                   ExportFormat format) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet_id);
+  auto wallet = wallet_db.GetWallet(true);
   switch (format) {
     case ExportFormat::COLDCARD:
-      return WriteFile(file_path, wallet_db.GetMultisigConfig());
-    case ExportFormat::DESCRIPTOR: {
-      return WriteFile(
-          file_path, wallet_db.GetWallet().get_descriptor(DescriptorPath::ANY));
-    }
-    case ExportFormat::BSMS: {
-      return WriteFile(file_path, GetDescriptorRecord(wallet_db.GetWallet()));
-    }
+      return WriteFile(file_path, ::GetMultisigConfig(wallet));
+    case ExportFormat::DESCRIPTOR:
+      return WriteFile(file_path, wallet.get_descriptor(DescriptorPath::ANY));
+    case ExportFormat::BSMS:
+      return WriteFile(file_path, GetDescriptorRecord(wallet));
     case ExportFormat::DB:
       if (passphrase_.empty()) {
         fs::copy_file(GetWalletDir(chain, wallet_id), file_path);
@@ -944,10 +943,9 @@ Amount NunchukStorage::GetAddressBalance(Chain chain,
 }
 
 std::string NunchukStorage::GetMultisigConfig(Chain chain,
-                                              const std::string& wallet_id,
-                                              bool is_cobo) {
+                                              const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetMultisigConfig(is_cobo);
+  return ::GetMultisigConfig(GetWalletDb(chain, wallet_id).GetWallet(true));
 }
 
 void NunchukStorage::SendSignerPassphrase(Chain chain,
@@ -973,7 +971,7 @@ std::string NunchukStorage::ExportBackup() {
     auto wids = ListWallets0(chain);
     for (auto&& id : wids) {
       auto wallet_db = GetWalletDb(chain, id);
-      auto w = wallet_db.GetWallet();
+      auto w = wallet_db.GetWallet(true);
       json wallet = {
           {"id", w.get_id()},
           {"name", w.get_name()},

@@ -33,6 +33,31 @@ static std::regex FORMAT_REGEX("Format:(.+)");
 static std::regex DERIVATION_REGEX("Derivation:(.+)");
 static std::regex XFP_REGEX("([0-9a-fA-F]{8}):(.+)");
 
+inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
+  using namespace nunchuk;
+  std::stringstream content;
+  content << "# Exported from Nunchuk" << std::endl
+          << "Name: " << wallet.get_name().substr(0, 20) << std::endl
+          << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
+          << std::endl
+          << "Format: "
+          << (wallet.get_address_type() == AddressType::LEGACY
+                  ? "P2SH"
+                  : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
+                        ? "P2WSH"
+                        : "P2WSH-P2SH")
+          << std::endl;
+
+  content << std::endl;
+  for (auto&& signer : wallet.get_signers()) {
+    content << "Derivation: " << signer.get_derivation_path() << std::endl;
+    content << signer.get_master_fingerprint() << ": " << signer.get_xpub()
+            << std::endl
+            << std::endl;
+  }
+  return content.str();
+}
+
 inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
                         std::string& name, nunchuk::AddressType& a,
                         nunchuk::WalletType& w, int& m, int& n,
