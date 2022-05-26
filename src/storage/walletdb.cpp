@@ -202,7 +202,8 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO ADDRESS(ADDR, IDX, INTERNAL, USED)"
-      "VALUES (?1, ?2, ?3, 0);";
+      "VALUES (?1, ?2, ?3, 0)"
+      "ON CONFLICT(ADDR) DO UPDATE SET IDX=excluded.IDX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
   sqlite3_bind_int(stmt, 2, index);
@@ -342,7 +343,9 @@ Transaction NunchukWalletDb::InsertTransaction(const std::string& raw_tx,
   std::string sql =
       "INSERT INTO VTX(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, "
       "EXTRA)"
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '');";
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '')"
+      "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE, "
+      "HEIGHT=excluded.HEIGHT;";
   CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
   std::string tx_id = mtx.GetHash().GetHex();
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
