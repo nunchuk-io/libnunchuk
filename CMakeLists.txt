@@ -139,7 +139,6 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/roomtransaction.cpp
     src/dto/roomwallet.cpp
     src/storage/appstatedb.cpp
-    src/storage/common.cpp
     src/storage/db.cpp
     src/storage/primarydb.cpp
     src/storage/signerdb.cpp
