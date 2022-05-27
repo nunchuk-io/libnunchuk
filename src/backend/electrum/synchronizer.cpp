@@ -94,25 +94,27 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
                                               const json& history) {
   using TS = TransactionStatus;
   if (!history.is_array()) return;
-  auto txs = storage_->GetTransactions(chain, wallet_id, 10000, 0);
   for (auto&& item : history) {
     std::string tx_id = item["tx_hash"];
     int height = item["height"];
-    auto t = std::find_if(
-        txs.begin(), txs.end(),
-        [tx_id](const Transaction& tx) { return tx.get_txid() == tx_id; });
-    if (t != txs.end() && (t->get_status() == TS::CONFIRMED || height <= 0))
-      continue;
+    bool found = false;
+    try {
+      auto stx = storage_->GetTransaction(chain, wallet_id, tx_id);
+      found = true;
+      if (stx.get_status() == TS::CONFIRMED || height <= 0) continue;
+    } catch (StorageException& se) {
+      if (se.code() != StorageException::TX_NOT_FOUND) continue;
+    }
     auto tx = client_->blockchain_transaction_get(tx_id);
     std::string raw = tx["hex"];
     time_t time = tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
     Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
     auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
     if (height <= 0) height = 0;
-    if (t == txs.end()) {
-      storage_->InsertTransaction(chain, wallet_id, raw, height, time, fee);
-    } else {
+    if (found) {
       storage_->UpdateTransaction(chain, wallet_id, raw, height, time);
+    } else {
+      storage_->InsertTransaction(chain, wallet_id, raw, height, time, fee);
     }
     transaction_listener_(tx_id, status, wallet_id);
   }
@@ -135,8 +137,10 @@ void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
 std::string ElectrumSynchronizer::SubscribeAddress(const std::string& wallet_id,
                                                    const std::string& address) {
   std::string scripthash = AddressToScriptHash(address);
-  scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
-  client_->blockchain_scripthash_subscribe(scripthash);
+  if (scripthash_to_wallet_address_.count(scripthash) == 0) {
+    scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
+    client_->blockchain_scripthash_subscribe(scripthash);
+  }
   return scripthash;
 }
 
