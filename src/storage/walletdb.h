@@ -78,16 +78,19 @@ class NunchukWalletDb : public NunchukDb {
   void FillExtra(const std::string &extra, Transaction &tx) const;
   int GetAddressIndex(const std::string &address) const;
   Amount GetAddressBalance(const std::string &address) const;
+  std::string GetAddressStatus(const std::string &address) const;
 
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
-  std::vector<AddressData> GetAllAddressData() const;
+  std::map<std::string, AddressData> GetAllAddressData() const;
+  void SetAddress(const std::string &address, int index, bool internal,
+                  const std::string &utxos = {});
   void UseAddress(const std::string &address) const;
   bool IsMyAddress(const std::string &address) const;
   bool IsMyChange(const std::string &address) const;
-  static std::map<std::string, std::vector<AddressData>> addr_cache_;
+  static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   friend class NunchukStorage;
 };

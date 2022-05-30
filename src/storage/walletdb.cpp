@@ -23,6 +23,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/bsms.hpp>
+#include <utils/stringutils.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 #include <sstream>
@@ -39,7 +40,8 @@ namespace nunchuk {
 
 static const int ADDRESS_LOOK_AHEAD = 20;
 
-std::map<std::string, std::vector<AddressData>> NunchukWalletDb::addr_cache_;
+std::map<std::string, std::map<std::string, AddressData>>
+    NunchukWalletDb::addr_cache_;
 std::map<std::string, std::vector<SingleSigner>> NunchukWalletDb::signer_cache_;
 
 void NunchukWalletDb::InitWallet(const std::string& name, int m, int n,
@@ -197,21 +199,28 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
   return signers;
 }
 
-bool NunchukWalletDb::AddAddress(const std::string& address, int index,
-                                 bool internal) {
+void NunchukWalletDb::SetAddress(const std::string& address, int index,
+                                 bool internal, const std::string& utxos) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO ADDRESS(ADDR, IDX, INTERNAL, USED)"
-      "VALUES (?1, ?2, ?3, 0)"
-      "ON CONFLICT(ADDR) DO UPDATE SET IDX=excluded.IDX;";
+      "INSERT INTO ADDRESS(ADDR, IDX, INTERNAL, USED, UTXO)"
+      "VALUES (?1, ?2, ?3, ?4, ?5)"
+      "ON CONFLICT(ADDR) DO UPDATE SET USED=excluded.USED, UTXO=excluded.UTXO;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
   sqlite3_bind_int(stmt, 2, index);
   sqlite3_bind_int(stmt, 3, internal ? 1 : 0);
+  sqlite3_bind_int(stmt, 4, utxos.empty() ? 0 : 1);
+  sqlite3_bind_text(stmt, 5, utxos.c_str(), utxos.size(), NULL);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
+}
+
+bool NunchukWalletDb::AddAddress(const std::string& address, int index,
+                                 bool internal) {
+  SetAddress(address, index, internal);
   if (!IsMyAddress(address)) {
-    addr_cache_[db_file_name_].push_back({address, index, internal, false});
+    addr_cache_[db_file_name_][address] = {address, index, internal, false};
   }
   return true;
 }
@@ -219,52 +228,43 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
 void NunchukWalletDb::UseAddress(const std::string& address) const {
   if (address.empty()) return;
   if (!addr_cache_.count(db_file_name_)) return;
-  for (auto&& a : addr_cache_[db_file_name_]) {
-    if (a.address == address) {
-      a.used = true;
-      return;
-    }
-  }
+  if (!addr_cache_[db_file_name_].count(address)) return;
+  addr_cache_[db_file_name_][address].used = true;
 }
 
 bool NunchukWalletDb::IsMyAddress(const std::string& address) const {
-  auto all = GetAllAddressData();
-  return std::find_if(all.begin(), all.end(), [address](const AddressData& a) {
-           return a.address == address;
-         }) != all.end();
+  return GetAllAddressData().count(address);
 }
 
 bool NunchukWalletDb::IsMyChange(const std::string& address) const {
   auto all = GetAllAddressData();
-  return std::find_if(all.begin(), all.end(), [address](const AddressData& a) {
-           return a.internal && a.address == address;
-         }) != all.end();
+  return all.count(address) && all.at(address).internal;
 }
 
-std::vector<AddressData> NunchukWalletDb::GetAllAddressData() const {
+std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() const {
   if (addr_cache_.count(db_file_name_)) {
     return addr_cache_[db_file_name_];
   }
-  std::vector<AddressData> addresses;
+  std::map<std::string, AddressData> addresses;
   auto wallet = GetWallet(true);
   if (wallet.is_escrow()) {
     auto addr = CoreUtils::getInstance().DeriveAddress(
         wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
-    addresses.push_back({addr, 0, false, false});
+    addresses[addr] = {addr, 0, false, false};
   } else {
     int index = 0;
     auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
         wallet.get_descriptor(DescriptorPath::INTERNAL_ALL), index,
         GetCurrentAddressIndex(true) + ADDRESS_LOOK_AHEAD);
     for (auto&& addr : internal_addr) {
-      addresses.push_back({addr, index++, true, false});
+      addresses[addr] = {addr, index++, true, false};
     }
     index = 0;
     auto external_addr = CoreUtils::getInstance().DeriveAddresses(
         wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL), index,
         GetCurrentAddressIndex(false) + ADDRESS_LOOK_AHEAD);
     for (auto&& addr : external_addr) {
-      addresses.push_back({addr, index++, false, false});
+      addresses[addr] = {addr, index++, false, false};
     }
   }
   addr_cache_[db_file_name_] = addresses;
@@ -280,7 +280,8 @@ std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
   auto all = GetAllAddressData();
   auto cur = GetCurrentAddressIndex(internal);
   std::vector<std::string> rs;
-  for (auto&& data : all) {
+  for (auto&& item : all) {
+    auto data = item.second;
     if (data.used == used && data.internal == internal && data.index <= cur)
       rs.push_back(data.address);
   }
@@ -288,16 +289,9 @@ std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
 }
 
 int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT IDX FROM ADDRESS WHERE ADDR = ?;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
-  int index = -1;
-  if (sqlite3_step(stmt) == SQLITE_ROW) {
-    index = sqlite3_column_int(stmt, 0);
-  }
-  SQLCHECK(sqlite3_finalize(stmt));
-  return index;
+  auto all = GetAllAddressData();
+  if (all.count(address)) return all.at(address).index;
+  return -1;
 }
 
 Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
@@ -311,11 +305,26 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
   return balance;
 }
 
+std::string NunchukWalletDb::GetAddressStatus(
+    const std::string& address) const {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT UTXO FROM ADDRESS WHERE ADDR = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
+  std::string status = "";
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    auto utxo = split(std::string((char*)sqlite3_column_text(stmt, 0)), '|');
+    if (utxo.size() > 1) status = utxo[1];
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return status;
+}
+
 std::vector<std::string> NunchukWalletDb::GetAllAddresses() const {
   auto all = GetAllAddressData();
   std::vector<std::string> rs;
   for (auto&& data : all) {
-    rs.push_back(data.address);
+    rs.push_back(data.second.address);
   }
   return rs;
 }
@@ -631,15 +640,10 @@ bool NunchukWalletDb::DeleteTransaction(const std::string& tx_id) {
 
 bool NunchukWalletDb::SetUtxos(const std::string& address,
                                const std::string& utxo) {
-  sqlite3_stmt* stmt;
-  std::string sql = "UPDATE ADDRESS SET UTXO = ?1 WHERE ADDR = ?2;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, utxo.c_str(), utxo.size(), NULL);
-  sqlite3_bind_text(stmt, 2, address.c_str(), address.size(), NULL);
-  sqlite3_step(stmt);
-  bool updated = (sqlite3_changes(db_) == 1);
-  SQLCHECK(sqlite3_finalize(stmt));
-  return updated;
+  auto all = GetAllAddressData();
+  if (!all.count(address)) return false;
+  SetAddress(address, all[address].index, all[address].internal, utxo);
+  return true;
 }
 
 Amount NunchukWalletDb::GetBalance() const {
@@ -702,7 +706,13 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(bool remove_locked) const {
 
   while (sqlite3_column_text(stmt, 0)) {
     std::string address = std::string((char*)sqlite3_column_text(stmt, 0));
-    std::string utxo_str = std::string((char*)sqlite3_column_text(stmt, 1));
+    auto utxostatus_str = std::string((char*)sqlite3_column_text(stmt, 1));
+    auto utxostatus = split(utxostatus_str, '|');
+    if (utxostatus.empty() || utxostatus[0].empty()) {
+      sqlite3_step(stmt);
+      continue;
+    }
+    auto utxo_str = utxostatus[0];
     json utxo_json = json::parse(utxo_str);
     for (auto it = utxo_json.begin(); it != utxo_json.end(); ++it) {
       json item = it.value();

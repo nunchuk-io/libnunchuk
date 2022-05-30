@@ -51,9 +51,12 @@ class ElectrumSynchronizer : public Synchronizer {
 
   void UpdateTransactions(Chain chain, const std::string& wallet_id,
                           const json& history);
+  void UpdateScripthashStatus(Chain chain, const std::string& scripthash,
+                              const std::string& status,
+                              bool check_balance = true);
   void OnScripthashStatusChange(Chain chain, const json& notification);
-  std::string SubscribeAddress(const std::string& wallet_id,
-                               const std::string& address);
+  std::pair<std::string, std::string> SubscribeAddress(
+      const std::string& wallet_id, const std::string& address);
   void BlockchainSync(Chain chain);
   void WaitForReady();
 

@@ -156,6 +156,8 @@ class NunchukStorage {
                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);
+  std::string GetAddressStatus(Chain chain, const std::string &wallet_id,
+                               const std::string &address);
   std::string GetMultisigConfig(Chain chain, const std::string &wallet_id);
   void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                             const std::string &passphrase);

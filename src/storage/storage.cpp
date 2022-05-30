@@ -940,6 +940,13 @@ Amount NunchukStorage::GetAddressBalance(Chain chain,
   return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
+std::string NunchukStorage::GetAddressStatus(Chain chain,
+                                             const std::string& wallet_id,
+                                             const std::string& address) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetAddressStatus(address);
+}
+
 std::string NunchukStorage::GetMultisigConfig(Chain chain,
                                               const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);

@@ -17,6 +17,7 @@
 
 #include <backend/electrum/synchronizer.h>
 #include <utils/addressutils.hpp>
+#include <utils/stringutils.hpp>
 
 using namespace boost::asio;
 using json = nlohmann::json;
@@ -122,26 +123,19 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
 
 void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
                                                     const json& notification) {
-  std::string scripthash = notification[0];
-  if (scripthash_to_wallet_address_.count(scripthash) == 0) return;
-  std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
-  std::string address = scripthash_to_wallet_address_.at(scripthash).second;
-  json utxo = client_->blockchain_scripthash_listunspent(scripthash);
-  storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
-  json history = client_->blockchain_scripthash_get_history(scripthash);
-  UpdateTransactions(chain, wallet_id, history);
-  Amount balance = storage_->GetBalance(chain, wallet_id);
-  balance_listener_(wallet_id, balance);
+  UpdateScripthashStatus(chain, notification[0], notification[1]);
 }
 
-std::string ElectrumSynchronizer::SubscribeAddress(const std::string& wallet_id,
-                                                   const std::string& address) {
+std::pair<std::string, std::string> ElectrumSynchronizer::SubscribeAddress(
+    const std::string& wallet_id, const std::string& address) {
   std::string scripthash = AddressToScriptHash(address);
   if (scripthash_to_wallet_address_.count(scripthash) == 0) {
     scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
-    client_->blockchain_scripthash_subscribe(scripthash);
+    auto subscribe = client_->blockchain_scripthash_subscribe(scripthash);
+    auto status = subscribe == nullptr ? "" : subscribe.get<std::string>();
+    return {scripthash, status};
   }
-  return scripthash;
+  return {scripthash, ""};
 }
 
 void ElectrumSynchronizer::BlockchainSync(Chain chain) {
@@ -171,11 +165,11 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
       std::unique_lock<std::mutex> lock_(status_mutex_);
       if (status_ != Status::READY && status_ != Status::SYNCING) return;
       auto address = *a;
-      auto scripthash = SubscribeAddress(wallet_id, address);
-      json utxo = client_->blockchain_scripthash_listunspent(scripthash);
-      storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
-      json history = client_->blockchain_scripthash_get_history(scripthash);
-      UpdateTransactions(chain, wallet_id, history);
+      auto sub = SubscribeAddress(wallet_id, address);
+      auto prev_status = storage_->GetAddressStatus(chain, wallet_id, address);
+      if (sub.second != prev_status) {
+        UpdateScripthashStatus(chain, sub.first, sub.second, false);
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(SUBCRIBE_DELAY_MS));
     }
     Amount balance = storage_->GetBalance(chain, wallet_id);
@@ -221,16 +215,33 @@ bool ElectrumSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   if (status_ != Status::READY && status_ != Status::SYNCING) return false;
   if (chain != app_settings_.get_chain()) return false;
 
-  auto scripthash = SubscribeAddress(wallet_id, address);
-  json history = client_->blockchain_scripthash_get_history(scripthash);
-  if (!history.is_array() || history.empty()) return false;
-  storage_->AddAddress(chain, wallet_id, address, index, internal);
-  UpdateTransactions(chain, wallet_id, history);
-  json utxo = client_->blockchain_scripthash_listunspent(scripthash);
-  storage_->SetUtxos(chain, wallet_id, address, utxo.dump());
-  Amount balance = storage_->GetBalance(chain, wallet_id);
-  balance_listener_(wallet_id, balance);
+  auto sub = SubscribeAddress(wallet_id, address);
+  auto prev_status = storage_->GetAddressStatus(chain, wallet_id, address);
+  if (sub.second.empty() && prev_status.empty()) return false;
+  if (sub.second != prev_status) {
+    storage_->AddAddress(chain, wallet_id, address, index, internal);
+    UpdateScripthashStatus(chain, sub.first, sub.second);
+  }
   return true;
+}
+
+void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
+                                                  const std::string& scripthash,
+                                                  const std::string& status,
+                                                  bool check_balance) {
+  if (status.empty()) return;
+  if (scripthash_to_wallet_address_.count(scripthash) == 0) return;
+  std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
+  std::string address = scripthash_to_wallet_address_.at(scripthash).second;
+  json utxo = client_->blockchain_scripthash_listunspent(scripthash);
+  std::string utxostatus = join(std::vector{utxo.dump(), status}, '|');
+  storage_->SetUtxos(chain, wallet_id, address, utxostatus);
+  json history = client_->blockchain_scripthash_get_history(scripthash);
+  UpdateTransactions(chain, wallet_id, history);
+  if (check_balance) {
+    Amount balance = storage_->GetBalance(chain, wallet_id);
+    balance_listener_(wallet_id, balance);
+  }
 }
 
 void ElectrumSynchronizer::RescanBlockchain(int start_height, int stop_height) {
