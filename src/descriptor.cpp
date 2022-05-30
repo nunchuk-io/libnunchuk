@@ -27,6 +27,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <boost/algorithm/string.hpp>
+#include <signingprovider.h>
 
 using json = nlohmann::json;
 namespace nunchuk {
@@ -51,9 +52,11 @@ std::string GetDescriptorsImportString(const std::string& external,
 }
 
 std::string GetDescriptorsImportString(const Wallet& wallet) {
+  int idx = SigningProviderCache::getInstance().GetMaxIndex(wallet.get_id());
+  int range = (idx / 100 + 1) * 100;
   return GetDescriptorsImportString(
       wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
-      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL), range);
 }
 
 std::string FormalizePath(const std::string& path) {

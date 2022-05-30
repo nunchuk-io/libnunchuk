@@ -29,6 +29,8 @@ class SigningProviderCache {
   bool GetKeyOrigin(const CKeyID &keyid, KeyOriginInfo &info);
   FlatSigningProvider GetProvider(const std::string &desc);
   void PreCalculate(const std::string &desc);
+  void SetMaxIndex(const std::string &wallet_id, int idx);
+  int GetMaxIndex(const std::string &wallet_id);
 
   static SigningProviderCache &getInstance();
   SigningProviderCache(SigningProviderCache const &) = delete;
@@ -41,6 +43,7 @@ class SigningProviderCache {
   std::map<std::string, bool> marker_;
   std::map<std::string, FlatSigningProvider> providers_;
   std::vector<std::future<void>> runner_;
+  std::map<std::string, int> max_index_;
 };
 
 #endif  // NUNCHUK_SIGNINGPROVIDER_H

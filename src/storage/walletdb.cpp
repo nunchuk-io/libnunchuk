@@ -150,7 +150,7 @@ bool NunchukWalletDb::SetDescription(const std::string& value) {
   return PutString(DbKeys::DESCRIPTION, value);
 }
 
-Wallet NunchukWalletDb::GetWallet(bool skip_balance) const {
+Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) const {
   json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
   int m = immutable_data["m"];
   int n = immutable_data["n"];
@@ -161,9 +161,11 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance) const {
   Wallet wallet(id_, m, n, GetSigners(), address_type, is_escrow, create_date);
   wallet.set_name(GetString(DbKeys::NAME));
   if (!skip_balance) wallet.set_balance(GetBalance());
-
-  auto desc = GetDescriptorsImportString(wallet);
-  SigningProviderCache::getInstance().PreCalculate(desc);
+  if (!skip_provider) {
+    GetAllAddressData();  // update range to max address index
+    auto desc = GetDescriptorsImportString(wallet);
+    SigningProviderCache::getInstance().PreCalculate(desc);
+  }
   return wallet;
 }
 
@@ -221,6 +223,7 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
   SetAddress(address, index, internal);
   if (!IsMyAddress(address)) {
     addr_cache_[db_file_name_][address] = {address, index, internal, false};
+    SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   }
   return true;
 }
@@ -246,7 +249,7 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() const {
     return addr_cache_[db_file_name_];
   }
   std::map<std::string, AddressData> addresses;
-  auto wallet = GetWallet(true);
+  auto wallet = GetWallet(true, true);
   if (wallet.is_escrow()) {
     auto addr = CoreUtils::getInstance().DeriveAddress(
         wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
@@ -259,6 +262,7 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() const {
     for (auto&& addr : internal_addr) {
       addresses[addr] = {addr, index++, true, false};
     }
+    SigningProviderCache::getInstance().SetMaxIndex(id_, index);
     index = 0;
     auto external_addr = CoreUtils::getInstance().DeriveAddresses(
         wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL), index,
@@ -266,6 +270,7 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() const {
     for (auto&& addr : external_addr) {
       addresses[addr] = {addr, index++, false, false};
     }
+    SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   }
   addr_cache_[db_file_name_] = addresses;
   auto txs = GetTransactions();

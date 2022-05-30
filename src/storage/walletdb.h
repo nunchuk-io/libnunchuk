@@ -47,7 +47,7 @@ class NunchukWalletDb : public NunchukDb {
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
   bool AddAddress(const std::string &address, int index, bool internal);
-  Wallet GetWallet(bool skip_balance = false) const;
+  Wallet GetWallet(bool skip_balance = false, bool skip_provider = false) const;
   std::vector<SingleSigner> GetSigners() const;
   std::vector<std::string> GetAddresses(bool used, bool internal) const;
   std::vector<std::string> GetAllAddresses() const;

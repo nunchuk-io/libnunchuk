@@ -58,3 +58,13 @@ void SigningProviderCache::PreCalculate(const std::string &desc) {
   runner_.push_back(
       std::async(std::launch::async, [this, desc] { GetProvider(desc); }));
 }
+
+void SigningProviderCache::SetMaxIndex(const std::string &wallet_id, int idx) {
+  if (max_index_.count(wallet_id) && max_index_[wallet_id] > idx) return;
+  max_index_[wallet_id] = idx;
+}
+
+int SigningProviderCache::GetMaxIndex(const std::string &wallet_id) {
+  if (max_index_.count(wallet_id)) return max_index_[wallet_id];
+  return 100;
+}
