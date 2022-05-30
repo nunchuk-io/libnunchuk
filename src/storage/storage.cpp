@@ -23,6 +23,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/bsms.hpp>
+#include <utils/multisigconfig.hpp>
 #include <boost/filesystem/string_file.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
@@ -92,16 +93,14 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
                                   ExportFormat format) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet_id);
+  auto wallet = wallet_db.GetWallet(true);
   switch (format) {
     case ExportFormat::COLDCARD:
-      return WriteFile(file_path, wallet_db.GetMultisigConfig());
-    case ExportFormat::DESCRIPTOR: {
-      return WriteFile(
-          file_path, wallet_db.GetWallet().get_descriptor(DescriptorPath::ANY));
-    }
-    case ExportFormat::BSMS: {
-      return WriteFile(file_path, GetDescriptorRecord(wallet_db.GetWallet()));
-    }
+      return WriteFile(file_path, ::GetMultisigConfig(wallet));
+    case ExportFormat::DESCRIPTOR:
+      return WriteFile(file_path, wallet.get_descriptor(DescriptorPath::ANY));
+    case ExportFormat::BSMS:
+      return WriteFile(file_path, GetDescriptorRecord(wallet));
     case ExportFormat::DB:
       if (passphrase_.empty()) {
         fs::copy_file(GetWalletDir(chain, wallet_id), file_path);
@@ -389,9 +388,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
       }
     }
   }
-  std::string external_desc = GetDescriptorForSigners(
-      signers, m, DescriptorPath::EXTERNAL_ALL, address_type, wallet_type);
-  std::string id = GetDescriptorChecksum(external_desc);
+  std::string id = GetWalletId(signers, m, address_type, wallet_type);
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
@@ -693,12 +690,6 @@ bool NunchukStorage::AddAddress(Chain chain, const std::string& wallet_id,
   return GetWalletDb(chain, wallet_id).AddAddress(address, index, internal);
 }
 
-bool NunchukStorage::UseAddress(Chain chain, const std::string& wallet_id,
-                                const std::string& address) {
-  std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).UseAddress(address);
-}
-
 std::vector<std::string> NunchukStorage::GetAddresses(
     Chain chain, const std::string& wallet_id, bool used, bool internal) {
   std::shared_lock<std::shared_mutex> lock(access_);
@@ -737,7 +728,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   auto vtx = db.GetTransactions(count, skip);
 
   // remove invalid, out-of-date Send transactions
-  auto utxos = db.GetUnspentOutputs(false);
+  auto utxos = db.GetUtxos(false);
   auto is_valid_input = [utxos](const TxInput& input) {
     for (auto&& utxo : utxos) {
       if (input.first == utxo.get_txid() && input.second == utxo.get_vout())
@@ -763,10 +754,10 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   return vtx;
 }
 
-std::vector<UnspentOutput> NunchukStorage::GetUnspentOutputs(
+std::vector<UnspentOutput> NunchukStorage::GetUtxos(
     Chain chain, const std::string& wallet_id, bool remove_locked) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetUnspentOutputs(remove_locked);
+  return GetWalletDb(chain, wallet_id).GetUtxos(remove_locked);
 }
 
 Transaction NunchukStorage::GetTransaction(Chain chain,
@@ -949,11 +940,17 @@ Amount NunchukStorage::GetAddressBalance(Chain chain,
   return GetWalletDb(chain, wallet_id).GetAddressBalance(address);
 }
 
-std::string NunchukStorage::GetMultisigConfig(Chain chain,
-                                              const std::string& wallet_id,
-                                              bool is_cobo) {
+std::string NunchukStorage::GetAddressStatus(Chain chain,
+                                             const std::string& wallet_id,
+                                             const std::string& address) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetMultisigConfig(is_cobo);
+  return GetWalletDb(chain, wallet_id).GetAddressStatus(address);
+}
+
+std::string NunchukStorage::GetMultisigConfig(Chain chain,
+                                              const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return ::GetMultisigConfig(GetWalletDb(chain, wallet_id).GetWallet(true));
 }
 
 void NunchukStorage::SendSignerPassphrase(Chain chain,
@@ -979,7 +976,7 @@ std::string NunchukStorage::ExportBackup() {
     auto wids = ListWallets0(chain);
     for (auto&& id : wids) {
       auto wallet_db = GetWalletDb(chain, id);
-      auto w = wallet_db.GetWallet();
+      auto w = wallet_db.GetWallet(true);
       json wallet = {
           {"id", w.get_id()},
           {"name", w.get_name()},

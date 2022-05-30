@@ -95,10 +95,8 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
                                      const std::string& description) {
-  return GetDescriptorForSigners(
-      signers, m, DescriptorPath::ANY, address_type,
-      n == 1 ? WalletType::SINGLE_SIG
-             : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG));
+  Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
+  return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets() {
@@ -210,7 +208,7 @@ void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
   std::string address;
   if (wallet.is_escrow()) {
     auto descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-    address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
   } else {
     // scan internal address
@@ -234,7 +232,7 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
   std::vector<std::string> unused_addresses;
   std::string wallet_id = wallet.get_id();
   while (true) {
-    auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     if (synchronizer_->LookAhead(chain_, wallet_id, address, index, internal)) {
       for (auto&& a : unused_addresses) {
         storage_.AddAddress(chain_, wallet_id, a, index, internal);
@@ -507,7 +505,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   std::string descriptor = GetPkhDescriptor(xpub);
-  std::string address = CoreUtils::getInstance().DeriveAddresses(descriptor);
+  std::string address = CoreUtils::getInstance().DeriveAddress(descriptor);
   signature = hwi_.SignMessage(device, message, path);
 
   if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
@@ -531,7 +529,7 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
   std::string address;
   if (signer.get_public_key().empty()) {
     std::string descriptor = GetPkhDescriptor(signer.get_xpub());
-    address = CoreUtils::getInstance().DeriveAddresses(descriptor);
+    address = CoreUtils::getInstance().DeriveAddress(descriptor);
   } else {
     CPubKey pubkey(ParseHex(signer.get_public_key()));
     address = EncodeDestination(PKHash(pubkey.GetID()));
@@ -576,7 +574,7 @@ std::string NunchukImpl::NewAddress(const std::string& wallet_id,
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int index = storage_.GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
   while (true) {
-    auto address = CoreUtils::getInstance().DeriveAddresses(descriptor, index);
+    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     if (!synchronizer_->LookAhead(chain_, wallet_id, address, index,
                                   internal)) {
       storage_.AddAddress(chain_, wallet_id, address, index, internal);
@@ -593,7 +591,7 @@ Amount NunchukImpl::GetAddressBalance(const std::string& wallet_id,
 
 std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
     const std::string& wallet_id) {
-  return storage_.GetUnspentOutputs(chain_, wallet_id);
+  return storage_.GetUtxos(chain_, wallet_id);
 }
 
 bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
@@ -995,7 +993,7 @@ SingleSigner NunchukImpl::CreateCoboSigner(const std::string& name,
 
 std::vector<std::string> NunchukImpl::ExportCoboWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   return nunchuk::bcr::EncodeUniformResource(data);
 }
@@ -1064,7 +1062,7 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
 
 std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   ur::ByteVector cbor;
   encodeBytes(cbor, data);
@@ -1182,7 +1180,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
 std::vector<std::string> NunchukImpl::ExportPassportWallet(
     const std::string& wallet_id) {
-  auto content = storage_.GetMultisigConfig(chain_, wallet_id, true);
+  auto content = storage_.GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   auto qr_data = nunchuk::bcr::EncodeUniformResource(data);
   for (std::string& s : qr_data) {
@@ -1291,12 +1289,7 @@ std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
     change_address = unused.empty() ? NewAddress(wallet_id, true) : unused[0];
   }
   std::string error;
-  std::string internal_desc =
-      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-  std::string external_desc =
-      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-  std::string desc = GetDescriptorsImportString(external_desc, internal_desc);
-  CoinSelector selector{desc, change_address};
+  CoinSelector selector{GetDescriptorsImportString(wallet), change_address};
   selector.set_fee_rate(CFeeRate(fee_rate));
   selector.set_discard_rate(CFeeRate(synchronizer_->RelayFee()));
 

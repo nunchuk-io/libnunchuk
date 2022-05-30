@@ -34,27 +34,17 @@ inline std::string GetDescriptorRecord(const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
   auto retrictpath = true;
   auto sorted = true;
-  auto wallet_type =
-      wallet.get_n() == 1
-          ? WalletType::SINGLE_SIG
-          : (wallet.is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG);
-  std::stringstream descriptor_record;
-  descriptor_record << "BSMS 1.0" << std::endl;
-  descriptor_record << GetDescriptorForSigners(
-                           wallet.get_signers(), wallet.get_m(),
-                           retrictpath ? DescriptorPath::TEMPLATE
-                                       : DescriptorPath::ANY,
-                           wallet.get_address_type(), wallet_type, 0, sorted)
-                    << std::endl;
-  descriptor_record << (retrictpath ? "/0/*,/1/*" : "No path restrictions")
-                    << std::endl;
-  bool escrow = wallet_type == WalletType::ESCROW;
-  descriptor_record << CoreUtils::getInstance().DeriveAddresses(
-      GetDescriptorForSigners(
-          wallet.get_signers(), wallet.get_m(), DescriptorPath::EXTERNAL_ALL,
-          wallet.get_address_type(), wallet_type, escrow ? -1 : 0, sorted),
-      escrow ? -1 : 0);
-  return descriptor_record.str();
+  std::stringstream record;
+  record << "BSMS 1.0" << std::endl;
+  record << wallet.get_descriptor(
+                retrictpath ? DescriptorPath::TEMPLATE : DescriptorPath::ANY, 0,
+                sorted)
+         << std::endl;
+  record << (retrictpath ? "/0/*,/1/*" : "No path restrictions") << std::endl;
+  record << CoreUtils::getInstance().DeriveAddress(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL, 0, sorted),
+      wallet.is_escrow() ? -1 : 0);
+  return record.str();
 }
 
 inline bool ParseDescriptorRecord(const std::string bsms,
@@ -69,23 +59,23 @@ inline bool ParseDescriptorRecord(const std::string bsms,
   std::istringstream content_stream(bsms);
   std::string line;
   if (!safeGetline(content_stream, line) || line != "BSMS 1.0") {
-    return false; // Invalid BSMS version
+    return false;  // Invalid BSMS version
   }
   if (!safeGetline(content_stream, line) ||
       !ParseDescriptors(line, a, w, m, n, signers)) {
-    return false; // Invalid Descriptor template
+    return false;  // Invalid Descriptor template
   }
   if (!safeGetline(content_stream, line) ||
       (line != "/0/*,/1/*" && line != "No path restrictions")) {
-    return false; // Invalid path restrictions
+    return false;  // Invalid path restrictions
   }
   if (!safeGetline(content_stream, line) ||
-      line != CoreUtils::getInstance().DeriveAddresses(
+      line != CoreUtils::getInstance().DeriveAddress(
                   GetDescriptorForSigners(
                       signers, m, DescriptorPath::EXTERNAL_ALL, a, w,
                       w == WalletType::ESCROW ? -1 : 0, true),
                   w == WalletType::ESCROW ? -1 : 0)) {
-    return false; // Invalid address
+    return false;  // Invalid address
   }
   return true;
 }

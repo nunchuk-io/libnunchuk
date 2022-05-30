@@ -38,8 +38,6 @@ class NunchukWalletDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
 
-  static std::string GetSingleSignerKey(const SingleSigner &signer);
-
   void InitWallet(const std::string &name, int m, int n,
                   const std::vector<SingleSigner> &signers,
                   AddressType address_type, bool is_escrow, time_t create_date,
@@ -49,8 +47,7 @@ class NunchukWalletDb : public NunchukDb {
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
   bool AddAddress(const std::string &address, int index, bool internal);
-  bool UseAddress(const std::string &address) const;
-  Wallet GetWallet() const;
+  Wallet GetWallet(bool skip_balance = false) const;
   std::vector<SingleSigner> GetSigners() const;
   std::vector<std::string> GetAddresses(bool used, bool internal) const;
   std::vector<std::string> GetAllAddresses() const;
@@ -71,23 +68,29 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdatePsbt(const std::string &psbt);
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(const std::string &tx_id) const;
-  std::vector<UnspentOutput> GetUnspentOutputs(bool remove_locked) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
                                            int skip = 0) const;
+  std::vector<UnspentOutput> GetUtxos(bool remove_locked) const;
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance() const;
   std::string FillPsbt(const std::string &psbt);
-  std::string GetMultisigConfig(bool is_cobo = false) const;
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
   int GetAddressIndex(const std::string &address) const;
   Amount GetAddressBalance(const std::string &address) const;
+  std::string GetAddressStatus(const std::string &address) const;
 
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
+  std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
-  std::vector<AddressData> GetAllAddressData() const;
-  static std::map<std::string, std::vector<AddressData>> addr_cache_;
+  std::map<std::string, AddressData> GetAllAddressData() const;
+  void SetAddress(const std::string &address, int index, bool internal,
+                  const std::string &utxos = {});
+  void UseAddress(const std::string &address) const;
+  bool IsMyAddress(const std::string &address) const;
+  bool IsMyChange(const std::string &address) const;
+  static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   friend class NunchukStorage;
 };

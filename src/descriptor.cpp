@@ -50,6 +50,12 @@ std::string GetDescriptorsImportString(const std::string& external,
   return descs.dump();
 }
 
+std::string GetDescriptorsImportString(const Wallet& wallet) {
+  return GetDescriptorsImportString(
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+      wallet.get_descriptor(DescriptorPath::INTERNAL_ALL));
+}
+
 std::string FormalizePath(const std::string& path) {
   std::string rs(path);
   if (rs.rfind("m", 0) == 0) rs.erase(0, 1);  // Remove leading m
@@ -141,6 +147,13 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   DLOG_F(INFO, "GetDescriptorForSigners(): '%s'", desc_with_checksum.c_str());
 
   return desc_with_checksum;
+}
+
+std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
+                        AddressType address_type, WalletType wallet_type) {
+  auto external_desc = GetDescriptorForSigners(
+      signers, m, DescriptorPath::EXTERNAL_ALL, address_type, wallet_type);
+  return GetDescriptorChecksum(external_desc);
 }
 
 std::string GetPkhDescriptor(const std::string& address) {

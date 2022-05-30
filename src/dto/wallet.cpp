@@ -46,12 +46,13 @@ void Wallet::set_name(const std::string& value) { name_ = value; }
 void Wallet::set_balance(const Amount& value) { balance_ = value; }
 void Wallet::set_description(const std::string& value) { description_ = value; }
 
-std::string Wallet::get_descriptor(DescriptorPath key_path, int index) const {
+std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
+                                   bool sorted) const {
   return GetDescriptorForSigners(
       get_signers(), get_m(), key_path, get_address_type(),
       get_n() == 1 ? WalletType::SINGLE_SIG
                    : (is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG),
-      index);
+      is_escrow() ? -1 : index, sorted);
 }
 
 }  // namespace nunchuk

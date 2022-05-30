@@ -272,15 +272,11 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   std::string description = init_body["description"];
   bool is_escrow = init_body["is_escrow"];
   auto a = AddressTypeFromStr(init_body["address_type"]);
-  auto w = n == 1 ? WalletType::SINGLE_SIG
-                  : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
 
-  std::string descriptor = GetDescriptorForSigners(
-      signers, m, DescriptorPath::TEMPLATE, a, w, 0, true);
-  std::string first_address = CoreUtils::getInstance().DeriveAddresses(
-      GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w,
-                              is_escrow ? -1 : 0, true),
-      is_escrow ? -1 : 0);
+  Wallet w("", m, n, signers, a, is_escrow, 0);
+  std::string descriptor = w.get_descriptor(DescriptorPath::TEMPLATE);
+  std::string first_address = CoreUtils::getInstance().DeriveAddress(
+      w.get_descriptor(DescriptorPath::EXTERNAL_ALL), is_escrow ? -1 : 0);
 
   json content = {{"msgtype", "io.nunchuk.wallet.create"},
                   {"body",
@@ -652,9 +648,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       std::string name = init_body["name"];
       std::string d = init_body["description"];
 
-      std::string external_desc = GetDescriptorForSigners(
-          signers, m, DescriptorPath::EXTERNAL_ALL, a, w);
-      auto wallet_id = GetDescriptorChecksum(external_desc);
+      auto wallet_id = GetWalletId(signers, m, a, w);
       wallet.set_wallet_id(wallet_id);
       wallet2room_[wallet_id] = event.get_room_id();
 

@@ -97,8 +97,6 @@ class NunchukStorage {
   bool SetHealthCheckSuccess(Chain chain, const SingleSigner &signer);
   bool AddAddress(Chain chain, const std::string &wallet_id,
                   const std::string &address, int index, bool internal);
-  bool UseAddress(Chain chain, const std::string &wallet_id,
-                  const std::string &address);
   std::vector<std::string> GetAddresses(Chain chain,
                                         const std::string &wallet_id, bool used,
                                         bool internal);
@@ -114,9 +112,8 @@ class NunchukStorage {
   std::vector<Transaction> GetTransactions(Chain chain,
                                            const std::string &wallet_id,
                                            int count, int skip);
-  std::vector<UnspentOutput> GetUnspentOutputs(Chain chain,
-                                               const std::string &wallet_id,
-                                               bool remove_locked = true);
+  std::vector<UnspentOutput> GetUtxos(Chain chain, const std::string &wallet_id,
+                                      bool remove_locked = true);
   Transaction GetTransaction(Chain chain, const std::string &wallet_id,
                              const std::string &tx_id);
   bool UpdateTransaction(Chain chain, const std::string &wallet_id,
@@ -159,8 +156,9 @@ class NunchukStorage {
                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);
-  std::string GetMultisigConfig(Chain chain, const std::string &wallet_id,
-                                bool is_cobo);
+  std::string GetAddressStatus(Chain chain, const std::string &wallet_id,
+                               const std::string &address);
+  std::string GetMultisigConfig(Chain chain, const std::string &wallet_id);
   void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                             const std::string &passphrase);
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
