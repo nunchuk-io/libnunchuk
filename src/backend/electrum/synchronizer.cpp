@@ -95,7 +95,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
                                               const json& history) {
   using TS = TransactionStatus;
   if (!history.is_array()) return;
-  for (auto&& item : history) {
+  for (auto item : history) {
     std::string tx_id = item["tx_hash"];
     int height = item["height"];
     bool found = false;
