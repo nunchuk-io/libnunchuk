@@ -313,7 +313,8 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
 std::string NunchukWalletDb::GetAddressStatus(
     const std::string& address) const {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT UTXO FROM ADDRESS WHERE ADDR = ?;";
+  std::string sql =
+      "SELECT UTXO FROM ADDRESS WHERE ADDR = ? AND UTXO IS NOT NULL;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
   std::string status = "";
