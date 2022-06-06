@@ -180,61 +180,30 @@ void NunchukStorage::SetPassphrase(const std::string& value) {
 
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   std::unique_lock<std::shared_mutex> lock(access_);
+  auto rekey = [&](const fs::path& old_file, const std::string& id) {
+    auto new_file = datadir_ / "tmp" / id;
+    NunchukDb db{chain, id, old_file.string(), passphrase_};
+    if (value.empty()) {
+      db.DecryptDb(new_file.string());
+    } else if (passphrase_.empty()) {
+      db.EncryptDb(new_file.string(), value);
+    } else {
+      db.ReKey(value);
+      return;
+    }
+    fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
+    fs::remove(new_file);
+  };
+
   auto wallets = ListWallets0(chain);
-  auto signers = ListMasterSigners0(chain);
-  if (passphrase_.empty()) {
-    for (auto&& wallet_id : wallets) {
-      auto old_file = GetWalletDir(chain, wallet_id);
-      auto new_file = datadir_ / "tmp" / wallet_id;
-      GetWalletDb(chain, wallet_id).EncryptDb(new_file.string(), value);
-      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-      fs::remove(new_file);
-    }
-    for (auto&& signer_id : signers) {
-      auto old_file = GetSignerDir(chain, signer_id);
-      auto new_file = datadir_ / "tmp" / signer_id;
-      GetSignerDb(chain, signer_id).EncryptDb(new_file.string(), value);
-      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-      fs::remove(new_file);
-    }
-    {
-      auto old_file = GetRoomDir(chain);
-      auto new_file = datadir_ / "tmp" / "matrix";
-      GetRoomDb(chain).EncryptDb(new_file.string(), value);
-      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-      fs::remove(new_file);
-    }
-  } else if (value.empty()) {
-    for (auto&& wallet_id : wallets) {
-      auto old_file = GetWalletDir(chain, wallet_id);
-      auto new_file = datadir_ / "tmp" / wallet_id;
-      GetWalletDb(chain, wallet_id).DecryptDb(new_file.string());
-      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-      fs::remove(new_file);
-    }
-    for (auto&& signer_id : signers) {
-      auto old_file = GetSignerDir(chain, signer_id);
-      auto new_file = datadir_ / "tmp" / signer_id;
-      GetSignerDb(chain, signer_id).DecryptDb(new_file.string());
-      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-      fs::remove(new_file);
-    }
-    {
-      auto old_file = GetRoomDir(chain);
-      auto new_file = datadir_ / "tmp" / "matrix";
-      GetRoomDb(chain).DecryptDb(new_file.string());
-      fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-      fs::remove(new_file);
-    }
-  } else {
-    for (auto&& wallet_id : wallets) {
-      GetWalletDb(chain, wallet_id).ReKey(value);
-    }
-    for (auto&& signer_id : signers) {
-      GetSignerDb(chain, signer_id).ReKey(value);
-    }
-    GetRoomDb(chain).ReKey(value);
+  for (auto&& wallet_id : wallets) {
+    rekey(GetWalletDir(chain, wallet_id), wallet_id);
   }
+  auto signers = ListMasterSigners0(chain);
+  for (auto&& signer_id : signers) {
+    rekey(GetSignerDir(chain, signer_id), signer_id);
+  }
+  rekey(GetRoomDir(chain), "matrix");
 }
 
 std::string NunchukStorage::ChainStr(Chain chain) const {
@@ -537,8 +506,7 @@ std::vector<std::string> NunchukStorage::ListWallets0(Chain chain) {
   std::vector<std::string> ids;
   for (auto&& f : fs::directory_iterator(directory)) {
     auto id = f.path().filename().string();
-    if (id.size() != 8) continue;
-    ids.push_back(id);
+    if (id.size() == 8) ids.push_back(id);
   }
   return ids;
 }
@@ -553,8 +521,7 @@ std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
   std::vector<std::string> ids;
   for (auto&& f : fs::directory_iterator(directory)) {
     auto id = f.path().filename().string();
-    if (id.size() != 8) continue;
-    ids.push_back(id);
+    if (id.size() == 8) ids.push_back(id);
   }
   return ids;
 }
