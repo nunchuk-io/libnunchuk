@@ -300,7 +300,7 @@ int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
 }
 
 Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
-  auto utxos = GetUtxos(true);
+  auto utxos = GetUtxos(false, true);
   Amount balance = 0;
   for (auto&& utxo : utxos) {
     // Only include confirmed Receive amount
@@ -653,7 +653,7 @@ bool NunchukWalletDb::SetUtxos(const std::string& address,
 }
 
 Amount NunchukWalletDb::GetBalance() const {
-  auto utxos = GetUtxos(true);
+  auto utxos = GetUtxos(false, true);
   Amount balance = 0;
   for (auto&& utxo : utxos) {
     // Only include confirmed Receive amount and in-mempool Change amount
@@ -664,7 +664,8 @@ Amount NunchukWalletDb::GetBalance() const {
   return balance;
 }
 
-std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(bool remove_locked) const {
+std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
+    bool include_locked, bool include_mempool) const {
   std::vector<Transaction> transactions = GetTransactions();
   auto input_str = [](std::string tx_id, int vout) {
     return boost::str(boost::format{"%s:%d"} % tx_id % vout);
@@ -679,29 +680,32 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(bool remove_locked) const {
     height_map[tx.get_txid()] = tx.get_height();
     if (tx.get_height() != 0) continue;
 
-    // CoreRPC uses polling requests to get new UTXO so it has some delay to
-    // update the balance. To fix #19 bug, we have to add change UTXO manually
-    int nout = tx.get_outputs().size();
-    for (int vout = 0; vout < nout; vout++) {
-      auto output = tx.get_outputs()[vout];
-      if (!IsMyChange(output.first)) continue;
-      // add it to locked_utxos to prevent duplicate UTXO
-      locked_utxos.insert(input_str(tx.get_txid(), vout));
+    if (include_mempool) {
+      // CoreRPC uses polling requests to get new UTXO so it has some delay to
+      // update the balance. To fix #19 bug, we have to add change UTXO manually
+      int nout = tx.get_outputs().size();
+      for (int vout = 0; vout < nout; vout++) {
+        auto output = tx.get_outputs()[vout];
+        if (!IsMyChange(output.first)) continue;
+        // add it to locked_utxos to prevent duplicate UTXO
+        locked_utxos.insert(input_str(tx.get_txid(), vout));
 
-      UnspentOutput utxo;
-      utxo.set_txid(tx.get_txid());
-      utxo.set_vout(vout);
-      utxo.set_address(output.first);
-      utxo.set_amount(output.second);
-      utxo.set_height(tx.get_height());
-      utxo.set_memo(tx.get_memo());
-      rs.push_back(utxo);
+        UnspentOutput utxo;
+        utxo.set_txid(tx.get_txid());
+        utxo.set_vout(vout);
+        utxo.set_address(output.first);
+        utxo.set_amount(output.second);
+        utxo.set_height(tx.get_height());
+        utxo.set_memo(tx.get_memo());
+        rs.push_back(utxo);
+      }
     }
 
-    if (!remove_locked) continue;
-    // remove UTXOs of unconfirmed transactions
-    for (auto&& input : tx.get_inputs()) {
-      locked_utxos.insert(input_str(input.first, input.second));
+    if (!include_locked) {
+      // remove UTXOs of unconfirmed transactions
+      for (auto&& input : tx.get_inputs()) {
+        locked_utxos.insert(input_str(input.first, input.second));
+      }
     }
   }
 
@@ -729,7 +733,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(bool remove_locked) const {
         txid = item["tx_hash"];
         vout = item["tx_pos"];
         amount = Amount(item["value"]);
-        if (item["height"].get<int>() == 0) continue;
+        if (!include_mempool && item["height"].get<int>() == 0) continue;
       } else {  // bitcoin core rpc format
         txid = item["txid"];
         vout = item["vout"];

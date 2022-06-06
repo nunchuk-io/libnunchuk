@@ -728,7 +728,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   auto vtx = db.GetTransactions(count, skip);
 
   // remove invalid, out-of-date Send transactions
-  auto utxos = db.GetUtxos(false);
+  auto utxos = db.GetUtxos(true, true);
   auto is_valid_input = [utxos](const TxInput& input) {
     for (auto&& utxo : utxos) {
       if (input.first == utxo.get_txid() && input.second == utxo.get_vout())
@@ -755,9 +755,9 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 }
 
 std::vector<UnspentOutput> NunchukStorage::GetUtxos(
-    Chain chain, const std::string& wallet_id, bool remove_locked) {
+    Chain chain, const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetUtxos(remove_locked);
+  return GetWalletDb(chain, wallet_id).GetUtxos(false, false);
 }
 
 Transaction NunchukStorage::GetTransaction(Chain chain,
