@@ -729,6 +729,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(bool remove_locked) const {
         txid = item["tx_hash"];
         vout = item["tx_pos"];
         amount = Amount(item["value"]);
+        if (item["height"].get<int>() == 0) continue;
       } else {  // bitcoin core rpc format
         txid = item["txid"];
         vout = item["vout"];
