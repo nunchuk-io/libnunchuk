@@ -23,27 +23,27 @@ void NunchukPrimaryDb::Init() {
   CreateTable();
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS PKEY("
-                        "ID VARCHAR(8) PRIMARY KEY     NOT NULL,"
-                        "NAME                     TEXT    NOT NULL,"
-                        "ACCOUNT                  TEXT    NOT NULL,"
-                        "ADDR                     TEXT    NOT NULL);",
+                        "ACCOUNT TEXT PRIMARY KEY NOT NULL,"
+                        "NAME    TEXT             NOT NULL,"
+                        "XFP     VARCHAR(8)       NOT NULL,"
+                        "ADDR    TEXT             NOT NULL);",
                         NULL, 0, NULL));
 }
 
 bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO PKEY(ID, NAME, ACCOUNT, ADDR)"
+      "INSERT INTO PKEY(ACCOUNT, NAME, XFP, ADDR)"
       "VALUES (?1, ?2, ?3, ?4)"
-      "ON CONFLICT(PATH) DO UPDATE SET NAME=excluded.NAME, "
-      "ACCOUNT=excluded.ACCOUNT, ADDR=excluded.ADDR;";
+      "ON CONFLICT(ACCOUNT) DO UPDATE SET NAME=excluded.NAME, "
+      "XFP=excluded.XFP, ADDR=excluded.ADDR;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, key.get_master_fingerprint().c_str(),
-                    key.get_master_fingerprint().size(), NULL);
+  sqlite3_bind_text(stmt, 1, key.get_account().c_str(),
+                    key.get_account().size(), NULL);
   sqlite3_bind_text(stmt, 2, key.get_name().c_str(), key.get_name().size(),
                     NULL);
-  sqlite3_bind_text(stmt, 3, key.get_account().c_str(),
-                    key.get_account().size(), NULL);
+  sqlite3_bind_text(stmt, 3, key.get_master_fingerprint().c_str(),
+                    key.get_master_fingerprint().size(), NULL);
   sqlite3_bind_text(stmt, 4, key.get_address().c_str(),
                     key.get_address().size(), NULL);
   sqlite3_step(stmt);
@@ -54,7 +54,7 @@ bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
 
 std::vector<PrimaryKey> NunchukPrimaryDb::GetPrimaryKeys() const {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT ID, NAME, ACCOUNT, ADDR FROM PKEY;";
+  std::string sql = "SELECT XFP, NAME, ACCOUNT, ADDR FROM PKEY;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
   std::vector<PrimaryKey> keys;

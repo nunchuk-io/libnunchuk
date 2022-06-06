@@ -188,8 +188,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     } else if (passphrase_.empty()) {
       db.EncryptDb(new_file.string(), value);
     } else {
-      db.ReKey(value);
-      return;
+      return db.ReKey(value);
     }
     fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
     fs::remove(new_file);
@@ -347,13 +346,10 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
         signer_db.GetRemoteSigner(signer.get_derivation_path());
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
-        if (se.code() == StorageException::SIGNER_NOT_FOUND) {
-          signer_db.AddRemote("import", signer.get_xpub(),
-                              signer.get_public_key(),
-                              signer.get_derivation_path(), true);
-        } else {
-          throw;
-        }
+        if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
+        signer_db.AddRemote("import", signer.get_xpub(),
+                            signer.get_public_key(),
+                            signer.get_derivation_path(), true);
       }
     }
   }
@@ -553,14 +549,12 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
         name = remote.get_name();
         last_health_check = remote.get_last_health_check();
       } catch (StorageException& se) {
-        if (se.code() == StorageException::SIGNER_NOT_FOUND &&
-            create_signers_if_not_exist) {
-          signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
-                              signer.get_public_key(),
-                              signer.get_derivation_path(), true);
-        } else {
+        if (se.code() != StorageException::SIGNER_NOT_FOUND ||
+            !create_signers_if_not_exist)
           throw;
-        }
+        signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                            signer.get_public_key(),
+                            signer.get_derivation_path(), true);
       }
     }
     SingleSigner true_signer(name, signer.get_xpub(), signer.get_public_key(),
