@@ -288,6 +288,10 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
     const std::string& raw_name, const std::string& mnemonic,
     const std::string& passphrase, std::function<bool(int)> progress,
     bool is_primary) {
+  if (!Utils::CheckMnemonic(mnemonic)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid mnemonic");
+  }
   std::string name = trim_copy(raw_name);
   SoftwareSigner signer{mnemonic, passphrase};
   Device device{"software", "nunchuk", signer.GetMasterFingerprint()};
