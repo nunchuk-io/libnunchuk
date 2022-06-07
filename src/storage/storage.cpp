@@ -584,7 +584,7 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
     if (signer_passphrase_.count(mid) == 0 && signer_db.IsSoftware("")) {
       signer_passphrase_[mid] = "";
     }
-    device.set_needs_pass_phrase_sent(signer_passphrase_.count(id) == 0);
+    device.set_needs_pass_phrase_sent(signer_passphrase_.count(mid) == 0);
   }
   MasterSigner signer{id, device, signer_db.GetLastHealthCheck(), signer_type};
   signer.set_name(signer_db.GetName());

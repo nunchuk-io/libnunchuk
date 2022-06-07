@@ -240,7 +240,7 @@ NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
-    const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
+    const std::unique_ptr<Nunchuk>& /* nu */, const std::string& room_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto db = storage_.GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
@@ -592,12 +592,8 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     auto init_event = JsonToEvent(body["io.nunchuk.relates_to"]["init_event"]);
     if (!db.HasEvent(init_event.get_event_id())) db.SetEvent(init_event);
     init_event_id = init_event.get_event_id();
-    try {
-      json init_body = GetInitBody(body);
-      if (ChainFromStr(init_body["chain"]) != chain_) return;
-    } catch (...) {
-      return;
-    }
+    json init_body = GetInitBody(body);
+    if (ChainFromStr(init_body["chain"]) != chain_) return;
   }
 
   std::string msgtype = content["msgtype"];
@@ -713,13 +709,10 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     } else if (msgtype == "io.nunchuk.transaction.broadcast") {
       tx.set_broadcast_event_id(event.get_event_id());
       if (body["raw_tx"] != nullptr) {
-        try {
-          std::string reject_msg{};
-          if (body["reject_msg"] != nullptr) reject_msg = body["reject_msg"];
-          nu->UpdateTransaction(tx.get_wallet_id(), tx.get_tx_id(),
-                                body["tx_id"], body["raw_tx"], reject_msg);
-        } catch (...) {
-        }
+        std::string reject_msg{};
+        if (body["reject_msg"] != nullptr) reject_msg = body["reject_msg"];
+        nu->UpdateTransaction(tx.get_wallet_id(), tx.get_tx_id(), body["tx_id"],
+                              body["raw_tx"], reject_msg);
       }
       tx.set_tx_id(body["tx_id"]);
     }
@@ -747,15 +740,17 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
   std::string msgtype = content["msgtype"];
   if (msgtype == "io.nunchuk.sync.file") {
     db.SetSyncRoomId(event.get_room_id());
-    std::string data;
-    if (content["body"] != nullptr) {
-      data = content["body"].dump();
-    } else if (content["file"] != nullptr) {
-      data = DecryptAttachment(downloadfunc_, content["file"].dump(),
-                               EventToJson(event).dump());
-    }
-    if (!data.empty() && nu->SyncWithBackup(data, progress)) {
-      SyncWithBackup(data);
+    if (content["device_id"] == nullptr || content["device_id"] != device_id_) {
+      std::string data;
+      if (content["body"] != nullptr) {
+        data = content["body"].dump();
+      } else if (content["file"] != nullptr) {
+        data = DecryptAttachment(downloadfunc_, content["file"].dump(),
+                                 EventToJson(event).dump());
+      }
+      if (!data.empty() && nu->SyncWithBackup(data, progress)) {
+        SyncWithBackup(data);
+      }
     }
   }
   db.SetEvent(event);
