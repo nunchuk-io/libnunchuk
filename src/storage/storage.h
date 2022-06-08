@@ -34,10 +34,10 @@ namespace nunchuk {
 
 class NunchukStorage {
  public:
-  NunchukStorage(const std::string &datadir = "",
-                 const std::string &passphrase = "",
-                 const std::string &account = "");
+  static std::shared_ptr<NunchukStorage> get(const std::string &account);
 
+  NunchukStorage(const std::string &account);
+  void Init(const std::string &datadir, const std::string &passphrase);
   void MaybeMigrate(Chain chain);
   bool WriteFile(const std::string &file_path, const std::string &value);
   std::string LoadFile(const std::string &file_path);
@@ -173,6 +173,8 @@ class NunchukStorage {
   void AddPrimaryKey(Chain chain, const PrimaryKey &key);
 
  private:
+  static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
+
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   NunchukAppStateDb GetAppStateDb(Chain chain);

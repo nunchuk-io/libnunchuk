@@ -26,7 +26,8 @@ namespace nunchuk {
 
 class CoreRpcSynchronizer : public Synchronizer {
  public:
-  CoreRpcSynchronizer(const AppSettings& app_settings, NunchukStorage* storage);
+  CoreRpcSynchronizer(const AppSettings& app_settings,
+                      const std::string& account);
   CoreRpcSynchronizer(const CoreRpcSynchronizer&) = delete;
   CoreRpcSynchronizer& operator=(const CoreRpcSynchronizer&) = delete;
   ~CoreRpcSynchronizer() override;

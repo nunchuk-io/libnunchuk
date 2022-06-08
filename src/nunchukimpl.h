@@ -256,9 +256,9 @@ class NunchukImpl : public Nunchuk {
 
   AppSettings app_settings_;
   std::string account_;
-  NunchukStorage storage_;
   Chain chain_;
   HWIService hwi_;
+  std::shared_ptr<NunchukStorage> storage_;
   std::unique_ptr<Synchronizer> synchronizer_;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
   boost::signals2::signal<void()> storage_listener_;

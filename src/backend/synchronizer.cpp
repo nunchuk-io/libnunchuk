@@ -22,21 +22,21 @@ using namespace boost::asio;
 
 namespace nunchuk {
 
-std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& app_settings,
-                                               NunchukStorage* storage) {
-  if (app_settings.get_backend_type() == BackendType::CORERPC) {
+std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,
+                                               const std::string& account) {
+  if (appsettings.get_backend_type() == BackendType::CORERPC) {
     return std::unique_ptr<CoreRpcSynchronizer>(
-        new CoreRpcSynchronizer(app_settings, storage));
+        new CoreRpcSynchronizer(appsettings, account));
   } else {
     return std::unique_ptr<ElectrumSynchronizer>(
-        new ElectrumSynchronizer(app_settings, storage));
+        new ElectrumSynchronizer(appsettings, account));
   }
 }
 
-Synchronizer::Synchronizer(const AppSettings& app_settings,
-                           NunchukStorage* storage)
-    : app_settings_(app_settings),
-      storage_(storage),
+Synchronizer::Synchronizer(const AppSettings& appsettings,
+                           const std::string& account)
+    : app_settings_(appsettings),
+      storage_(NunchukStorage::get(account)),
       sync_thread_(),
       sync_worker_(make_work_guard(io_service_)) {
   sync_thread_ = std::thread([&]() {

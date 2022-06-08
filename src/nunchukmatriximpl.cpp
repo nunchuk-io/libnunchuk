@@ -96,11 +96,11 @@ NunchukMatrixImpl::NunchukMatrixImpl(const AppSettings& appsettings,
                                      const std::string& account,
                                      const std::string& device_id,
                                      SendEventFunc sendfunc)
-    : storage_(appsettings.get_storage_path(), "", account),
-      access_token_(access_token),
+    : access_token_(access_token),
       sender_(account),
       device_id_(device_id),
       chain_(appsettings.get_chain()),
+      storage_(NunchukStorage::get(account)),
       sendfunc_(sendfunc) {
   uploadfunc_ = [this](const std::string&, const std::string&,
                        const std::string&, const char* body, size_t length) {
@@ -128,7 +128,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,
     AddressType address_type, bool is_escrow, const std::string& description) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   if (db.HasActiveWallet(room_id)) {
     throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_EXISTS,
                                  "Shared wallet exists");
@@ -149,7 +149,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
 NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
                                                  const SingleSigner& signer) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
 
   auto init_event = db.GetEvent(wallet.get_init_event_id());
@@ -198,7 +198,7 @@ NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
     const std::string& room_id, const std::string& join_event_id,
     const std::string& reason) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json content = {{"msgtype", "io.nunchuk.wallet.leave"},
@@ -213,7 +213,7 @@ NunchukMatrixEvent NunchukMatrixImpl::LeaveWallet(
 NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
                                                    const std::string& reason) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json content = {
@@ -227,7 +227,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelWallet(const std::string& room_id,
 NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
     const std::unique_ptr<Nunchuk>& nu, const std::string& room_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   nu->DeleteWallet(wallet.get_wallet_id());
   auto init_event = db.GetEvent(wallet.get_init_event_id());
@@ -242,7 +242,7 @@ NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
 NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
     const std::unique_ptr<Nunchuk>& /* nu */, const std::string& room_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
 
   std::set<std::string> leave_ids;
@@ -295,7 +295,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitTransaction(
     const std::vector<UnspentOutput> inputs, Amount fee_rate,
     bool subtract_fee_from_amount) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto wallet = db.GetActiveWallet(room_id);
   auto tx = nu->CreateTransaction(wallet.get_wallet_id(), outputs, memo, inputs,
                                   fee_rate, subtract_fee_from_amount);
@@ -314,7 +314,7 @@ NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
     const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
     const Device& device) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
   auto rtx = db.GetTransaction(init_event_id);
@@ -331,7 +331,7 @@ NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
 NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
     const std::string& init_event_id, const std::string& reason) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
   json content = {
@@ -345,7 +345,7 @@ NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
 NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
     const std::string& init_event_id, const std::string& reason) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
   json content = {
@@ -359,7 +359,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CancelTransaction(
 NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
     const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   auto init_event = db.GetEvent(init_event_id);
   std::string room_id = init_event.get_room_id();
   auto rtx = db.GetTransaction(init_event_id);
@@ -381,7 +381,7 @@ NunchukMatrixEvent NunchukMatrixImpl::BroadcastTransaction(
 
 std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
 
   auto event = db.GetEvent(event_id);
   auto encrypted = json::parse(event.get_content())["body"]["encrypted_tx_id"];
@@ -402,7 +402,7 @@ std::string NunchukMatrixImpl::GetTransactionId(const std::string& event_id) {
 void NunchukMatrixImpl::SendReceiveTransaction(const std::string& room_id,
                                                const std::string& tx_id) {
   // std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   if (db.HasTransactionNotify(tx_id)) return;
   auto wallet = db.GetActiveWallet(room_id);
   if (wallet.get_finalize_event_id().empty()) return;
@@ -468,7 +468,7 @@ void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid room_id or access_token");
   }
-  if (storage_.GetLastSyncTs() < storage_.GetLastExportTs()) AsyncBackup(nu);
+  if (storage_->GetLastSyncTs() < storage_->GetLastExportTs()) AsyncBackup(nu);
   nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
 }
 
@@ -528,39 +528,39 @@ void NunchukMatrixImpl::WriteFileCallback(
 
 std::vector<RoomWallet> NunchukMatrixImpl::GetAllRoomWallets() {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   return db.GetWallets();
 }
 
 bool NunchukMatrixImpl::HasRoomWallet(const std::string& room_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   return db.HasActiveWallet(room_id);
 }
 
 RoomWallet NunchukMatrixImpl::GetRoomWallet(const std::string& room_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   return db.GetActiveWallet(room_id);
 }
 
 std::vector<RoomTransaction> NunchukMatrixImpl::GetPendingTransactions(
     const std::string& room_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   return db.GetPendingTransactions(room_id);
 }
 
 RoomTransaction NunchukMatrixImpl::GetRoomTransaction(
     const std::string& init_event_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   return db.GetTransaction(init_event_id);
 }
 
 NunchukMatrixEvent NunchukMatrixImpl::GetEvent(const std::string& event_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   return db.GetEvent(event_id);
 }
 
@@ -572,7 +572,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   if (event.get_event_id().empty()) return;
   if (event.get_event_id().rfind("$local", 0) == 0) return;
 
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   if (db.HasEvent(event.get_event_id())) return;
   json content = json::parse(event.get_content());
   if (content["v"] == nullptr) return;
@@ -733,7 +733,7 @@ void NunchukMatrixImpl::ConsumeSyncEvent(const std::unique_ptr<Nunchuk>& nu,
   if (event.get_event_id().empty()) return;
   if (event.get_event_id().rfind("$local", 0) == 0) return;
 
-  auto db = storage_.GetRoomDb(chain_);
+  auto db = storage_->GetRoomDb(chain_);
   if (db.HasEvent(event.get_event_id())) return;
   json content = json::parse(event.get_content());
   if (content["v"] == nullptr) return;
@@ -762,7 +762,7 @@ void NunchukMatrixImpl::SyncWithBackup(const std::string& dataStr) {
 
   auto importChain = [&](Chain chain, json& d) {
     if (d == nullptr) return;
-    auto db = storage_.GetRoomDb(chain);
+    auto db = storage_->GetRoomDb(chain);
     json events = d["events"];
     for (auto&& e : events) db.SetEvent({e.dump()});
     json wallets = d["wallets"];
@@ -789,7 +789,7 @@ std::string NunchukMatrixImpl::ExportBackup() {
   std::unique_lock<std::shared_mutex> lock(access_);
 
   auto exportChain = [&](Chain chain) {
-    auto db = storage_.GetRoomDb(chain);
+    auto db = storage_->GetRoomDb(chain);
     json rs;
     rs["events"] = json::array();
     auto exportEvent = [&](const std::string& event_id) {
