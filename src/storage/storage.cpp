@@ -48,6 +48,16 @@ namespace ba = boost::algorithm;
 
 namespace nunchuk {
 
+std::map<std::string, std::shared_ptr<NunchukStorage>>
+    NunchukStorage::instances_;
+
+std::shared_ptr<NunchukStorage> NunchukStorage::get(const std::string& acc) {
+  if (const auto it = instances_.find(acc); it != instances_.end()) {
+    return it->second;
+  }
+  return instances_[acc] = std::make_shared<NunchukStorage>(acc);
+}
+
 fs::path NunchukStorage::GetDefaultDataDir() const {
   // Windows: C:\Users\Username\AppData\Roaming\Nunchuk
   // Mac: ~/Library/Application Support/Nunchuk
@@ -127,10 +137,11 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
   return id;
 }
 
-NunchukStorage::NunchukStorage(const std::string& datadir,
-                               const std::string& passphrase,
-                               const std::string& account)
-    : passphrase_(passphrase), account_(account) {
+NunchukStorage::NunchukStorage(const std::string& acc) : account_(acc) {}
+
+void NunchukStorage::Init(const std::string& datadir,
+                          const std::string& passphrase) {
+  passphrase_ = passphrase;
   if (!datadir.empty()) {
     datadir_ = fs::system_complete(datadir);
     if (!fs::is_directory(datadir_)) {

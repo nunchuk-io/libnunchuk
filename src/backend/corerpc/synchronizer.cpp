@@ -23,8 +23,8 @@ using json = nlohmann::json;
 namespace nunchuk {
 
 CoreRpcSynchronizer::CoreRpcSynchronizer(const AppSettings& app_settings,
-                                         NunchukStorage* storage)
-    : Synchronizer(app_settings, storage),
+                                         const std::string& account)
+    : Synchronizer(app_settings, account),
       interval_(60),
       timer_(io_service_, boost::posix_time::seconds(10)) {}
 

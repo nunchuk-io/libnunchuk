@@ -28,13 +28,13 @@ namespace nunchuk {
 
 class Synchronizer {
  public:
-  Synchronizer(const AppSettings& app_settings, NunchukStorage* storage);
+  Synchronizer(const AppSettings& appsettings, const std::string& account);
   Synchronizer(const Synchronizer&) = delete;
   Synchronizer() = delete;
   Synchronizer& operator=(const Synchronizer&) = delete;
   virtual ~Synchronizer();
 
-  bool NeedRecreate(const AppSettings& app_settings);
+  bool NeedRecreate(const AppSettings& appsettings);
   int GetChainTip();
 
   void AddBalanceListener(std::function<void(std::string, Amount)> listener);
@@ -57,7 +57,7 @@ class Synchronizer {
 
  protected:
   AppSettings app_settings_;
-  NunchukStorage* storage_;
+  std::shared_ptr<NunchukStorage> storage_;
 
   std::thread sync_thread_;
   boost::asio::io_service io_service_;
@@ -75,8 +75,8 @@ class Synchronizer {
   boost::signals2::signal<void(ConnectionStatus, int)> connection_listener_;
 };
 
-std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& app_settings,
-                                               NunchukStorage* storage);
+std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,
+                                               const std::string& account);
 
 }  // namespace nunchuk
 

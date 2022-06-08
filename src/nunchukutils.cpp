@@ -142,8 +142,9 @@ void Utils::SetPassPhrase(const std::string& storage_path,
                           const std::string& account,
                           const std::string& old_passphrase,
                           const std::string& new_passphrase) {
-  NunchukStorage storage(storage_path, old_passphrase, account);
-  storage.SetPassphrase(new_passphrase);
+  auto storage = NunchukStorage::get(account);
+  storage->Init(storage_path, old_passphrase);
+  storage->SetPassphrase(new_passphrase);
 }
 
 std::string Utils::GetPrimaryKeyAddress(const std::string& mnemonic,

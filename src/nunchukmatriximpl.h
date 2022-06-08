@@ -124,13 +124,13 @@ class NunchukMatrixImpl : public NunchukMatrix {
   void SyncWithBackup(const std::string& dataStr);
   std::string ExportBackup();
 
-  NunchukStorage storage_;
   std::string sync_room_id_;
   std::string access_token_;
   std::string sender_;
   std::string device_id_;
   bool stopped = false;
   Chain chain_;
+  std::shared_ptr<NunchukStorage> storage_;
   SendEventFunc sendfunc_;
   UploadFileFunc uploadfunc_;
   DownloadFileFunc downloadfunc_;
