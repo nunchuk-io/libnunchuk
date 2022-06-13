@@ -153,6 +153,12 @@ std::string Utils::GetPrimaryKeyAddress(const std::string& mnemonic,
   return signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
 }
 
+std::string GetMasterFingerprint(const std::string& mnemonic,
+                                 const std::string& passphrase) {
+  SoftwareSigner signer{mnemonic, passphrase};
+  return signer.GetMasterFingerprint();
+}
+
 std::string Utils::SignLoginMessage(const std::string& mnemonic,
                                     const std::string& passphrase,
                                     const std::string& message) {

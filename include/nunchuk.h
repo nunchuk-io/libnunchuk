@@ -787,6 +787,8 @@ class NUNCHUK_EXPORT Utils {
                             const std::string& new_passphrase);
   static std::string GetPrimaryKeyAddress(const std::string& mnemonic,
                                           const std::string& passphrase);
+  static std::string GetMasterFingerprint(const std::string& mnemonic,
+                                          const std::string& passphrase);
   static std::string SignLoginMessage(const std::string& mnemonic,
                                       const std::string& passphrase,
                                       const std::string& message);
