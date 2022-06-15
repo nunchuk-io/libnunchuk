@@ -79,9 +79,10 @@ class NunchukMatrixImpl : public NunchukMatrix {
       const std::string& init_event_id) override;
 
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu) override;
-  void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+  void RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                         const std::string& sync_room_id,
                         const std::string& access_token) override;
+  void EnableAutoBackup(bool enable) override;
   void EnableGenerateReceiveEvent(const std::unique_ptr<Nunchuk>& nu) override;
 
   void RegisterFileFunc(UploadFileFunc upload,
@@ -129,6 +130,7 @@ class NunchukMatrixImpl : public NunchukMatrix {
   std::string sender_;
   std::string device_id_;
   bool stopped = false;
+  bool enable_auto_backup_ = true;
   Chain chain_;
   std::shared_ptr<NunchukStorage> storage_;
   SendEventFunc sendfunc_;

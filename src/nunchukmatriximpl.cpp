@@ -459,17 +459,23 @@ void NunchukMatrixImpl::AsyncBackup(const std::unique_ptr<Nunchuk>& nu,
   }));
 }
 
-void NunchukMatrixImpl::EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
-                                         const std::string& sync_room_id,
-                                         const std::string& access_token) {
+void NunchukMatrixImpl::RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+                                           const std::string& sync_room_id,
+                                           const std::string& access_token) {
   sync_room_id_ = sync_room_id;
   access_token_ = access_token;
   if (sync_room_id_.empty() || access_token_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid room_id or access_token");
   }
-  if (storage_->GetLastSyncTs() < storage_->GetLastExportTs()) AsyncBackup(nu);
-  nu->AddStorageUpdateListener([&]() { AsyncBackup(nu); });
+  // if (storage_->GetLastSyncTs() < storage_->GetLastExportTs()) AsyncBackup(nu);
+  nu->AddStorageUpdateListener([&]() {
+    if (enable_auto_backup_) AsyncBackup(nu);
+  });
+}
+
+void NunchukMatrixImpl::EnableAutoBackup(bool enable) {
+  enable_auto_backup_ = enable;
 }
 
 void NunchukMatrixImpl::RegisterFileFunc(UploadFileFunc upload,

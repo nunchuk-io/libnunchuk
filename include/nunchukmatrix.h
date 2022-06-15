@@ -221,9 +221,10 @@ class NUNCHUK_EXPORT NunchukMatrix {
       const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id) = 0;
 
   virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu) = 0;
-  virtual void EnableAutoBackup(const std::unique_ptr<Nunchuk>& nu,
+  virtual void RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
                                 const std::string& sync_room_id,
                                 const std::string& access_token) = 0;
+  virtual void EnableAutoBackup(bool enable) = 0;
   virtual void EnableGenerateReceiveEvent(
       const std::unique_ptr<Nunchuk>& nu) = 0;
 
