@@ -82,8 +82,10 @@ CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
                            "Invalid hd keypath");
   }
 
+  std::cout << path << " " << keypath.size() << std::endl;
   CExtKey xkey = bip32rootkey_;
   for (auto&& i : keypath) {
+    std::cout << std::hex << i << std::endl;
     xkey.Derive(xkey, i);
   }
   return xkey;
