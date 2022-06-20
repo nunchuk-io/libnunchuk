@@ -87,6 +87,7 @@ class NunchukImpl : public Nunchuk {
                             const std::string& public_key,
                             const std::string& derivation_path,
                             const std::string& master_fingerprint) override;
+  bool HasSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,
                                       const AddressType& address_type) override;

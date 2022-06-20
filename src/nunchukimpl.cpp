@@ -368,6 +368,10 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
   return rs;
 }
 
+bool NunchukImpl::HasSigner(const SingleSigner& signer) {
+  return storage_->HasSigner(chain_, signer);
+}
+
 int NunchukImpl::GetCurrentIndexFromMasterSigner(
     const std::string& mastersigner_id, const WalletType& wallet_type,
     const AddressType& address_type) {

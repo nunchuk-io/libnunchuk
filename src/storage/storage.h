@@ -69,6 +69,7 @@ class NunchukStorage {
   bool HasWallet(Chain chain, const std::string &wallet_id);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
   SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);
+  bool HasSigner(Chain chain, const SingleSigner &signer);
 
   bool UpdateWallet(Chain chain, const Wallet &wallet);
   bool UpdateMasterSigner(Chain chain, const MasterSigner &mastersigner);

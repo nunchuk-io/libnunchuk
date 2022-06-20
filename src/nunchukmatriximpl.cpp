@@ -126,13 +126,18 @@ NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,
-    AddressType address_type, bool is_escrow, const std::string& description) {
+    AddressType address_type, bool is_escrow, const std::string& description,
+    const std::vector<SingleSigner>& signers) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_->GetRoomDb(chain_);
   if (db.HasActiveWallet(room_id)) {
     throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_EXISTS,
                                  "Shared wallet exists");
   }
+
+  json members = json::array();
+  for (auto&& signer : signers) members.push_back(signer.get_descriptor());
+
   json content = {{"msgtype", "io.nunchuk.wallet.init"},
                   {"body",
                    {{"name", name},
@@ -141,7 +146,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
                     {"n", n},
                     {"address_type", AddressTypeToStr(address_type)},
                     {"is_escrow", is_escrow},
-                    {"members", json::array()},
+                    {"members", members},
                     {"chain", ChainToStr(chain_)}}}};
   return NewEvent(room_id, "io.nunchuk.wallet", content);
 }

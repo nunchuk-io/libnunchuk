@@ -579,6 +579,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                     const std::string& public_key,
                                     const std::string& derivation_path,
                                     const std::string& master_fingerprint) = 0;
+  virtual bool HasSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type) = 0;

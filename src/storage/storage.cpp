@@ -393,6 +393,19 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   return signer;
 }
 
+bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  std::string id = signer.get_master_fingerprint();
+  fs::path db_file = GetSignerDir(chain, id);
+  if (!fs::exists(db_file)) return false;
+  NunchukSignerDb signer_db{chain, id, db_file.string(), passphrase_};
+  if (signer_db.IsMaster()) return true;
+  auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
+  return remote.get_name() != "import" &&
+         remote.get_xpub() == signer.get_xpub() &&
+         remote.get_public_key() == signer.get_public_key();
+}
+
 SingleSigner NunchukStorage::GetSignerFromMasterSigner(
     Chain chain, const std::string& mastersigner_id,
     const WalletType& wallet_type, const AddressType& address_type, int index) {
