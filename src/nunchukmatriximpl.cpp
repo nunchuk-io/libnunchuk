@@ -38,6 +38,14 @@ json GetInitBody(const json& body) {
   return body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
 }
 
+bool IsValidMembers(const json& members, const std::string& key) {
+  if (!members.is_array() || members.empty()) return true;
+  for (auto&& m : members) {
+    if (m.get<std::string>() == key) return true;
+  }
+  return false;
+}
+
 json EventToJson(const NunchukMatrixEvent& event) {
   return {
       {"room_id", event.get_room_id()},
@@ -170,6 +178,12 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
                                  "Mismatched key types");
   }
 
+  std::string key = signer.get_descriptor();
+  if (!IsValidMembers(init_body["members"], key)) {
+    throw NunchukMatrixException(NunchukMatrixException::INVALID_KEY,
+                                 "Key can not be assigned");
+  }
+
   std::set<std::string> leave_ids;
   for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
     auto leave_event = db.GetEvent(leave_event_id);
@@ -178,7 +192,6 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
     leave_ids.insert(join_id);
   }
 
-  std::string key = signer.get_descriptor();
   for (auto&& join_event_id : wallet.get_join_event_ids()) {
     if (leave_ids.count(join_event_id)) continue;
     auto join_event = db.GetEvent(join_event_id);
