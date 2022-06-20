@@ -84,9 +84,15 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  AddressType address_type, bool is_escrow,
                                  const std::string& description,
                                  bool allow_used_signer) {
-  Wallet wallet =
-      storage_->CreateWallet(chain_, name, m, n, signers, address_type,
-                             is_escrow, description, allow_used_signer);
+  Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
+  wallet.set_name(name);
+  wallet.set_description(description);
+  wallet.set_create_date(std::time(0));
+  return CreateWallet(wallet, allow_used_signer);
+}
+
+Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
+  Wallet wallet = storage_->CreateWallet(chain_, w, allow_used_signer);
   ScanWalletAddress(wallet.get_id());
   storage_listener_();
   return storage_->GetWallet(chain_, wallet.get_id(), true);
@@ -126,6 +132,10 @@ Wallet NunchukImpl::GetWallet(const std::string& wallet_id) {
   return storage_->GetWallet(chain_, wallet_id);
 }
 
+bool NunchukImpl::HasWallet(const std::string& wallet_id) {
+  return storage_->HasWallet(chain_, wallet_id);
+}
+
 bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
   bool rs = storage_->DeleteWallet(chain_, wallet_id);
   storage_listener_();
@@ -154,20 +164,10 @@ Wallet NunchukImpl::ImportWalletDescriptor(const std::string& file_path,
                                            const std::string& name,
                                            const std::string& description) {
   std::string descs = trim_copy(storage_->LoadFile(file_path));
-  AddressType address_type;
-  WalletType wallet_type;
-  int m;
-  int n;
-  std::vector<SingleSigner> signers;
-  if (!ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers)) {
-    // Not BSMS format, fallback to legacy format
-    if (!ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Could not parse descriptor");
-    }
-  }
-  return CreateWallet(name, m, n, signers, address_type,
-                      wallet_type == WalletType::ESCROW, description, true);
+  Wallet wallet = Utils::ParseWalletDescriptor(descs);
+  wallet.set_name(name);
+  wallet.set_description(description);
+  return CreateWallet(wallet, true);
 }
 
 Wallet NunchukImpl::ImportWalletConfigFile(const std::string& file_path,

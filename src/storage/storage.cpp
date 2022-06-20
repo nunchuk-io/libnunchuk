@@ -303,36 +303,17 @@ NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
   return db;
 }
 
-Wallet NunchukStorage::CreateWallet(Chain chain, const std::string& name, int m,
-                                    int n,
-                                    const std::vector<SingleSigner>& signers,
-                                    AddressType address_type, bool is_escrow,
-                                    const std::string& description,
+Wallet NunchukStorage::CreateWallet(Chain chain, const Wallet& wallet,
                                     bool allow_used_signer) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return CreateWallet0(chain, name, m, n, signers, address_type, is_escrow,
-                       description, allow_used_signer, std::time(0));
+  return CreateWallet0(chain, wallet, allow_used_signer);
 }
 
-Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
-                                     int m, int n,
-                                     const std::vector<SingleSigner>& signers,
-                                     AddressType address_type, bool is_escrow,
-                                     const std::string& description,
-                                     bool allow_used_signer,
-                                     time_t create_date) {
-  if (m > n) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: m > n");
-  }
-  if (n != signers.size()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: n and signers are not match");
-  }
-  WalletType wallet_type =
-      n == 1 ? WalletType::SINGLE_SIG
-             : (is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG);
-  for (auto&& signer : signers) {
+Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
+                                     bool allow_used_signer) {
+  AddressType address_type = wallet.get_address_type();
+  WalletType wallet_type = wallet.get_wallet_type();
+  for (auto&& signer : wallet.get_signers()) {
     auto master_id = signer.get_master_fingerprint();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
@@ -364,19 +345,14 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const std::string& name,
       }
     }
   }
-  std::string id = GetWalletId(signers, m, address_type, wallet_type);
+  auto id = wallet.get_id();
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
                            strprintf("Wallet existed! id = '%s'", id));
   }
   NunchukWalletDb wallet_db{chain, id, wallet_file.string(), passphrase_};
-  wallet_db.InitWallet(name, m, n, signers, address_type, is_escrow,
-                       create_date, description);
-  Wallet wallet(id, m, n, signers, address_type, is_escrow, create_date);
-  wallet.set_name(name);
-  wallet.set_description(description);
-  wallet.set_balance(0);
+  wallet_db.InitWallet(wallet);
   GetAppStateDb(chain).RemoveDeletedWallet(id);
   return wallet;
 }
@@ -581,6 +557,11 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_name(wallet.get_name());
   true_wallet.set_balance(wallet.get_balance());
   return true_wallet;
+}
+
+bool NunchukStorage::HasWallet(Chain chain, const std::string& wallet_id) {
+  fs::path wallet_file = GetWalletDir(chain, wallet_id);
+  return fs::exists(wallet_file);
 }
 
 MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
@@ -1075,18 +1056,12 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       std::string id = wallet["id"];
       if (id.empty()) continue;
       if (std::find(dwids.begin(), dwids.end(), id) != dwids.end()) continue;
-      fs::path db_file = GetWalletDir(chain, id);
-      if (!fs::exists(db_file)) {
-        AddressType a;
-        WalletType w;
-        int m;
-        int n;
-        std::vector<SingleSigner> signers;
-        if (ParseDescriptors(wallet["descriptor"], a, w, m, n, signers)) {
-          CreateWallet0(chain, wallet["name"], m, n, signers, a,
-                        w == WalletType::ESCROW, wallet["description"], true,
-                        wallet["create_date"]);
-        }
+      if (!HasWallet(chain, id)) {
+        Wallet w = Utils::ParseWalletDescriptor(wallet["descriptor"]);
+        w.set_name(wallet["name"]);
+        w.set_description(wallet["description"]);
+        w.set_create_date(wallet["create_date"]);
+        CreateWallet0(chain, w, true);
       } else {
         auto db = GetWalletDb(chain, id);
         db.SetName(wallet["name"]);

@@ -17,9 +17,11 @@
 
 #include <nunchuk.h>
 #include <coreutils.h>
+#include <descriptor.h>
 #include <softwaresigner.h>
 #include <utils/addressutils.hpp>
 #include <utils/bip32.hpp>
+#include <utils/bsms.hpp>
 #include <storage/storage.h>
 
 #include <base58.h>
@@ -164,6 +166,24 @@ std::string Utils::SignLoginMessage(const std::string& mnemonic,
                                     const std::string& message) {
   SoftwareSigner signer{mnemonic, passphrase};
   return signer.SignMessage(message, LOGIN_SIGNING_PATH);
+}
+
+Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
+  AddressType address_type;
+  WalletType wallet_type;
+  int m;
+  int n;
+  std::vector<SingleSigner> signers;
+  if (!ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers)) {
+    // Not BSMS format, fallback to legacy format
+    if (!ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Could not parse descriptor");
+    }
+  }
+  std::string id = GetWalletId(signers, m, address_type, wallet_type);
+  bool is_escrow = wallet_type == WalletType::ESCROW;
+  return {id, m, n, signers, address_type, is_escrow, std::time(0)};
 }
 
 }  // namespace nunchuk

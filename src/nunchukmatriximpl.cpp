@@ -468,7 +468,6 @@ void NunchukMatrixImpl::RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid room_id or access_token");
   }
-  // if (storage_->GetLastSyncTs() < storage_->GetLastExportTs()) AsyncBackup(nu);
   nu->AddStorageUpdateListener([&]() {
     if (enable_auto_backup_) AsyncBackup(nu);
   });
@@ -636,23 +635,14 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     if (wallet.get_wallet_id().empty() &&
         wallet.get_delete_event_id().empty()) {
       std::string desc = body["descriptor"];
-      AddressType a;
-      WalletType w;
-      int m;
-      int n;
-      std::vector<SingleSigner> signers;
-      if (!ParseDescriptors(desc, a, w, m, n, signers)) {
-        throw NunchukException(NunchukException::INVALID_PARAMETER,
-                               "Could not parse descriptor");
-      }
+      Wallet w = Utils::ParseWalletDescriptor(desc);
 
       auto init_body = GetInitBody(body);
-      std::string name = init_body["name"];
-      std::string d = init_body["description"];
+      w.set_name(init_body["name"]);
+      w.set_description(init_body["description"]);
 
-      auto wallet_id = GetWalletId(signers, m, a, w);
-      wallet.set_wallet_id(wallet_id);
-      wallet2room_[wallet_id] = event.get_room_id();
+      wallet.set_wallet_id(w.get_id());
+      wallet2room_[w.get_id()] = event.get_room_id();
 
       // Note: update db first to make sure sync file has the latest data
       db.SetWallet(wallet);
@@ -661,11 +651,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       event_hasbody.set_content(content.dump());
       db.SetEvent(event_hasbody);
 
-      try {
-        nu->CreateWallet(name, m, n, signers, a, w == WalletType::ESCROW, d);
-      } catch (...) {
-        // Most likely the wallet existed
-      }
+      if (!nu->HasWallet(w.get_id())) nu->CreateWallet(w);
       return;
     }
     db.SetWallet(wallet);
