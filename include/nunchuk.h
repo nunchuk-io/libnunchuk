@@ -702,7 +702,6 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
       bool is_primary = false) = 0;
-  virtual std::vector<PrimaryKey> GetPrimaryKeys() = 0;
   virtual std::string SignLoginMessage(const std::string& mastersigner_id,
                                        const std::string& message) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,
@@ -785,6 +784,8 @@ class NUNCHUK_EXPORT Utils {
                             const std::string& account,
                             const std::string& old_passphrase,
                             const std::string& new_passphrase);
+  static std::vector<PrimaryKey> GetPrimaryKeys(const std::string& storage_path,
+                                                Chain chain);
   static std::string GetPrimaryKeyAddress(const std::string& mnemonic,
                                           const std::string& passphrase);
   static std::string GetMasterFingerprint(const std::string& mnemonic,

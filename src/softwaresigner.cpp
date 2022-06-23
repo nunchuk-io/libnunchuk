@@ -84,7 +84,9 @@ CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
 
   CExtKey xkey = bip32rootkey_;
   for (auto&& i : keypath) {
-    xkey.Derive(xkey, i);
+    CExtKey child;
+    xkey.Derive(child, i);
+    xkey = child;
   }
   return xkey;
 }

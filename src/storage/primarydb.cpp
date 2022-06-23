@@ -25,7 +25,7 @@ void NunchukPrimaryDb::Init() {
                         "CREATE TABLE IF NOT EXISTS PKEY("
                         "ACCOUNT TEXT PRIMARY KEY NOT NULL,"
                         "NAME    TEXT             NOT NULL,"
-                        "XFP     VARCHAR(8)       NOT NULL,"
+                        "XFP     TEXT             NOT NULL,"
                         "ADDR    TEXT             NOT NULL);",
                         NULL, 0, NULL));
 }

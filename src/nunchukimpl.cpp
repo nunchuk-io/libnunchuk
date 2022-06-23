@@ -305,17 +305,14 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
 
   if (is_primary) {
     auto address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
-    storage_->AddPrimaryKey(chain_, {name, id, account_, address});
+    PrimaryKey key(name, id, account_, address);
+    storage_->AddPrimaryKey(chain_, key);
   }
 
   storage_->ClearSignerPassphrase(chain_, id);
   MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
   mastersigner.set_name(name);
   return mastersigner;
-}
-
-std::vector<PrimaryKey> NunchukImpl::GetPrimaryKeys() {
-  return storage_->GetPrimaryKeys(chain_);
 }
 
 std::string NunchukImpl::SignLoginMessage(const std::string& mastersigner_id,

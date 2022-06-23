@@ -147,6 +147,13 @@ void Utils::SetPassPhrase(const std::string& storage_path,
   storage->SetPassphrase(new_passphrase);
 }
 
+std::vector<PrimaryKey> Utils::GetPrimaryKeys(const std::string& storage_path,
+                                              Chain chain) {
+  auto storage = NunchukStorage::get("");
+  storage->Init(storage_path, "");
+  return storage->GetPrimaryKeys(chain);
+}
+
 std::string Utils::GetPrimaryKeyAddress(const std::string& mnemonic,
                                         const std::string& passphrase) {
   SoftwareSigner signer{mnemonic, passphrase};
