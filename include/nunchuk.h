@@ -707,7 +707,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false) = 0;
+      bool is_primary = false, const std::string& primary_address = {}) = 0;
   virtual std::string SignLoginMessage(const std::string& mastersigner_id,
                                        const std::string& message) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,

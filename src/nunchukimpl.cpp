@@ -288,7 +288,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 MasterSigner NunchukImpl::CreateSoftwareSigner(
     const std::string& raw_name, const std::string& mnemonic,
     const std::string& passphrase, std::function<bool(int)> progress,
-    bool is_primary) {
+    bool is_primary, const std::string& primary_address) {
   if (!Utils::CheckMnemonic(mnemonic)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid mnemonic");
@@ -303,8 +303,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
       progress, true);
 
   if (is_primary) {
-    auto address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
-    PrimaryKey key(name, id, account_, address);
+    PrimaryKey key(name, id, account_, primary_address);
     storage_->AddPrimaryKey(chain_, key);
   }
 
