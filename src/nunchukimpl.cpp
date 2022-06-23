@@ -304,7 +304,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
 
   if (is_primary) {
     std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
-    PrimaryKey key(name, id, account_, address);
+    PrimaryKey key{name, id, account_, address};
     storage_->AddPrimaryKey(chain_, key);
   }
 
