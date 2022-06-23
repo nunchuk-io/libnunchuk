@@ -38,10 +38,7 @@ class NunchukWalletDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
 
-  void InitWallet(const std::string &name, int m, int n,
-                  const std::vector<SingleSigner> &signers,
-                  AddressType address_type, bool is_escrow, time_t create_date,
-                  const std::string &description);
+  void InitWallet(const Wallet &wallet);
   void MaybeMigrate();
   void DeleteWallet();
   bool SetName(const std::string &value);

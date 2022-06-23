@@ -38,6 +38,14 @@ json GetInitBody(const json& body) {
   return body["io.nunchuk.relates_to"]["init_event"]["content"]["body"];
 }
 
+bool IsValidMembers(const json& members, const std::string& key) {
+  if (!members.is_array() || members.empty()) return true;
+  for (auto&& m : members) {
+    if (m.get<std::string>() == key) return true;
+  }
+  return false;
+}
+
 json EventToJson(const NunchukMatrixEvent& event) {
   return {
       {"room_id", event.get_room_id()},
@@ -126,13 +134,18 @@ NunchukMatrixEvent NunchukMatrixImpl::SendErrorEvent(
 
 NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
     const std::string& room_id, const std::string& name, int m, int n,
-    AddressType address_type, bool is_escrow, const std::string& description) {
+    AddressType address_type, bool is_escrow, const std::string& description,
+    const std::vector<SingleSigner>& signers) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto db = storage_->GetRoomDb(chain_);
   if (db.HasActiveWallet(room_id)) {
     throw NunchukMatrixException(NunchukMatrixException::SHARED_WALLET_EXISTS,
                                  "Shared wallet exists");
   }
+
+  json members = json::array();
+  for (auto&& signer : signers) members.push_back(signer.get_descriptor());
+
   json content = {{"msgtype", "io.nunchuk.wallet.init"},
                   {"body",
                    {{"name", name},
@@ -141,7 +154,7 @@ NunchukMatrixEvent NunchukMatrixImpl::InitWallet(
                     {"n", n},
                     {"address_type", AddressTypeToStr(address_type)},
                     {"is_escrow", is_escrow},
-                    {"members", json::array()},
+                    {"members", members},
                     {"chain", ChainToStr(chain_)}}}};
   return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
@@ -165,6 +178,12 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
                                  "Mismatched key types");
   }
 
+  std::string key = signer.get_descriptor();
+  if (!IsValidMembers(init_body["members"], key)) {
+    throw NunchukMatrixException(NunchukMatrixException::INVALID_KEY,
+                                 "Key can not be assigned");
+  }
+
   std::set<std::string> leave_ids;
   for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
     auto leave_event = db.GetEvent(leave_event_id);
@@ -173,7 +192,6 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
     leave_ids.insert(join_id);
   }
 
-  std::string key = signer.get_descriptor();
   for (auto&& join_event_id : wallet.get_join_event_ids()) {
     if (leave_ids.count(join_event_id)) continue;
     auto join_event = db.GetEvent(join_event_id);
@@ -468,7 +486,6 @@ void NunchukMatrixImpl::RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid room_id or access_token");
   }
-  // if (storage_->GetLastSyncTs() < storage_->GetLastExportTs()) AsyncBackup(nu);
   nu->AddStorageUpdateListener([&]() {
     if (enable_auto_backup_) AsyncBackup(nu);
   });
@@ -636,23 +653,14 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     if (wallet.get_wallet_id().empty() &&
         wallet.get_delete_event_id().empty()) {
       std::string desc = body["descriptor"];
-      AddressType a;
-      WalletType w;
-      int m;
-      int n;
-      std::vector<SingleSigner> signers;
-      if (!ParseDescriptors(desc, a, w, m, n, signers)) {
-        throw NunchukException(NunchukException::INVALID_PARAMETER,
-                               "Could not parse descriptor");
-      }
+      Wallet w = Utils::ParseWalletDescriptor(desc);
 
       auto init_body = GetInitBody(body);
-      std::string name = init_body["name"];
-      std::string d = init_body["description"];
+      w.set_name(init_body["name"]);
+      w.set_description(init_body["description"]);
 
-      auto wallet_id = GetWalletId(signers, m, a, w);
-      wallet.set_wallet_id(wallet_id);
-      wallet2room_[wallet_id] = event.get_room_id();
+      wallet.set_wallet_id(w.get_id());
+      wallet2room_[w.get_id()] = event.get_room_id();
 
       // Note: update db first to make sure sync file has the latest data
       db.SetWallet(wallet);
@@ -661,11 +669,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       event_hasbody.set_content(content.dump());
       db.SetEvent(event_hasbody);
 
-      try {
-        nu->CreateWallet(name, m, n, signers, a, w == WalletType::ESCROW, d);
-      } catch (...) {
-        // Most likely the wallet existed
-      }
+      if (!nu->HasWallet(w.get_id())) nu->CreateWallet(w);
       return;
     }
     db.SetWallet(wallet);

@@ -319,6 +319,19 @@ void NunchukRoomDb::FillWalletData(RoomWallet& wallet) {
   content["is_escrow"] = init_body["is_escrow"];
   content["init_sender"] = init_event.get_sender();
   content["init_ts"] = init_event.get_ts();
+  content["members"] = json::array();
+
+  auto members = init_body["members"];
+  for (auto&& key : members) {
+    auto parse = ParseSignerString(key);
+    json signer = {
+        {"master_fingerprint", parse.get_master_fingerprint()},
+        {"derivation_path", parse.get_derivation_path()},
+        {"public_key", parse.get_public_key()},
+        {"xpub", parse.get_xpub()},
+    };
+    content["members"].push_back(signer);
+  }
 
   auto join_event_ids = GetJoinIds(wallet);
   wallet.set_chain(ChainFromStr(init_body["chain"]));

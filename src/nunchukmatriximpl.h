@@ -46,10 +46,11 @@ class NunchukMatrixImpl : public NunchukMatrix {
                                     const std::string& code,
                                     const std::string& message) override;
 
-  NunchukMatrixEvent InitWallet(const std::string& room_id,
-                                const std::string& name, int m, int n,
-                                AddressType address_type, bool is_escrow,
-                                const std::string& description = {}) override;
+  NunchukMatrixEvent InitWallet(
+      const std::string& room_id, const std::string& name, int m, int n,
+      AddressType address_type, bool is_escrow,
+      const std::string& description = {},
+      const std::vector<SingleSigner>& signers = {}) override;
   NunchukMatrixEvent JoinWallet(const std::string& room_id,
                                 const SingleSigner& signer) override;
   NunchukMatrixEvent LeaveWallet(const std::string& room_id,
@@ -80,8 +81,8 @@ class NunchukMatrixImpl : public NunchukMatrix {
 
   NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu) override;
   void RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
-                        const std::string& sync_room_id,
-                        const std::string& access_token) override;
+                          const std::string& sync_room_id,
+                          const std::string& access_token) override;
   void EnableAutoBackup(bool enable) override;
   void EnableGenerateReceiveEvent(const std::unique_ptr<Nunchuk>& nu) override;
 

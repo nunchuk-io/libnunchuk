@@ -351,6 +351,7 @@ class NUNCHUK_EXPORT Wallet {
   int get_n() const;
   std::vector<SingleSigner> get_signers() const;
   AddressType get_address_type() const;
+  WalletType get_wallet_type() const;
   bool is_escrow() const;
   Amount get_balance() const;
   time_t get_create_date() const;
@@ -360,6 +361,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_name(const std::string& value);
   void set_balance(const Amount& value);
   void set_description(const std::string& value);
+  void set_create_date(const time_t value);
 
  private:
   std::string id_;
@@ -548,12 +550,15 @@ class NUNCHUK_EXPORT Nunchuk {
                               AddressType address_type, bool is_escrow,
                               const std::string& description = {},
                               bool allow_used_signer = false) = 0;
+  virtual Wallet CreateWallet(const Wallet& wallet,
+                              bool allow_used_signer = false) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
                                   const std::vector<SingleSigner>& signers,
                                   AddressType address_type, bool is_escrow,
                                   const std::string& description = {}) = 0;
   virtual std::vector<Wallet> GetWallets() = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;
+  virtual bool HasWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;
   virtual bool UpdateWallet(const Wallet& wallet) = 0;
   virtual bool ExportWallet(const std::string& wallet_id,
@@ -574,6 +579,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                     const std::string& public_key,
                                     const std::string& derivation_path,
                                     const std::string& master_fingerprint) = 0;
+  virtual bool HasSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type) = 0;
@@ -793,6 +799,7 @@ class NUNCHUK_EXPORT Utils {
   static std::string SignLoginMessage(const std::string& mnemonic,
                                       const std::string& passphrase,
                                       const std::string& message);
+  static Wallet ParseWalletDescriptor(const std::string& descs);
 
  private:
   Utils() {}

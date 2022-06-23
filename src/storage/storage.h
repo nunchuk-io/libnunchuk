@@ -45,10 +45,8 @@ class NunchukStorage {
                     const std::string &file_path, ExportFormat format);
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
   void SetPassphrase(const std::string &new_passphrase);
-  Wallet CreateWallet(Chain chain, const std::string &name, int m, int n,
-                      const std::vector<SingleSigner> &signers,
-                      AddressType address_type, bool is_escrow,
-                      const std::string &description, bool allow_used_signer);
+  Wallet CreateWallet(Chain chain, const Wallet &wallet,
+                      bool allow_used_signer);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
                                  const std::string &mnemonic = {});
@@ -68,8 +66,10 @@ class NunchukStorage {
 
   Wallet GetWallet(Chain chain, const std::string &id,
                    bool create_signers_if_not_exist = false);
+  bool HasWallet(Chain chain, const std::string &wallet_id);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
   SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);
+  bool HasSigner(Chain chain, const SingleSigner &signer);
 
   bool UpdateWallet(Chain chain, const Wallet &wallet);
   bool UpdateMasterSigner(Chain chain, const MasterSigner &mastersigner);
@@ -189,11 +189,8 @@ class NunchukStorage {
   boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
-  Wallet CreateWallet0(Chain chain, const std::string &name, int m, int n,
-                       const std::vector<SingleSigner> &signers,
-                       AddressType address_type, bool is_escrow,
-                       const std::string &description, bool allow_used_signer,
-                       time_t create_date);
+  Wallet CreateWallet0(Chain chain, const Wallet &wallet,
+                       bool allow_used_signer);
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
 

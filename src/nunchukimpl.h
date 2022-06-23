@@ -44,12 +44,15 @@ class NunchukImpl : public Nunchuk {
                       AddressType address_type, bool is_escrow,
                       const std::string& description = {},
                       bool allow_used_signer = false) override;
+  Wallet CreateWallet(const Wallet& wallet,
+                      bool allow_used_signer = false) override;
   std::string DraftWallet(const std::string& name, int m, int n,
                           const std::vector<SingleSigner>& signers,
                           AddressType address_type, bool is_escrow,
                           const std::string& desc = {}) override;
   std::vector<Wallet> GetWallets() override;
   Wallet GetWallet(const std::string& wallet_id) override;
+  bool HasWallet(const std::string& wallet_id) override;
   bool DeleteWallet(const std::string& wallet_id) override;
   bool UpdateWallet(const Wallet& wallet) override;
   bool ExportWallet(const std::string& wallet_id, const std::string& file_path,
@@ -83,6 +86,7 @@ class NunchukImpl : public Nunchuk {
                             const std::string& public_key,
                             const std::string& derivation_path,
                             const std::string& master_fingerprint) override;
+  bool HasSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,
                                       const AddressType& address_type) override;

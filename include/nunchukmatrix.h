@@ -36,6 +36,7 @@ class NUNCHUK_EXPORT NunchukMatrixException : public BaseException {
   static const int MISMATCHED_NETWORKS = -5005;
   static const int MISMATCHED_KEY_TYPES = -5006;
   static const int DUPPLICATE_KEYS = -5007;
+  static const int INVALID_KEY = -5008;
   using BaseException::BaseException;
 };
 
@@ -192,7 +193,8 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent InitWallet(
       const std::string& room_id, const std::string& name, int m, int n,
       AddressType address_type, bool is_escrow,
-      const std::string& description = {}) = 0;
+      const std::string& description = {},
+      const std::vector<SingleSigner>& signers = {}) = 0;
   virtual NunchukMatrixEvent JoinWallet(const std::string& room_id,
                                         const SingleSigner& signer) = 0;
   virtual NunchukMatrixEvent LeaveWallet(const std::string& room_id,
@@ -222,8 +224,8 @@ class NUNCHUK_EXPORT NunchukMatrix {
 
   virtual NunchukMatrixEvent Backup(const std::unique_ptr<Nunchuk>& nu) = 0;
   virtual void RegisterAutoBackup(const std::unique_ptr<Nunchuk>& nu,
-                                const std::string& sync_room_id,
-                                const std::string& access_token) = 0;
+                                  const std::string& sync_room_id,
+                                  const std::string& access_token) = 0;
   virtual void EnableAutoBackup(bool enable) = 0;
   virtual void EnableGenerateReceiveEvent(
       const std::unique_ptr<Nunchuk>& nu) = 0;

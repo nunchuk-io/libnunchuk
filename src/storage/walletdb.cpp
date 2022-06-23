@@ -44,11 +44,7 @@ std::map<std::string, std::map<std::string, AddressData>>
     NunchukWalletDb::addr_cache_;
 std::map<std::string, std::vector<SingleSigner>> NunchukWalletDb::signer_cache_;
 
-void NunchukWalletDb::InitWallet(const std::string& name, int m, int n,
-                                 const std::vector<SingleSigner>& signers,
-                                 AddressType address_type, bool is_escrow,
-                                 time_t create_date,
-                                 const std::string& description) {
+void NunchukWalletDb::InitWallet(const Wallet& wallet) {
   CreateTable();
   // Note: when we update VTX table model, all these functions: CreatePsbt,
   // UpdatePsbtTxId, GetTransactions, GetTransaction need to be updated to
@@ -79,16 +75,16 @@ void NunchukWalletDb::InitWallet(const std::string& name, int m, int n,
                         "MASTER_ID        TEXT    NOT NULL,"
                         "LAST_HEALTHCHECK INT     NOT NULL);",
                         NULL, 0, NULL));
-  PutString(DbKeys::NAME, name);
-  PutString(DbKeys::DESCRIPTION, description);
+  PutString(DbKeys::NAME, wallet.get_name());
+  PutString(DbKeys::DESCRIPTION, wallet.get_description());
 
-  json immutable_data = {{"m", m},
-                         {"n", n},
-                         {"address_type", address_type},
-                         {"is_escrow", is_escrow},
-                         {"create_date", create_date}};
+  json immutable_data = {{"m", wallet.get_m()},
+                         {"n", wallet.get_n()},
+                         {"address_type", wallet.get_address_type()},
+                         {"is_escrow", wallet.is_escrow()},
+                         {"create_date", wallet.get_create_date()}};
   PutString(DbKeys::IMMUTABLE_DATA, immutable_data.dump());
-  for (auto&& signer : signers) {
+  for (auto&& signer : wallet.get_signers()) {
     AddSigner(signer);
   }
 }

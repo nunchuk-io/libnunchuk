@@ -31,13 +31,27 @@ Wallet::Wallet(const std::string& id, int m, int n,
       signers_(signers),
       address_type_(address_type),
       escrow_(is_escrow),
-      create_date_(create_date) {}
+      create_date_(create_date) {
+  if (m_ > n_)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: m > n");
+  if (n_ != signers_.size())
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: n and signers are not match");
+  if (id_.empty())
+    id_ = GetWalletId(signers_, m_, address_type, get_wallet_type());
+}
 std::string Wallet::get_id() const { return id_; }
 std::string Wallet::get_name() const { return name_; }
 int Wallet::get_m() const { return m_; }
 int Wallet::get_n() const { return n_; }
 std::vector<SingleSigner> Wallet::get_signers() const { return signers_; }
 AddressType Wallet::get_address_type() const { return address_type_; }
+WalletType Wallet::get_wallet_type() const {
+  return get_n() == 1
+             ? WalletType::SINGLE_SIG
+             : is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG;
+}
 bool Wallet::is_escrow() const { return escrow_; }
 Amount Wallet::get_balance() const { return balance_; }
 time_t Wallet::get_create_date() const { return create_date_; }
@@ -45,14 +59,13 @@ std::string Wallet::get_description() const { return description_; }
 void Wallet::set_name(const std::string& value) { name_ = value; }
 void Wallet::set_balance(const Amount& value) { balance_ = value; }
 void Wallet::set_description(const std::string& value) { description_ = value; }
+void Wallet::set_create_date(const time_t value) { create_date_ = value; }
 
 std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
                                    bool sorted) const {
-  return GetDescriptorForSigners(
-      get_signers(), get_m(), key_path, get_address_type(),
-      get_n() == 1 ? WalletType::SINGLE_SIG
-                   : (is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG),
-      is_escrow() ? -1 : index, sorted);
+  return GetDescriptorForSigners(get_signers(), get_m(), key_path,
+                                 get_address_type(), get_wallet_type(),
+                                 is_escrow() ? -1 : index, sorted);
 }
 
 }  // namespace nunchuk
