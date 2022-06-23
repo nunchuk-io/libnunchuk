@@ -301,7 +301,6 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   storage_->CacheMasterSignerXPub(
       chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
       progress, true);
-  storage_listener_();
 
   if (is_primary) {
     auto address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
@@ -309,6 +308,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
     storage_->AddPrimaryKey(chain_, key);
   }
 
+  storage_listener_();
   storage_->ClearSignerPassphrase(chain_, id);
   MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
   mastersigner.set_name(name);
