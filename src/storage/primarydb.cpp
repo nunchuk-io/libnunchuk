@@ -33,19 +33,19 @@ void NunchukPrimaryDb::Init() {
 bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO PKEY(ACCOUNT, NAME, XFP, ADDR)"
-      "VALUES (?1, ?2, ?3, ?4)"
-      "ON CONFLICT(ACCOUNT) DO UPDATE SET NAME=excluded.NAME, "
-      "XFP=excluded.XFP, ADDR=excluded.ADDR;";
+      "INSERT INTO PKEY(ACCOUNT, XFP, ADDR, NAME)"
+      "VALUES (?1, ?2, ?3, ?4) "
+      "ON CONFLICT(ACCOUNT) DO UPDATE SET "
+      "XFP=excluded.XFP, ADDR=excluded.ADDR, NAME=excluded.NAME;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, key.get_account().c_str(),
                     key.get_account().size(), NULL);
-  sqlite3_bind_text(stmt, 2, key.get_name().c_str(), key.get_name().size(),
-                    NULL);
-  sqlite3_bind_text(stmt, 3, key.get_master_fingerprint().c_str(),
+  sqlite3_bind_text(stmt, 2, key.get_master_fingerprint().c_str(),
                     key.get_master_fingerprint().size(), NULL);
-  sqlite3_bind_text(stmt, 4, key.get_address().c_str(),
+  sqlite3_bind_text(stmt, 3, key.get_address().c_str(),
                     key.get_address().size(), NULL);
+  sqlite3_bind_text(stmt, 4, key.get_name().c_str(), key.get_name().size(),
+                    NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
@@ -54,15 +54,15 @@ bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
 
 std::vector<PrimaryKey> NunchukPrimaryDb::GetPrimaryKeys() const {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT XFP, NAME, ACCOUNT, ADDR FROM PKEY;";
+  std::string sql = "SELECT ACCOUNT, XFP, ADDR, NAME FROM PKEY;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
   std::vector<PrimaryKey> keys;
   while (sqlite3_column_text(stmt, 0)) {
-    std::string xfp = std::string((char*)sqlite3_column_text(stmt, 0));
-    std::string name = std::string((char*)sqlite3_column_text(stmt, 1));
-    std::string account = std::string((char*)sqlite3_column_text(stmt, 2));
-    std::string address = std::string((char*)sqlite3_column_text(stmt, 3));
+    std::string account = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string xfp = std::string((char*)sqlite3_column_text(stmt, 1));
+    std::string address = std::string((char*)sqlite3_column_text(stmt, 2));
+    std::string name = std::string((char*)sqlite3_column_text(stmt, 3));
     PrimaryKey key(name, xfp, account, address);
     keys.push_back(key);
     sqlite3_step(stmt);
