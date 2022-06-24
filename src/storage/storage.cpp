@@ -1148,7 +1148,7 @@ time_t NunchukStorage::GetLastExportTs() {
 }
 
 std::vector<PrimaryKey> NunchukStorage::GetPrimaryKeys(Chain chain) {
-  std::shared_lock<std::shared_mutex> lock(access_);
+  std::unique_lock<std::shared_mutex> lock(access_);
   return GetPrimaryDb(chain).GetPrimaryKeys();
 }
 

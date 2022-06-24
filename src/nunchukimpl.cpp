@@ -301,8 +301,12 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
     std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
     PrimaryKey key{name, id, account_, address};
     if (!storage_->AddPrimaryKey(chain_, key)) {
-      throw StorageException(StorageException::SQL_ERROR,
-                             "Create primary key fail");
+      throw StorageException(
+          StorageException::SQL_ERROR,
+          strprintf("Create primary key fail. "
+                    "(mnemonic = '%s' passphrase = '%s' name = '%s' id = '%s' "
+                    "account = '%s' address = '%s')",
+                    mnemonic, passphrase, name, id, account_, address));
     }
   }
 
