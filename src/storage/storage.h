@@ -170,7 +170,7 @@ class NunchukStorage {
   time_t GetLastExportTs();
 
   std::vector<PrimaryKey> GetPrimaryKeys(Chain chain);
-  void AddPrimaryKey(Chain chain, const PrimaryKey &key);
+  bool AddPrimaryKey(Chain chain, const PrimaryKey &key);
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;

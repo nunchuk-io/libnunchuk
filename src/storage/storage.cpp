@@ -1152,9 +1152,9 @@ std::vector<PrimaryKey> NunchukStorage::GetPrimaryKeys(Chain chain) {
   return GetPrimaryDb(chain).GetPrimaryKeys();
 }
 
-void NunchukStorage::AddPrimaryKey(Chain chain, const PrimaryKey& key) {
+bool NunchukStorage::AddPrimaryKey(Chain chain, const PrimaryKey& key) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  GetPrimaryDb(chain).AddPrimaryKey(key);
+  return GetPrimaryDb(chain).AddPrimaryKey(key);
 }
 
 }  // namespace nunchuk
