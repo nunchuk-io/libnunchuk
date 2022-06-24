@@ -206,7 +206,7 @@ SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
   auto signer = SoftwareSigner{mnemonic, passphrase};
   if (signer.GetMasterFingerprint() != id_) {
     throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
-                           "Invalid software signer passphrase");
+                           "Invalid passphrase");
   }
   return signer;
 }
