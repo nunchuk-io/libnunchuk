@@ -303,7 +303,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
     if (!storage_->AddPrimaryKey(chain_, key)) {
       throw StorageException(
           StorageException::SQL_ERROR,
-          strprintf("Create primary key fail. "
+          strprintf("Create primary key failed. "
                     "(mnemonic = '%s' passphrase = '%s' name = '%s' id = '%s' "
                     "account = '%s' address = '%s')",
                     mnemonic, passphrase, name, id, account_, address));

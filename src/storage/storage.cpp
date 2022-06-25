@@ -291,7 +291,7 @@ NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
   fs::path db_file = GetPrimaryDir(chain);
   bool is_new = !fs::exists(db_file);
   auto db = NunchukPrimaryDb{chain, "", db_file.string(), ""};
-  if (is_new) db.Init();
+  db.Init();
   return db;
 }
 
