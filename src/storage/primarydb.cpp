@@ -37,15 +37,15 @@ bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
   std::string name = key.get_name();
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO PKEY(ACCOUNT, XFP, ADDR, NAME)"
+      "INSERT INTO PKEY(ACCOUNT, NAME, XFP, ADDR)"
       "VALUES (?1, ?2, ?3, ?4) "
       "ON CONFLICT(ACCOUNT) DO UPDATE SET "
-      "XFP=excluded.XFP, ADDR=excluded.ADDR, NAME=excluded.NAME;";
+      "NAME=excluded.NAME, XFP=excluded.XFP, ADDR=excluded.ADDR;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, account.c_str(), account.size(), NULL);
-  sqlite3_bind_text(stmt, 2, xfp.c_str(), xfp.size(), NULL);
-  sqlite3_bind_text(stmt, 3, address.c_str(), address.size(), NULL);
-  sqlite3_bind_text(stmt, 4, name.c_str(), name.size(), NULL);
+  sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
+  sqlite3_bind_text(stmt, 3, xfp.c_str(), xfp.size(), NULL);
+  sqlite3_bind_text(stmt, 4, address.c_str(), address.size(), NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));

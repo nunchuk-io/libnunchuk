@@ -174,6 +174,7 @@ class NunchukStorage {
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
+  static std::shared_mutex access_;
 
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
@@ -198,7 +199,6 @@ class NunchukStorage {
   boost::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;
-  std::shared_mutex access_;
   std::map<std::string, std::string> signer_passphrase_;
 };
 

@@ -50,6 +50,7 @@ namespace nunchuk {
 
 std::map<std::string, std::shared_ptr<NunchukStorage>>
     NunchukStorage::instances_;
+std::shared_mutex NunchukStorage::access_;
 
 std::shared_ptr<NunchukStorage> NunchukStorage::get(const std::string& acc) {
   if (const auto it = instances_.find(acc); it != instances_.end()) {
