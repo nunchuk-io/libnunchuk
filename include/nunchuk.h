@@ -667,6 +667,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                 const std::vector<TxInput>& inputs) = 0;
   virtual std::string GetSelectedWallet() = 0;
   virtual bool SetSelectedWallet(const std::string& wallet_id) = 0;
+  virtual bool DeletePrimaryKey() = 0;
 
   virtual SingleSigner CreateCoboSigner(const std::string& name,
                                         const std::string& json_info) = 0;

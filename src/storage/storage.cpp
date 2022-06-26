@@ -1158,4 +1158,9 @@ bool NunchukStorage::AddPrimaryKey(Chain chain, const PrimaryKey& key) {
   return GetPrimaryDb(chain).AddPrimaryKey(key);
 }
 
+bool NunchukStorage::RemovePrimaryKey(Chain chain, const std::string& account) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetPrimaryDb(chain).RemovePrimaryKey(account);
+}
+
 }  // namespace nunchuk

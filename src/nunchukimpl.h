@@ -73,6 +73,7 @@ class NunchukImpl : public Nunchuk {
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
       bool is_primary = false) override;
+  bool DeletePrimaryKey() override;
   std::string SignLoginMessage(const std::string& mastersigner_id,
                                const std::string& message) override;
   void SendSignerPassphrase(const std::string& mastersigner_id,

@@ -171,6 +171,7 @@ class NunchukStorage {
 
   std::vector<PrimaryKey> GetPrimaryKeys(Chain chain);
   bool AddPrimaryKey(Chain chain, const PrimaryKey &key);
+  bool RemovePrimaryKey(Chain chain, const std::string &account);
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;

@@ -31,6 +31,7 @@ class NunchukPrimaryDb : public NunchukDb {
   using NunchukDb::NunchukDb;
   void Init();
   bool AddPrimaryKey(const PrimaryKey &key);
+  bool RemovePrimaryKey(const std::string& account);
   std::vector<PrimaryKey> GetPrimaryKeys() const;
 
  private:

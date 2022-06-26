@@ -319,6 +319,10 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   return mastersigner;
 }
 
+bool NunchukImpl::DeletePrimaryKey() {
+  return storage_->RemovePrimaryKey(chain_, account_);
+}
+
 std::string NunchukImpl::SignLoginMessage(const std::string& mastersigner_id,
                                           const std::string& message) {
   auto signer = storage_->GetSoftwareSigner(chain_, mastersigner_id);

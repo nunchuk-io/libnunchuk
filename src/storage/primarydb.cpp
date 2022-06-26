@@ -52,6 +52,17 @@ bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
   return updated;
 }
 
+bool NunchukPrimaryDb::RemovePrimaryKey(const std::string& account) {
+  sqlite3_stmt* stmt;
+  std::string sql = "DELETE FROM PKEY WHERE ACCOUNT = ?;";
+  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, account.c_str(), account.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
 std::vector<PrimaryKey> NunchukPrimaryDb::GetPrimaryKeys() const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT ACCOUNT, XFP, ADDR, NAME FROM PKEY;";
