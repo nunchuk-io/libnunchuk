@@ -77,7 +77,8 @@ void NunchukDb::EncryptDb(const std::string& new_file_name,
   std::stringstream attach_sql;
   attach_sql << "ATTACH DATABASE '" << new_file_name << "' AS encrypted KEY '"
              << new_passphrase << "';";
-  SQLCHECK(sqlite3_exec(db_, attach_sql.str().c_str(), NULL, NULL, NULL));
+  const std::string sql = attach_sql.str();
+  SQLCHECK(sqlite3_exec(db_, sql.c_str(), NULL, NULL, NULL));
   SQLCHECK(sqlite3_exec(db_, "SELECT sqlcipher_export('encrypted');", NULL,
                         NULL, NULL));
   SQLCHECK(sqlite3_exec(db_, "DETACH DATABASE encrypted;", NULL, NULL, NULL));
@@ -87,7 +88,8 @@ void NunchukDb::DecryptDb(const std::string& new_file_name) {
   std::stringstream attach_sql;
   attach_sql << "ATTACH DATABASE '" << new_file_name
              << "' AS plaintext KEY '';";
-  SQLCHECK(sqlite3_exec(db_, attach_sql.str().c_str(), NULL, NULL, NULL));
+  const std::string sql = attach_sql.str();
+  SQLCHECK(sqlite3_exec(db_, sql.c_str(), NULL, NULL, NULL));
   SQLCHECK(sqlite3_exec(db_, "SELECT sqlcipher_export('plaintext');", NULL,
                         NULL, NULL));
   SQLCHECK(sqlite3_exec(db_, "DETACH DATABASE plaintext;", NULL, NULL, NULL));

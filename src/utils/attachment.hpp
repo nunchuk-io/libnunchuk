@@ -44,11 +44,11 @@ inline std::vector<unsigned char> DownloadAttachment(const std::string& url) {
   auto id = url.substr(5);
   std::string body;
   httplib::Client cli(DEFAULT_MATRIX_SERVER.c_str());
-  auto res = cli.Get(("/_matrix/media/r0/download" + id).c_str(),
-                     [&](const char* data, size_t data_length) {
-                       body.append(data, data_length);
-                       return true;
-                     });
+  const std::string path("/_matrix/media/r0/download" + id);
+  auto res = cli.Get(path.c_str(), [&](const char* data, size_t data_length) {
+    body.append(data, data_length);
+    return true;
+  });
   if (!res || res->status != 200) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::SERVER_REQUEST_ERROR, "Download file error");
@@ -87,11 +87,12 @@ inline std::string DecryptAttachment(
         "Version not supported");
   }
 
-  auto key = DecodeBase64(file["key"]["k"].get<std::string>().c_str());
-  auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
+  auto key = DecodeBase64(file["key"]["k"].get<std::string>());
+  auto iv = DecodeBase64(file["iv"].get<std::string>());
 
   std::vector<unsigned char> decrypted(file_data.size());
-  AES256CBCDecrypt dec(key.data(), iv.data(), true);
+  AES256CBCDecrypt dec((const unsigned char*)key.data(),
+                       (const unsigned char*)iv.data(), true);
   int size = dec.Decrypt(file_data.data(), file_data.size(), decrypted.data());
   if (size == 0) {
     throw nunchuk::NunchukException(nunchuk::NunchukException::DECRYPT_FAIL,
@@ -187,12 +188,14 @@ inline std::string DecryptTxId(const std::string& descriptor,
                stream.end() - stream.begin());
   hasher.Finalize(key.data());
 
-  auto iv = DecodeBase64(file["iv"].get<std::string>().c_str());
-  auto buf = DecodeBase64(file["d"].get<std::string>().c_str());
+  auto iv = DecodeBase64(file["iv"].get<std::string>());
+  auto buf = DecodeBase64(file["d"].get<std::string>());
 
   std::vector<unsigned char> decrypted(buf.size());
-  AES256CBCDecrypt dec(key.data(), iv.data(), true);
-  int size = dec.Decrypt(buf.data(), buf.size(), decrypted.data());
+  AES256CBCDecrypt dec((const unsigned char*)key.data(),
+                       (const unsigned char*)iv.data(), true);
+  int size = dec.Decrypt((const unsigned char*)buf.data(), buf.size(),
+                         decrypted.data());
   decrypted.resize(size);
   return std::string(decrypted.begin(), decrypted.end());
 }

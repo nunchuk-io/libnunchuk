@@ -106,12 +106,13 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   // run command and get output
   int exitcode;
   std::string result;
+  const std::string cmd_str = cmd.str();
   try {
     bp::ipstream out;
 #ifdef _WIN32
-    bp::child c(cmd.str().c_str(), bp::std_out > out, bp::windows::hide);
+    bp::child c(cmd_str.c_str(), bp::std_out > out, bp::windows::hide);
 #else
-    bp::child c(cmd.str().c_str(), bp::std_out > out);
+    bp::child c(cmd_str.c_str(), bp::std_out > out);
 #endif
     std::getline(out, result);
     c.wait();
@@ -122,12 +123,12 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   }
 
   if (exitcode != 0) {
-    LOG_F(ERROR, "Run hwi command '%s' exit code: %d", cmd.str().c_str(),
+    LOG_F(ERROR, "Run hwi command '%s' exit code: %d", cmd_str.c_str(),
           exitcode);
     throw HWIException(HWIException::RUN_ERROR, "Run command exit error!");
   }
 
-  LOG_F(INFO, "Run hwi command '%s' result: %s", cmd.str().c_str(),
+  LOG_F(INFO, "Run hwi command '%s' result: %s", cmd_str.c_str(),
         result.c_str());
   return result;
 }
