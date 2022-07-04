@@ -293,8 +293,8 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid mnemonic");
   }
-  std::string name = trim_copy(raw_name);
   SoftwareSigner signer{mnemonic, passphrase};
+  std::string name = trim_copy(raw_name);
   std::string id = to_lower_copy(signer.GetMasterFingerprint());
 
   if (is_primary) {
@@ -308,12 +308,11 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
 
   Device device{"software", "nunchuk", id};
   storage_->CreateMasterSigner(chain_, name, device, mnemonic);
-  storage_->SendSignerPassphrase(chain_, id, passphrase);
   storage_->CacheMasterSignerXPub(
       chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
       progress, true);
   storage_listener_();
-  storage_->ClearSignerPassphrase(chain_, id);
+
   MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
   mastersigner.set_name(name);
   return mastersigner;
@@ -880,6 +879,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
           return software_signer.GetXpubAtPath(path);
         },
         progress, false);
+    storage_listener_();
   } else {
     Device device{mastersigner_id};
     storage_->CacheMasterSignerXPub(
@@ -888,6 +888,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
           return hwi_.GetXpubAtPath(device, path);
         },
         progress, false);
+    storage_listener_();
   }
 }
 
