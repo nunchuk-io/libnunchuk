@@ -87,8 +87,18 @@ inline std::string DecryptAttachment(
         "Version not supported");
   }
 
-  auto key = DecodeBase64(file["key"]["k"].get<std::string>());
-  auto iv = DecodeBase64(file["iv"].get<std::string>());
+  bool invalid = false;
+  auto key = DecodeBase64(file["key"]["k"].get<std::string>(), &invalid);
+  if (invalid) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data key");
+  }
+
+  auto iv = DecodeBase64(file["iv"].get<std::string>(), &invalid);
+  if (invalid /* || iv.size() != AES_BLOCKSIZE */) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data iv");
+  }
 
   std::vector<unsigned char> decrypted(file_data.size());
   AES256CBCDecrypt dec((const unsigned char*)key.data(),
@@ -154,7 +164,7 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& upload,
   encrypted.resize(size);
 
   CSHA256 hasher;
-  hasher.Write(&encrypted[0], encrypted.size());
+  hasher.Write(encrypted.data(), encrypted.size());
   uint256 hash;
   hasher.Finalize(hash.begin());
 
@@ -163,8 +173,8 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& upload,
   json info;
   info["file"] = file;
   info["event"] = json::parse(event);
-  auto url = upload("Backup", MIME_TYPE, info.dump(), (char*)(&encrypted[0]),
-                    encrypted.size());
+  auto url = upload("Backup", MIME_TYPE, info.dump(),
+                    (const char*)encrypted.data(), encrypted.size());
   if (url.empty()) return "";
 
   file["url"] = url;
@@ -183,18 +193,26 @@ inline std::string DecryptTxId(const std::string& descriptor,
 
   std::vector<unsigned char> key(32, 0);
   CSHA256 hasher;
-  std::vector<unsigned char> stream(descriptor.begin(), descriptor.end());
-  hasher.Write((unsigned char*)&(*stream.begin()),
-               stream.end() - stream.begin());
+  hasher.Write((const unsigned char*)descriptor.data(), descriptor.size());
   hasher.Finalize(key.data());
 
-  auto iv = DecodeBase64(file["iv"].get<std::string>());
-  auto buf = DecodeBase64(file["d"].get<std::string>());
+  bool invalid = false;
+  auto iv = DecodeBase64(file["iv"].get<std::string>(), &invalid);
+  if (invalid /* || iv.size() != AES_BLOCKSIZE */) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data iv");
+  }
+
+  auto buf = DecodeBase64(file["d"].get<std::string>(), &invalid);
+  if (invalid) {
+    throw nunchuk::NunchukException(
+        nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
 
   std::vector<unsigned char> decrypted(buf.size());
   AES256CBCDecrypt dec((const unsigned char*)key.data(),
                        (const unsigned char*)iv.data(), true);
-  int size = dec.Decrypt((const unsigned char*)buf.data(), buf.size(),
+  int size = dec.Decrypt((const unsigned char*)buf.c_str(), buf.size(),
                          decrypted.data());
   decrypted.resize(size);
   return std::string(decrypted.begin(), decrypted.end());
@@ -208,9 +226,7 @@ inline std::string EncryptTxId(const std::string& descriptor,
 
   std::vector<unsigned char> key(32, 0);
   CSHA256 hasher;
-  std::vector<unsigned char> stream(descriptor.begin(), descriptor.end());
-  hasher.Write((unsigned char*)&(*stream.begin()),
-               stream.end() - stream.begin());
+  hasher.Write((const unsigned char*)descriptor.data(), descriptor.size());
   hasher.Finalize(key.data());
 
   std::vector<unsigned char> iv(16, 0);
