@@ -433,9 +433,11 @@ void NunchukStorage::CacheMasterSignerXPub(
     std::function<bool(int)> progress, bool first) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
+  bool is_software = signer_db.GetSignerType() == SignerType::SOFTWARE;
 
   int count = 0;
-  auto total = first ? 8 : TOTAL_CACHE_NUMBER;
+  auto total =
+      first ? (is_software ? 62 : 8) : (is_software ? 60 : TOTAL_CACHE_NUMBER);
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
@@ -449,7 +451,20 @@ void NunchukStorage::CacheMasterSignerXPub(
                                    : TESTNET_HEALTH_CHECK_PATH);
   }
 
-  auto cacheIndex = [&](WalletType w, AddressType a, int n) {
+  auto cacheNumber = [&](WalletType w, AddressType a) {
+    if (is_software) return 10;
+    if (first) return 1;
+    if (w == WalletType::MULTI_SIG) return MULTISIG_CACHE_NUMBER;
+    if (w == WalletType::ESCROW) return ESCROW_CACHE_NUMBER;
+    // SINGLE_SIG
+    if (a == AddressType::NATIVE_SEGWIT) return SINGLESIG_BIP84_CACHE_NUMBER;
+    if (a == AddressType::TAPROOT) return SINGLESIG_BIP86_CACHE_NUMBER;
+    if (a == AddressType::NESTED_SEGWIT) return SINGLESIG_BIP49_CACHE_NUMBER;
+    if (a == AddressType::LEGACY) return SINGLESIG_BIP48_CACHE_NUMBER;
+    return 0;
+  };
+  auto cacheIndex = [&](WalletType w, AddressType a) {
+    int n = cacheNumber(w, a);
     int index = signer_db.GetCachedIndex(w, a);
     if (index < 0 && w == WalletType::MULTI_SIG) index = 0;
     for (int i = index + 1; i <= index + n; i++) {
@@ -457,18 +472,12 @@ void NunchukStorage::CacheMasterSignerXPub(
       progress(count++ * 100 / total);
     }
   };
-  cacheIndex(WalletType::MULTI_SIG, AddressType::ANY,
-             first ? 1 : MULTISIG_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
-             first ? 1 : SINGLESIG_BIP84_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT,
-             first ? 1 : SINGLESIG_BIP86_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
-             first ? 1 : SINGLESIG_BIP49_CACHE_NUMBER);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY,
-             first ? 1 : SINGLESIG_BIP48_CACHE_NUMBER);
-  cacheIndex(WalletType::ESCROW, AddressType::ANY,
-             first ? 1 : ESCROW_CACHE_NUMBER);
+  cacheIndex(WalletType::MULTI_SIG, AddressType::ANY);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
+  cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
+  cacheIndex(WalletType::ESCROW, AddressType::ANY);
 }
 
 int NunchukStorage::GetCurrentIndexFromMasterSigner(

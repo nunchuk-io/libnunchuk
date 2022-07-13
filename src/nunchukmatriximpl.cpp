@@ -669,7 +669,7 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
       event_hasbody.set_content(content.dump());
       db.SetEvent(event_hasbody);
 
-      if (!nu->HasWallet(w.get_id())) nu->CreateWallet(w);
+      if (!nu->HasWallet(w.get_id())) nu->CreateWallet(w, true);
       return;
     }
     db.SetWallet(wallet);
