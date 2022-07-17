@@ -239,4 +239,14 @@ void CoreRpcSynchronizer::BlockchainSync(
   }
 }
 
+std::vector<UnspentOutput> CoreRpcSynchronizer::ListUnspent(
+    const std::string& address) {
+  throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
+                         "Not support for core rpc");
+}
+
+std::string CoreRpcSynchronizer::GetRawTx(const std::string& tx_id) {
+  throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
+                         "Not support for core rpc");
+}
 }  // namespace nunchuk

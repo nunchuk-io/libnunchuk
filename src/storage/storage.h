@@ -23,6 +23,7 @@
 #include "signerdb.h"
 #include "appstatedb.h"
 #include "roomdb.h"
+#include "tapprotocoldb.h"
 
 #include <boost/filesystem.hpp>
 #include <shared_mutex>
@@ -50,6 +51,9 @@ class NunchukStorage {
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
                                  const std::string &mnemonic = {});
+  std::string CreateMasterSignerFromMasterXprv(
+      Chain chain, const std::string &name, const Device &device,
+      const std::string &master_xprv = {});
   SingleSigner CreateSingleSigner(Chain chain, const std::string &name,
                                   const std::string &xpub,
                                   const std::string &public_key,
@@ -173,6 +177,13 @@ class NunchukStorage {
   bool AddPrimaryKey(Chain chain, const PrimaryKey &key);
   bool RemovePrimaryKey(Chain chain, const std::string &account);
 
+  bool AddTapsigner(Chain chain, const TapsignerStatus &status);
+  TapsignerStatus GetTapsignerStatusFromCardIdent(
+      Chain chain, const std::string &card_ident);
+  TapsignerStatus GetTapsignerStatusFromMasterSigner(
+      Chain chain, const std::string &master_signer_id);
+  bool DeleteTapsigner(Chain chain, const std::string &master_signer_id);
+
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
   static std::shared_mutex access_;
@@ -181,6 +192,7 @@ class NunchukStorage {
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
+  NunchukTapprotocolDb GetTaprotocolDb(Chain chain);
   std::string ChainStr(Chain chain) const;
   boost::filesystem::path GetWalletDir(Chain chain,
                                        const std::string &id) const;
@@ -189,6 +201,7 @@ class NunchukStorage {
   boost::filesystem::path GetAppStateDir(Chain chain) const;
   boost::filesystem::path GetPrimaryDir(Chain chain) const;
   boost::filesystem::path GetRoomDir(Chain chain) const;
+  boost::filesystem::path GetTapprotocolDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
   Wallet CreateWallet0(Chain chain, const Wallet &wallet,

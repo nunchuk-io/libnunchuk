@@ -73,6 +73,14 @@ SoftwareSigner::SoftwareSigner(const std::string& mnemonic,
                                const std::string& passphrase)
     : bip32rootkey_(GetBip32RootKey(mnemonic, passphrase)) {}
 
+SoftwareSigner::SoftwareSigner(const std::string& master_xprv)
+    : bip32rootkey_(DecodeExtKey(master_xprv)) {
+  if (!bip32rootkey_.key.IsValid()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid master xprv");
+  }
+}
+
 CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
   std::vector<uint32_t> keypath;
   std::string formalized = path;

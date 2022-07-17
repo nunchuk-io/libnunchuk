@@ -33,6 +33,7 @@ class SoftwareSigner {
   static std::vector<std::string> GetBIP39WordList();
 
   SoftwareSigner(const std::string& mnemonic, const std::string& passphrase);
+  SoftwareSigner(const std::string& master_xprv);
   CExtKey GetExtKeyAtPath(const std::string& derivation_path) const;
   std::string GetXpubAtPath(const std::string& derivation_path) const;
   std::string GetAddressAtPath(const std::string& derivation_path) const;

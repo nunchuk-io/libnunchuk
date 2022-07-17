@@ -64,7 +64,10 @@ inline std::string SignerTypeToStr(nunchuk::SignerType value) {
   if (value == nunchuk::SignerType::SOFTWARE) return "SOFTWARE";
   if (value == nunchuk::SignerType::FOREIGN_SOFTWARE) return "FOREIGN_SOFTWARE";
   if (value == nunchuk::SignerType::AIRGAP) return "AIRGAP";
-  return "HARDWARE";
+  if (value == nunchuk::SignerType::HARDWARE) return "HARDWARE";
+  if (value == nunchuk::SignerType::NFC) return "NFC";
+  throw nunchuk::NunchukException(
+      nunchuk::NunchukException::INVALID_SIGNER_TYPE, "Invalid signer type");
 }
 
 inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
@@ -72,8 +75,38 @@ inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
   if (value == "FOREIGN_SOFTWARE") return nunchuk::SignerType::FOREIGN_SOFTWARE;
   if (value == "AIRGAP") return nunchuk::SignerType::AIRGAP;
   if (value == "HARDWARE") return nunchuk::SignerType::HARDWARE;
+  if (value == "NFC") return nunchuk::SignerType::NFC;
+
   throw nunchuk::NunchukException(
       nunchuk::NunchukException::INVALID_SIGNER_TYPE, "Invalid signer type");
+}
+
+inline std::string SlotStatusToStr(nunchuk::SatscardSlot::Status status) {
+  switch (status) {
+    case nunchuk::SatscardSlot::Status::UNUSED:
+      return "UNUSED";
+    case nunchuk::SatscardSlot::Status::SEALED:
+      return "SEALED";
+    case nunchuk::SatscardSlot::Status::UNSEALED:
+      return "UNSEALED";
+  }
+  throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
+                                  "Invalid slot status");
+}
+
+inline nunchuk::SatscardSlot::Status SlotStatusFromStr(
+    const std::string& status) {
+  if (status == "UNUSED") {
+    return nunchuk::SatscardSlot::Status::UNUSED;
+  }
+  if (status == "SEALED") {
+    return nunchuk::SatscardSlot::Status::SEALED;
+  }
+  if (status == "UNSEALED") {
+    return nunchuk::SatscardSlot::Status::UNSEALED;
+  }
+  throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
+                                  "Invalid slot status");
 }
 
 }  // namespace

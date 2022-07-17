@@ -55,7 +55,8 @@ class ElectrumClient {
   json blockchain_estimatefee(int number);
   json blockchain_relayfee();
   json blockchain_transaction_broadcast(const std::string& raw_tx);
-  json blockchain_transaction_get(const std::string& tx_hash);
+  json blockchain_transaction_get(const std::string& tx_hash,
+                                  bool verbose = true);
 
  private:
   void start();

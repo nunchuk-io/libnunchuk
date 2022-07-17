@@ -32,6 +32,8 @@ class NunchukSignerDb : public NunchukDb {
   using NunchukDb::NunchukDb;
   void InitSigner(const std::string &name, const Device &device,
                   const std::string &mnemonic);
+  void InitSignerMasterXprv(const std::string &name, const Device &device,
+                            const std::string &master_xprv);
   void DeleteSigner();
   bool SetName(const std::string &value);
   bool SetLastHealthCheck(time_t value);

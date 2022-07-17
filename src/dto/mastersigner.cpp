@@ -40,5 +40,8 @@ bool MasterSigner::is_software() const {
 SignerType MasterSigner::get_type() const { return type_; }
 
 void MasterSigner::set_name(const std::string& value) { name_ = value; }
+bool MasterSigner::is_nfc() const {
+  return type_ == SignerType::NFC;
+}
 
 }  // namespace nunchuk

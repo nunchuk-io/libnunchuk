@@ -21,6 +21,7 @@
 #include <softwaresigner.h>
 #include <key_io.h>
 #include <validation.h>
+#include "tap_protocol/hwi_tapsigner.h"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -43,6 +44,7 @@
 using json = nlohmann::json;
 using namespace boost::algorithm;
 using namespace nunchuk::bcr2;
+using namespace tap_protocol;
 
 namespace nunchuk {
 
@@ -53,6 +55,18 @@ static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
 
+static HWITapsigner::Chain NunchukChain2TapsignerChain(Chain chain) {
+  switch (chain) {
+    case Chain::MAIN:
+      return HWITapsigner::Chain::MAIN;
+    case Chain::TESTNET:
+    case Chain::SIGNET:
+    case Chain::REGTEST:
+      return HWITapsigner::Chain::TESTNET;
+  }
+  throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
+}
+
 // Nunchuk implement
 NunchukImpl::NunchukImpl(const AppSettings& appsettings,
                          const std::string& passphrase,
@@ -61,7 +75,8 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
       account_(account),
       chain_(app_settings_.get_chain()),
       hwi_(app_settings_.get_hwi_path(), chain_),
-      storage_(NunchukStorage::get(account_)) {
+      storage_(NunchukStorage::get(account_)),
+      hwi_tapsigner_(MakeHWITapsigner(NunchukChain2TapsignerChain(chain_))) {
   CoreUtils::getInstance().SetChain(chain_);
   storage_->Init(app_settings_.get_storage_path(), passphrase);
   storage_->MaybeMigrate(chain_);
@@ -502,6 +517,11 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     throw NunchukException(
         NunchukException::INVALID_SIGNER_TYPE,
         strprintf("Can not healthcheck foreign software id = '%s'", id));
+  } else if (signerType == SignerType::NFC) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           strprintf("Must be healthcheck with NFC "
+                                     "id = '%s'",
+                                     id));
   }
 
   Device device{fingerprint};
@@ -709,8 +729,14 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
       signed_psbt = software_signer.SignTx(psbt);
     }
     storage_->ClearSignerPassphrase(chain_, mastersigner_id);
-  } else {
+  } else if (mastersigner.get_type() == SignerType::HARDWARE) {
     signed_psbt = hwi_.SignTx(device, psbt);
+  } else if (mastersigner.get_type() == SignerType::NFC) {
+    throw NunchukException(
+        NunchukException::INVALID_SIGNER_TYPE,
+        strprintf("Transaction must be sign with NFC "
+                  "wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
+                  wallet_id, tx_id, mastersigner_id));
   }
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
          signed_psbt.c_str());
@@ -783,6 +809,7 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
   chain_ = app_settings_.get_chain();
   hwi_.SetPath(app_settings_.get_hwi_path());
   hwi_.SetChain(chain_);
+  hwi_tapsigner_->SetChain(NunchukChain2TapsignerChain(chain_));
   CoreUtils::getInstance().SetChain(chain_);
   if (synchronizer_->NeedRecreate(settings)) {
     std::fill(estimate_fee_cached_time_,

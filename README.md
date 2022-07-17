@@ -114,7 +114,7 @@ Build Bitcoin Core ([details](https://github.com/bitcoin/bitcoin/tree/master/doc
 ```
 $ pushd libnunchuk/contrib/bitcoin
 $ ./autogen.sh
-$ ./configure --without-gui --disable-zmq --with-miniupnpc=no # important
+$ ./configure --without-gui --disable-zmq --with-miniupnpc=no --enable-module-ecdh # important
 $ make -j8
 $ popd
 ```

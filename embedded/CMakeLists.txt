@@ -192,3 +192,9 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     ${Boost_INCLUDE_DIRS}
     "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/depends/${ANDROID_TARGET}/include"
 )
+
+# Pass secp256k1 for tap-protocol
+get_target_property(SECP256K1_LIBRARY secp256k1 IMPORTED_LOCATION)
+set(EXTERNAL_SECP256K1_LIBRARY "${SECP256K1_LIBRARY}" PARENT_SCOPE)
+set(EXTERNAL_SECP256K1_INCLUDE "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src/secp256k1/include" PARENT_SCOPE)
+set(USE_EXTERNAL_SECP256K1 ON PARENT_SCOPE)

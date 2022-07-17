@@ -224,8 +224,9 @@ json ElectrumClient::blockchain_transaction_broadcast(
   return call_method("blockchain.transaction.broadcast", {raw_tx});
 }
 
-json ElectrumClient::blockchain_transaction_get(const std::string& tx_hash) {
-  return call_method("blockchain.transaction.get", {tx_hash, true});
+json ElectrumClient::blockchain_transaction_get(const std::string& tx_hash,
+                                                bool verbose) {
+  return call_method("blockchain.transaction.get", {tx_hash, verbose});
 }
 
 void ElectrumClient::start() {

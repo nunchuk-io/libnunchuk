@@ -21,6 +21,7 @@
 #include <backend/synchronizer.h>
 #include <backend/electrum/client.h>
 #include <condition_variable>
+#include <thread>
 
 namespace nunchuk {
 
@@ -37,6 +38,8 @@ class ElectrumSynchronizer : public Synchronizer {
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal);
   void RescanBlockchain(int start_height, int stop_height);
+  std::vector<UnspentOutput> ListUnspent(const std::string& address) override;
+  std::string GetRawTx(const std::string& tx_id) override;
 
   void Run();
 

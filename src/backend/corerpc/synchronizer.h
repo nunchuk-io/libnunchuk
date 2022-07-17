@@ -38,6 +38,8 @@ class CoreRpcSynchronizer : public Synchronizer {
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal) override;
   void RescanBlockchain(int start_height, int stop_height) override;
+  std::vector<UnspentOutput> ListUnspent(const std::string& address) override;
+  std::string GetRawTx(const std::string& tx_id) override;
 
   void Run() override;
 

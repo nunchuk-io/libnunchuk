@@ -30,6 +30,7 @@
 #include <util/bip32.h>
 #include <util/strencodings.h>
 #include <boost/format.hpp>
+#include <hash.h>
 
 namespace nunchuk {
 
@@ -69,6 +70,21 @@ std::string Utils::GenerateRandomMessage(int message_length) {
   std::string str(message_length, 0);
   std::generate_n(str.begin(), message_length, randchar);
   return str;
+}
+
+std::string Utils::GenerateRandomChainCode() {
+  std::vector<unsigned char> buf(128);
+
+  // GetStrongRandBytes can only generate up to 32 bytes
+  for (int cur = 0; cur < buf.size(); cur += 32) {
+    GetStrongRandBytes(buf.data() + cur, 32);
+  }
+
+  std::vector<unsigned char> chain_code(CHash256::OUTPUT_SIZE);
+  CHash256 hasher;
+  hasher.Write(buf).Finalize(chain_code);
+
+  return HexStr(chain_code);
 }
 
 bool Utils::IsValidXPub(const std::string& value) {

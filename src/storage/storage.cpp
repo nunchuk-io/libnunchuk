@@ -228,6 +228,7 @@ std::string NunchukStorage::ChainStr(Chain chain) const {
     case Chain::SIGNET:
       return "signet";
   }
+  throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
 }
 
 fs::path NunchukStorage::GetWalletDir(Chain chain,
@@ -258,6 +259,10 @@ fs::path NunchukStorage::GetPrimaryDir(Chain chain) const {
 
 fs::path NunchukStorage::GetRoomDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "room";
+}
+
+fs::path NunchukStorage::GetTapprotocolDir(Chain chain) const {
+  return datadir_ / ChainStr(chain) / "tap-protocol";
 }
 
 NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
@@ -293,6 +298,14 @@ NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
   bool is_new = !fs::exists(db_file);
   auto db = NunchukPrimaryDb{chain, "", db_file.string(), ""};
   db.Init();
+  return db;
+}
+
+NunchukTapprotocolDb NunchukStorage::GetTaprotocolDb(Chain chain) {
+  fs::path db_file = GetTapprotocolDir(chain);
+  bool is_new = !fs::exists(db_file);
+  auto db = NunchukTapprotocolDb{chain, "", db_file.string(), ""};
+  if (is_new) db.Init();
   return db;
 }
 
@@ -371,6 +384,18 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
   return id;
 }
 
+std::string NunchukStorage::CreateMasterSignerFromMasterXprv(
+    Chain chain, const std::string& name, const Device& device,
+    const std::string& master_xprv) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  std::string id = ba::to_lower_copy(device.get_master_fingerprint());
+  NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
+                            passphrase_};
+  signer_db.InitSignerMasterXprv(name, device, master_xprv);
+  GetAppStateDb(chain).RemoveDeletedSigner(id);
+  return id;
+}
+
 SingleSigner NunchukStorage::CreateSingleSigner(
     Chain chain, const std::string& name, const std::string& xpub,
     const std::string& public_key, const std::string& derivation_path,
@@ -433,11 +458,13 @@ void NunchukStorage::CacheMasterSignerXPub(
     std::function<bool(int)> progress, bool first) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
-  bool is_software = signer_db.GetSignerType() == SignerType::SOFTWARE;
+  auto signer_type = signer_db.GetSignerType();
+  bool is_software = signer_type == SignerType::SOFTWARE;
+  bool is_nfc = signer_type == SignerType::NFC;
 
   int count = 0;
-  auto total =
-      first ? (is_software ? 62 : 8) : (is_software ? 60 : TOTAL_CACHE_NUMBER);
+  auto total = first ? (is_software ? 62 : (is_nfc ? 10 : 8))
+                     : (is_software ? 60 : TOTAL_CACHE_NUMBER);
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
@@ -453,6 +480,7 @@ void NunchukStorage::CacheMasterSignerXPub(
 
   auto cacheNumber = [&](WalletType w, AddressType a) {
     if (is_software) return 10;
+    if (first && is_nfc && w == WalletType::MULTI_SIG) return 3;
     if (first) return 1;
     if (w == WalletType::MULTI_SIG) return MULTISIG_CACHE_NUMBER;
     if (w == WalletType::ESCROW) return ESCROW_CACHE_NUMBER;
@@ -641,7 +669,11 @@ bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
 
 bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  GetSignerDb(chain, id).DeleteSigner();
+  auto signer_db = GetSignerDb(chain, id);
+
+  GetTaprotocolDb(chain).DeleteTapsigner(id);
+
+  signer_db.DeleteSigner();
   GetAppStateDb(chain).AddDeletedSigner(id);
   return fs::remove(GetSignerDir(chain, id));
 }
@@ -1171,6 +1203,28 @@ bool NunchukStorage::AddPrimaryKey(Chain chain, const PrimaryKey& key) {
 bool NunchukStorage::RemovePrimaryKey(Chain chain, const std::string& account) {
   std::unique_lock<std::shared_mutex> lock(access_);
   return GetPrimaryDb(chain).RemovePrimaryKey(account);
+}
+
+bool NunchukStorage::AddTapsigner(Chain chain, const TapsignerStatus& status) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetTaprotocolDb(chain).AddTapsigner(status);
+}
+TapsignerStatus NunchukStorage::GetTapsignerStatusFromCardIdent(
+    Chain chain, const std::string& card_ident) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetTaprotocolDb(chain).GetTapsignerStatusFromCardIdent(card_ident);
+}
+TapsignerStatus NunchukStorage::GetTapsignerStatusFromMasterSigner(
+    Chain chain, const std::string& master_signer_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetTaprotocolDb(chain).GetTapsignerStatusFromMasterSigner(
+      master_signer_id);
+}
+
+bool NunchukStorage::DeleteTapsigner(Chain chain,
+                                     const std::string& master_signer_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetTaprotocolDb(chain).DeleteTapsigner(master_signer_id);
 }
 
 }  // namespace nunchuk
