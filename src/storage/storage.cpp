@@ -104,7 +104,7 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
                                   ExportFormat format) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet_id);
-  auto wallet = wallet_db.GetWallet(true);
+  auto wallet = wallet_db.GetWallet(true, true);
   switch (format) {
     case ExportFormat::COLDCARD:
       return WriteFile(file_path, ::GetMultisigConfig(wallet));
@@ -838,7 +838,7 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
     if (current_ver == STORAGE_VER) return;
     if (current_ver < 3) {
       for (auto&& wallet_id : wallets) {
-        GetWallet(chain, wallet_id, true);
+        GetWalletDb(chain, wallet_id).GetWallet(true, true);
       }
     }
     DLOG_F(INFO, "NunchukAppStateDb migrate to version %d", STORAGE_VER);
@@ -926,7 +926,8 @@ std::string NunchukStorage::GetAddressStatus(Chain chain,
 std::string NunchukStorage::GetMultisigConfig(Chain chain,
                                               const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return ::GetMultisigConfig(GetWalletDb(chain, wallet_id).GetWallet(true));
+  return ::GetMultisigConfig(
+      GetWalletDb(chain, wallet_id).GetWallet(true, true));
 }
 
 void NunchukStorage::SendSignerPassphrase(Chain chain,
@@ -952,7 +953,7 @@ std::string NunchukStorage::ExportBackup() {
     auto wids = ListWallets0(chain);
     for (auto&& id : wids) {
       auto wallet_db = GetWalletDb(chain, id);
-      auto w = wallet_db.GetWallet(true);
+      auto w = wallet_db.GetWallet(true, true);
       json wallet = {
           {"id", w.get_id()},
           {"name", w.get_name()},
