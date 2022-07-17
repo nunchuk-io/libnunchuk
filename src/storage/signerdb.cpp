@@ -24,6 +24,7 @@
 #include <utils/bsms.hpp>
 #include <set>
 #include <sstream>
+#include "storage/common.h"
 
 #include <rpc/util.h>
 #include <policy/policy.h>
@@ -43,6 +44,28 @@ void NunchukSignerDb::InitSigner(const std::string& name, const Device& device,
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
   if (!mnemonic.empty()) PutString(DbKeys::MNEMONIC, mnemonic);
+  if (device.is_tapsigner()) {
+    // Remove master xpriv key if exists
+    PutString(DbKeys::MASTER_XPRV, {});
+  }
+  PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
+  PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
+}
+
+void NunchukSignerDb::InitSignerMasterXprv(const std::string& name,
+                                           const Device& device,
+                                           const std::string& master_xprv) {
+  CreateTable();
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS BIP32("
+                        "PATH VARCHAR(20) PRIMARY KEY     NOT NULL,"
+                        "XPUB                     TEXT    NOT NULL,"
+                        "TYPE                     TEXT    NOT NULL,"
+                        "USED                     INT);",
+                        NULL, 0, NULL));
+  PutString(DbKeys::NAME, name);
+  PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
+  if (!master_xprv.empty()) PutString(DbKeys::MASTER_XPRV, master_xprv);
   PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
   PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }
@@ -183,32 +206,64 @@ bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 SignerType NunchukSignerDb::GetSignerType() const {
   if (!IsMaster()) return SignerType::AIRGAP;
   if (GetDeviceType() == "software") {
-    return GetString(DbKeys::MNEMONIC).empty() ? SignerType::FOREIGN_SOFTWARE
-                                               : SignerType::SOFTWARE;
+    bool has_mnemonic = !GetString(DbKeys::MNEMONIC).empty();
+    if (has_mnemonic) {
+      return SignerType::SOFTWARE;
+    }
+
+    bool has_master_xprv = !GetString(DbKeys::MASTER_XPRV).empty();
+    if (has_master_xprv) {
+      return SignerType::SOFTWARE;
+    }
+
+    return SignerType::FOREIGN_SOFTWARE;
+  }
+
+  if (GetDeviceType() == "nfc") {
+    return SignerType::NFC;
   }
   return SignerType::HARDWARE;
 }
 
 bool NunchukSignerDb::IsSoftware(const std::string& passphrase) const {
   auto mnemonic = GetString(DbKeys::MNEMONIC);
-  if (mnemonic.empty()) return false;
-  auto signer = SoftwareSigner{mnemonic, passphrase};
-  return signer.GetMasterFingerprint() == id_;
+  if (!mnemonic.empty()) {
+    auto signer = SoftwareSigner{mnemonic, passphrase};
+    return signer.GetMasterFingerprint() == id_;
+  }
+
+  auto master_xprv = GetString(DbKeys::MASTER_XPRV);
+  if (!master_xprv.empty()) {
+    auto signer = SoftwareSigner{master_xprv};
+    return signer.GetMasterFingerprint() == id_;
+  }
+  return false;
 }
 
 SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
     const std::string& passphrase) const {
   auto mnemonic = GetString(DbKeys::MNEMONIC);
-  if (mnemonic.empty()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Is not software signer");
+  if (!mnemonic.empty()) {
+    auto signer = SoftwareSigner{mnemonic, passphrase};
+    if (signer.GetMasterFingerprint() != id_) {
+      throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
+                             "Invalid passphrase");
+    }
+    return signer;
   }
-  auto signer = SoftwareSigner{mnemonic, passphrase};
-  if (signer.GetMasterFingerprint() != id_) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
-                           "Invalid passphrase");
+
+  auto master_xprv = GetString(DbKeys::MASTER_XPRV);
+  if (!master_xprv.empty()) {
+    auto signer = SoftwareSigner{master_xprv};
+    if (signer.GetMasterFingerprint() != id_) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid signer");
+    }
+    return signer;
   }
-  return signer;
+
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Is not software signer");
 }
 
 void NunchukSignerDb::InitRemote() {

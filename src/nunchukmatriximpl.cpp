@@ -346,6 +346,26 @@ NunchukMatrixEvent NunchukMatrixImpl::SignTransaction(
   return NewEvent(room_id, "io.nunchuk.transaction", content);
 }
 
+NunchukMatrixEvent NunchukMatrixImpl::SignTapsignerTransaction(
+    const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
+    tap_protocol::Tapsigner* tapsigner, const std::string& cvc) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto db = storage_->GetRoomDb(chain_);
+  auto init_event = db.GetEvent(init_event_id);
+  std::string room_id = init_event.get_room_id();
+  auto rtx = db.GetTransaction(init_event_id);
+  auto st = nu->GetTapsignerStatus(tapsigner);
+  auto tx = nu->SignTapsignerTransaction(tapsigner, cvc, rtx.get_wallet_id(),
+                                         rtx.get_tx_id());
+  json content = {
+      {"msgtype", "io.nunchuk.transaction.sign"},
+      {"body",
+       {{"psbt", tx.get_psbt()},
+        {"master_fingerprint", st.get_master_signer_id()},
+        {"io.nunchuk.relates_to", {{"init_event", EventToJson(init_event)}}}}}};
+  return NewEvent(room_id, "io.nunchuk.transaction", content);
+}
+
 NunchukMatrixEvent NunchukMatrixImpl::RejectTransaction(
     const std::string& init_event_id, const std::string& reason) {
   std::shared_lock<std::shared_mutex> lock(access_);

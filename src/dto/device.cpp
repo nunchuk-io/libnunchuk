@@ -22,13 +22,20 @@ namespace nunchuk {
 
 Device::Device() {}
 Device::Device(const std::string &master_fingerprint)
-    : master_fingerprint_(master_fingerprint), connected_(false) {}
+    : master_fingerprint_(master_fingerprint),
+      connected_(false),
+      needs_pass_phrase_sent_(false),
+      needs_pin_sent_(false),
+      initialized_(false) {}
 Device::Device(const std::string &type, const std::string &model,
                const std::string &master_fingerprint)
     : type_(type),
       model_(model),
       master_fingerprint_(master_fingerprint),
-      connected_(false) {}
+      connected_(false),
+      needs_pass_phrase_sent_(false),
+      needs_pin_sent_(false),
+      initialized_(false) {}
 Device::Device(const std::string &type, const std::string &path,
                const std::string &model, const std::string &master_fingerprint,
                bool needs_pass_phrase_sent, bool needs_pin_sent,
@@ -52,6 +59,7 @@ bool Device::connected() const { return connected_; }
 bool Device::needs_pass_phrase_sent() const { return needs_pass_phrase_sent_; }
 bool Device::needs_pin_sent() const { return needs_pin_sent_; }
 bool Device::initialized() const { return initialized_; }
+bool Device::is_tapsigner() const { return model_ == "tapsigner"; }
 void Device::set_needs_pass_phrase_sent(const bool value) {
   needs_pass_phrase_sent_ = value;
 }

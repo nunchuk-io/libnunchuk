@@ -17,6 +17,7 @@
 
 #ifndef NUNCHUK_NUNCHUKMATRIXIMPL_H
 #define NUNCHUK_NUNCHUKMATRIXIMPL_H
+#include "tap_protocol/cktapcard.h"
 #define NUNCHUK_EVENT_VER 1
 
 #include <nunchukmatrix.h>
@@ -71,6 +72,9 @@ class NunchukMatrixImpl : public NunchukMatrix {
   NunchukMatrixEvent SignTransaction(const std::unique_ptr<Nunchuk>& nu,
                                      const std::string& init_event_id,
                                      const Device& device) override;
+  NunchukMatrixEvent SignTapsignerTransaction(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc) override;
   NunchukMatrixEvent RejectTransaction(const std::string& init_event_id,
                                        const std::string& reason = {}) override;
   NunchukMatrixEvent CancelTransaction(const std::string& init_event_id,

@@ -18,6 +18,8 @@
 #ifndef NUNCHUK_INCLUDE_H
 #define NUNCHUK_INCLUDE_H
 
+#include <optional>
+#include "utils/errorutils.hpp"
 #define NUNCHUK_EXPORT
 
 #include <functional>
@@ -25,6 +27,9 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <tap_protocol/transport.h>
+#include <tap_protocol/tap_protocol.h>
+#include <tap_protocol/cktapcard.h>
 
 namespace nunchuk {
 
@@ -113,6 +118,7 @@ enum class SignerType {
   AIRGAP,
   SOFTWARE,
   FOREIGN_SOFTWARE,
+  NFC,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
@@ -228,6 +234,28 @@ class NUNCHUK_EXPORT HWIException : public BaseException {
   using BaseException::BaseException;
 };
 
+class TapProtocolException : public BaseException {
+ public:
+  using BaseException::BaseException;
+  static const int TAP_PROTOCOL_ERROR = -6000;
+  static const int INVALID_DEVICE = TAP_PROTOCOL_ERROR - 100;
+  static const int UNLUCKY_NUMBER = TAP_PROTOCOL_ERROR - 205;
+  static const int BAD_ARGUMENT = TAP_PROTOCOL_ERROR - 400;
+  static const int BAD_AUTH = TAP_PROTOCOL_ERROR - 401;
+  static const int NEED_AUTH = TAP_PROTOCOL_ERROR - 403;
+  static const int UNKNOW_COMMAND = TAP_PROTOCOL_ERROR - 404;
+  static const int INVALID_COMMAND = TAP_PROTOCOL_ERROR - 405;
+  static const int INVALID_STATE = TAP_PROTOCOL_ERROR - 406;
+  static const int WEAK_NONCE = TAP_PROTOCOL_ERROR - 417;
+  static const int BAD_CBOR = TAP_PROTOCOL_ERROR - 422;
+  static const int BACKUP_FIRST = TAP_PROTOCOL_ERROR - 425;
+  static const int RATE_LIMIT = TAP_PROTOCOL_ERROR - 429;
+
+  explicit TapProtocolException(const tap_protocol::TapProtoException& te)
+      : BaseException(TAP_PROTOCOL_ERROR - te.code(),
+                      NormalizeErrorMessage(te.what())) {}
+};
+
 class NUNCHUK_EXPORT Device {
  public:
   Device();
@@ -247,6 +275,7 @@ class NUNCHUK_EXPORT Device {
   bool needs_pass_phrase_sent() const;
   bool needs_pin_sent() const;
   bool initialized() const;
+  bool is_tapsigner() const;
   void set_needs_pass_phrase_sent(const bool value);
 
  private:
@@ -308,6 +337,7 @@ class NUNCHUK_EXPORT MasterSigner {
   Device get_device() const;
   time_t get_last_health_check() const;
   bool is_software() const;
+  bool is_nfc() const;
   SignerType get_type() const;
   void set_name(const std::string& value);
 
@@ -475,6 +505,142 @@ class Transaction {
   std::string psbt_;
   std::string raw_;
   std::string reject_msg_;
+};
+
+class TapsignerStatus {
+ public:
+  TapsignerStatus();
+  TapsignerStatus(
+      const std::string& card_ident, int birth_height, int number_of_backup,
+      const std::string& version,
+      const std::optional<std::string>& current_derivation = std::nullopt,
+      bool is_testnet = false, int auth_delay = 0,
+      const std::string& master_signer_id = {},
+      const std::vector<unsigned char>& backup_data = {});
+
+  const std::string& get_card_ident() const;
+  std::string get_current_derivation() const;
+  const std::string& get_version() const;
+  const std::string& get_master_signer_id() const;
+  const std::vector<unsigned char>& get_backup_data() const;
+  int get_birth_height() const;
+  int get_number_of_backup() const;
+  int get_auth_delay() const;
+  bool is_testnet() const;
+  bool is_master_signer() const;
+  bool need_setup() const;
+
+  void set_card_ident(const std::string& card_ident);
+  void set_birth_height(int birth_height);
+  void set_number_of_backup(int number_of_backup);
+  void set_current_derivation(const std::string& current_derivation);
+  void set_version(const std::string& version);
+  void set_testnet(bool is_testnet);
+  void set_auth_delay(int auth_delay);
+  void set_backup_data(const std::vector<unsigned char>& backup_data);
+  void set_master_signer_id(const std::string& master_signer_id);
+
+ private:
+  std::string card_ident_;
+  int birth_height_{};
+  int number_of_backup_{};
+  std::optional<std::string> current_derivation_;
+  std::string version_;
+  bool is_testnet_{};
+  int auth_delay_{};
+  std::vector<unsigned char> backup_data_;
+  std::string master_signer_id_;
+};
+
+class SatscardSlot {
+ public:
+  enum class Status {
+    UNUSED,
+    SEALED,
+    UNSEALED,
+  };
+
+  SatscardSlot();
+  SatscardSlot(int index, Status status, const std::string& address);
+  SatscardSlot(int index, Status status, const std::string& address,
+               std::vector<unsigned char> privkey,
+               std::vector<unsigned char> pubkey,
+               std::vector<unsigned char> chain_code,
+               std::vector<unsigned char> master_privkey);
+
+  int get_index() const;
+  Status get_status() const;
+  const std::string& get_address() const;
+  Amount get_balance() const;
+  bool is_confirmed() const;
+  const std::vector<UnspentOutput>& get_utxos() const;
+  const std::vector<unsigned char>& get_privkey() const;
+  const std::vector<unsigned char>& get_pubkey() const;
+  const std::vector<unsigned char>& get_chain_code() const;
+  const std::vector<unsigned char>& get_master_privkey() const;
+
+  void set_index(int index);
+  void set_status(Status status);
+  void set_address(const std::string& address);
+  void set_balance(const Amount& value);
+  void set_confirmed(bool confirmed);
+  void set_utxos(std::vector<UnspentOutput> utxos);
+  void set_privkey(std::vector<unsigned char> privkey);
+  void set_pubkey(std::vector<unsigned char> pubkey);
+  void set_chain_code(std::vector<unsigned char> chain_code);
+  void set_master_privkey(std::vector<unsigned char> master_privkey);
+
+ private:
+  int index_{};
+  Status status_;
+  std::string address_;
+  Amount balance_{};
+  bool confirmed_{};
+  std::vector<UnspentOutput> utxos_;
+  std::vector<unsigned char> privkey_;
+  std::vector<unsigned char> pubkey_;
+  std::vector<unsigned char> chain_code_;
+  std::vector<unsigned char> master_privkey_;
+};
+
+class SatscardStatus {
+ public:
+  SatscardStatus();
+  SatscardStatus(const std::string& card_ident, int birth_height,
+                 const std::string& version, bool is_testnet, int auth_delay,
+                 int active_slot_index, int num_slot,
+                 std::vector<SatscardSlot> slots);
+
+  const std::string& get_card_ident() const;
+  const std::string& get_version() const;
+  int get_birth_height() const;
+  int get_auth_delay() const;
+  int get_active_slot_index() const;
+  int get_number_of_slots() const;
+  bool is_testnet() const;
+  bool need_setup() const;
+  bool is_used_up() const;
+  const std::vector<SatscardSlot>& get_slots() const;
+  const SatscardSlot& get_active_slot() const;
+
+  void set_card_ident(const std::string& card_ident);
+  void set_birth_height(int birth_height);
+  void set_version(const std::string& version);
+  void set_testnet(bool is_testnet);
+  void set_auth_delay(int auth_delay);
+  void set_active_slot_index(int index);
+  void set_number_of_slots(int number_of_slots);
+  void set_slots(std::vector<SatscardSlot> slots);
+
+ private:
+  std::string card_ident_;
+  int birth_height_{};
+  std::string version_;
+  bool is_testnet_{};
+  int auth_delay_{};
+  int active_slot_index_{};
+  int num_slot_{};
+  std::vector<SatscardSlot> slots_;
 };
 
 class NUNCHUK_EXPORT AppSettings {
@@ -702,6 +868,66 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) = 0;
 
+  // NFC
+  virtual std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
+      std::unique_ptr<tap_protocol::Transport> transport) = 0;
+  // TAPSIGNER
+  virtual MasterSigner ImportTapsignerMasterSigner(
+      const std::string& file_path, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false) = 0;
+  virtual std::unique_ptr<tap_protocol::Tapsigner> CreateTapsigner(
+      std::unique_ptr<tap_protocol::Transport> transport) = 0;
+  virtual TapsignerStatus GetTapsignerStatus(
+      tap_protocol::Tapsigner* tapsigner) = 0;
+  virtual TapsignerStatus SetupTapsigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& new_cvc, const std::string& derivation_path = {},
+      const std::string& chain_code = {}) = 0;
+  virtual MasterSigner CreateTapsignerMasterSigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& name, std::function<bool(int)> progress) = 0;
+  virtual Transaction SignTapsignerTransaction(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual bool ChangeTapsignerCVC(tap_protocol::Tapsigner* tapsigner,
+                                  const std::string& cvc,
+                                  const std::string& new_cvc,
+                                  const std::string& master_signer_id = {}) = 0;
+  virtual TapsignerStatus BackupTapsigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id = {}) = 0;
+  virtual HealthStatus HealthCheckTapsignerMasterSigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id, std::string& message,
+      std::string& signature, std::string& path) = 0;
+  virtual TapsignerStatus WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
+                                        std::function<bool(int)> progress) = 0;
+  virtual void CacheTapsignerMasterSignerXPub(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual TapsignerStatus GetTapsignerStatusFromMasterSigner(
+      const std::string& master_signer_id) = 0;
+
+  // SATSCARD
+  virtual std::unique_ptr<tap_protocol::Satscard> CreateSatscard(
+      std::unique_ptr<tap_protocol::Transport> transport) = 0;
+  virtual SatscardStatus GetSatscardStatus(
+      tap_protocol::Satscard* satscard) = 0;
+  virtual SatscardStatus SetupSatscard(tap_protocol::Satscard* satscard,
+                                       const std::string& cvc,
+                                       const std::string& chain_code = {}) = 0;
+  virtual SatscardSlot UnsealSatscard(tap_protocol::Satscard* satscard,
+                                      const std::string& cvc) = 0;
+  virtual SatscardSlot FetchSatscardSlotUTXOs(const SatscardSlot& slot) = 0;
+  virtual SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
+                                          const std::string& cvc,
+                                          const SatscardSlot& slot) = 0;
+  virtual void SweepSatscardSlot(const SatscardSlot& slot,
+                                 const std::string& to_wallet_id,
+                                 Amount fee_rate = -1) = 0;
+
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
   virtual MasterSigner CreateSoftwareSigner(
@@ -772,6 +998,7 @@ class NUNCHUK_EXPORT Utils {
  public:
   static void SetChain(Chain chain);
   static std::string GenerateRandomMessage(int message_length = 20);
+  static std::string GenerateRandomChainCode();
   static bool IsValidXPub(const std::string& value);
   static bool IsValidPublicKey(const std::string& value);
   static bool IsValidDerivationPath(const std::string& value);

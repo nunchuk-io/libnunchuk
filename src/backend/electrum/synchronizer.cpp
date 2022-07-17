@@ -18,6 +18,7 @@
 #include <backend/electrum/synchronizer.h>
 #include <utils/addressutils.hpp>
 #include <utils/stringutils.hpp>
+#include <thread>
 
 using namespace boost::asio;
 using json = nlohmann::json;
@@ -245,6 +246,43 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
 }
 
 void ElectrumSynchronizer::RescanBlockchain(int start_height, int stop_height) {
+}
+
+std::vector<UnspentOutput> ElectrumSynchronizer::ListUnspent(
+    const std::string& address) {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  }
+
+  std::string scripthash = AddressToScriptHash(address);
+  json utxos_json = client_->blockchain_scripthash_listunspent(scripthash);
+  if (!utxos_json.is_array()) {
+    return {};
+  }
+  std::vector<UnspentOutput> ret;
+  ret.reserve(utxos_json.size());
+
+  for (auto&& item : utxos_json) {
+    UnspentOutput u;
+    u.set_txid(item["tx_hash"]);
+    u.set_vout(item["tx_pos"]);
+    u.set_amount(Amount(item["value"]));
+    u.set_height(item["height"]);
+    ret.emplace_back(std::move(u));
+  }
+  return ret;
+}
+
+std::string ElectrumSynchronizer::GetRawTx(const std::string& tx_id) {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  }
+  auto tx = client_->blockchain_transaction_get(tx_id, false);
+  return tx;
 }
 
 }  // namespace nunchuk

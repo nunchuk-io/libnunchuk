@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(Boost_USE_STATIC_LIBS ON)
 set(OPENSSL_USE_STATIC_LIBS ON)
 set(UR__DISABLE_TESTS ON)
@@ -122,6 +123,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
     src/nunchukmatriximpl.cpp
+    src/nunchuktapprotocol.cpp
     src/backend/synchronizer.cpp
     src/backend/electrum/client.cpp
     src/backend/electrum/synchronizer.cpp
@@ -138,6 +140,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/roomevent.cpp
     src/dto/roomtransaction.cpp
     src/dto/roomwallet.cpp
+    src/dto/tapsignerstatus.cpp
+    src/dto/satscardstatus.cpp
     src/storage/appstatedb.cpp
     src/storage/db.cpp
     src/storage/primarydb.cpp
@@ -145,6 +149,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/storage/storage.cpp
     src/storage/walletdb.cpp
     src/storage/roomdb.cpp
+    src/storage/tapprotocoldb.cpp
     src/utils/loguru.cpp
 )
 
@@ -166,10 +171,15 @@ elseif(UNIX)
     set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} dl)
 endif()
 
+set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
+# Pass Bitcoin random to tap-protocol
+add_compile_definitions(LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
+add_subdirectory(contrib/tap-protocol)
+
 if(ANDROID)
-    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group tap-protocol)
 else()
-    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol)
 endif()
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
@@ -180,6 +190,7 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib"
     "${PROJECT_SOURCE_DIR}/contrib/sqlite"
     "${PROJECT_BINARY_DIR}"
+    "${PROJECT_SOURCE_DIR}/contrib/tap-protocol/include"
 )
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

@@ -52,6 +52,9 @@ class Synchronizer {
                          const std::string& address, int index,
                          bool internal) = 0;
   virtual void RescanBlockchain(int start_height, int stop_height) = 0;
+  virtual std::vector<UnspentOutput> ListUnspent(
+      const std::string& address) = 0;
+  virtual std::string GetRawTx(const std::string& tx_id) = 0;
 
   virtual void Run(){};
 
