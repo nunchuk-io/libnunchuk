@@ -22,6 +22,7 @@
 #include <utils/addressutils.hpp>
 #include <utils/bip32.hpp>
 #include <utils/bsms.hpp>
+#include <utils/multisigconfig.hpp>
 #include <storage/storage.h>
 
 #include <base58.h>
@@ -31,6 +32,12 @@
 #include <util/strencodings.h>
 #include <boost/format.hpp>
 #include <hash.h>
+
+#include <ur.h>
+#include <ur-encoder.hpp>
+#include <ur-decoder.hpp>
+#include <cbor-lite.hpp>
+#include <utils/bcr2.hpp>
 
 namespace nunchuk {
 
@@ -207,6 +214,42 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
   std::string id = GetWalletId(signers, m, address_type, wallet_type);
   bool is_escrow = wallet_type == WalletType::ESCROW;
   return {id, m, n, signers, address_type, is_escrow, std::time(0)};
+}
+
+Wallet Utils::ParseKeystoneWallet(Chain chain,
+                                  const std::vector<std::string>& qr_data) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
+  }
+  auto cbor = decoder.result_ur().cbor();
+  auto i = cbor.begin();
+  auto end = cbor.end();
+  std::vector<char> config;
+  CborLite::decodeBytes(i, end, config);
+  std::string config_str(config.begin(), config.end());
+
+  std::string name;
+  AddressType address_type;
+  WalletType wallet_type;
+  int m;
+  int n;
+  std::vector<SingleSigner> signers;
+  if (!ParseConfig(chain, config_str, name, address_type, wallet_type, m, n,
+                   signers)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Could not parse multisig config");
+  }
+  std::string id = GetWalletId(signers, m, address_type, wallet_type);
+  bool is_escrow = wallet_type == WalletType::ESCROW;
+
+  Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
+  wallet.set_name(name);
+  return wallet;
 }
 
 }  // namespace nunchuk

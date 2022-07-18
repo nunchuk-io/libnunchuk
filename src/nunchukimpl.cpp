@@ -1162,21 +1162,10 @@ Transaction NunchukImpl::ImportKeystoneTransaction(
 
 Wallet NunchukImpl::ImportKeystoneWallet(
     const std::vector<std::string>& qr_data, const std::string& description) {
-  auto decoder = ur::URDecoder();
-  for (auto&& part : qr_data) {
-    decoder.receive_part(part);
-  }
-  if (!decoder.is_complete() || !decoder.is_success()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid BC-UR2 input");
-  }
-  auto cbor = decoder.result_ur().cbor();
-  auto i = cbor.begin();
-  auto end = cbor.end();
-  std::vector<char> config;
-  decodeBytes(i, end, config);
-  std::string config_str(config.begin(), config.end());
-  return ImportWalletFromConfig(config_str, description);
+  auto wallet = Utils::ParseKeystoneWallet(chain_, qr_data);
+  wallet.set_description(description);
+  wallet.set_create_date(std::time(0));
+  return CreateWallet(wallet, true);
 }
 
 std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
