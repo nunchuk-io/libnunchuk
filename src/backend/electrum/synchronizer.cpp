@@ -130,13 +130,10 @@ void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
 std::pair<std::string, std::string> ElectrumSynchronizer::SubscribeAddress(
     const std::string& wallet_id, const std::string& address) {
   std::string scripthash = AddressToScriptHash(address);
-  if (scripthash_to_wallet_address_.count(scripthash) == 0) {
-    scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
-    auto subscribe = client_->blockchain_scripthash_subscribe(scripthash);
-    auto status = subscribe == nullptr ? "" : subscribe.get<std::string>();
-    return {scripthash, status};
-  }
-  return {scripthash, ""};
+  scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
+  auto subscribe = client_->blockchain_scripthash_subscribe(scripthash);
+  auto status = subscribe == nullptr ? "" : subscribe.get<std::string>();
+  return {scripthash, status};
 }
 
 void ElectrumSynchronizer::BlockchainSync(Chain chain) {
