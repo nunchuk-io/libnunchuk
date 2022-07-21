@@ -18,6 +18,7 @@
 #include "storage.h"
 
 #include <descriptor.h>
+#include <exception>
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
 #include <utils/json.hpp>
@@ -94,8 +95,26 @@ bool NunchukStorage::WriteFile(const std::string& file_path,
 }
 
 std::string NunchukStorage::LoadFile(const std::string& file_path) {
-  std::string value;
-  fs::load_string_file(fs::system_complete(file_path), value);
+  const auto path = fs::system_complete(file_path);
+  boost::filesystem::ifstream file(path, std::ios_base::binary);
+  if (!file.is_open()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Can not open file");
+  }
+
+  const boost::uintmax_t sz = boost::filesystem::file_size(path);
+  if (BOOST_UNLIKELY(sz > static_cast<boost::uintmax_t>(
+                              (std::numeric_limits<std::streamsize>::max)()))) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "File size exceeds max read size");
+  }
+
+  std::string value(static_cast<std::size_t>(sz), '\0');
+  if (sz > 0u) file.read(&value[0], static_cast<std::streamsize>(sz));
+  if (file.bad()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Can not read file");
+  }
   return value;
 }
 
