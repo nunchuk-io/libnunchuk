@@ -602,7 +602,7 @@ SatscardSlot NunchukImpl::GetSatscardSlotKey(tap_protocol::Satscard* satscard,
 }
 
 void NunchukImpl::SweepSatscardSlot(const SatscardSlot& slot,
-                                    const std::string& to_wallet_id,
+                                    const std::string& address,
                                     Amount fee_rate) {
   if (slot.get_privkey().empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -636,10 +636,8 @@ void NunchukImpl::SweepSatscardSlot(const SatscardSlot& slot,
   Amount fee = 0;
   std::string error;
   int change_pos = 0;
-  std::string receive_address = NewAddress(to_wallet_id);
   std::vector<TxInput> selector_inputs;
-  std::vector<TxOutput> selector_outputs{
-      TxOutput{receive_address, slot.get_balance()}};
+  std::vector<TxOutput> selector_outputs{TxOutput{address, slot.get_balance()}};
 
   if (!selector.Select(slot.get_utxos(), slot.get_utxos(), change_address, true,
                        selector_outputs, selector_inputs, fee, error,

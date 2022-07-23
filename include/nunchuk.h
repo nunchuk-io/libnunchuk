@@ -930,7 +930,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                           const std::string& cvc,
                                           const SatscardSlot& slot) = 0;
   virtual void SweepSatscardSlot(const SatscardSlot& slot,
-                                 const std::string& to_wallet_id,
+                                 const std::string& address,
                                  Amount fee_rate = -1) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;

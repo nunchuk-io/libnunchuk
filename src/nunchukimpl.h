@@ -289,8 +289,7 @@ class NunchukImpl : public Nunchuk {
   SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                   const std::string& cvc,
                                   const SatscardSlot& slot) override;
-  void SweepSatscardSlot(const SatscardSlot& slot,
-                         const std::string& to_wallet_id,
+  void SweepSatscardSlot(const SatscardSlot& slot, const std::string& address,
                          Amount fee_rate = -1) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
