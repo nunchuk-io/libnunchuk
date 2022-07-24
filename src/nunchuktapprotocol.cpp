@@ -516,6 +516,23 @@ static SatscardSlot ConvertTapProtocolSatscardSlot(
   };
 }
 
+static SatscardSlot MergeSatscardSlot(const SatscardSlot& lhs,
+                                      const SatscardSlot& rhs) {
+  auto ret = SatscardSlot(
+      std::max(lhs.get_index(), rhs.get_index()),
+      std::max(lhs.get_status(), rhs.get_status()),
+      std::max(lhs.get_address(), rhs.get_address()),
+      std::max(lhs.get_privkey(), rhs.get_privkey()),
+      std::max(lhs.get_pubkey(), rhs.get_pubkey()),
+      std::max(lhs.get_chain_code(), rhs.get_chain_code()),
+      std::max(lhs.get_master_privkey(), rhs.get_master_privkey()));
+  ret.set_balance(std::max(lhs.get_balance(), rhs.get_balance()));
+  ret.set_utxos(lhs.get_utxos().size() > rhs.get_utxos().size()
+                    ? lhs.get_utxos()
+                    : rhs.get_utxos());
+  return ret;
+}
+
 static SatscardStatus GetSatscardstatus(tap_protocol::Satscard* satscard) {
   satscard->Status();
   const auto raw_slots = satscard->ListSlots();
@@ -562,10 +579,11 @@ SatscardStatus NunchukImpl::SetupSatscard(tap_protocol::Satscard* satscard,
 }
 
 SatscardSlot NunchukImpl::UnsealSatscard(tap_protocol::Satscard* satscard,
-                                         const std::string& cvc) {
+                                         const std::string& cvc,
+                                         const SatscardSlot& slot) {
   try {
-    auto unsealed_slot = satscard->Unseal(cvc);
-    return ConvertTapProtocolSatscardSlot(unsealed_slot);
+    auto unsealed_slot = ConvertTapProtocolSatscardSlot(satscard->Unseal(cvc));
+    return MergeSatscardSlot(unsealed_slot, slot);
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
@@ -594,8 +612,9 @@ SatscardSlot NunchukImpl::GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                              const std::string& cvc,
                                              const SatscardSlot& slot) {
   try {
-    auto slot_cvc = satscard->GetSlot(slot.get_index(), cvc);
-    return ConvertTapProtocolSatscardSlot(slot_cvc);
+    auto slot_key = ConvertTapProtocolSatscardSlot(
+        satscard->GetSlot(slot.get_index(), cvc));
+    return MergeSatscardSlot(slot_key, slot);
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
@@ -618,9 +637,9 @@ void NunchukImpl::SweepSatscardSlot(const SatscardSlot& slot,
   std::string wif = EncodeSecret(key);
 
   static constexpr int PROJECT_EPOC_TIME_T = 1648215566;
-  const std::string desc_addr = AddChecksum("wpkh(" + wif + ")");
+  const std::string desc_wif = AddChecksum("wpkh(" + wif + ")");
   const std::string desc = json({{
-                                    {"desc", desc_addr},
+                                    {"desc", desc_wif},
                                     {"timestamp", PROJECT_EPOC_TIME_T},
                                     {"internal", false},
                                     {"active", true},

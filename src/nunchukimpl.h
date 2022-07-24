@@ -284,7 +284,8 @@ class NunchukImpl : public Nunchuk {
                                const std::string& cvc,
                                const std::string& chain_code = {}) override;
   SatscardSlot UnsealSatscard(tap_protocol::Satscard* satscard,
-                              const std::string& cvc) override;
+                              const std::string& cvc,
+                              const SatscardSlot& slot = {}) override;
   SatscardSlot FetchSatscardSlotUTXOs(const SatscardSlot& slot) override;
   SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                   const std::string& cvc,

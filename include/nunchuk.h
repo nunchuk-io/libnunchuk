@@ -924,7 +924,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                        const std::string& cvc,
                                        const std::string& chain_code = {}) = 0;
   virtual SatscardSlot UnsealSatscard(tap_protocol::Satscard* satscard,
-                                      const std::string& cvc) = 0;
+                                      const std::string& cvc,
+                                      const SatscardSlot& slot = {}) = 0;
   virtual SatscardSlot FetchSatscardSlotUTXOs(const SatscardSlot& slot) = 0;
   virtual SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                           const std::string& cvc,
