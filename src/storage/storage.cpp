@@ -25,9 +25,9 @@
 #include <utils/loguru.hpp>
 #include <utils/bsms.hpp>
 #include <utils/multisigconfig.hpp>
-#include <boost/filesystem/string_file.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
+#include <boost/filesystem/fstream.hpp>
 #include <mutex>
 #include <set>
 #include <sstream>
@@ -90,13 +90,37 @@ fs::path NunchukStorage::GetDefaultDataDir() const {
 
 bool NunchukStorage::WriteFile(const std::string& file_path,
                                const std::string& value) {
-  fs::save_string_file(fs::system_complete(file_path), value);
+  const auto path = fs::system_complete(file_path);
+  fs::ofstream file(path, std::ios_base::binary);
+
+  if (!file.is_open()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Can not open file");
+  }
+
+  const std::size_t sz = value.size();
+  if (BOOST_UNLIKELY(sz > static_cast<boost::uintmax_t>(
+                              (std::numeric_limits<std::streamsize>::max)()))) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "String size exceeds max write size");
+  }
+
+  if (!file.write(value.c_str(), static_cast<std::streamsize>(sz))) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Can not write file");
+  }
+
+  if (file.bad()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Can not write file");
+  }
+
   return true;
 }
 
 std::string NunchukStorage::LoadFile(const std::string& file_path) {
   const auto path = fs::system_complete(file_path);
-  boost::filesystem::ifstream file(path, std::ios_base::binary);
+  fs::ifstream file(path, std::ios_base::binary);
   if (!file.is_open()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Can not open file");
@@ -110,7 +134,12 @@ std::string NunchukStorage::LoadFile(const std::string& file_path) {
   }
 
   std::string value(static_cast<std::size_t>(sz), '\0');
-  if (sz > 0u) file.read(&value[0], static_cast<std::streamsize>(sz));
+  if (sz > 0u) {
+    if (!file.read(&value[0], static_cast<std::streamsize>(sz))) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Can not read file");
+    }
+  }
   if (file.bad()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Can not read file");
