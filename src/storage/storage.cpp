@@ -654,6 +654,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                      wallet.get_address_type(), wallet.is_escrow(),
                      wallet.get_create_date());
   true_wallet.set_name(wallet.get_name());
+  true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
   return true_wallet;
 }
