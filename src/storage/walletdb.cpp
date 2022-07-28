@@ -156,6 +156,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) const {
 
   Wallet wallet(id_, m, n, GetSigners(), address_type, is_escrow, create_date);
   wallet.set_name(GetString(DbKeys::NAME));
+  wallet.set_description(GetString(DbKeys::DESCRIPTION));
   if (!skip_balance) wallet.set_balance(GetBalance());
   if (!skip_provider) {
     GetAllAddressData();  // update range to max address index
