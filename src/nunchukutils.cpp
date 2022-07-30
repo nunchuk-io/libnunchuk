@@ -39,6 +39,9 @@
 #include <cbor-lite.hpp>
 #include <utils/bcr2.hpp>
 
+#include <ctime>
+#include <iostream>
+
 namespace nunchuk {
 
 static const std::map<std::string, std::vector<unsigned char>>
@@ -92,6 +95,15 @@ std::string Utils::GenerateRandomChainCode() {
   hasher.Write(buf).Finalize(chain_code);
 
   return HexStr(chain_code);
+}
+
+std::string Utils::GenerateHealthCheckMessage() {
+  std::time_t t = std::time(0);
+  std::tm* now = std::localtime(&t);
+  std::stringstream message;
+  message << "Health Check " << std::put_time(now, "%b %d %Y") << " ["
+          << GenerateRandomMessage(8) << "]";
+  return message.str();
 }
 
 bool Utils::IsValidXPub(const std::string& value) {

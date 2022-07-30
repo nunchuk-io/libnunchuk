@@ -489,7 +489,7 @@ std::string NunchukImpl::GetHealthCheckPath() {
 HealthStatus NunchukImpl::HealthCheckMasterSigner(
     const std::string& fingerprint, std::string& message,
     std::string& signature, std::string& path) {
-  message = message.empty() ? Utils::GenerateRandomMessage() : message;
+  message = message.empty() ? Utils::GenerateHealthCheckMessage() : message;
   if (message.size() < MESSAGE_MIN_LEN) {
     throw NunchukException(NunchukException::MESSAGE_TOO_SHORT,
                            "Message too short!");

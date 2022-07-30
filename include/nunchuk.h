@@ -999,6 +999,7 @@ class NUNCHUK_EXPORT Utils {
   static void SetChain(Chain chain);
   static std::string GenerateRandomMessage(int message_length = 20);
   static std::string GenerateRandomChainCode();
+  static std::string GenerateHealthCheckMessage();
   static bool IsValidXPub(const std::string& value);
   static bool IsValidPublicKey(const std::string& value);
   static bool IsValidDerivationPath(const std::string& value);
