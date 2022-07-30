@@ -250,6 +250,7 @@ class TapProtocolException : public BaseException {
   static const int BAD_CBOR = TAP_PROTOCOL_ERROR - 422;
   static const int BACKUP_FIRST = TAP_PROTOCOL_ERROR - 425;
   static const int RATE_LIMIT = TAP_PROTOCOL_ERROR - 429;
+  static const int TAG_LOST = TAP_PROTOCOL_ERROR - 499;
 
   explicit TapProtocolException(const tap_protocol::TapProtoException& te)
       : BaseException(TAP_PROTOCOL_ERROR - te.code(),

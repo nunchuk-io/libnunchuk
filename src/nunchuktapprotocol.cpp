@@ -336,7 +336,7 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
     tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
     const std::string& master_signer_id, std::string& message,
     std::string& signature, std::string& path) {
-  message = message.empty() ? Utils::GenerateRandomMessage() : message;
+  message = message.empty() ? Utils::GenerateHealthCheckMessage() : message;
 
   constexpr static int MESSAGE_MIN_LEN = 8;
   if (message.size() < MESSAGE_MIN_LEN) {
@@ -634,6 +634,10 @@ void NunchukImpl::SweepSatscardSlot(const SatscardSlot& slot,
 
   CKey key;
   key.Set(std::begin(slot.get_privkey()), std::end(slot.get_privkey()), true);
+  if (!key.IsValid()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid slot key");
+  }
   std::string wif = EncodeSecret(key);
 
   static constexpr int PROJECT_EPOC_TIME_T = 1648215566;
