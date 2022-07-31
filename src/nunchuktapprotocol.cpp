@@ -594,10 +594,10 @@ SatscardSlot NunchukImpl::FetchSatscardSlotUTXOs(const SatscardSlot& slot) {
   Amount balance = 0;
   bool unconfirmed = false;
   for (auto&& utxo : utxos) {
-    // Include unconfirmed balance
-    balance += utxo.get_amount();
     if (utxo.get_height() == 0) {
       unconfirmed = true;
+    } else {
+      balance += utxo.get_amount();
     }
   }
 
