@@ -96,7 +96,6 @@ std::unique_ptr<tap_protocol::CKTapCard> NunchukImpl::CreateCKTapCard(
       throw TapProtocolException(TapProtocolException::INVALID_STATE,
                                  "Card is tampered");
     }
-    card->CertificateCheck();
     return card;
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
