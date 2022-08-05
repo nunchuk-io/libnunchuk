@@ -251,9 +251,11 @@ class NunchukImpl : public Nunchuk {
                                  const std::string& new_cvc,
                                  const std::string& derivation_path = {},
                                  const std::string& chain_code = {}) override;
-  MasterSigner CreateTapsignerMasterSigner(
-      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
-      const std::string& name, std::function<bool(int)> progress) override;
+  MasterSigner CreateTapsignerMasterSigner(tap_protocol::Tapsigner* tapsigner,
+                                           const std::string& cvc,
+                                           const std::string& name,
+                                           std::function<bool(int)> progress,
+                                           bool is_primary = false) override;
   Transaction SignTapsignerTransaction(tap_protocol::Tapsigner* tapsigner,
                                        const std::string& cvc,
                                        const std::string& wallet_id,

@@ -892,7 +892,8 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& chain_code = {}) = 0;
   virtual MasterSigner CreateTapsignerMasterSigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
-      const std::string& name, std::function<bool(int)> progress) = 0;
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false) = 0;
   virtual Transaction SignTapsignerTransaction(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& wallet_id, const std::string& tx_id) = 0;
@@ -1030,6 +1031,9 @@ class NUNCHUK_EXPORT Utils {
                                                 Chain chain);
   static std::string GetPrimaryKeyAddress(const std::string& mnemonic,
                                           const std::string& passphrase);
+  static std::string GetPrimaryKeyAddress(tap_protocol::Tapsigner* tapsigner,
+                                          const std::string& cvc);
+
   static std::string GetMasterFingerprint(const std::string& mnemonic,
                                           const std::string& passphrase);
   static std::string SignLoginMessage(const std::string& mnemonic,

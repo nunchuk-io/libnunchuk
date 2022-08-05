@@ -191,7 +191,8 @@ TapsignerStatus NunchukImpl::SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
 
 MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
     tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
-    const std::string& raw_name, std::function<bool(int)> progress) {
+    const std::string& raw_name, std::function<bool(int)> progress,
+    bool is_primary) {
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     std::string name = trim_copy(raw_name);
@@ -221,6 +222,18 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
     if (!storage_->AddTapsigner(chain_, status)) {
       throw StorageException(StorageException::SQL_ERROR,
                              "Can't save TAPSIGNER data");
+    }
+
+    if (is_primary) {
+      const auto xpub = hwi_tapsigner_->GetXpubAtPath(LOGIN_SIGNING_PATH);
+      const auto epubkey = DecodeExtPubKey(xpub);
+      const std::string address =
+          EncodeDestination(PKHash(epubkey.pubkey.GetID()));
+      PrimaryKey key{name, id, account_, address};
+      if (!storage_->AddPrimaryKey(chain_, key)) {
+        throw StorageException(StorageException::SQL_ERROR,
+                               "Create primary key failed");
+      }
     }
     mastersigner.set_name(name);
     return mastersigner;
