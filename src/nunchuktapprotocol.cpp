@@ -572,26 +572,35 @@ static SatscardStatus GetSatscardstatus(tap_protocol::Satscard* satscard) {
 }
 
 static std::string GetSatscardSlotsDescriptor(
-    const std::vector<SatscardSlot>& slots) {
-  const auto get_slot_desc = [](const SatscardSlot& slot) {
-    if (slot.get_privkey().empty()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Slot must be unsealed");
-    }
-    CKey key;
-    key.Set(std::begin(slot.get_privkey()), std::end(slot.get_privkey()), true);
-    if (!key.IsValid()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid slot key");
-    }
+    const std::vector<SatscardSlot>& slots, bool use_privkey) {
+  const auto get_slot_desc = [&](const SatscardSlot& slot) {
+    if (use_privkey) {
+      if (slot.get_privkey().empty()) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Slot must be unsealed");
+      }
+      CKey key;
+      key.Set(std::begin(slot.get_privkey()), std::end(slot.get_privkey()),
+              true);
+      if (!key.IsValid()) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid slot key");
+      }
 
-    const std::string wif = EncodeSecret(key);
-    const std::string desc_wif = AddChecksum("wpkh(" + wif + ")");
-    return json({
-        {"desc", desc_wif},
-        {"internal", false},
-        {"active", true},
-    });
+      const std::string wif = EncodeSecret(key);
+      const std::string desc_wif = AddChecksum("wpkh(" + wif + ")");
+      return json({
+          {"desc", desc_wif},
+          {"internal", false},
+          {"active", true},
+      });
+    } else {
+      return json({
+          {"desc", AddChecksum("addr(" + slot.get_address() + ")")},
+          {"internal", false},
+          {"active", true},
+      });
+    }
   };
 
   std::string desc = std::accumulate(std::begin(slots), std::end(slots), json(),
@@ -605,9 +614,9 @@ static std::string GetSatscardSlotsDescriptor(
 
 static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
     const std::vector<SatscardSlot>& slots, const std::string& address,
-    const Amount& fee_rate, const Amount& discard_rate) {
+    const Amount& fee_rate, const Amount& discard_rate, bool use_privkey) {
   std::vector<UnspentOutput> utxos;
-  json descriptors = nunchuk::GetSatscardSlotsDescriptor(slots);
+  json descriptors = nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
   std::string change_address;
   Amount total_balance = 0;
 
@@ -731,7 +740,7 @@ Transaction NunchukImpl::CreateSatscardSlotsTransaction(
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto discard_rate = synchronizer_->RelayFee();
   return nunchuk::CreateSatscardSlotsTransaction(slots, address, fee_rate,
-                                                 discard_rate)
+                                                 discard_rate, false)
       .first;
 };
 
@@ -747,7 +756,7 @@ Transaction NunchukImpl::SweepSatscardSlots(
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto discard_rate = synchronizer_->RelayFee();
   auto [tx, desc] = nunchuk::CreateSatscardSlotsTransaction(
-      slots, address, fee_rate, discard_rate);
+      slots, address, fee_rate, discard_rate, true);
 
   auto psbt = DecodePsbt(tx.get_psbt());
   auto provider = SigningProviderCache::getInstance().GetProvider(desc);
