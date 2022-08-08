@@ -603,33 +603,11 @@ static std::string GetSatscardSlotsDescriptor(
   return desc;
 }
 
-// {Transaction, Descriptor} pair
 static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
     const std::vector<SatscardSlot>& slots, const std::string& address,
     const Amount& fee_rate, const Amount& discard_rate) {
-  auto get_slot_desc = [](const SatscardSlot& slot) {
-    if (slot.get_privkey().empty()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Slot must be unsealed");
-    }
-    CKey key;
-    key.Set(std::begin(slot.get_privkey()), std::end(slot.get_privkey()), true);
-    if (!key.IsValid()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid slot key");
-    }
-
-    const std::string wif = EncodeSecret(key);
-    const std::string desc_wif = AddChecksum("wpkh(" + wif + ")");
-    return json({
-        {"desc", desc_wif},
-        {"internal", false},
-        {"active", true},
-    });
-  };
-
   std::vector<UnspentOutput> utxos;
-  json descriptors = json::array();
+  json descriptors = nunchuk::GetSatscardSlotsDescriptor(slots);
   std::string change_address;
   Amount total_balance = 0;
 
@@ -639,7 +617,6 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
                              "Invalid amount");
     }
 
-    descriptors.emplace_back(get_slot_desc(slot));
     change_address = slot.get_address();
 
     utxos.insert(std::end(utxos), std::begin(slot.get_utxos()),
