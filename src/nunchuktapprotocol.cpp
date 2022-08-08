@@ -595,6 +595,10 @@ static std::string GetSatscardSlotsDescriptor(
           {"active", true},
       });
     } else {
+      if (slot.get_address().empty()) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid slot address");
+      }
       return json({
           {"desc", AddChecksum("addr(" + slot.get_address() + ")")},
           {"internal", false},
@@ -616,7 +620,6 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
     const std::vector<SatscardSlot>& slots, const std::string& address,
     const Amount& fee_rate, const Amount& discard_rate, bool use_privkey) {
   std::vector<UnspentOutput> utxos;
-  json descriptors = nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
   std::string change_address;
   Amount total_balance = 0;
 
@@ -636,8 +639,8 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   std::vector<TxInput> selector_inputs;
   std::vector<TxOutput> selector_outputs{TxOutput{address, total_balance}};
 
-  std::string desc = descriptors.dump();
-  CoinSelector selector{desc, change_address};
+  std::string desc = nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
+  CoinSelector selector{desc, change_address, use_privkey ? false : true};
   selector.set_fee_rate(CFeeRate(fee_rate));
   selector.set_discard_rate(CFeeRate(discard_rate));
 

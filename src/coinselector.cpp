@@ -43,15 +43,18 @@ std::map<std::string, CScript> CoinSelector::scriptsig_cache_;
 std::map<std::string, CScriptWitness> CoinSelector::scriptwitness_cache_;
 
 CoinSelector::CoinSelector(const std::string descriptors,
-                           const std::string example_address) {
+                           const std::string example_address,
+                           bool skip_check_completed) {
   if (scriptsig_cache_.find(descriptors) == scriptsig_cache_.end() ||
       scriptwitness_cache_.find(descriptors) == scriptwitness_cache_.end()) {
     FlatSigningProvider provider =
         SigningProviderCache::getInstance().GetProvider(descriptors);
+
     CScript spk = GetScriptForDestination(DecodeDestination(example_address));
     SignatureData sigdata;
-    if (!ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR, spk,
-                          sigdata)) {
+    bool completed = ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR,
+                                      spk, sigdata);
+    if (!completed && !skip_check_completed) {
       throw NunchukException(NunchukException::CREATE_DUMMY_SIGNATURE_ERROR,
                              "Create dummy signature error");
     }
