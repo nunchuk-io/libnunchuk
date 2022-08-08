@@ -932,9 +932,15 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                           const std::string& cvc,
                                           const SatscardSlot& slot) = 0;
-  virtual void SweepSatscardSlot(const SatscardSlot& slot,
-                                 const std::string& address,
-                                 Amount fee_rate = -1) = 0;
+  virtual Transaction CreateSatscardSlotsTransaction(
+      const std::vector<SatscardSlot>& slots, const std::string& address,
+      Amount fee_rate = -1) = 0;
+  virtual Transaction SweepSatscardSlot(const SatscardSlot& slot,
+                                        const std::string& address,
+                                        Amount fee_rate = -1) = 0;
+  virtual Transaction SweepSatscardSlots(const std::vector<SatscardSlot>& slots,
+                                         const std::string& address,
+                                         Amount fee_rate = -1) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;

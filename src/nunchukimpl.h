@@ -278,6 +278,7 @@ class NunchukImpl : public Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) override;
   TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) override;
+
   // SATSCARD
   std::unique_ptr<tap_protocol::Satscard> CreateSatscard(
       std::unique_ptr<tap_protocol::Transport> transport) override;
@@ -292,8 +293,15 @@ class NunchukImpl : public Nunchuk {
   SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                   const std::string& cvc,
                                   const SatscardSlot& slot) override;
-  void SweepSatscardSlot(const SatscardSlot& slot, const std::string& address,
-                         Amount fee_rate = -1) override;
+  Transaction CreateSatscardSlotsTransaction(
+      const std::vector<SatscardSlot>& slots, const std::string& address,
+      Amount fee_rate = -1) override;
+  Transaction SweepSatscardSlot(const SatscardSlot& slot,
+                                const std::string& address,
+                                Amount fee_rate = -1) override;
+  Transaction SweepSatscardSlots(const std::vector<SatscardSlot>& slots,
+                                 const std::string& address,
+                                 Amount fee_rate = -1) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id) override;
