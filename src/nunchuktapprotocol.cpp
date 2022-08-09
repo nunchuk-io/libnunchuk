@@ -29,6 +29,8 @@
 #include "key_io.h"
 #include "nunchuk.h"
 #include "nunchukimpl.h"
+#include "pubkey.h"
+#include "span.h"
 #include "util/strencodings.h"
 #include "utils/stringutils.hpp"
 #include "tap_protocol/cktapcard.h"
@@ -594,18 +596,30 @@ static std::string GetSatscardSlotsDescriptor(
           {"internal", false},
           {"active", true},
       });
-    } else {
-      if (slot.get_address().empty()) {
+    }
+    if (slot.get_status() == SatscardSlot::Status::SEALED) {
+      if (slot.get_pubkey().empty()) {
         throw NunchukException(NunchukException::INVALID_PARAMETER,
-                               "Invalid slot address");
+                               "Invalid slot pubkey");
+      }
+
+      CPubKey pub(MakeUCharSpan(slot.get_pubkey()));
+      if (!pub.IsValid()) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid slot key");
       }
 
       return json({
-          {"desc", AddChecksum("addr(" + slot.get_address() + ")")},
+          {"desc", AddChecksum("wpkh(" + HexStr(slot.get_pubkey()) + ")")},
           {"internal", false},
           {"active", true},
       });
     }
+    return json({
+        {"desc", AddChecksum("addr(" + slot.get_address() + ")")},
+        {"internal", false},
+        {"active", true},
+    });
   };
 
   std::string desc = std::accumulate(std::begin(slots), std::end(slots), json(),
@@ -622,7 +636,7 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
     const Amount& fee_rate, const Amount& discard_rate, bool use_privkey) {
   std::vector<UnspentOutput> utxos;
   std::string change_address;
-  Amount total_in = 0;
+  Amount total_balance = 0;
 
   for (auto&& slot : slots) {
     if (slot.get_balance() <= 0) {
@@ -634,16 +648,32 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
 
     utxos.insert(std::end(utxos), std::begin(slot.get_utxos()),
                  std::end(slot.get_utxos()));
-    total_in += slot.get_balance();
+    total_balance += slot.get_balance();
   }
 
   std::vector<TxInput> selector_inputs;
-  std::vector<TxOutput> selector_outputs{TxOutput{address, total_in}};
+  std::vector<TxOutput> selector_outputs{TxOutput{address, total_balance}};
 
   std::string desc = nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
-  CoinSelector selector{desc, change_address, use_privkey ? false : true};
-  selector.set_fee_rate(CFeeRate(fee_rate));
-  selector.set_discard_rate(CFeeRate(discard_rate));
+
+  CoinSelector selector = [&]() -> CoinSelector {
+    if (use_privkey ||
+        (slots.size() == 1 &&
+         slots.front().get_status() == SatscardSlot::Status::SEALED)) {
+      auto ret = CoinSelector{desc, change_address};
+      ret.set_fee_rate(CFeeRate(fee_rate));
+      ret.set_discard_rate(CFeeRate(discard_rate));
+      return ret;
+    }
+    // No private key or pubkey for unsealed slot without cvc, only address
+    // so we use dummy script witness to estimate correct fee
+    CScriptWitness dummy_scriptwitness{};
+    dummy_scriptwitness.stack = {std::vector<unsigned char>(72),
+                                 std::vector<unsigned char>(33)};
+    auto ret = CoinSelector{CFeeRate(fee_rate), CFeeRate(discard_rate),
+                            std::move(dummy_scriptwitness)};
+    return ret;
+  }();
 
   Amount fee = 0;
   std::string error;
@@ -659,17 +689,10 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   auto tx = GetTransactionFromPartiallySignedTransaction(
       DecodePsbt(base64_psbt), {}, 1);
 
-  Amount total_out =
-      std::accumulate(std::begin(tx.get_outputs()), std::end(tx.get_outputs()),
-                      Amount(0), [](const Amount& total, const TxOutput& out) {
-                        return total + out.second;
-                      });
-
-  fee = total_in - total_out;
   tx.set_fee(fee);
   tx.set_change_index(change_pos);
   tx.set_receive(false);
-  tx.set_sub_amount(total_out);
+  tx.set_sub_amount(total_balance - fee);
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(true);
   tx.set_psbt(std::move(base64_psbt));

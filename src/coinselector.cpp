@@ -43,8 +43,7 @@ std::map<std::string, CScript> CoinSelector::scriptsig_cache_;
 std::map<std::string, CScriptWitness> CoinSelector::scriptwitness_cache_;
 
 CoinSelector::CoinSelector(const std::string descriptors,
-                           const std::string example_address,
-                           bool skip_check_completed) {
+                           const std::string example_address) {
   if (scriptsig_cache_.find(descriptors) == scriptsig_cache_.end() ||
       scriptwitness_cache_.find(descriptors) == scriptwitness_cache_.end()) {
     FlatSigningProvider provider =
@@ -52,9 +51,8 @@ CoinSelector::CoinSelector(const std::string descriptors,
 
     CScript spk = GetScriptForDestination(DecodeDestination(example_address));
     SignatureData sigdata;
-    bool completed = ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR,
-                                      spk, sigdata);
-    if (!completed && !skip_check_completed) {
+    if (!ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR, spk,
+                          sigdata)) {
       throw NunchukException(NunchukException::CREATE_DUMMY_SIGNATURE_ERROR,
                              "Create dummy signature error");
     }
@@ -64,6 +62,12 @@ CoinSelector::CoinSelector(const std::string descriptors,
   dummy_scriptsig_ = scriptsig_cache_.at(descriptors);
   dummy_scriptwitness_ = scriptwitness_cache_.at(descriptors);
 }
+
+CoinSelector::CoinSelector(CFeeRate fee_rate, CFeeRate discard_rate,
+                           const CScriptWitness& dummy_scriptwitness)
+    : fee_rate_(std::move(fee_rate)),
+      discard_rate_(std::move(discard_rate)),
+      dummy_scriptwitness_(std::move(dummy_scriptwitness)) {}
 
 void CoinSelector::set_fee_rate(CFeeRate value) {
   // Note (Nunchuk): set rate to the one returned from blockchain-service
