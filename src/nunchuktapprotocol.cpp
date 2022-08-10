@@ -105,6 +105,35 @@ std::unique_ptr<tap_protocol::CKTapCard> NunchukImpl::CreateCKTapCard(
   }
 }
 
+void NunchukImpl::WaitCKTapCard(tap_protocol::CKTapCard* card,
+                                std::function<bool(int)> progress) {
+  try {
+    card->Status();
+    int delay = card->GetAuthDelay();
+    while (delay != 0) {
+      for (int i = 1; i <= delay; ++i) {
+        if (!progress(i * 1.0 / delay * 100)) {
+          return;
+        }
+        auto wait = card->Wait();
+        if (!wait.success) {
+          throw TapProtocolException(TapProtocolException::TAP_PROTOCOL_ERROR,
+                                     "Wait error");
+        }
+      }
+      delay = card->Status().auth_delay;
+      if (delay == 0) {
+        progress(100);
+        return;
+      }
+    };
+    progress(100);
+    return;
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
 std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
     std::unique_ptr<tap_protocol::Transport> transport) {
   try {

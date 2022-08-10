@@ -237,6 +237,8 @@ class NunchukImpl : public Nunchuk {
   // NFC
   std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
       std::unique_ptr<tap_protocol::Transport> transport) override;
+  void WaitCKTapCard(tap_protocol::CKTapCard* card,
+                     std::function<bool(int)> progress) override;
 
   // TAPSIGNER
   MasterSigner ImportTapsignerMasterSigner(const std::string& file_path,
