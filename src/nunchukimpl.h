@@ -234,8 +234,10 @@ class NunchukImpl : public Nunchuk {
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) override;
 
+  // NFC
   std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
       std::unique_ptr<tap_protocol::Transport> transport) override;
+
   // TAPSIGNER
   MasterSigner ImportTapsignerMasterSigner(const std::string& file_path,
                                            const std::string& backup_key,
@@ -302,6 +304,8 @@ class NunchukImpl : public Nunchuk {
   Transaction SweepSatscardSlots(const std::vector<SatscardSlot>& slots,
                                  const std::string& address,
                                  Amount fee_rate = -1) override;
+  SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
+                              std::function<bool(int)> progress) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id) override;

@@ -823,4 +823,34 @@ Transaction NunchukImpl::SweepSatscardSlots(
   return tx;
 };
 
+SatscardStatus NunchukImpl::WaitSatscard(tap_protocol::Satscard* satscard,
+                                         std::function<bool(int)> progress) {
+  try {
+    satscard->Status();
+    int delay = satscard->GetAuthDelay();
+    while (delay != 0) {
+      for (int i = 1; i <= delay; ++i) {
+        if (!progress(i * 1.0 / delay * 100)) {
+          return GetSatscardstatus(satscard);
+        }
+        auto wait = satscard->Wait();
+        if (!wait.success) {
+          throw TapProtocolException(TapProtocolException::TAP_PROTOCOL_ERROR,
+                                     "Wait error");
+        }
+      }
+      auto st = GetSatscardstatus(satscard);
+      delay = st.get_auth_delay();
+      if (delay == 0) {
+        progress(100);
+        return st;
+      }
+    };
+    progress(100);
+    return GetSatscardstatus(satscard);
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
 }  // namespace nunchuk

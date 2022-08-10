@@ -877,6 +877,7 @@ class NUNCHUK_EXPORT Nunchuk {
   // NFC
   virtual std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
       std::unique_ptr<tap_protocol::Transport> transport) = 0;
+
   // TAPSIGNER
   virtual MasterSigner ImportTapsignerMasterSigner(
       const std::string& file_path, const std::string& backup_key,
@@ -941,6 +942,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction SweepSatscardSlots(const std::vector<SatscardSlot>& slots,
                                          const std::string& address,
                                          Amount fee_rate = -1) = 0;
+  virtual SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
+                                      std::function<bool(int)> progress) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
