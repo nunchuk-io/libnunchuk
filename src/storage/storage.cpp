@@ -903,28 +903,24 @@ std::string NunchukStorage::FillPsbt(Chain chain, const std::string& wallet_id,
   return GetWalletDb(chain, wallet_id).FillPsbt(psbt);
 }
 
-// non-reentrant function
 void NunchukStorage::MaybeMigrate(Chain chain) {
-  static std::once_flag flag;
-  std::call_once(flag, [&] {
-    std::unique_lock<std::shared_mutex> lock(access_);
-    auto wallets = ListWallets0(chain);
-    for (auto&& wallet_id : wallets) {
-      GetWalletDb(chain, wallet_id).MaybeMigrate();
-    }
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto wallets = ListWallets0(chain);
+  for (auto&& wallet_id : wallets) {
+    GetWalletDb(chain, wallet_id).MaybeMigrate();
+  }
 
-    // migrate app state
-    auto appstate = GetAppStateDb(chain);
-    int64_t current_ver = appstate.GetStorageVersion();
-    if (current_ver == STORAGE_VER) return;
-    if (current_ver < 3) {
-      for (auto&& wallet_id : wallets) {
-        GetWalletDb(chain, wallet_id).GetWallet(true, true);
-      }
+  // migrate app state
+  auto appstate = GetAppStateDb(chain);
+  int64_t current_ver = appstate.GetStorageVersion();
+  if (current_ver == STORAGE_VER) return;
+  if (current_ver < 3) {
+    for (auto&& wallet_id : wallets) {
+      GetWalletDb(chain, wallet_id).GetWallet(true, true);
     }
-    DLOG_F(INFO, "NunchukAppStateDb migrate to version %d", STORAGE_VER);
-    appstate.SetStorageVersion(STORAGE_VER);
-  });
+  }
+  DLOG_F(INFO, "NunchukAppStateDb migrate to version %d", STORAGE_VER);
+  appstate.SetStorageVersion(STORAGE_VER);
 }
 
 int NunchukStorage::GetChainTip(Chain chain) {

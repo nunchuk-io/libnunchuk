@@ -216,6 +216,9 @@ class NUNCHUK_EXPORT NunchukMatrix {
   virtual NunchukMatrixEvent SignTransaction(const std::unique_ptr<Nunchuk>& nu,
                                              const std::string& init_event_id,
                                              const Device& device) = 0;
+  virtual NunchukMatrixEvent SignAirgapTransaction(
+      const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
+      const std::string& master_fingerprint) = 0;
   virtual NunchukMatrixEvent SignTapsignerTransaction(
       const std::unique_ptr<Nunchuk>& nu, const std::string& init_event_id,
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc) = 0;
