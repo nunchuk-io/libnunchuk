@@ -133,6 +133,9 @@ class NunchukImpl : public Nunchuk {
                            const std::string& address) override;
   std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) override;
+  std::vector<UnspentOutput> GetUnspentOutputsFromTxInputs(
+      const std::string& wallet_id,
+      const std::vector<TxInput>& inputs) override;
   bool ExportUnspentOutputs(const std::string& wallet_id,
                             const std::string& file_path,
                             ExportFormat format) override;

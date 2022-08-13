@@ -627,6 +627,23 @@ std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
   return storage_->GetUtxos(chain_, wallet_id);
 }
 
+std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputsFromTxInputs(
+    const std::string& wallet_id, const std::vector<TxInput>& txInputs) {
+  std::vector<UnspentOutput> inputs;
+  for (auto&& input : txInputs) {
+    auto tx = storage_->GetTransaction(chain_, wallet_id, input.first);
+    auto output = tx.get_outputs()[input.second];
+    UnspentOutput utxo;
+    utxo.set_txid(input.first);
+    utxo.set_vout(input.second);
+    utxo.set_address(output.first);
+    utxo.set_amount(output.second);
+    utxo.set_height(tx.get_height());
+    inputs.push_back(utxo);
+  }
+  return inputs;
+}
+
 bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
                                        const std::string& file_path,
                                        ExportFormat format) {
@@ -860,18 +877,7 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   for (auto&& output : tx.get_user_outputs()) {
     outputs[output.first] = output.second;
   }
-  std::vector<UnspentOutput> inputs;
-  for (auto&& input : tx.get_inputs()) {
-    auto tx = storage_->GetTransaction(chain_, wallet_id, input.first);
-    auto output = tx.get_outputs()[input.second];
-    UnspentOutput utxo;
-    utxo.set_txid(input.first);
-    utxo.set_vout(input.second);
-    utxo.set_address(output.first);
-    utxo.set_amount(output.second);
-    utxo.set_height(tx.get_height());
-    inputs.push_back(utxo);
-  }
+  auto inputs = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
 
   Amount fee = 0;
   int change_pos = 0;

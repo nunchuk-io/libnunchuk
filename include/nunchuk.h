@@ -786,6 +786,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const std::string& address) = 0;
   virtual std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) = 0;
+  virtual std::vector<UnspentOutput> GetUnspentOutputsFromTxInputs(
+      const std::string& wallet_id, const std::vector<TxInput>& inputs) = 0;
   virtual bool ExportUnspentOutputs(
       const std::string& wallet_id, const std::string& file_path,
       ExportFormat format = ExportFormat::CSV) = 0;
