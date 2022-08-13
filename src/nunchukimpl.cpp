@@ -852,11 +852,18 @@ Transaction NunchukImpl::DraftTransaction(
   int m = wallet.get_m();
   auto tx = GetTransactionFromPartiallySignedTransaction(
       DecodePsbt(psbt), wallet.get_signers(), m);
+
+  Amount sub_amount{0};
+  for (size_t i = 0; i < tx.get_outputs().size(); i++) {
+    if (i == change_pos) continue;
+    sub_amount += tx.get_outputs()[i].second;
+  }
+
   tx.set_m(m);
   tx.set_fee(fee);
   tx.set_change_index(change_pos);
   tx.set_receive(false);
-  tx.set_sub_amount(0);
+  tx.set_sub_amount(sub_amount);
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(subtract_fee_from_amount);
   return tx;
