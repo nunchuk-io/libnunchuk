@@ -43,6 +43,7 @@ TransactionStatus Transaction::get_status() const { return status_; }
 std::string Transaction::get_replaced_by_txid() const {
   return replaced_by_txid_;
 }
+std::string Transaction::get_replace_txid() const { return replace_txid_; }
 Amount Transaction::get_fee() const { return fee_; }
 Amount Transaction::get_fee_rate() const { return fee_rate_; }
 time_t Transaction::get_blocktime() const { return blocktime_; }
@@ -76,6 +77,9 @@ void Transaction::set_memo(const std::string& value) { memo_ = value; }
 void Transaction::set_status(TransactionStatus value) { status_ = value; }
 void Transaction::set_replaced_by_txid(const std::string& value) {
   replaced_by_txid_ = value;
+}
+void Transaction::set_replace_txid(const std::string& value) {
+  replace_txid_ = value;
 }
 void Transaction::set_fee(const Amount& value) { fee_ = value; }
 void Transaction::set_fee_rate(const Amount& value) { fee_rate_ = value; }

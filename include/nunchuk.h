@@ -451,6 +451,7 @@ class Transaction {
   std::string get_memo() const;
   TransactionStatus get_status() const;
   std::string get_replaced_by_txid() const;
+  std::string get_replace_txid() const;
   Amount get_fee() const;
   Amount get_fee_rate() const;
   time_t get_blocktime() const;
@@ -473,6 +474,7 @@ class Transaction {
   void set_memo(const std::string& value);
   void set_status(TransactionStatus value);
   void set_replaced_by_txid(const std::string& value);
+  void set_replace_txid(const std::string& value);
   void set_fee(const Amount& value);
   void set_fee_rate(const Amount& value);
   void set_blocktime(time_t value);
@@ -496,6 +498,7 @@ class Transaction {
   std::string memo_;
   TransactionStatus status_;
   std::string replaced_by_txid_;
+  std::string replace_txid_;
   Amount fee_;
   Amount fee_rate_;
   time_t blocktime_;

@@ -864,6 +864,9 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
     if (extra_json["subtract"] != nullptr) {
       tx.set_subtract_fee_from_amount(extra_json["subtract"]);
     }
+    if (extra_json["replace_txid"] != nullptr) {
+      tx.set_replace_txid(extra_json["replace_txid"]);
+    }
     if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION &&
         extra_json["replaced_by_txid"] != nullptr) {
       tx.set_status(TransactionStatus::REPLACED);
