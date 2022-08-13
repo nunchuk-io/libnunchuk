@@ -234,8 +234,12 @@ class NunchukImpl : public Nunchuk {
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) override;
 
+  // NFC
   std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
       std::unique_ptr<tap_protocol::Transport> transport) override;
+  void WaitCKTapCard(tap_protocol::CKTapCard* card,
+                     std::function<bool(int)> progress) override;
+
   // TAPSIGNER
   MasterSigner ImportTapsignerMasterSigner(const std::string& file_path,
                                            const std::string& backup_key,
@@ -251,9 +255,11 @@ class NunchukImpl : public Nunchuk {
                                  const std::string& new_cvc,
                                  const std::string& derivation_path = {},
                                  const std::string& chain_code = {}) override;
-  MasterSigner CreateTapsignerMasterSigner(
-      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
-      const std::string& name, std::function<bool(int)> progress) override;
+  MasterSigner CreateTapsignerMasterSigner(tap_protocol::Tapsigner* tapsigner,
+                                           const std::string& cvc,
+                                           const std::string& name,
+                                           std::function<bool(int)> progress,
+                                           bool is_primary = false) override;
   Transaction SignTapsignerTransaction(tap_protocol::Tapsigner* tapsigner,
                                        const std::string& cvc,
                                        const std::string& wallet_id,
@@ -276,6 +282,7 @@ class NunchukImpl : public Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) override;
   TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) override;
+
   // SATSCARD
   std::unique_ptr<tap_protocol::Satscard> CreateSatscard(
       std::unique_ptr<tap_protocol::Transport> transport) override;
@@ -284,14 +291,23 @@ class NunchukImpl : public Nunchuk {
                                const std::string& cvc,
                                const std::string& chain_code = {}) override;
   SatscardSlot UnsealSatscard(tap_protocol::Satscard* satscard,
-                              const std::string& cvc) override;
+                              const std::string& cvc,
+                              const SatscardSlot& slot = {}) override;
   SatscardSlot FetchSatscardSlotUTXOs(const SatscardSlot& slot) override;
   SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                   const std::string& cvc,
                                   const SatscardSlot& slot) override;
-  void SweepSatscardSlot(const SatscardSlot& slot,
-                         const std::string& to_wallet_id,
-                         Amount fee_rate = -1) override;
+  Transaction CreateSatscardSlotsTransaction(
+      const std::vector<SatscardSlot>& slots, const std::string& address,
+      Amount fee_rate = -1) override;
+  Transaction SweepSatscardSlot(const SatscardSlot& slot,
+                                const std::string& address,
+                                Amount fee_rate = -1) override;
+  Transaction SweepSatscardSlots(const std::vector<SatscardSlot>& slots,
+                                 const std::string& address,
+                                 Amount fee_rate = -1) override;
+  SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
+                              std::function<bool(int)> progress) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id) override;

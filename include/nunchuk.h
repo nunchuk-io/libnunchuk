@@ -250,6 +250,7 @@ class TapProtocolException : public BaseException {
   static const int BAD_CBOR = TAP_PROTOCOL_ERROR - 422;
   static const int BACKUP_FIRST = TAP_PROTOCOL_ERROR - 425;
   static const int RATE_LIMIT = TAP_PROTOCOL_ERROR - 429;
+  static const int TAG_LOST = TAP_PROTOCOL_ERROR - 499;
 
   explicit TapProtocolException(const tap_protocol::TapProtoException& te)
       : BaseException(TAP_PROTOCOL_ERROR - te.code(),
@@ -876,6 +877,9 @@ class NUNCHUK_EXPORT Nunchuk {
   // NFC
   virtual std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
       std::unique_ptr<tap_protocol::Transport> transport) = 0;
+  virtual void WaitCKTapCard(tap_protocol::CKTapCard* card,
+                             std::function<bool(int)> progress) = 0;
+
   // TAPSIGNER
   virtual MasterSigner ImportTapsignerMasterSigner(
       const std::string& file_path, const std::string& backup_key,
@@ -891,7 +895,8 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& chain_code = {}) = 0;
   virtual MasterSigner CreateTapsignerMasterSigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
-      const std::string& name, std::function<bool(int)> progress) = 0;
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false) = 0;
   virtual Transaction SignTapsignerTransaction(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& wallet_id, const std::string& tx_id) = 0;
@@ -924,14 +929,23 @@ class NUNCHUK_EXPORT Nunchuk {
                                        const std::string& cvc,
                                        const std::string& chain_code = {}) = 0;
   virtual SatscardSlot UnsealSatscard(tap_protocol::Satscard* satscard,
-                                      const std::string& cvc) = 0;
+                                      const std::string& cvc,
+                                      const SatscardSlot& slot = {}) = 0;
   virtual SatscardSlot FetchSatscardSlotUTXOs(const SatscardSlot& slot) = 0;
   virtual SatscardSlot GetSatscardSlotKey(tap_protocol::Satscard* satscard,
                                           const std::string& cvc,
                                           const SatscardSlot& slot) = 0;
-  virtual void SweepSatscardSlot(const SatscardSlot& slot,
-                                 const std::string& to_wallet_id,
-                                 Amount fee_rate = -1) = 0;
+  virtual Transaction CreateSatscardSlotsTransaction(
+      const std::vector<SatscardSlot>& slots, const std::string& address,
+      Amount fee_rate = -1) = 0;
+  virtual Transaction SweepSatscardSlot(const SatscardSlot& slot,
+                                        const std::string& address,
+                                        Amount fee_rate = -1) = 0;
+  virtual Transaction SweepSatscardSlots(const std::vector<SatscardSlot>& slots,
+                                         const std::string& address,
+                                         Amount fee_rate = -1) = 0;
+  virtual SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
+                                      std::function<bool(int)> progress) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
@@ -1028,6 +1042,9 @@ class NUNCHUK_EXPORT Utils {
                                                 Chain chain);
   static std::string GetPrimaryKeyAddress(const std::string& mnemonic,
                                           const std::string& passphrase);
+  static std::string GetPrimaryKeyAddress(tap_protocol::Tapsigner* tapsigner,
+                                          const std::string& cvc);
+
   static std::string GetMasterFingerprint(const std::string& mnemonic,
                                           const std::string& passphrase);
   static std::string SignLoginMessage(const std::string& mnemonic,

@@ -41,6 +41,8 @@
 
 #include <ctime>
 #include <iostream>
+#include "tap_protocol/hwi_tapsigner.h"
+#include "tap_protocol/tap_protocol.h"
 
 namespace nunchuk {
 
@@ -195,6 +197,19 @@ std::string Utils::GetPrimaryKeyAddress(const std::string& mnemonic,
                                         const std::string& passphrase) {
   SoftwareSigner signer{mnemonic, passphrase};
   return signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
+}
+
+std::string Utils::GetPrimaryKeyAddress(tap_protocol::Tapsigner* tapsigner,
+                                        const std::string& cvc) {
+  try {
+    auto hwi = tap_protocol::MakeHWITapsigner(tapsigner, cvc);
+    const auto xpub = hwi->GetXpubAtPath(LOGIN_SIGNING_PATH);
+    const auto epubkey = DecodeExtPubKey(xpub);
+    std::string address = EncodeDestination(PKHash(epubkey.pubkey.GetID()));
+    return address;
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
 }
 
 std::string Utils::GetMasterFingerprint(const std::string& mnemonic,

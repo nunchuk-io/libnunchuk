@@ -58,6 +58,8 @@ class CoinSelector {
  public:
   CoinSelector(const std::string descriptors,
                const std::string example_address);
+  CoinSelector(CFeeRate fee_rate, CFeeRate discard_rate,
+               const CScriptWitness& dummy_scriptwitness);
   void set_fee_rate(CFeeRate value);
   void set_discard_rate(CFeeRate value);
 

@@ -48,6 +48,7 @@ CoinSelector::CoinSelector(const std::string descriptors,
       scriptwitness_cache_.find(descriptors) == scriptwitness_cache_.end()) {
     FlatSigningProvider provider =
         SigningProviderCache::getInstance().GetProvider(descriptors);
+
     CScript spk = GetScriptForDestination(DecodeDestination(example_address));
     SignatureData sigdata;
     if (!ProduceSignature(provider, DUMMY_MAXIMUM_SIGNATURE_CREATOR, spk,
@@ -61,6 +62,12 @@ CoinSelector::CoinSelector(const std::string descriptors,
   dummy_scriptsig_ = scriptsig_cache_.at(descriptors);
   dummy_scriptwitness_ = scriptwitness_cache_.at(descriptors);
 }
+
+CoinSelector::CoinSelector(CFeeRate fee_rate, CFeeRate discard_rate,
+                           const CScriptWitness& dummy_scriptwitness)
+    : fee_rate_(std::move(fee_rate)),
+      discard_rate_(std::move(discard_rate)),
+      dummy_scriptwitness_(std::move(dummy_scriptwitness)) {}
 
 void CoinSelector::set_fee_rate(CFeeRate value) {
   // Note (Nunchuk): set rate to the one returned from blockchain-service
