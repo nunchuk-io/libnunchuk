@@ -248,6 +248,7 @@ void ElectrumClient::start() {
 
 void ElectrumClient::stop() {
   stopped_ = true;
+  request_queue_.clear();
   signal_worker_.reset();
   io_service_.stop();
   signal_thread_.join();
@@ -291,7 +292,7 @@ void ElectrumClient::socket_read() {
 }
 
 void ElectrumClient::socket_write() {
-  if (request_queue_.empty() || !connected_) {
+  if (request_queue_.empty() || !connected_ || stopped_) {
     return;
   }
 
