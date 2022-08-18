@@ -602,6 +602,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
+    tx.set_fee_rate(0);
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
@@ -783,6 +784,7 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
+    tx.set_fee_rate(0);
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
@@ -908,6 +910,11 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     tx.set_fee(total_amount);
     tx.set_receive(false);
     tx.set_sub_amount(send_amount);
+    if (tx.get_fee_rate() == 0 && !tx.get_raw().empty()) {
+      auto vsize = GetVirtualTransactionSize(
+          CTransaction(DecodeRawTransaction(tx.get_raw())));
+      tx.set_fee_rate(total_amount * 1000 / vsize);
+    }
   } else {
     Amount receive_amount{0};
     for (auto&& output : tx.get_outputs()) {
