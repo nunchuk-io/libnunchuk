@@ -798,8 +798,6 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
       for (auto&& r : vtx) {
         if (r.get_txid() == tx.get_replace_txid() &&
             r.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
-          r.set_status(TransactionStatus::REPLACED);
-          r.set_replaced_by_txid(tx.get_txid());
           return false;
         }
       }
