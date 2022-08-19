@@ -794,6 +794,14 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
     return false;
   };
   auto end = std::remove_if(vtx.begin(), vtx.end(), [&](const Transaction& tx) {
+    if (!tx.get_replace_txid().empty() && tx.get_replaced_by_txid().empty()) {
+      for (auto&& r : vtx) {
+        if (r.get_txid() == tx.get_replace_txid() &&
+            r.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
+          return false;
+        }
+      }
+    }
     if (tx.get_height() == -1) {
       for (auto&& input : tx.get_inputs()) {
         if (!is_valid_input(input)) {
