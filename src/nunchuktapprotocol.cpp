@@ -325,15 +325,15 @@ bool NunchukImpl::ChangeTapsignerCVC(tap_protocol::Tapsigner* tapsigner,
             chain_, master_signer_id);
         if (st.get_card_ident() != tapsigner->GetIdent()) {
           throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                                 strprintf("Not match master signer or invalid "
-                                           "device master_signer_id = '%s'",
+                                 strprintf("Invalid device: key fingerprint "
+                                           "does not match. Expected '%s'.",
                                            master_signer_id));
         }
       } catch (StorageException& se) {
         if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
           throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                                 strprintf("Not match master signer or invalid "
-                                           "device master_signer_id = '%s'",
+                                 strprintf("Invalid device: key fingerprint "
+                                           "does not match. Expected '%s'.",
                                            master_signer_id));
         }
         throw;
@@ -356,15 +356,15 @@ TapsignerStatus NunchukImpl::BackupTapsigner(
             chain_, master_signer_id);
         if (st.get_card_ident() != tapsigner->GetIdent()) {
           throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                                 strprintf("Not match master signer or invalid "
-                                           "device master_signer_id = '%s'",
+                                 strprintf("Invalid device: key fingerprint "
+                                           "does not match. Expected '%s'.",
                                            master_signer_id));
         }
       } catch (StorageException& se) {
         if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
           throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                                 strprintf("Not match master signer or invalid "
-                                           "device master_signer_id = '%s'",
+                                 strprintf("Invalid device: key fingerprint "
+                                           "does not match. Expected '%s'.",
                                            master_signer_id));
         }
         throw;
@@ -397,10 +397,11 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
     auto st =
         storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
     if (st.get_card_ident() != tapsigner->GetIdent()) {
-      throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                             strprintf("Not match master signer or invalid "
-                                       "device master_signer_id = '%s'",
-                                       master_signer_id));
+      throw NunchukException(
+          TapProtocolException::INVALID_DEVICE,
+          strprintf(
+              "Invalid device: key fingerprint does not match. Expected '%s'.",
+              master_signer_id));
     }
     signerType = GetMasterSigner(master_signer_id).get_type();
   } catch (StorageException& se) {
@@ -491,10 +492,11 @@ void NunchukImpl::CacheTapsignerMasterSignerXPub(
     auto st =
         storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
     if (st.get_card_ident() != tapsigner->GetIdent()) {
-      throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                             strprintf("Not match master signer or invalid "
-                                       "device master_signer_id = '%s'",
-                                       master_signer_id));
+      throw NunchukException(
+          TapProtocolException::INVALID_DEVICE,
+          strprintf(
+              "Invalid device: key fingerprint does not match. Expected '%s'.",
+              master_signer_id));
     }
     auto mastersigner = GetMasterSigner(master_signer_id);
     if (mastersigner.get_type() != SignerType::NFC) {
