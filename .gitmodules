@@ -1,6 +1,7 @@
 [submodule "contrib/bitcoin"]
 	path = contrib/bitcoin
 	url = https://github.com/bitcoin/bitcoin
+	branch = fcf6c8f4eb217763545ede1766831a6b93f583bd
 [submodule "contrib/sqlcipher"]
 	path = contrib/sqlcipher
 	url = https://github.com/sqlcipher/sqlcipher
