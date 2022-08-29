@@ -16,8 +16,10 @@
  */
 
 #include <backend/electrum/synchronizer.h>
+#include <numeric>
 #include <utils/addressutils.hpp>
 #include <utils/stringutils.hpp>
+#include <utils/txutils.hpp>
 #include <thread>
 
 using namespace boost::asio;
@@ -279,6 +281,39 @@ std::string ElectrumSynchronizer::GetRawTx(const std::string& tx_id) {
                            "Disconnected");
   }
   auto tx = client_->blockchain_transaction_get(tx_id, false);
+  return tx;
+}
+
+Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  }
+
+  auto tx_json = client_->blockchain_transaction_get(tx_id);
+  int conf = tx_json.value("confirmations", 0);
+  int height = (conf == 0) ? 0 : GetChainTip() - conf + 1;
+  auto tx = GetTransactionFromCMutableTransaction(
+      DecodeRawTransaction(tx_json["hex"]), {}, height);
+
+  Amount total_input = 0;
+  for (auto&& [txin_id, vout] : tx.get_inputs()) {
+    auto txin_raw = client_->blockchain_transaction_get(txin_id, false);
+    auto txin = DecodeRawTransaction(txin_raw);
+    total_input += txin.vout[vout].nValue;
+  }
+
+  Amount total_output = std::accumulate(
+      std::begin(tx.get_outputs()), std::end(tx.get_outputs()), Amount(0),
+      [](Amount acc, const TxOutput& out) { return acc + out.second; });
+
+  tx.set_fee(total_input - total_output);
+  tx.set_sub_amount(total_output);
+  tx.set_raw(tx_json["hex"]);
+  tx.set_receive(false);
+  tx.set_blocktime(tx_json.value("blocktime", 0));
+
   return tx;
 }
 

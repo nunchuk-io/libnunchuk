@@ -40,6 +40,7 @@ class CoreRpcSynchronizer : public Synchronizer {
   void RescanBlockchain(int start_height, int stop_height) override;
   std::vector<UnspentOutput> ListUnspent(const std::string& address) override;
   std::string GetRawTx(const std::string& tx_id) override;
+  Transaction GetTransaction(const std::string& tx_id) override;
 
   void Run() override;
 

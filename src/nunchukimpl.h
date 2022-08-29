@@ -308,6 +308,7 @@ class NunchukImpl : public Nunchuk {
                                  Amount fee_rate = -1) override;
   SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
                               std::function<bool(int)> progress) override;
+  Transaction FetchTransaction(const std::string& tx_id) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id) override;

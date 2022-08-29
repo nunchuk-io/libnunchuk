@@ -946,6 +946,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                          Amount fee_rate = -1) = 0;
   virtual SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
                                       std::function<bool(int)> progress) = 0;
+  virtual Transaction FetchTransaction(const std::string& tx_id) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
