@@ -148,8 +148,9 @@ std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
                                  "Card is tampered");
     }
     if (!tapsigner->IsTapsigner()) {
-      throw TapProtocolException(TapProtocolException::INVALID_DEVICE,
-                                 "Not a TAPSIGNER");
+      throw TapProtocolException(
+          TapProtocolException::INVALID_DEVICE,
+          "Incorrect device type detected. Please try again.");
     }
     tapsigner->CertificateCheck();
     return tapsigner;
@@ -161,6 +162,7 @@ std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
 TapsignerStatus NunchukImpl::GetTapsignerStatus(
     tap_protocol::Tapsigner* tapsigner) {
   try {
+    tapsigner->CertificateCheck();
     tapsigner->Status();
     auto card_ident = tapsigner->GetIdent();
     auto rs = TapsignerStatus(
@@ -229,6 +231,7 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
     tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
     const std::string& raw_name, std::function<bool(int)> progress,
     bool is_primary) {
+  std::string id;
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     std::string name = trim_copy(raw_name);
@@ -238,7 +241,7 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
     }
     Device device("nfc", "tapsigner", master_fingerprint);
 
-    std::string id = storage_->CreateMasterSigner(chain_, name, device);
+    id = storage_->CreateMasterSigner(chain_, name, device);
 
     storage_->CacheMasterSignerXPub(
         chain_, id,
@@ -275,6 +278,11 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
     return mastersigner;
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
+  } catch (TapProtocolException& te) {
+    if (te.code() == TapProtocolException::TAG_LOST) {
+      storage_->DeleteMasterSigner(chain_, id);
+    }
+    throw;
   }
 }
 
@@ -536,8 +544,9 @@ std::unique_ptr<tap_protocol::Satscard> NunchukImpl::CreateSatscard(
                                  "Card is tampered");
     }
     if (satscard->IsTapsigner()) {
-      throw TapProtocolException(TapProtocolException::INVALID_DEVICE,
-                                 "Not a SATSCARD");
+      throw TapProtocolException(
+          TapProtocolException::INVALID_DEVICE,
+          "Incorrect device type detected. Please try again.");
     }
     satscard->CertificateCheck();
     return satscard;
@@ -588,6 +597,7 @@ static SatscardSlot MergeSatscardSlot(const SatscardSlot& lhs,
 }
 
 static SatscardStatus GetSatscardstatus(tap_protocol::Satscard* satscard) {
+  satscard->CertificateCheck();
   satscard->Status();
   const auto raw_slots = satscard->ListSlots();
 
@@ -726,7 +736,7 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   tx.set_sub_amount(total_balance - fee);
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(true);
-  tx.set_psbt(std::move(base64_psbt));
+  tx.set_psbt(base64_psbt);
   return {tx, desc};
 }
 
@@ -850,7 +860,6 @@ Transaction NunchukImpl::SweepSatscardSlots(
   synchronizer_->Broadcast(raw_tx);
   tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
 
-  // TODO(giahuy): set transaction height
   return tx;
 };
 
@@ -882,6 +891,10 @@ SatscardStatus NunchukImpl::WaitSatscard(tap_protocol::Satscard* satscard,
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
+}
+
+Transaction NunchukImpl::FetchTransaction(const std::string& tx_id) {
+  return synchronizer_->GetTransaction(tx_id);
 }
 
 }  // namespace nunchuk

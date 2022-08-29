@@ -249,4 +249,9 @@ std::string CoreRpcSynchronizer::GetRawTx(const std::string& tx_id) {
   throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
                          "Not support for core rpc");
 }
+
+Transaction CoreRpcSynchronizer::GetTransaction(const std::string& tx_id) {
+  throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
+                         "Not support for core rpc");
+}
 }  // namespace nunchuk

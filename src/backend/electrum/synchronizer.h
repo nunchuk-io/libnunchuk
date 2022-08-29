@@ -32,16 +32,17 @@ class ElectrumSynchronizer : public Synchronizer {
   ElectrumSynchronizer& operator=(const ElectrumSynchronizer&) = delete;
   ~ElectrumSynchronizer();
 
-  void Broadcast(const std::string& raw_tx);
-  Amount EstimateFee(int conf_target);
-  Amount RelayFee();
+  void Broadcast(const std::string& raw_tx) override;
+  Amount EstimateFee(int conf_target) override;
+  Amount RelayFee() override;
   bool LookAhead(Chain chain, const std::string& wallet_id,
-                 const std::string& address, int index, bool internal);
-  void RescanBlockchain(int start_height, int stop_height);
+                 const std::string& address, int index, bool internal) override;
+  void RescanBlockchain(int start_height, int stop_height) override;
   std::vector<UnspentOutput> ListUnspent(const std::string& address) override;
   std::string GetRawTx(const std::string& tx_id) override;
+  Transaction GetTransaction(const std::string& tx_id) override;
 
-  void Run();
+  void Run() override;
 
  private:
   enum class Status {
