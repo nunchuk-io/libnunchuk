@@ -181,3 +181,100 @@ TEST_CASE("testing Amount") {
   CHECK(Utils::ValueFromAmount(COIN / 10000000) == "0.00000010");
   CHECK(Utils::ValueFromAmount(COIN / 100000000) == "0.00000001");
 }
+
+TEST_CASE("test parse btcpay uri") {
+  using namespace nunchuk;
+
+  Utils::SetChain(Chain::MAIN);
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(BITCOIN:BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT?amount=0.00005142)")
+          .first == "BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT");
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(bitcoin:BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT?amount=0.00005142)")
+          .first == "BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT");
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(BITCOIN:bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt?amount=0.00005142)")
+          .first == "bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt");
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(bitcoin:bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt?amount=0.00005142)")
+          .first == "bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt");
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(BITCOIN:BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT?amount=0.00005142)")
+          .second == 5142);
+
+  CHECK(Utils::ParseAddressAmount(
+            R"(bitcoin:bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt?amount=1234)")
+            .second == 123400000000);
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(BITCOIN:bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt?amount=0.9999)")
+          .second == 99990000);
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(bitcoin:BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT?amount=0.0002466&pj=http://127.0.0.1:23000/BTC/pj)")
+          .second == 24660);
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(bitcoin:BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT?amount=0.0002466&pj=http://127.0.0.1:23000/BTC/pj)")
+          .first == "BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT");
+
+  CHECK_THROWS(Utils::ParseAddressAmount(
+      R"(BITCOIN:bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt?amount=-0.9999)"));
+
+  CHECK(Utils::ParseAddressAmount(
+            R"(BITCOIN:BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT)")
+            .first == "BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT");
+
+  CHECK(
+      Utils::ParseAddressAmount(R"(BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT)")
+          .first == "BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT");
+
+  CHECK(
+      Utils::ParseAddressAmount(R"(bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt)")
+          .first == "bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt");
+
+  CHECK(
+      Utils::ParseAddressAmount(R"(BC1Q6APR55WRXTDTK3CJ6M69MXAYW99VVGTVDNVUNT)")
+          .second == 0);
+
+  CHECK_THROWS(Utils::ParseAddressAmount(""));
+  CHECK_THROWS(Utils::ParseAddressAmount(
+      "TB1QJF0KX33YEMEU0U95RA9WEXT6UCRTRJQFFZRAGTSXNYG9YS2M0T8STAR24Z"));
+
+  CHECK(Utils::ParseAddressAmount("1FBLY2vL926FBAPAk6KDCRdfRz1QXtLoHe").first ==
+        "1FBLY2vL926FBAPAk6KDCRdfRz1QXtLoHe");
+  CHECK(Utils::ParseAddressAmount("174PZuYKqhxxVi15f5tSsoaSmPB1Ws5K5P").first ==
+        "174PZuYKqhxxVi15f5tSsoaSmPB1Ws5K5P");
+  CHECK(Utils::ParseAddressAmount("3Q1vXyPhgzT7jgp92dUHaR3Vrc69Lsw4Aq").first ==
+        "3Q1vXyPhgzT7jgp92dUHaR3Vrc69Lsw4Aq");
+  CHECK(Utils::ParseAddressAmount("36WYpDG8JtZBV6vezdDDyNMDg2JAvd1vi1").first ==
+        "36WYpDG8JtZBV6vezdDDyNMDg2JAvd1vi1");
+
+  Utils::SetChain(Chain::TESTNET);
+  CHECK(Utils::ParseAddressAmount(
+            "TB1QJF0KX33YEMEU0U95RA9WEXT6UCRTRJQFFZRAGTSXNYG9YS2M0T8STAR24Z")
+            .first ==
+        "TB1QJF0KX33YEMEU0U95RA9WEXT6UCRTRJQFFZRAGTSXNYG9YS2M0T8STAR24Z");
+
+  CHECK(Utils::ParseAddressAmount(
+            "tb1qjf0kx33yemeu0u95ra9wext6ucrtrjqffzragtsxnyg9ys2m0t8star24z")
+            .first ==
+        "tb1qjf0kx33yemeu0u95ra9wext6ucrtrjqffzragtsxnyg9ys2m0t8star24z");
+
+  CHECK(
+      Utils::ParseAddressAmount(
+          R"(BITCOIN:tb1qjf0kx33yemeu0u95ra9wext6ucrtrjqffzragtsxnyg9ys2m0t8star24z?amount=0.9999)")
+          .second == 99990000);
+}
