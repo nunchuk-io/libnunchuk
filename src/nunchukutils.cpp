@@ -20,6 +20,7 @@
 #include <descriptor.h>
 #include <softwaresigner.h>
 #include <boost/algorithm/string/trim.hpp>
+#include <map>
 #include <utils/addressutils.hpp>
 #include <utils/bip32.hpp>
 #include <utils/bsms.hpp>
@@ -46,6 +47,7 @@
 #include "key_io.h"
 #include "tap_protocol/hwi_tapsigner.h"
 #include "tap_protocol/tap_protocol.h"
+#include "utils/httplib.h"
 
 namespace nunchuk {
 
@@ -282,36 +284,60 @@ Wallet Utils::ParseKeystoneWallet(Chain chain,
   return wallet;
 }
 
-std::pair<std::string, Amount> Utils::ParseAddressAmount(
-    const std::string& value) {
+BtcUri Utils::ParseBtcUri(const std::string& value) {
+  static constexpr auto BITCOIN_SCHEME = "bitcoin:";
+
   std::string str = boost::trim_copy(value);
-  if (boost::algorithm::istarts_with(str, "bitcoin:")) {
+  if (boost::algorithm::istarts_with(str, BITCOIN_SCHEME)) {
     const static std::regex BECH32_ADDRESS_URI(
-        R"(^BITCOIN:([a-zA-Z0-9]+)\??(amount=)?([0-9.-]*))", std::regex::icase);
+        R"(^bitcoin:([a-zA-Z0-9]+)\??([^#]*))", std::regex::icase);
+    static constexpr auto PARAMETER_AMOUNT = "amount";
+    static constexpr auto PARAMETER_LABEL = "label";
+    static constexpr auto PARAMETER_MESSAGE = "message";
+    static constexpr auto PARAMETER_REQ_ = "req-";
+    static constexpr size_t PARAMETER_REQ_LENGTH = 4;
 
     std::smatch sm;
-    if (std::regex_search(str, sm, BECH32_ADDRESS_URI)) {
+    if (std::regex_match(str, sm, BECH32_ADDRESS_URI)) {
       std::string address = sm[1].str();
       if (!IsValidDestinationString(address)) {
         throw NunchukException(NunchukException::INVALID_ADDRESS,
                                "Invalid address");
       }
 
-      Amount amount = (sm.size() > 3 && sm[3].length())
-                          ? Utils::AmountFromValue(sm[3].str())
-                          : 0;
-      return {address, amount};
-    } else {
-      throw NunchukException(NunchukException::INVALID_ADDRESS,
-                             "Invalid address");
+      BtcUri ret{address};
+
+      if (sm.size() > 2 && sm[2].length() > 0) {
+        std::multimap<std::string, std::string> params;
+        httplib::detail::parse_query_text(sm[2].str(), params);
+
+        for (auto&& [key, value] : params) {
+          if (key == PARAMETER_AMOUNT) {
+            ret.amount = Utils::AmountFromValue(value);
+          } else if (key == PARAMETER_LABEL) {
+            ret.label = value;
+          } else if (key == PARAMETER_MESSAGE) {
+            ret.message = value;
+          } else if (boost::algorithm::istarts_with(key, PARAMETER_REQ_)) {
+            ret.others[key.substr(PARAMETER_REQ_LENGTH)] = value;
+          } else {
+            ret.others[key] = value;
+          }
+        }
+        return ret;
+      }
+
+      return ret;
     }
+    throw NunchukException(NunchukException::INVALID_ADDRESS,
+                           "Invalid address");
   }
 
   if (!IsValidDestinationString(str)) {
     throw NunchukException(NunchukException::INVALID_ADDRESS,
                            "Invalid address");
   }
-  return {str, 0};
+  return {std::move(str)};
 }
 
 }  // namespace nunchuk
