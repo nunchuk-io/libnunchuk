@@ -1054,6 +1054,8 @@ class NUNCHUK_EXPORT Utils {
   static Wallet ParseWalletDescriptor(const std::string& descs);
   static Wallet ParseKeystoneWallet(Chain chain,
                                     const std::vector<std::string>& qr_data);
+  static std::pair<std::string, Amount> ParseAddressAmount(
+      const std::string& value);
 
  private:
   Utils() {}

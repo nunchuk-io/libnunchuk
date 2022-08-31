@@ -19,6 +19,7 @@
 #include <coreutils.h>
 #include <descriptor.h>
 #include <softwaresigner.h>
+#include <boost/algorithm/string/trim.hpp>
 #include <utils/addressutils.hpp>
 #include <utils/bip32.hpp>
 #include <utils/bsms.hpp>
@@ -31,6 +32,7 @@
 #include <util/bip32.h>
 #include <util/strencodings.h>
 #include <boost/format.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <hash.h>
 
 #include <ur.h>
@@ -41,6 +43,7 @@
 
 #include <ctime>
 #include <iostream>
+#include "key_io.h"
 #include "tap_protocol/hwi_tapsigner.h"
 #include "tap_protocol/tap_protocol.h"
 
@@ -277,6 +280,38 @@ Wallet Utils::ParseKeystoneWallet(Chain chain,
   Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
   wallet.set_name(name);
   return wallet;
+}
+
+std::pair<std::string, Amount> Utils::ParseAddressAmount(
+    const std::string& value) {
+  std::string str = boost::trim_copy(value);
+  if (boost::algorithm::istarts_with(str, "bitcoin:")) {
+    const static std::regex BECH32_ADDRESS_URI(
+        R"(^BITCOIN:([a-zA-Z0-9]+)\??(amount=)?([0-9.-]*))", std::regex::icase);
+
+    std::smatch sm;
+    if (std::regex_search(str, sm, BECH32_ADDRESS_URI)) {
+      std::string address = sm[1].str();
+      if (!IsValidDestinationString(address)) {
+        throw NunchukException(NunchukException::INVALID_ADDRESS,
+                               "Invalid address");
+      }
+
+      Amount amount = (sm.size() > 3 && sm[3].length())
+                          ? Utils::AmountFromValue(sm[3].str())
+                          : 0;
+      return {address, amount};
+    } else {
+      throw NunchukException(NunchukException::INVALID_ADDRESS,
+                             "Invalid address");
+    }
+  }
+
+  if (!IsValidDestinationString(str)) {
+    throw NunchukException(NunchukException::INVALID_ADDRESS,
+                           "Invalid address");
+  }
+  return {str, 0};
 }
 
 }  // namespace nunchuk
