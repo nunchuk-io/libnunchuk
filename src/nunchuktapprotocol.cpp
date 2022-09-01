@@ -737,7 +737,7 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(true);
   tx.set_psbt(base64_psbt);
-  return {tx, desc};
+  return {std::move(tx), std::move(desc)};
 }
 
 SatscardStatus NunchukImpl::GetSatscardStatus(

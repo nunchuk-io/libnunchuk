@@ -1014,6 +1014,14 @@ class NUNCHUK_EXPORT Nunchuk {
   Nunchuk() = default;
 };
 
+struct BtcUri {
+  std::string address;
+  Amount amount{};
+  std::string label;
+  std::string message;
+  std::map<std::string, std::string> others;
+};
+
 class NUNCHUK_EXPORT Utils {
  public:
   static void SetChain(Chain chain);
@@ -1054,8 +1062,7 @@ class NUNCHUK_EXPORT Utils {
   static Wallet ParseWalletDescriptor(const std::string& descs);
   static Wallet ParseKeystoneWallet(Chain chain,
                                     const std::vector<std::string>& qr_data);
-  static std::pair<std::string, Amount> ParseAddressAmount(
-      const std::string& value);
+  static BtcUri ParseBtcUri(const std::string& value);
 
  private:
   Utils() {}
