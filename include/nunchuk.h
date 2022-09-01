@@ -903,7 +903,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual TapsignerStatus SetupTapsigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& new_cvc, const std::string& derivation_path = {},
-      const std::string& chain_code = {}) = 0;
+      const std::string& chain_code = {}, bool setup_only = false) = 0;
   virtual MasterSigner CreateTapsignerMasterSigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& name, std::function<bool(int)> progress,
