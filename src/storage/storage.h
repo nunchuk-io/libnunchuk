@@ -44,6 +44,8 @@ class NunchukStorage {
   std::string LoadFile(const std::string &file_path);
   bool ExportWallet(Chain chain, const std::string &wallet_id,
                     const std::string &file_path, ExportFormat format);
+  std::string GetWalletExportData(Chain chain, const std::string &wallet_id,
+                                  ExportFormat format);
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
   void SetPassphrase(const std::string &new_passphrase);
   Wallet CreateWallet(Chain chain, const Wallet &wallet,
@@ -58,7 +60,8 @@ class NunchukStorage {
                                   const std::string &xpub,
                                   const std::string &public_key,
                                   const std::string &derivation_path,
-                                  const std::string &master_fingerprint);
+                                  const std::string &master_fingerprint,
+                                  SignerType signer_type = SignerType::AIRGAP);
   SingleSigner GetSignerFromMasterSigner(Chain chain,
                                          const std::string &mastersigner_id,
                                          const WalletType &wallet_type,
@@ -140,6 +143,9 @@ class NunchukStorage {
                       const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(Chain chain, const std::string &wallet_id,
                       const std::string &tx_id);
+  std::pair<std::string, bool> GetPsbtOrRawTx(Chain chain,
+                                              const std::string &wallet_id,
+                                              const std::string &tx_id);
   bool SetUtxos(Chain chain, const std::string &wallet_id,
                 const std::string &address, const std::string &utxo);
   Amount GetBalance(Chain chain, const std::string &wallet_id);

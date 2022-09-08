@@ -65,6 +65,7 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdatePsbt(const std::string &psbt);
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(const std::string &tx_id) const;
+  std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
                                            int skip = 0) const;
   std::vector<UnspentOutput> GetUtxos(bool include_locked,

@@ -80,12 +80,14 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
     tx.add_output({address, output.nValue});
   }
   for (auto&& signer : signers) {
-    tx.set_signer(signer.get_master_fingerprint(), height != -1);
+    tx.set_signer(signer.get_master_fingerprint(), true);
   }
   if (height == 0) {
     tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
   } else if (height == -2) {
     tx.set_status(TransactionStatus::NETWORK_REJECTED);
+  } else if (height == -1) {
+    tx.set_status(TransactionStatus::READY_TO_BROADCAST);
   } else if (height > 0) {
     tx.set_status(TransactionStatus::CONFIRMED);
   }
@@ -165,6 +167,32 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
                     ? TransactionStatus::READY_TO_BROADCAST
                     : TransactionStatus::PENDING_SIGNATURES);
   return tx;
+}
+inline std::pair<nunchuk::Transaction, bool /* is hex_tx */>
+GetTransactionFromStr(const std::string& str,
+                      const std::vector<nunchuk::SingleSigner>& signers, int m,
+                      int height) {
+  using namespace nunchuk;
+  if (height == -1) {
+    PartiallySignedTransaction psbtx;
+    std::string error;
+    if (DecodeBase64PSBT(psbtx, str, error)) {
+      return {GetTransactionFromPartiallySignedTransaction(psbtx, signers, m),
+              false};
+    }
+
+    CMutableTransaction mtx;
+    if (DecodeHexTx(mtx, str, true, true)) {
+      return {GetTransactionFromCMutableTransaction(mtx, signers, height),
+              true};
+    }
+
+    throw NunchukException(NunchukException::INVALID_PSBT,
+                           NormalizeErrorMessage(std::move(error)));
+  }
+  return {GetTransactionFromCMutableTransaction(DecodeRawTransaction(str),
+                                                signers, height),
+          true};
 }
 
 }  // namespace

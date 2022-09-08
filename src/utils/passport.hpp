@@ -63,6 +63,7 @@ inline bool ParsePassportSignerConfig(
   addSigner(data["bip44"]);
   addSigner(data["bip48_2"]);
   addSigner(data["bip48_1"]);
+  addSigner(data["bip45"]);
 
   auto addMSigner = [&](const std::string& k) {
     std::string deriv = k + "_deriv";

@@ -402,7 +402,45 @@ void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
 bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
                                         time_t blocktime,
                                         const std::string& reject_msg) {
-  if (height == -1) return false;
+  if (height == -1) {
+    auto [tx, is_hex_tx] = GetTransactionFromStr(raw_tx, GetSigners(), 0, -1);
+    std::string tx_id = tx.get_txid();
+
+    sqlite3_stmt* stmt;
+    std::string sql = "SELECT EXTRA FROM VTX WHERE ID = ? AND HEIGHT = -1;";
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+    sqlite3_step(stmt);
+
+    std::string extra;
+    if (sqlite3_column_text(stmt, 0)) {
+      extra = std::string((char*)sqlite3_column_text(stmt, 0));
+      json extra_json = json::parse(extra);
+      extra_json["signers"] = tx.get_signers();
+      extra = extra_json.dump();
+
+      SQLCHECK(sqlite3_finalize(stmt));
+    } else {
+      SQLCHECK(sqlite3_finalize(stmt));
+      throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+    }
+
+    sql = extra.empty()
+              ? "UPDATE VTX SET VALUE = ?1 WHERE ID = ?2;"
+              : "UPDATE VTX SET VALUE = ?1, EXTRA = ?3 WHERE ID = ?2;";
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_text(stmt, 1, raw_tx.c_str(), raw_tx.size(), NULL);
+    sqlite3_bind_text(stmt, 2, tx_id.c_str(), tx_id.size(), NULL);
+    if (!extra.empty()) {
+      sqlite3_bind_text(stmt, 3, extra.c_str(), extra.size(), NULL);
+    }
+
+    sqlite3_step(stmt);
+    bool updated = (sqlite3_changes(db_) == 1);
+    SQLCHECK(sqlite3_finalize(stmt));
+    if (updated) GetTransaction(tx_id);
+    return updated;
+  }
 
   CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
   std::string tx_id = mtx.GetHash().GetHex();
@@ -419,8 +457,7 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     if (sqlite3_column_text(stmt, 1)) {
       std::string value = std::string((char*)sqlite3_column_text(stmt, 0));
       extra = std::string((char*)sqlite3_column_text(stmt, 1));
-      Transaction tx = GetTransactionFromPartiallySignedTransaction(
-          DecodePsbt(value), GetSigners(), 0);
+      auto [tx, is_hex_tx] = GetTransactionFromStr(value, GetSigners(), 0, -1);
 
       json extra_json = json::parse(extra);
       extra_json["signers"] = tx.get_signers();
@@ -577,6 +614,24 @@ std::string NunchukWalletDb::GetPsbt(const std::string& tx_id) const {
   }
 }
 
+std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
+    const std::string& tx_id) const {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT VALUE FROM VTX WHERE ID = ? AND HEIGHT = -1;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_step(stmt);
+  if (sqlite3_column_text(stmt, 0)) {
+    std::string rs = std::string((char*)sqlite3_column_text(stmt, 0));
+    SQLCHECK(sqlite3_finalize(stmt));
+    auto [tx, is_hex_tx] = GetTransactionFromStr(rs, {}, 0, -1);
+    return {rs, is_hex_tx};
+  } else {
+    SQLCHECK(sqlite3_finalize(stmt));
+    return {"", false};
+  }
+}
+
 Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
@@ -595,10 +650,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     int m = immutable_data["m"];
 
     auto signers = GetSigners();
-    auto tx = height == -1 ? GetTransactionFromPartiallySignedTransaction(
-                                 DecodePsbt(value), signers, m)
-                           : GetTransactionFromCMutableTransaction(
-                                 DecodeRawTransaction(value), signers, height);
+    auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
@@ -612,10 +664,10 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     // become false
     tx.set_receive(false);
     tx.set_sub_amount(0);
-    if (height == -1) {
-      tx.set_psbt(value);
-    } else {
+    if (is_hex_tx) {
       tx.set_raw(value);
+    } else {
+      tx.set_psbt(value);
     }
 
     if (sqlite3_column_text(stmt, 7)) {
@@ -777,10 +829,7 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     int m = immutable_data["m"];
 
     auto signers = GetSigners();
-    auto tx = height == -1 ? GetTransactionFromPartiallySignedTransaction(
-                                 DecodePsbt(value), signers, m)
-                           : GetTransactionFromCMutableTransaction(
-                                 DecodeRawTransaction(value), signers, height);
+    auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
     tx.set_fee(Amount(fee));
@@ -790,10 +839,10 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     tx.set_blocktime(blocktime);
     tx.set_receive(false);
     tx.set_sub_amount(0);
-    if (height == -1) {
-      tx.set_psbt(value);
-    } else {
+    if (is_hex_tx) {
       tx.set_raw(value);
+    } else {
+      tx.set_psbt(value);
     }
 
     if (sqlite3_column_text(stmt, 7)) {
@@ -847,7 +896,8 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
                                 Transaction& tx) const {
   if (!extra.empty()) {
     json extra_json = json::parse(extra);
-    if (extra_json["signers"] != nullptr && tx.get_height() >= 0) {
+    if (extra_json["signers"] != nullptr &&
+        (tx.get_height() >= 0 || !tx.get_raw().empty())) {
       for (auto&& signer : tx.get_signers()) {
         tx.set_signer(signer.first, extra_json["signers"][signer.first]);
       }

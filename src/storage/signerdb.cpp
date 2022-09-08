@@ -25,6 +25,7 @@
 #include <set>
 #include <sstream>
 #include "storage/common.h"
+#include "utils/enumconverter.hpp"
 
 #include <rpc/util.h>
 #include <policy/policy.h>
@@ -204,7 +205,14 @@ time_t NunchukSignerDb::GetLastHealthCheck() const {
 bool NunchukSignerDb::IsMaster() const { return TableExists("BIP32"); }
 
 SignerType NunchukSignerDb::GetSignerType() const {
-  if (!IsMaster()) return SignerType::AIRGAP;
+  if (!IsMaster()) {
+    std::string signer_type_str = GetString(DbKeys::SIGNER_TYPE);
+    if (signer_type_str.empty()) {
+      return SignerType::AIRGAP;
+    } else {
+      return SignerTypeFromStr(signer_type_str);
+    }
+  }
   if (GetDeviceType() == "software") {
     bool has_mnemonic = !GetString(DbKeys::MNEMONIC).empty();
     if (has_mnemonic) {
@@ -282,7 +290,8 @@ void NunchukSignerDb::InitRemote() {
 bool NunchukSignerDb::AddRemote(const std::string& name,
                                 const std::string& xpub,
                                 const std::string& public_key,
-                                const std::string& path, bool used) {
+                                const std::string& path, bool used,
+                                SignerType signer_type) {
   InitRemote();
   sqlite3_stmt* stmt;
   std::string sql =
@@ -297,6 +306,7 @@ bool NunchukSignerDb::AddRemote(const std::string& name,
   sqlite3_bind_int64(stmt, 5, 0);
   sqlite3_bind_int(stmt, 6, used ? 1 : -1);
   sqlite3_step(stmt);
+  PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
   return updated;
@@ -318,7 +328,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     bool used = sqlite3_column_int(stmt, 4) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
-    signer.set_type(SignerType::AIRGAP);
+    signer.set_type(GetSignerType());
     SQLCHECK(sqlite3_finalize(stmt));
     return signer;
   } else {
@@ -395,7 +405,8 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used);
-    signer.set_type(SignerType::AIRGAP);
+    signer.set_type(GetSignerType());
+
     if (name != "import") signers.push_back(signer);
     sqlite3_step(stmt);
   }

@@ -21,7 +21,6 @@
 #include <softwaresigner.h>
 #include <key_io.h>
 #include <validation.h>
-#include "tap_protocol/hwi_tapsigner.h"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -363,7 +362,8 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
                                        const std::string& xpub,
                                        const std::string& public_key,
                                        const std::string& derivation_path,
-                                       const std::string& master_fingerprint) {
+                                       const std::string& master_fingerprint,
+                                       SignerType signer_type) {
   std::string target_format = chain_ == Chain::MAIN ? "xpub" : "tpub";
   std::string sanitized_xpub = Utils::SanitizeBIP32Input(xpub, target_format);
   if (!Utils::IsValidXPub(sanitized_xpub) &&
@@ -381,8 +381,9 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
   }
   std::string xfp = to_lower_copy(master_fingerprint);
   std::string name = trim_copy(raw_name);
-  auto rs = storage_->CreateSingleSigner(chain_, name, sanitized_xpub,
-                                         public_key, derivation_path, xfp);
+  auto rs =
+      storage_->CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
+                                   derivation_path, xfp, signer_type);
   storage_listener_();
   return rs;
 }
@@ -764,11 +765,14 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
 
 Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
-  std::string psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
-  if (psbt.empty()) {
+  auto [tx_value, is_hex_tx] =
+      storage_->GetPsbtOrRawTx(chain_, wallet_id, tx_id);
+  if (tx_value.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
-  std::string raw_tx = CoreUtils::getInstance().FinalizePsbt(psbt);
+  std::string raw_tx = is_hex_tx
+                           ? std::move(tx_value)
+                           : CoreUtils::getInstance().FinalizePsbt(tx_value);
   auto tx = DecodeRawTransaction(raw_tx);
   std::string new_txid = tx.GetHash().GetHex();
   std::string reject_msg{};
@@ -1204,8 +1208,6 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
     auto cbor = decoder.result_ur().cbor();
     auto i = cbor.begin();
     auto end = cbor.end();
-    Tag tag;
-    Tag t;
     decodeBytes(i, end, config);
   }
 
@@ -1272,6 +1274,35 @@ bool NunchukImpl::SyncWithBackup(const std::string& data,
     for (auto&& id : wallet_ids) ScanWalletAddress(id);
   }
   return rs;
+}
+std::vector<SingleSigner> NunchukImpl::ParseJSONSigners(
+    const std::string& json) {
+  std::vector<SingleSigner> signers;
+  if (ParsePassportSignerConfig(chain_, json, signers)) {
+    for (auto&& signer : signers) {
+      signer.set_type(SignerType::COLDCARD_NFC);
+      signer.set_name("COLDCARD");
+    }
+    return signers;
+  } else {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
+}
+
+Transaction NunchukImpl::ImportRawTransaction(const std::string& wallet_id,
+                                              const std::string& raw_tx) {
+  CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
+  std::string tx_id = mtx.GetHash().GetHex();
+
+  storage_->UpdateTransaction(chain_, wallet_id, raw_tx, -1, 0);
+  storage_listener_();
+  return GetTransaction(wallet_id, tx_id);
+}
+
+std::string NunchukImpl::GetWalletExportData(const std::string& wallet_id,
+                                             ExportFormat format) {
+  return storage_->GetWalletExportData(chain_, wallet_id, format);
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
