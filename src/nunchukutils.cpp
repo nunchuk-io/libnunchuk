@@ -340,4 +340,23 @@ BtcUri Utils::ParseBtcUri(const std::string& value) {
   return {std::move(str)};
 }
 
+Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
+  std::string name;
+  AddressType address_type;
+  WalletType wallet_type;
+  int m;
+  int n;
+  std::vector<SingleSigner> signers;
+  if (!ParseConfig(chain, config, name, address_type, wallet_type, m, n,
+                   signers)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Could not parse multisig config");
+  }
+  std::string id = GetWalletId(signers, m, address_type, wallet_type);
+  bool is_escrow = wallet_type == WalletType::ESCROW;
+  Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
+  wallet.set_name(name);
+  return wallet;
+}
+
 }  // namespace nunchuk

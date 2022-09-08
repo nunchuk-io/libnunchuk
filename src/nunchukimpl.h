@@ -84,10 +84,11 @@ class NunchukImpl : public Nunchuk {
                                          const WalletType& wallet_type,
                                          const AddressType& address_type,
                                          int index) override;
-  SingleSigner CreateSigner(const std::string& name, const std::string& xpub,
-                            const std::string& public_key,
-                            const std::string& derivation_path,
-                            const std::string& master_fingerprint) override;
+  SingleSigner CreateSigner(
+      const std::string& name, const std::string& xpub,
+      const std::string& public_key, const std::string& derivation_path,
+      const std::string& master_fingerprint,
+      SignerType signer_type = SignerType::AIRGAP) override;
   bool HasSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,
@@ -309,6 +310,13 @@ class NunchukImpl : public Nunchuk {
   SatscardStatus WaitSatscard(tap_protocol::Satscard* satscard,
                               std::function<bool(int)> progress) override;
   Transaction FetchTransaction(const std::string& tx_id) override;
+
+  // Coldcard mk4
+  std::vector<SingleSigner> ParseJSONSigners(const std::string& json) override;
+  Transaction ImportRawTransaction(const std::string& wallet_id,
+                                   const std::string& raw_tx) override;
+  std::string GetWalletExportData(const std::string& wallet_id,
+                                  ExportFormat format) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id) override;

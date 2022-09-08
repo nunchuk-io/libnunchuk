@@ -172,6 +172,29 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
   }
 }
 
+std::string NunchukStorage::GetWalletExportData(Chain chain,
+                                                const std::string& wallet_id,
+                                                ExportFormat format) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto wallet_db = GetWalletDb(chain, wallet_id);
+  auto wallet = wallet_db.GetWallet(true, true);
+  switch (format) {
+    case ExportFormat::COLDCARD:
+      return ::GetMultisigConfig(wallet);
+    case ExportFormat::DESCRIPTOR:
+      return wallet.get_descriptor(DescriptorPath::ANY);
+    case ExportFormat::BSMS:
+      return GetDescriptorRecord(wallet);
+    case ExportFormat::DB:
+      return {};
+    case ExportFormat::COBO:
+      return {};
+    case ExportFormat::CSV:
+      return {};
+  }
+  return {};
+}
+
 std::string NunchukStorage::ImportWalletDb(Chain chain,
                                            const std::string& file_path) {
   std::unique_lock<std::shared_mutex> lock(access_);
@@ -447,7 +470,7 @@ std::string NunchukStorage::CreateMasterSignerFromMasterXprv(
 SingleSigner NunchukStorage::CreateSingleSigner(
     Chain chain, const std::string& name, const std::string& xpub,
     const std::string& public_key, const std::string& derivation_path,
-    const std::string& master_fingerprint) {
+    const std::string& master_fingerprint, SignerType signer_type) {
   std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = master_fingerprint;
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
@@ -456,13 +479,14 @@ SingleSigner NunchukStorage::CreateSingleSigner(
     throw StorageException(StorageException::SIGNER_EXISTS,
                            strprintf("Signer exists id = '%s'", id));
   }
-  if (!signer_db.AddRemote(name, xpub, public_key, derivation_path)) {
+  if (!signer_db.AddRemote(name, xpub, public_key, derivation_path, false,
+                           signer_type)) {
     throw StorageException(StorageException::SIGNER_EXISTS,
                            strprintf("Signer exists id = '%s'", id));
   }
   auto signer = SingleSigner(name, xpub, public_key, derivation_path,
                              master_fingerprint, 0);
-  signer.set_type(SignerType::AIRGAP);
+  signer.set_type(signer_type);
   GetAppStateDb(chain).RemoveDeletedSigner(id);
   return signer;
 }
@@ -629,7 +653,6 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
       // master_id is used by the caller to check if the signer is master or
       // remote
       master_id = "";
-      signer_type = SignerType::AIRGAP;
       try {
         auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
         name = remote.get_name();
@@ -892,6 +915,12 @@ std::string NunchukStorage::GetPsbt(Chain chain, const std::string& wallet_id,
                                     const std::string& tx_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetPsbt(tx_id);
+}
+
+std::pair<std::string, bool> NunchukStorage::GetPsbtOrRawTx(
+    Chain chain, const std::string& wallet_id, const std::string& tx_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetPsbtOrRawTx(tx_id);
 }
 
 bool NunchukStorage::SetUtxos(Chain chain, const std::string& wallet_id,

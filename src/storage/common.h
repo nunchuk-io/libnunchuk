@@ -60,6 +60,7 @@ const int DELETED_SIGNERS = 17;
 const int DELETED_WALLETS = 18;
 const int DELETED_TRANSACTIONS = 19;
 const int MASTER_XPRV = 20;
+const int SIGNER_TYPE = 21;
 }  // namespace DbKeys
 
 }  // namespace nunchuk

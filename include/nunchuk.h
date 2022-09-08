@@ -119,6 +119,7 @@ enum class SignerType {
   SOFTWARE,
   FOREIGN_SOFTWARE,
   NFC,
+  COLDCARD_NFC,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
@@ -744,11 +745,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type, int index) = 0;
-  virtual SingleSigner CreateSigner(const std::string& name,
-                                    const std::string& xpub,
-                                    const std::string& public_key,
-                                    const std::string& derivation_path,
-                                    const std::string& master_fingerprint) = 0;
+  virtual SingleSigner CreateSigner(
+      const std::string& name, const std::string& xpub,
+      const std::string& public_key, const std::string& derivation_path,
+      const std::string& master_fingerprint,
+      SignerType signer_type = SignerType::AIRGAP) = 0;
   virtual bool HasSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -948,6 +949,14 @@ class NUNCHUK_EXPORT Nunchuk {
                                       std::function<bool(int)> progress) = 0;
   virtual Transaction FetchTransaction(const std::string& tx_id) = 0;
 
+  // Coldcard mk4
+  virtual std::vector<SingleSigner> ParseJSONSigners(
+      const std::string& json) = 0;
+  virtual Transaction ImportRawTransaction(const std::string& wallet_id,
+                                           const std::string& raw_tx) = 0;
+  virtual std::string GetWalletExportData(const std::string& wallet_id,
+                                          ExportFormat format) = 0;
+
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
   virtual MasterSigner CreateSoftwareSigner(
@@ -1063,6 +1072,7 @@ class NUNCHUK_EXPORT Utils {
   static Wallet ParseKeystoneWallet(Chain chain,
                                     const std::vector<std::string>& qr_data);
   static BtcUri ParseBtcUri(const std::string& value);
+  static Wallet ParseWalletConfig(Chain chain, const std::string& config);
 
  private:
   Utils() {}
