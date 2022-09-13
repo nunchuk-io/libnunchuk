@@ -33,6 +33,10 @@
 #include <policy/policy.h>
 #include <signingprovider.h>
 
+#include <base58.h>
+#include <util/strencodings.h>
+#include <util/bip32.h>
+
 using json = nlohmann::json;
 namespace ba = boost::algorithm;
 
@@ -860,7 +864,8 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   auto psbt = DecodePsbt(base64_psbt);
   if (!psbt.tx.has_value()) return base64_psbt;
 
-  auto desc = GetDescriptorsImportString(GetWallet(true));
+  auto wallet = GetWallet(true);
+  auto desc = GetDescriptorsImportString(wallet);
   auto provider = SigningProviderCache::getInstance().GetProvider(desc);
 
   int nin = psbt.tx.value().vin.size();
@@ -889,6 +894,27 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   for (unsigned int i = 0; i < psbt.tx.value().vout.size(); ++i) {
     UpdatePSBTOutput(provider, psbt, i);
   }
+
+  for (auto&& signer : wallet.get_signers()) {
+    std::vector<unsigned char> key;
+    if (DecodeBase58Check(signer.get_xpub(), key, 78)) {
+      auto value = ParseHex(signer.get_master_fingerprint());
+      std::vector<uint32_t> keypath;
+      std::string formalized = signer.get_derivation_path();
+      std::replace(formalized.begin(), formalized.end(), 'h', '\'');
+      if (ParseHDKeypath(formalized, keypath)) {
+        for (uint32_t index : keypath) {
+          value.push_back(index);
+          value.push_back(index >> 8);
+          value.push_back(index >> 16);
+          value.push_back(index >> 24);
+        }
+      }
+      key.insert(key.begin(), 1);
+      psbt.unknown[key] = value;
+    }
+  }
+
   return EncodePsbt(psbt);
 }
 

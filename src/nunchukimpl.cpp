@@ -498,9 +498,12 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
 
   bool existed = true;
   SignerType signerType = SignerType::HARDWARE;
+  std::string deviceType = "";
   std::string id = fingerprint;
   try {
-    signerType = GetMasterSigner(id).get_type();
+    auto signer = GetMasterSigner(id);
+    signerType = signer.get_type();
+    deviceType = signer.get_device().get_type();
   } catch (StorageException& se) {
     if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
       existed = false;
@@ -526,8 +529,20 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   Device device{fingerprint};
-  std::string xpub = hwi_.GetXpubAtPath(device, path);
-  if (existed && signerType == SignerType::HARDWARE) {
+  std::string xpub;
+  try {
+    xpub = hwi_.GetXpubAtPath(device, path);
+  } catch (HWIException& he) {
+    path = "m/84'/0'/0'/1/0";
+    xpub = hwi_.GetXpubAtPath(device, "m/84'/0'/0'");
+    CExtPubKey xkey = DecodeExtPubKey(xpub);
+    xkey.Derive(xkey, 1);
+    xkey.Derive(xkey, 0);
+    xpub = EncodeExtPubKey(xkey);
+  }
+
+  if (existed && signerType == SignerType::HARDWARE &&
+      deviceType != "bitbox02") {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
     if (master_xpub != storage_->GetMasterSignerXPub(chain_, id, "m")) {
       return HealthStatus::KEY_NOT_MATCHED;
@@ -1018,19 +1033,27 @@ void NunchukImpl::DisplayAddressOnDevice(
       wallet.is_escrow()
           ? -1
           : storage_->GetAddressIndex(chain_, wallet_id, address));
-
+  std::string desc2 = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   if (device_fingerprint.empty()) {
     auto devices = GetDevices();
     for (auto&& device : devices) {
       for (auto&& signer : wallet.get_signers()) {
         if (signer.get_master_fingerprint() ==
             device.get_master_fingerprint()) {
-          hwi_.DisplayAddress(device, desc);
+          if (device.get_type() == "bitbox02") {
+            hwi_.DisplayAddress(device, desc2);
+          } else {
+            hwi_.DisplayAddress(device, desc);
+          }
         }
       }
     }
   } else {
-    hwi_.DisplayAddress(Device{device_fingerprint}, desc);
+    try {
+      hwi_.DisplayAddress(Device{device_fingerprint}, desc);
+    } catch (NunchukException& he) {
+      hwi_.DisplayAddress(Device{device_fingerprint}, desc2);
+    }
   }
 }
 

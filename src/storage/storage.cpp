@@ -533,14 +533,16 @@ void NunchukStorage::CacheMasterSignerXPub(
   auto signer_type = signer_db.GetSignerType();
   bool is_software = signer_type == SignerType::SOFTWARE;
   bool is_nfc = signer_type == SignerType::NFC;
+  bool is_bitbox2 = signer_db.GetDeviceType() == "bitbox02";
 
   int count = 0;
-  auto total = first ? (is_software ? 62 : (is_nfc ? 10 : 8))
-                     : (is_software ? 60 : TOTAL_CACHE_NUMBER);
+  auto total =
+      first ? (is_software ? 62 : (is_nfc ? 10 : (is_bitbox2 ? 4 : 8)))
+            : (is_software ? 60 : (is_bitbox2 ? 10 : TOTAL_CACHE_NUMBER));
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
-  if (first) {
+  if (first && !is_bitbox2) {
     auto cachePath = [&](const std::string& path) {
       signer_db.AddXPub(path, getxpub(path), "custom");
       progress(count++ * 100 / total);
@@ -555,12 +557,13 @@ void NunchukStorage::CacheMasterSignerXPub(
     if (first && is_nfc && w == WalletType::MULTI_SIG) return 3;
     if (first) return 1;
     if (w == WalletType::MULTI_SIG) return MULTISIG_CACHE_NUMBER;
-    if (w == WalletType::ESCROW) return ESCROW_CACHE_NUMBER;
+    if (w == WalletType::ESCROW && !is_bitbox2) return ESCROW_CACHE_NUMBER;
     // SINGLE_SIG
     if (a == AddressType::NATIVE_SEGWIT) return SINGLESIG_BIP84_CACHE_NUMBER;
     if (a == AddressType::TAPROOT) return SINGLESIG_BIP86_CACHE_NUMBER;
     if (a == AddressType::NESTED_SEGWIT) return SINGLESIG_BIP49_CACHE_NUMBER;
-    if (a == AddressType::LEGACY) return SINGLESIG_BIP48_CACHE_NUMBER;
+    if (a == AddressType::LEGACY && !is_bitbox2)
+      return SINGLESIG_BIP48_CACHE_NUMBER;
     return 0;
   };
   auto cacheIndex = [&](WalletType w, AddressType a) {
