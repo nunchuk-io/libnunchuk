@@ -261,8 +261,7 @@ class NunchukImpl : public Nunchuk {
                                  const std::string& cvc,
                                  const std::string& new_cvc,
                                  const std::string& derivation_path = {},
-                                 const std::string& chain_code = {},
-                                 bool setup_only = false) override;
+                                 const std::string& chain_code = {}) override;
   MasterSigner CreateTapsignerMasterSigner(tap_protocol::Tapsigner* tapsigner,
                                            const std::string& cvc,
                                            const std::string& name,

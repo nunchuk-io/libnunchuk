@@ -248,8 +248,7 @@ TapsignerStatus NunchukImpl::SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
                                             const std::string& cvc,
                                             const std::string& new_cvc,
                                             const std::string& derivation_path,
-                                            const std::string& chain_code,
-                                            bool setup_only) {
+                                            const std::string& chain_code) {
   try {
     tapsigner->CertificateCheck();
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
@@ -267,10 +266,6 @@ TapsignerStatus NunchukImpl::SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
 
     if (!derivation_path.empty() && derivation_path != "m/84h/0h/0h") {
       tapsigner->Derive(derivation_path, cvc);
-    }
-
-    if (setup_only) {
-      return nunchuk::GetTapsignerStatus(tapsigner);
     }
 
     auto rs = BackupTapsigner(tapsigner, cvc);
