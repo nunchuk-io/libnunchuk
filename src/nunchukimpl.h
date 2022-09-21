@@ -141,9 +141,9 @@ class NunchukImpl : public Nunchuk {
                             const std::string& file_path,
                             ExportFormat format) override;
   Transaction CreateTransaction(const std::string& wallet_id,
-                                const std::map<std::string, Amount> outputs,
+                                const std::map<std::string, Amount>& outputs,
                                 const std::string& memo = {},
-                                const std::vector<UnspentOutput> inputs = {},
+                                const std::vector<UnspentOutput>& inputs = {},
                                 Amount fee_rate = -1,
                                 bool subtract_fee_from_amount = false) override;
   bool ExportTransaction(const std::string& wallet_id, const std::string& tx_id,
@@ -163,8 +163,8 @@ class NunchukImpl : public Nunchuk {
                          const std::string& tx_id) override;
 
   Transaction DraftTransaction(const std::string& wallet_id,
-                               const std::map<std::string, Amount> outputs,
-                               const std::vector<UnspentOutput> inputs = {},
+                               const std::map<std::string, Amount>& outputs,
+                               const std::vector<UnspentOutput>& inputs = {},
                                Amount fee_rate = -1,
                                bool subtract_fee_from_amount = false) override;
   Transaction ReplaceTransaction(const std::string& wallet_id,
@@ -247,10 +247,16 @@ class NunchukImpl : public Nunchuk {
                                            const std::string& name,
                                            std::function<bool(int)> progress,
                                            bool is_primary = false) override;
+  void VerifyTapsignerBackup(const std::string& file_path,
+                             const std::string& backup_key,
+                             const std::string& master_signer_id = {}) override;
   std::unique_ptr<tap_protocol::Tapsigner> CreateTapsigner(
       std::unique_ptr<tap_protocol::Transport> transport) override;
   TapsignerStatus GetTapsignerStatus(
       tap_protocol::Tapsigner* tapsigner) override;
+  void SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
+                      const std::string& cvc,
+                      const std::string& chain_code = {}) override;
   TapsignerStatus SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
                                  const std::string& cvc,
                                  const std::string& new_cvc,

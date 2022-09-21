@@ -54,7 +54,7 @@ MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
                              "Invalid backup data");
     }
     const std::string name = trim_copy(raw_name);
-    const std::string master_xprv = sp[0];
+    const std::string& master_xprv = sp[0];
     SoftwareSigner signer{master_xprv};
     const std::string id = to_lower_copy(signer.GetMasterFingerprint());
 
@@ -82,6 +82,32 @@ MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
     MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
     mastersigner.set_name(name);
     return mastersigner;
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
+void NunchukImpl::VerifyTapsignerBackup(const std::string& file_path,
+                                        const std::string& backup_key,
+                                        const std::string& master_signer_id) {
+  try {
+    const std::string data = storage_->LoadFile(file_path);
+    const std::string decrypted = hwi_tapsigner_->DecryptBackup(
+        {std::begin(data), std::end(data)}, backup_key);
+    const std::vector<std::string> sp = split(decrypted, '\n');
+    if (sp.empty()) {
+      throw NunchukException(NunchukException::INVALID_FORMAT,
+                             "Invalid backup data");
+    }
+    const std::string& master_xprv = sp[0];
+    SoftwareSigner signer{master_xprv};
+    const std::string id = to_lower_copy(signer.GetMasterFingerprint());
+    if (!master_signer_id.empty() && id != master_signer_id) {
+      throw NunchukException(TapProtocolException::INVALID_DEVICE,
+                             strprintf("Invalid device: key fingerprint "
+                                       "does not match. Expected '%s'. '%s'",
+                                       id, master_xprv));
+    }
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
@@ -159,17 +185,22 @@ std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
   }
 }
 
+static TapsignerStatus GetTapsignerStatus(tap_protocol::Tapsigner* tapsigner) {
+  auto rs = TapsignerStatus(tapsigner->GetIdent(), tapsigner->GetBirthHeight(),
+                            tapsigner->GetNumberOfBackups(),
+                            tapsigner->GetAppletVersion(),
+                            tapsigner->GetDerivationPath(),
+                            tapsigner->IsTestnet(), tapsigner->GetAuthDelay());
+  return rs;
+}
+
 TapsignerStatus NunchukImpl::GetTapsignerStatus(
     tap_protocol::Tapsigner* tapsigner) {
   try {
     tapsigner->CertificateCheck();
     tapsigner->Status();
-    auto card_ident = tapsigner->GetIdent();
-    auto rs = TapsignerStatus(
-        card_ident, tapsigner->GetBirthHeight(),
-        tapsigner->GetNumberOfBackups(), tapsigner->GetAppletVersion(),
-        tapsigner->GetDerivationPath(), tapsigner->IsTestnet(),
-        tapsigner->GetAuthDelay());
+    auto rs = nunchuk::GetTapsignerStatus(tapsigner);
+    auto&& card_ident = rs.get_card_ident();
     if (rs.need_setup()) {
       return rs;
     }
@@ -187,6 +218,27 @@ TapsignerStatus NunchukImpl::GetTapsignerStatus(
     }
 
     return rs;
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
+void NunchukImpl::SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
+                                 const std::string& cvc,
+                                 const std::string& chain_code) {
+  try {
+    tapsigner->CertificateCheck();
+    hwi_tapsigner_->SetDevice(tapsigner, cvc);
+
+    auto use_chain_code =
+        chain_code.empty() ? Utils::GenerateRandomChainCode() : chain_code;
+    hwi_tapsigner_->SetupDevice(use_chain_code);
+
+    auto device_master_chain_code = hwi_tapsigner_->GetChaincodeAtPath();
+    if (use_chain_code != device_master_chain_code) {
+      throw TapProtocolException(TapProtocolException::INVALID_STATE,
+                                 "Device uses different chain code");
+    }
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
@@ -251,13 +303,8 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
         progress, true);
 
     MasterSigner mastersigner{id, device, std::time(0), SignerType::NFC};
-    TapsignerStatus status;
-    status.set_card_ident(tapsigner->GetIdent());
+    TapsignerStatus status = nunchuk::GetTapsignerStatus(tapsigner);
     status.set_master_signer_id(id);
-    status.set_version(tapsigner->GetAppletVersion());
-    status.set_birth_height(tapsigner->GetBirthHeight());
-    status.set_number_of_backup(tapsigner->GetNumberOfBackups());
-    status.set_testnet(tapsigner->IsTestnet());
     if (!storage_->AddTapsigner(chain_, status)) {
       throw StorageException(StorageException::SQL_ERROR,
                              "Can't save TAPSIGNER data");
@@ -380,8 +427,9 @@ TapsignerStatus NunchukImpl::BackupTapsigner(
     }
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     auto backup_data = hwi_tapsigner_->BackupDevice();
-    auto rs = GetTapsignerStatus(tapsigner);
+    auto rs = nunchuk::GetTapsignerStatus(tapsigner);
     rs.set_backup_data(backup_data);
+    rs.set_master_signer_id(master_signer_id);
     return rs;
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
@@ -468,7 +516,7 @@ TapsignerStatus NunchukImpl::WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
     while (delay != 0) {
       for (int i = 1; i <= delay; ++i) {
         if (!progress(i * 1.0 / delay * 100)) {
-          return GetTapsignerStatus(tapsigner);
+          return nunchuk::GetTapsignerStatus(tapsigner);
         }
         auto wait = tapsigner->Wait();
         if (!wait.success) {
@@ -476,7 +524,7 @@ TapsignerStatus NunchukImpl::WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
                                      "Wait error");
         }
       }
-      auto st = GetTapsignerStatus(tapsigner);
+      auto st = nunchuk::GetTapsignerStatus(tapsigner);
       delay = st.get_auth_delay();
       if (delay == 0) {
         progress(100);
@@ -484,7 +532,7 @@ TapsignerStatus NunchukImpl::WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
       }
     };
     progress(100);
-    return GetTapsignerStatus(tapsigner);
+    return nunchuk::GetTapsignerStatus(tapsigner);
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
