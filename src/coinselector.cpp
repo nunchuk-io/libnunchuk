@@ -42,8 +42,8 @@ static const bool DEFAULT_WALLET_REJECT_LONG_CHAINS = false;
 std::map<std::string, CScript> CoinSelector::scriptsig_cache_;
 std::map<std::string, CScriptWitness> CoinSelector::scriptwitness_cache_;
 
-CoinSelector::CoinSelector(const std::string descriptors,
-                           const std::string example_address) {
+CoinSelector::CoinSelector(const std::string& descriptors,
+                           const std::string& example_address) {
   if (scriptsig_cache_.find(descriptors) == scriptsig_cache_.end() ||
       scriptwitness_cache_.find(descriptors) == scriptwitness_cache_.end()) {
     FlatSigningProvider provider =

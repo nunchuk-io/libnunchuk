@@ -676,8 +676,8 @@ bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
 }
 
 Transaction NunchukImpl::CreateTransaction(
-    const std::string& wallet_id, const std::map<std::string, Amount> outputs,
-    const std::string& memo, const std::vector<UnspentOutput> inputs,
+    const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
+    const std::string& memo, const std::vector<UnspentOutput>& inputs,
     Amount fee_rate, bool subtract_fee_from_amount) {
   Amount fee = 0;
   int change_pos = 0;
@@ -859,8 +859,8 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
 }
 
 Transaction NunchukImpl::DraftTransaction(
-    const std::string& wallet_id, const std::map<std::string, Amount> outputs,
-    const std::vector<UnspentOutput> inputs, Amount fee_rate,
+    const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
+    const std::vector<UnspentOutput>& inputs, Amount fee_rate,
     bool subtract_fee_from_amount) {
   Amount fee = 0;
   int change_pos = 0;

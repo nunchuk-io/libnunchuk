@@ -797,9 +797,10 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& wallet_id, const std::string& file_path,
       ExportFormat format = ExportFormat::CSV) = 0;
   virtual Transaction CreateTransaction(
-      const std::string& wallet_id, const std::map<std::string, Amount> outputs,
+      const std::string& wallet_id,
+      const std::map<std::string, Amount>& outputs,
       const std::string& memo = {},
-      const std::vector<UnspentOutput> inputs = {}, Amount fee_rate = -1,
+      const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false) = 0;
   virtual bool ExportTransaction(const std::string& wallet_id,
                                  const std::string& tx_id,
@@ -816,8 +817,9 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& tx_id) = 0;
 
   virtual Transaction DraftTransaction(
-      const std::string& wallet_id, const std::map<std::string, Amount> outputs,
-      const std::vector<UnspentOutput> inputs = {}, Amount fee_rate = -1,
+      const std::string& wallet_id,
+      const std::map<std::string, Amount>& outputs,
+      const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false) = 0;
   virtual Transaction ReplaceTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
@@ -886,10 +888,18 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& file_path, const std::string& backup_key,
       const std::string& name, std::function<bool(int)> progress,
       bool is_primary = false) = 0;
+  virtual void VerifyTapsignerBackup(
+      const std::string& file_path, const std::string& backup_key,
+      const std::string& master_signer_id = {}) = 0;
   virtual std::unique_ptr<tap_protocol::Tapsigner> CreateTapsigner(
       std::unique_ptr<tap_protocol::Transport> transport) = 0;
   virtual TapsignerStatus GetTapsignerStatus(
       tap_protocol::Tapsigner* tapsigner) = 0;
+  // setup only
+  virtual void SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
+                              const std::string& cvc,
+                              const std::string& chain_code = {}) = 0;
+  // setup - backup - change CVC
   virtual TapsignerStatus SetupTapsigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& new_cvc, const std::string& derivation_path = {},
