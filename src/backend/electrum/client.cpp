@@ -378,6 +378,7 @@ void ElectrumClient::handle_write(const boost::system::error_code& error) {
     return handle_error("handle_write", error.message());
   }
   DLOG_F(INFO, "Write message: %s", request_queue_.front().c_str());
+  request_buffer_.consume(request_queue_.front().size());
   request_queue_.pop_front();
   socket_write();
 }
