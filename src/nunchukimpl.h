@@ -342,8 +342,8 @@ class NunchukImpl : public Nunchuk {
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
-                         const std::map<std::string, Amount> outputs,
-                         const std::vector<UnspentOutput> inputs,
+                         const std::map<std::string, Amount>& outputs,
+                         const std::vector<UnspentOutput>& inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& change_pos);
   Wallet ImportWalletFromConfig(const std::string& config,
