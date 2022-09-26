@@ -1361,13 +1361,11 @@ void NunchukImpl::AddStorageUpdateListener(std::function<void()> listener) {
   storage_listener_.connect(listener);
 }
 
-std::string NunchukImpl::CreatePsbt(const std::string& wallet_id,
-                                    const std::map<std::string, Amount> outputs,
-                                    const std::vector<UnspentOutput> inputs,
-                                    Amount fee_rate,
-                                    bool subtract_fee_from_amount,
-                                    bool utxo_update_psbt, Amount& fee,
-                                    int& change_pos) {
+std::string NunchukImpl::CreatePsbt(
+    const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
+    const std::vector<UnspentOutput>& inputs, Amount fee_rate,
+    bool subtract_fee_from_amount, bool utxo_update_psbt, Amount& fee,
+    int& change_pos) {
   Wallet wallet = GetWallet(wallet_id);
   std::vector<UnspentOutput> utxos =
       inputs.empty() ? GetUnspentOutputs(wallet_id) : inputs;

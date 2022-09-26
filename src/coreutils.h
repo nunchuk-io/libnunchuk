@@ -25,11 +25,11 @@ namespace nunchuk {
 class CoreUtils {
  public:
   void SetChain(Chain chain);
-  std::string CombinePsbt(const std::vector<std::string> psbts);
+  std::string CombinePsbt(const std::vector<std::string> &psbts);
   std::string FinalizePsbt(const std::string &combined);
   std::string DecodeRawTransaction(const std::string &raw_tx);
-  std::string CreatePsbt(const std::vector<TxInput> vin,
-                         const std::vector<TxOutput> vout);
+  std::string CreatePsbt(const std::vector<TxInput> &vin,
+                         const std::vector<TxOutput> &vout);
   std::string DecodePsbt(const std::string &base64_psbt);
   std::string DeriveAddress(const std::string &descriptor, int index = -1);
   std::vector<std::string> DeriveAddresses(const std::string &descriptor,

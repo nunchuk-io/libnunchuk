@@ -70,7 +70,7 @@ static json ParseResponse(const std::string &resp) {
   }
 }
 
-std::string CoreUtils::CombinePsbt(const std::vector<std::string> psbts) {
+std::string CoreUtils::CombinePsbt(const std::vector<std::string> &psbts) {
   json req = {{"method", "combinepsbt"},
               {"params", json::array({json(psbts)})},
               {"id", "placeholder"}};
@@ -99,8 +99,8 @@ std::string CoreUtils::DecodeRawTransaction(const std::string &raw_tx) {
   return ParseResponse(resp).dump();
 }
 
-std::string CoreUtils::CreatePsbt(const std::vector<TxInput> vin,
-                                  const std::vector<TxOutput> vout) {
+std::string CoreUtils::CreatePsbt(const std::vector<TxInput> &vin,
+                                  const std::vector<TxOutput> &vout) {
   json input = json::array();
   for (auto &el : vin) {
     input.push_back({{"txid", el.first}, {"vout", el.second}});
