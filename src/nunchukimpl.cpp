@@ -126,17 +126,21 @@ std::vector<Wallet> NunchukImpl::GetWallets(
   static constexpr auto order_func = [](const Wallet& lhs, const Wallet& rhs,
                                         OrderBy order) -> int {
     switch (order) {
-      case OrderBy::NAME:
+      case OrderBy::NAME_ASC:
         return lhs.get_name().compare(rhs.get_name());
-      case OrderBy::CREATE_DATE:
+      case OrderBy::NAME_DESC:
+        return rhs.get_name().compare(lhs.get_name());
+      case OrderBy::OLDEST_FIRST:
         return lhs.get_create_date() - rhs.get_create_date();
+      case OrderBy::NEWEST_FIRST:
+        return rhs.get_create_date() - lhs.get_create_date();
     }
     throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
                            "Version not supported");
   };
 
   static constexpr auto less_func =
-      [&](const Wallet& lhs, const Wallet& rhs,
+      [](const Wallet& lhs, const Wallet& rhs,
           const std::vector<OrderBy>& orders) -> bool {
     for (auto&& order : orders) {
       int order_result = order_func(lhs, rhs, order);
