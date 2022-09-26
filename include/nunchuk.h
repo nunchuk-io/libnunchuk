@@ -122,6 +122,12 @@ enum class SignerType {
   COLDCARD_NFC,
 };
 
+enum class OrderBy {
+  NAME,
+  CREATE_DATE,
+  MOST_RECENTLY_USED,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -727,7 +733,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                   const std::vector<SingleSigner>& signers,
                                   AddressType address_type, bool is_escrow,
                                   const std::string& description = {}) = 0;
-  virtual std::vector<Wallet> GetWallets() = 0;
+  virtual std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
+                                             OrderBy::CREATE_DATE}) = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;
   virtual bool HasWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;
