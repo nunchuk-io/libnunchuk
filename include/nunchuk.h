@@ -123,9 +123,12 @@ enum class SignerType {
 };
 
 enum class OrderBy {
-  NAME,
-  CREATE_DATE,
+  NAME_ASC,
+  NAME_DESC,
+  NEWEST_FIRST,
+  OLDEST_FIRST,
   MOST_RECENTLY_USED,
+  LEAST_RECENTLY_USED,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
@@ -734,7 +737,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                   AddressType address_type, bool is_escrow,
                                   const std::string& description = {}) = 0;
   virtual std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
-                                             OrderBy::CREATE_DATE}) = 0;
+                                             OrderBy::OLDEST_FIRST}) = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;
   virtual bool HasWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;
