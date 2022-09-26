@@ -121,7 +121,38 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
   return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
-std::vector<Wallet> NunchukImpl::GetWallets() {
+std::vector<Wallet> NunchukImpl::GetWallets(
+    const std::vector<OrderBy>& orders) {
+  static constexpr auto order_func = [](const Wallet& lhs, const Wallet& rhs,
+                                        OrderBy order) -> int {
+    switch (order) {
+      case OrderBy::NAME:
+        return lhs.get_name().compare(rhs.get_name());
+      case OrderBy::CREATE_DATE:
+        return lhs.get_create_date() - rhs.get_create_date();
+    }
+    throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
+                           "Version not supported");
+  };
+
+  static constexpr auto less_func =
+      [&](const Wallet& lhs, const Wallet& rhs,
+          const std::vector<OrderBy>& orders) -> bool {
+    for (auto&& order : orders) {
+      int order_result = order_func(lhs, rhs, order);
+      if (order_result == 0) {
+        continue;
+      }
+      if (order_result < 0) {
+        return true;
+      }
+      if (order_result > 0) {
+        return false;
+      }
+    }
+    return lhs.get_id() < rhs.get_id();
+  };
+
   auto wallet_ids = storage_->ListWallets(chain_);
   std::vector<Wallet> wallets;
   for (auto&& id : wallet_ids) {
@@ -133,6 +164,12 @@ std::vector<Wallet> NunchukImpl::GetWallets() {
       }
     }
   }
+
+  std::sort(wallets.begin(), wallets.end(),
+            [&](const Wallet& lhs, const Wallet& rhs) {
+              return less_func(lhs, rhs, orders);
+            });
+
   return wallets;
 }
 

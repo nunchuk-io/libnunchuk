@@ -51,7 +51,8 @@ class NunchukImpl : public Nunchuk {
                           const std::vector<SingleSigner>& signers,
                           AddressType address_type, bool is_escrow,
                           const std::string& desc = {}) override;
-  std::vector<Wallet> GetWallets() override;
+  std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
+                                     OrderBy::CREATE_DATE}) override;
   Wallet GetWallet(const std::string& wallet_id) override;
   bool HasWallet(const std::string& wallet_id) override;
   bool DeleteWallet(const std::string& wallet_id) override;
