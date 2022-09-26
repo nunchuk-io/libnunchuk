@@ -40,6 +40,22 @@ static std::string GetChainString(Chain chain) {
   throw NunchukException(NunchukException::INVALID_CHAIN, "Unknown chain");
 }
 
+static Chain GetStringChain(const std::string &chain) {
+  if (chain == "main") {
+    return Chain::MAIN;
+  }
+  if (chain == "test") {
+    return Chain::TESTNET;
+  }
+  if (chain == "signet") {
+    return Chain::SIGNET;
+  }
+  if (chain == "regtest") {
+    return Chain::REGTEST;
+  }
+  throw NunchukException(NunchukException::INVALID_CHAIN, "Unknown chain");
+}
+
 CoreUtils &CoreUtils::getInstance() {
   static CoreUtils instance;
   return instance;
@@ -49,6 +65,10 @@ CoreUtils::CoreUtils() { EmbeddedRpc::getInstance().Init(); }
 
 void CoreUtils::SetChain(Chain chain) {
   EmbeddedRpc::getInstance().SetChain(GetChainString(chain));
+}
+
+Chain CoreUtils::GetChain() const {
+  return GetStringChain(EmbeddedRpc::getInstance().GetChain());
 }
 
 static json ParseResponse(const std::string &resp) {

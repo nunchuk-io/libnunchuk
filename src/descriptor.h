@@ -57,9 +57,13 @@ std::string GetPkhDescriptor(const std::string& address);
 
 SingleSigner ParseSignerString(const std::string& signer_str);
 
-bool ParseDescriptors(const std::string descs, AddressType& address_type,
+bool ParseDescriptors(const std::string& descs, AddressType& address_type,
                       WalletType& wallet_type, int& m, int& n,
                       std::vector<SingleSigner>& signers);
+
+bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
+                          AddressType& address_type, WalletType& wallet_type,
+                          int& m, int& n, std::vector<SingleSigner>& signers);
 
 }  // namespace nunchuk
 

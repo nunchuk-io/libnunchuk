@@ -51,6 +51,11 @@ void EmbeddedRpc::SetChain(const std::string &chain) {
   SelectParams(chain_);
 }
 
+const std::string &EmbeddedRpc::GetChain() const {
+  if (!initialized_) throw std::runtime_error("uninitialized");
+  return chain_;
+}
+
 std::string EmbeddedRpc::SendRequest(const std::string &body) const {
   if (!initialized_) throw std::runtime_error("uninitialized");
   JSONRPCRequest req;

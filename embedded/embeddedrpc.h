@@ -43,6 +43,11 @@ class EmbeddedRpc {
   void SetChain(const std::string &chain);
 
   /**
+   * Get current chain
+   */
+  const std::string &GetChain() const;
+
+  /**
    * Execute a rpc method.
    * @param body The rpc request in JSON to execute
    * @returns Result of the call in JSON.
