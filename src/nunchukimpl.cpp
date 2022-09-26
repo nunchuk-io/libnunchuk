@@ -21,6 +21,7 @@
 #include <softwaresigner.h>
 #include <key_io.h>
 #include <validation.h>
+#include <algorithm>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -123,9 +124,7 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
 std::vector<Wallet> NunchukImpl::GetWallets() {
   auto wallet_ids = storage_->ListWallets(chain_);
   std::vector<Wallet> wallets;
-  std::string selected_wallet = GetSelectedWallet();
   for (auto&& id : wallet_ids) {
-    if (id == selected_wallet) continue;
     try {
       wallets.push_back(GetWallet(id));
     } catch (StorageException& se) {
@@ -134,11 +133,6 @@ std::vector<Wallet> NunchukImpl::GetWallets() {
       }
     }
   }
-  // Move selected_wallet to back so it will be scanned first when opening app
-  if (!selected_wallet.empty()) try {
-      wallets.push_back(GetWallet(selected_wallet));
-    } catch (...) {
-    }
   return wallets;
 }
 
@@ -594,7 +588,13 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
 
 std::vector<Transaction> NunchukImpl::GetTransactionHistory(
     const std::string& wallet_id, int count, int skip) {
-  return storage_->GetTransactions(chain_, wallet_id, count, skip);
+  auto txs = storage_->GetTransactions(chain_, wallet_id, count, skip);
+  auto removed_iter =
+      std::remove_if(txs.begin(), txs.end(), [](const Transaction& tx) -> bool {
+        return tx.get_status() == TransactionStatus::REPLACED;
+      });
+  txs.erase(removed_iter, txs.end());
+  return txs;
 }
 
 bool NunchukImpl::ExportTransactionHistory(const std::string& wallet_id,
