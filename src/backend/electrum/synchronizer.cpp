@@ -158,8 +158,7 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
   }
   auto wallet_ids = storage_->ListWallets(chain);
   int process = 0;
-  for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
-    auto wallet_id = *i;
+  for (auto&& wallet_id : wallet_ids) {
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
     for (auto a = addresses.rbegin(); a != addresses.rend(); ++a) {
       std::unique_lock<std::mutex> lock_(status_mutex_);

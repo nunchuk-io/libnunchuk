@@ -146,9 +146,8 @@ void CoreRpcSynchronizer::BlockchainSync(
   auto all_utxos = client_->ListUnspent();
   auto all_txs = client_->ListTransactions();
   json descriptors;
-  for (auto i = wallet_ids.rbegin(); i != wallet_ids.rend(); ++i) {
+  for (auto&& wallet_id : wallet_ids) {
     if (stopped) return;
-    auto wallet_id = *i;
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
     if (addresses.empty()) continue;
 

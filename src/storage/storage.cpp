@@ -607,7 +607,14 @@ std::string NunchukStorage::GetMasterSignerXPub(
 
 std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return ListWallets0(chain);
+  auto ids = ListWallets0(chain);
+  const std::string selected_id = GetAppStateDb(chain).GetSelectedWallet();
+  if (auto selected_iter = std::find(ids.begin(), ids.end(), selected_id);
+      selected_iter != ids.end()) {
+    // Move selected wallet to front, so it will be scanned first when open app
+    std::rotate(ids.begin(), selected_iter, std::next(selected_iter));
+  }
+  return ids;
 }
 
 std::vector<std::string> NunchukStorage::ListWallets0(Chain chain) {
