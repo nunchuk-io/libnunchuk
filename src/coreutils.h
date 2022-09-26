@@ -25,6 +25,7 @@ namespace nunchuk {
 class CoreUtils {
  public:
   void SetChain(Chain chain);
+  Chain GetChain() const;
   std::string CombinePsbt(const std::vector<std::string> &psbts);
   std::string FinalizePsbt(const std::string &combined);
   std::string DecodeRawTransaction(const std::string &raw_tx);

@@ -102,9 +102,9 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     const SingleSigner& signer = signers[0];
     std::string path = FormalizePath(signer.get_derivation_path());
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
-    desc << (address_type == AddressType::LEGACY
-                 ? "pkh"
-                 : address_type == AddressType::TAPROOT ? "tr" : "wpkh");
+    desc << (address_type == AddressType::LEGACY    ? "pkh"
+             : address_type == AddressType::TAPROOT ? "tr"
+                                                    : "wpkh");
     desc << "([" << signer.get_master_fingerprint() << path << "]"
          << signer.get_xpub() << keypath << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
@@ -196,7 +196,7 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
                          "is required for XPUB");
 }
 
-bool ParseDescriptors(const std::string descs, AddressType& a, WalletType& w,
+bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
                       int& m, int& n, std::vector<SingleSigner>& signers) {
   try {
     auto sep = descs.find('\n', 0);
@@ -232,6 +232,22 @@ bool ParseDescriptors(const std::string descs, AddressType& a, WalletType& w,
   } catch (...) {
   }
   return false;
+}
+
+bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
+                          AddressType& address_type, WalletType& wallet_type,
+                          int& m, int& n, std::vector<SingleSigner>& signers) {
+  try {
+    const auto json_descs = json::parse(json_str);
+    if (auto name_iter = json_descs.find("label");
+        name_iter != json_descs.end()) {
+      name = *name_iter;
+    }
+    return ParseDescriptors(json_descs["descriptor"], address_type, wallet_type,
+                            m, n, signers);
+  } catch (std::exception& e) {
+    return false;
+  }
 }
 
 }  // namespace nunchuk

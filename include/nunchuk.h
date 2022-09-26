@@ -1054,6 +1054,7 @@ struct BtcUri {
 class NUNCHUK_EXPORT Utils {
  public:
   static void SetChain(Chain chain);
+  static Chain GetChain();
   static std::string GenerateRandomMessage(int message_length = 20);
   static std::string GenerateRandomChainCode();
   static std::string GenerateHealthCheckMessage();

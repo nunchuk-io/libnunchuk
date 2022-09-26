@@ -170,6 +170,8 @@ std::string Utils::AddressToScriptPubKey(const std::string& address) {
 
 void Utils::SetChain(Chain chain) { CoreUtils::getInstance().SetChain(chain); }
 
+Chain Utils::GetChain() { return CoreUtils::getInstance().GetChain(); }
+
 std::string Utils::GenerateMnemonic() {
   return SoftwareSigner::GenerateMnemonic();
 }
@@ -236,16 +238,32 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
   int m;
   int n;
   std::vector<SingleSigner> signers;
-  if (!ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers)) {
-    // Not BSMS format, fallback to legacy format
-    if (!ParseDescriptors(descs, address_type, wallet_type, m, n, signers)) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Could not parse descriptor");
+  std::string name;
+
+  // Try all possible formats: BSMS, Descriptors, JSON with `descriptor` key,
+  // Multisig config
+  for (bool ok : {
+           ParseDescriptorRecord(descs, address_type, wallet_type, m, n,
+                                 signers),
+           ParseDescriptors(descs, address_type, wallet_type, m, n, signers),
+           ParseJSONDescriptors(descs, name, address_type, wallet_type, m, n,
+                                signers),
+           ParseConfig(Utils::GetChain(), descs, name, address_type,
+                       wallet_type, m, n, signers),
+
+       }) {
+    if (ok) {
+      std::string id = GetWalletId(signers, m, address_type, wallet_type);
+      bool is_escrow = wallet_type == WalletType::ESCROW;
+      auto wallet =
+          Wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
+      wallet.set_name(name);
+      return wallet;
     }
   }
-  std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  bool is_escrow = wallet_type == WalletType::ESCROW;
-  return {id, m, n, signers, address_type, is_escrow, std::time(0)};
+
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Could not parse descriptor");
 }
 
 Wallet Utils::ParseKeystoneWallet(Chain chain,
