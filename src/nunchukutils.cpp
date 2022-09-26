@@ -242,24 +242,18 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
 
   // Try all possible formats: BSMS, Descriptors, JSON with `descriptor` key,
   // Multisig config
-  for (bool ok : {
-           ParseDescriptorRecord(descs, address_type, wallet_type, m, n,
-                                 signers),
-           ParseDescriptors(descs, address_type, wallet_type, m, n, signers),
-           ParseJSONDescriptors(descs, name, address_type, wallet_type, m, n,
-                                signers),
-           ParseConfig(Utils::GetChain(), descs, name, address_type,
-                       wallet_type, m, n, signers),
-
-       }) {
-    if (ok) {
-      std::string id = GetWalletId(signers, m, address_type, wallet_type);
-      bool is_escrow = wallet_type == WalletType::ESCROW;
-      auto wallet =
-          Wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-      wallet.set_name(name);
-      return wallet;
-    }
+  if (ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers) ||
+      ParseDescriptors(descs, address_type, wallet_type, m, n, signers) ||
+      ParseJSONDescriptors(descs, name, address_type, wallet_type, m, n,
+                           signers) ||
+      ParseConfig(Utils::GetChain(), descs, name, address_type, wallet_type, m,
+                  n, signers)) {
+    std::string id = GetWalletId(signers, m, address_type, wallet_type);
+    bool is_escrow = wallet_type == WalletType::ESCROW;
+    auto wallet =
+        Wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
+    wallet.set_name(name);
+    return wallet;
   }
 
   throw NunchukException(NunchukException::INVALID_PARAMETER,
