@@ -24,14 +24,16 @@
 #include <iostream>
 #include <regex>
 #include <utils/stringutils.hpp>
+#include "descriptor.h"
 
 namespace {
 
-static std::regex NAME_REGEX("Name:(.+)");
-static std::regex POLICY_REGEX("Policy: ([0-9]{1,2})(.+?)([0-9]{1,2})");
-static std::regex FORMAT_REGEX("Format:(.+)");
-static std::regex DERIVATION_REGEX("Derivation:(.+)");
-static std::regex XFP_REGEX("([0-9a-fA-F]{8}):(.+)");
+inline static const std::regex NAME_REGEX("Name:(.+)");
+inline static const std::regex POLICY_REGEX(
+    "Policy: ([0-9]{1,2})(.+?)([0-9]{1,2})");
+inline static const std::regex FORMAT_REGEX("Format:(.+)");
+inline static const std::regex DERIVATION_REGEX("Derivation:(.+)");
+inline static const std::regex XFP_REGEX("([0-9a-fA-F]{8}):(.+)");
 
 inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
@@ -41,11 +43,10 @@ inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
           << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
           << std::endl
           << "Format: "
-          << (wallet.get_address_type() == AddressType::LEGACY
-                  ? "P2SH"
-                  : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
-                        ? "P2WSH"
-                        : "P2WSH-P2SH")
+          << (wallet.get_address_type() == AddressType::LEGACY ? "P2SH"
+              : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
+                  ? "P2WSH"
+                  : "P2WSH-P2SH")
           << std::endl;
 
   content << std::endl;
@@ -112,7 +113,9 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
           throw NunchukException(NunchukException::INVALID_FORMAT,
                                  "Invalid xpub");
         }
-        signers.push_back(SingleSigner{xfp, xpub, {}, derivation_path, xfp, 0});
+        signers.push_back(SingleSigner(
+            GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
+            {}, derivation_path, xfp, 0));
       }
     }
     if (n <= 0) n = signers.size();
@@ -121,6 +124,10 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
       std::stringstream s;
       s << "ImportWallet-" << m << "of" << n;
       name = s.str();
+    }
+    if (n <= 0 || m <= 0 || m > n || n != signers.size()) {
+      throw NunchukException(NunchukException::INVALID_FORMAT,
+                             "Invalid parameters n, m");
     }
   } catch (NunchukException& ne) {
     throw;

@@ -32,6 +32,12 @@ Wallet::Wallet(const std::string& id, int m, int n,
       address_type_(address_type),
       escrow_(is_escrow),
       create_date_(create_date) {
+  if (n <= 0)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: n <= 0");
+  if (m <= 0)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: m <= 0");
   if (m_ > n_)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: m > n");
@@ -48,9 +54,9 @@ int Wallet::get_n() const { return n_; }
 std::vector<SingleSigner> Wallet::get_signers() const { return signers_; }
 AddressType Wallet::get_address_type() const { return address_type_; }
 WalletType Wallet::get_wallet_type() const {
-  return get_n() == 1
-             ? WalletType::SINGLE_SIG
-             : is_escrow() ? WalletType::ESCROW : WalletType::MULTI_SIG;
+  return get_n() == 1  ? WalletType::SINGLE_SIG
+         : is_escrow() ? WalletType::ESCROW
+                       : WalletType::MULTI_SIG;
 }
 bool Wallet::is_escrow() const { return escrow_; }
 Amount Wallet::get_balance() const { return balance_; }

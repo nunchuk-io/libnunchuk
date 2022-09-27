@@ -141,7 +141,7 @@ std::vector<Wallet> NunchukImpl::GetWallets(
 
   static constexpr auto less_func =
       [](const Wallet& lhs, const Wallet& rhs,
-          const std::vector<OrderBy>& orders) -> bool {
+         const std::vector<OrderBy>& orders) -> bool {
     for (auto&& order : orders) {
       int order_result = order_func(lhs, rhs, order);
       if (order_result == 0) {
@@ -1340,15 +1340,58 @@ bool NunchukImpl::SyncWithBackup(const std::string& data,
   return rs;
 }
 std::vector<SingleSigner> NunchukImpl::ParseJSONSigners(
-    const std::string& json) {
+    const std::string& json_str) {
   std::vector<SingleSigner> signers;
-  if (ParsePassportSignerConfig(chain_, json, signers)) {
+  if (ParsePassportSignerConfig(chain_, json_str, signers)) {
     for (auto&& signer : signers) {
       signer.set_type(SignerType::COLDCARD_NFC);
       signer.set_name("COLDCARD");
     }
     return signers;
   } else {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
+}
+
+std::vector<Wallet> NunchukImpl::ParseJSONWallets(const std::string& json_str) {
+  static const std::array<std::tuple<std::string, std::string, AddressType>, 3>
+      FILTER_WALLETS{{
+          {"bip84", "m/84h - Native Segwit (Recommended)",
+           AddressType::NATIVE_SEGWIT},
+          {"bip49", "m/49h - Nested Segwit", AddressType::NESTED_SEGWIT},
+          {"bip44", "m/44h - Legacy", AddressType::LEGACY},
+      }};
+
+  try {
+    const nlohmann::json data = json::parse(json_str);
+    const std::string target_format = chain_ == Chain::MAIN ? "xpub" : "tpub";
+    const std::string xfp = to_lower_copy(data["xfp"].get<std::string>());
+
+    std::vector<Wallet> result;
+    for (auto&& [bip, tmp_name, address_type] : FILTER_WALLETS) {
+      auto bip_iter = data.find(bip);
+      if (bip_iter == data.end()) {
+        continue;
+      }
+
+      const std::string xpub =
+          Utils::SanitizeBIP32Input(bip_iter.value()["xpub"], target_format);
+      const std::string derivation_path = bip_iter.value()["deriv"];
+      SingleSigner signer(
+          GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
+          {}, derivation_path, xfp, 0);
+      signer.set_type(SignerType::COLDCARD_NFC);
+
+      Wallet wallet({}, 1, 1, {std::move(signer)}, address_type, false,
+                    std::time(0));
+      wallet.set_name(tmp_name);
+      result.emplace_back(std::move(wallet));
+    }
+    return result;
+  } catch (BaseException& e) {
+    throw;
+  } catch (...) {
     throw NunchukException(NunchukException::INVALID_FORMAT,
                            "Invalid data format");
   }

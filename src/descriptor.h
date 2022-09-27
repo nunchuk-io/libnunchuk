@@ -65,6 +65,9 @@ bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
                           AddressType& address_type, WalletType& wallet_type,
                           int& m, int& n, std::vector<SingleSigner>& signers);
 
+std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
+                                            const std::string& prefix = {});
+
 }  // namespace nunchuk
 
 #endif  // NUNCHUK_DESCRIPTOR_H
