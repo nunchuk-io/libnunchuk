@@ -424,10 +424,11 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        std::string signer_name = signer.get_name();
-        if (signer_name.empty()) {
-          signer_name = "import";
-        }
+        // TODO(giahuy): should check against SignerType::UNKNOWN once we add it.
+        std::string signer_name = signer.get_type() == SignerType::AIRGAP
+                                      ? "import"
+                                      : signer.get_name();
+
         signer_db.AddRemote(
             signer_name, signer.get_xpub(), signer.get_public_key(),
             signer.get_derivation_path(), true, signer.get_type());
