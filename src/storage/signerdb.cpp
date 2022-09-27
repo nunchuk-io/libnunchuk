@@ -306,9 +306,9 @@ bool NunchukSignerDb::AddRemote(const std::string& name,
   sqlite3_bind_int64(stmt, 5, 0);
   sqlite3_bind_int(stmt, 6, used ? 1 : -1);
   sqlite3_step(stmt);
-  PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  updated |= UpdateSignerType(signer_type);
   return updated;
 }
 
@@ -442,6 +442,22 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return signers;
+}
+
+bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
+  // Only update its type if current is airgap
+  const std::string cur_type_str = GetString(DbKeys::SIGNER_TYPE);
+  if (cur_type_str.empty()) {
+    PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
+    return true;
+  }
+
+  const SignerType cur_type = SignerTypeFromStr(cur_type_str);
+  if (cur_type == SignerType::AIRGAP && cur_type != signer_type) {
+    PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
+    return true;
+  }
+  return false;
 }
 
 }  // namespace nunchuk
