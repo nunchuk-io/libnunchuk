@@ -114,7 +114,7 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
                                  "Invalid xpub");
         }
         signers.push_back(SingleSigner(
-            GetSignerNameFromDerivationPath(derivation_path, "ImportKey-"),
+            GetSignerNameFromDerivationPath(derivation_path, "ImportedKey-"),
             xpub, {}, derivation_path, xfp, 0));
       }
     }
@@ -122,7 +122,7 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
     if (m <= 0) m = n;
     if (name.empty()) {
       std::stringstream s;
-      s << "ImportWallet-" << m << "of" << n;
+      s << "ImportedWallet-" << m << "of" << n;
       name = s.str();
     }
     if (n <= 0 || m <= 0 || m > n || n != signers.size()) {
