@@ -28,6 +28,7 @@
 #include <utils/loguru.hpp>
 #include <boost/algorithm/string.hpp>
 #include <signingprovider.h>
+#include <utils/stringutils.hpp>
 
 using json = nlohmann::json;
 namespace nunchuk {
@@ -248,6 +249,21 @@ bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
   } catch (std::exception& e) {
     return false;
   }
+}
+
+std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
+                                            const std::string& prefix) {
+  if (derivation_path.empty()) {
+    return {};
+  }
+  const auto sp = split(derivation_path, '/');
+  if (sp.size() < 2) {
+    return {};
+  }
+
+  std::string rs = prefix + sp[0] + "/" + sp[1];
+  std::replace(rs.begin(), rs.end(), '\'', 'h');
+  return rs;
 }
 
 }  // namespace nunchuk
