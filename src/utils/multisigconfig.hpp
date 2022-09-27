@@ -59,7 +59,7 @@ inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
   return content.str();
 }
 
-inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
+inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
                         std::string& name, nunchuk::AddressType& a,
                         nunchuk::WalletType& w, int& m, int& n,
                         std::vector<nunchuk::SingleSigner>& signers) {
@@ -114,8 +114,8 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string content,
                                  "Invalid xpub");
         }
         signers.push_back(SingleSigner(
-            GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
-            {}, derivation_path, xfp, 0));
+            GetSignerNameFromDerivationPath(derivation_path, "ImportKey-"),
+            xpub, {}, derivation_path, xfp, 0));
       }
     }
     if (n <= 0) n = signers.size();
