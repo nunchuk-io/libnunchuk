@@ -75,6 +75,7 @@ class NunchukSignerDb : public NunchukDb {
   SoftwareSigner GetSoftwareSigner(const std::string &passphrase) const;
 
  private:
+  bool UpdateSignerType(SignerType signer_type);
   friend class NunchukStorage;
 };
 

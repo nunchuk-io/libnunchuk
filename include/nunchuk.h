@@ -307,7 +307,8 @@ class NUNCHUK_EXPORT SingleSigner {
                const std::string& public_key,
                const std::string& derivation_path,
                const std::string& master_fingerprint, time_t last_health_check,
-               const std::string& master_signer_id = {}, bool used = false);
+               const std::string& master_signer_id = {}, bool used = false,
+               SignerType signer_type = SignerType::AIRGAP);
 
   std::string get_name() const;
   std::string get_xpub() const;
