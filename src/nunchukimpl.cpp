@@ -134,6 +134,9 @@ std::vector<Wallet> NunchukImpl::GetWallets(
         return lhs.get_create_date() - rhs.get_create_date();
       case OrderBy::NEWEST_FIRST:
         return rhs.get_create_date() - lhs.get_create_date();
+      case OrderBy::MOST_RECENTLY_USED:
+      case OrderBy::LEAST_RECENTLY_USED:
+        break;
     }
     throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
                            "Version not supported");

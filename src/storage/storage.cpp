@@ -424,9 +424,13 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        signer_db.AddRemote("import", signer.get_xpub(),
-                            signer.get_public_key(),
-                            signer.get_derivation_path(), true);
+        std::string signer_name = signer.get_name();
+        if (signer_name.empty()) {
+          signer_name = "import";
+        }
+        signer_db.AddRemote(
+            signer_name, signer.get_xpub(), signer.get_public_key(),
+            signer.get_derivation_path(), true, signer.get_type());
       }
     }
   }
@@ -509,11 +513,19 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
     const WalletType& wallet_type, const AddressType& address_type, int index) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, mastersigner_id);
-  std::string path = GetBip32Path(chain, wallet_type, address_type, index);
-  auto signer = SingleSigner(
-      signer_db.GetName(), signer_db.GetXpub(wallet_type, address_type, index),
-      "", path, signer_db.GetFingerprint(), signer_db.GetLastHealthCheck(),
-      mastersigner_id);
+  const std::string path =
+      GetBip32Path(chain, wallet_type, address_type, index);
+  const std::string xpub = signer_db.GetXpub(wallet_type, address_type, index);
+
+  if (xpub.empty()) {
+    throw NunchukException(
+        NunchukException::RUN_OUT_OF_CACHED_XPUB,
+        strprintf("[%s] has run out of XPUBs. Please top up.",
+                  signer_db.GetName()));
+  }
+  auto signer = SingleSigner(signer_db.GetName(), xpub, "", path,
+                             signer_db.GetFingerprint(),
+                             signer_db.GetLastHealthCheck(), mastersigner_id);
   signer.set_type(signer_db.GetSignerType());
   return signer;
 }
@@ -671,9 +683,9 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
         if (se.code() != StorageException::SIGNER_NOT_FOUND ||
             !create_signers_if_not_exist)
           throw;
-        signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
-                            signer.get_public_key(),
-                            signer.get_derivation_path(), true);
+        signer_db.AddRemote(
+            signer.get_name(), signer.get_xpub(), signer.get_public_key(),
+            signer.get_derivation_path(), true, signer.get_type());
       }
     }
     SingleSigner true_signer(name, signer.get_xpub(), signer.get_public_key(),
