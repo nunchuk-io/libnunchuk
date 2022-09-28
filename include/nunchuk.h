@@ -382,16 +382,19 @@ class NUNCHUK_EXPORT PrimaryKey {
 
 class NUNCHUK_EXPORT Wallet {
  public:
-  Wallet();
+  Wallet(bool strict = true) noexcept;
   Wallet(const std::string& id, int m, int n,
          const std::vector<SingleSigner>& signers, AddressType address_type,
-         bool is_escrow, time_t create_date);
+         bool is_escrow, time_t create_date, bool strict = true);
+  Wallet(const std::string& id, const std::string& name, int m, int n,
+         const std::vector<SingleSigner>& signers, AddressType address_type,
+         bool is_escrow, time_t create_date, bool strict = true);
 
   std::string get_id() const;
   std::string get_name() const;
   int get_m() const;
   int get_n() const;
-  std::vector<SingleSigner> get_signers() const;
+  const std::vector<SingleSigner>& get_signers() const;
   AddressType get_address_type() const;
   WalletType get_wallet_type() const;
   bool is_escrow() const;
@@ -400,22 +403,30 @@ class NUNCHUK_EXPORT Wallet {
   std::string get_description() const;
   std::string get_descriptor(DescriptorPath key_path, int index = -1,
                              bool sorted = true) const;
+  void check_valid() const;
   void set_name(const std::string& value);
+  void set_n(int n);
+  void set_m(int m);
+  void set_signers(std::vector<SingleSigner> signers);
+  void set_address_type(AddressType address_type);
+  void set_escrow(bool escrow);
   void set_balance(const Amount& value);
   void set_description(const std::string& value);
   void set_create_date(const time_t value);
 
  private:
+  void post_update();
   std::string id_;
   std::string name_;
-  int m_;
-  int n_;
+  int m_{0};
+  int n_{0};
   std::vector<SingleSigner> signers_;
   AddressType address_type_;
-  bool escrow_;
-  Amount balance_;
-  time_t create_date_;
+  bool escrow_{false};
+  Amount balance_{0};
+  time_t create_date_{std::time(0)};
   std::string description_;
+  bool strict_{true};
 };
 
 // Class that represents an Unspent Transaction Output (UTXO)

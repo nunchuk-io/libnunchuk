@@ -21,37 +21,39 @@
 
 namespace nunchuk {
 
-Wallet::Wallet() {}
+Wallet::Wallet(bool strict) noexcept : strict_(strict) {}
 Wallet::Wallet(const std::string& id, int m, int n,
                const std::vector<SingleSigner>& signers,
-               AddressType address_type, bool is_escrow, time_t create_date)
+               AddressType address_type, bool is_escrow, time_t create_date,
+               bool strict)
     : id_(id),
       m_(m),
       n_(n),
       signers_(signers),
       address_type_(address_type),
       escrow_(is_escrow),
-      create_date_(create_date) {
-  if (n <= 0)
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: n <= 0");
-  if (m <= 0)
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: m <= 0");
-  if (m_ > n_)
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: m > n");
-  if (n_ != signers_.size())
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: n and signers are not match");
+      create_date_(create_date),
+      strict_(strict) {
+  if (strict_) check_valid();
   if (id_.empty())
     id_ = GetWalletId(signers_, m_, address_type, get_wallet_type());
 }
+
+Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
+               const std::vector<SingleSigner>& signers,
+               AddressType address_type, bool is_escrow, time_t create_date,
+               bool strict)
+    : Wallet(id, m, n, signers, address_type, is_escrow, create_date, strict) {
+  name_ = name;
+};
+
 std::string Wallet::get_id() const { return id_; }
 std::string Wallet::get_name() const { return name_; }
 int Wallet::get_m() const { return m_; }
 int Wallet::get_n() const { return n_; }
-std::vector<SingleSigner> Wallet::get_signers() const { return signers_; }
+const std::vector<SingleSigner>& Wallet::get_signers() const {
+  return signers_;
+}
 AddressType Wallet::get_address_type() const { return address_type_; }
 WalletType Wallet::get_wallet_type() const {
   return get_n() == 1  ? WalletType::SINGLE_SIG
@@ -62,7 +64,42 @@ bool Wallet::is_escrow() const { return escrow_; }
 Amount Wallet::get_balance() const { return balance_; }
 time_t Wallet::get_create_date() const { return create_date_; }
 std::string Wallet::get_description() const { return description_; }
+void Wallet::check_valid() const {
+  if (n_ <= 0)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: n <= 0");
+  if (m_ <= 0)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: m <= 0");
+  if (m_ > n_)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: m > n");
+  if (n_ != signers_.size())
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: n and signers are not match");
+  // TODO: need to call get_descriptor() for bitcoin core validation?
+}
 void Wallet::set_name(const std::string& value) { name_ = value; }
+void Wallet::set_n(int n) {
+  n_ = n;
+  post_update();
+}
+void Wallet::set_m(int m) {
+  m_ = m;
+  post_update();
+}
+void Wallet::set_signers(std::vector<SingleSigner> signers) {
+  signers_ = std::move(signers);
+  post_update();
+}
+void Wallet::set_address_type(AddressType address_type) {
+  address_type_ = address_type;
+  post_update();
+}
+void Wallet::set_escrow(bool escrow) {
+  escrow_ = escrow;
+  post_update();
+};
 void Wallet::set_balance(const Amount& value) { balance_ = value; }
 void Wallet::set_description(const std::string& value) { description_ = value; }
 void Wallet::set_create_date(const time_t value) { create_date_ = value; }
@@ -72,6 +109,13 @@ std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
   return GetDescriptorForSigners(get_signers(), get_m(), key_path,
                                  get_address_type(), get_wallet_type(),
                                  is_escrow() ? -1 : index, sorted);
+}
+
+void Wallet::post_update() {
+  id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type());
+  if (strict_) {
+    check_valid();
+  }
 }
 
 }  // namespace nunchuk
