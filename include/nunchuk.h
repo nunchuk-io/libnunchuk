@@ -899,6 +899,9 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) = 0;
 
+  virtual std::vector<SingleSigner> ParseSeedSigner(
+      const std::vector<std::string>& qr_data) = 0;
+
   // NFC
   virtual std::unique_ptr<tap_protocol::CKTapCard> CreateCKTapCard(
       std::unique_ptr<tap_protocol::Transport> transport) = 0;
