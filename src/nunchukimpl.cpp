@@ -107,6 +107,7 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
 }
 
 Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
+  w.check_valid();
   Wallet wallet = storage_->CreateWallet(chain_, w, allow_used_signer);
   ScanWalletAddress(wallet.get_id());
   storage_listener_();
@@ -195,6 +196,7 @@ bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
 }
 
 bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
+  wallet.check_valid();
   bool rs = storage_->UpdateWallet(chain_, wallet);
   storage_listener_();
   return rs;
@@ -1329,6 +1331,57 @@ Transaction NunchukImpl::ImportPassportTransaction(
     const std::string& wallet_id, const std::vector<std::string>& qr_data) {
   auto psbt = nunchuk::bcr::DecodeUniformResource(qr_data);
   return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
+}
+
+std::vector<SingleSigner> NunchukImpl::ParseSeedSigner(
+    const std::vector<std::string>& qr_data) {
+  if (qr_data.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "QR data is empty");
+  }
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
+  }
+
+  auto i = decoder.result_ur().cbor().begin();
+  auto end = decoder.result_ur().cbor().end();
+  CryptoAccount account{};
+  decodeCryptoAccount(i, end, account);
+
+  std::vector<SingleSigner> signers;
+
+  const std::string xfp =
+      (std::stringstream() << std::hex << account.masterFingerprint).str();
+
+  for (auto&& key : account.outputDescriptors) {
+    CExtPubKey xpub{};
+    xpub.chaincode = ChainCode(key.chaincode);
+    xpub.pubkey = CPubKey(key.keydata);
+    xpub.nChild = key.origin.childNumber;
+    xpub.nDepth = key.origin.depth;
+    u8from32(xpub.vchFingerprint, key.parentFingerprint);
+
+    std::stringstream path;
+    path << "m" << FormatHDKeypath(key.origin.keypath);
+    const std::string derivation_path = path.str();
+    signers.emplace_back(SingleSigner(
+        GetSignerNameFromDerivationPath(derivation_path, "SeedSigner-"),
+        EncodeExtPubKey(xpub), {}, derivation_path, xfp, 0, {}, false,
+        SignerType::AIRGAP));
+  }
+
+  if (signers.empty()) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
+
+  return signers;
 }
 
 std::string NunchukImpl::ExportBackup() { return storage_->ExportBackup(); }
