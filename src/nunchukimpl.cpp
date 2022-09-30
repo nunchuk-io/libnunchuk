@@ -22,6 +22,7 @@
 #include <key_io.h>
 #include <validation.h>
 #include <algorithm>
+#include "descriptor.h"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -1333,7 +1334,7 @@ Transaction NunchukImpl::ImportPassportTransaction(
   return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt)));
 }
 
-std::vector<SingleSigner> NunchukImpl::ParseSeedSigner(
+std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
     const std::vector<std::string>& qr_data) {
   if (qr_data.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -1382,6 +1383,25 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigner(
   }
 
   return signers;
+}
+
+std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
+    const std::vector<std::string>& qr_data) {
+  if (qr_data.empty()) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
+  const auto parse_signer_string = [&]() -> std::vector<SingleSigner> {
+    return {ParseSignerString(qr_data[0])};
+  };
+
+  const auto parse_keystone_signer = [&]() -> std::vector<SingleSigner> {
+    return {ParseKeystoneSigner(qr_data[0])};
+  };
+
+  return RunThrowOne(parse_signer_string, parse_keystone_signer,
+                     std::bind(&Nunchuk::ParseSeedSigners, this, qr_data),
+                     std::bind(&Nunchuk::ParsePassportSigners, this, qr_data));
 }
 
 std::string NunchukImpl::ExportBackup() { return storage_->ExportBackup(); }

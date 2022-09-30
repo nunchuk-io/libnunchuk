@@ -18,14 +18,35 @@
 #ifndef NUNCHUK_ERRORUTILS_H
 #define NUNCHUK_ERRORUTILS_H
 
+#include <exception>
+#include <optional>
 #include <string>
+#include <utility>
+#include <variant>
+#include <functional>
+
 namespace nunchuk {
+
 inline std::string NormalizeErrorMessage(std::string message) {
   if (!message.empty()) {
     message[0] = std::toupper(message[0]);
   }
   return message;
 }
+
+template <typename Function>
+auto RunThrowOne(Function &&func) {
+  return func();
+}
+template <typename Function, typename... Functions>
+auto RunThrowOne(Function &&func, Functions &&...funcs) {
+  try {
+    return func();
+  } catch (const std::exception &e) {
+    return RunThrowOne(std::forward<Functions>(funcs)...);
+  }
+}
+
 }  // namespace nunchuk
 
 #endif

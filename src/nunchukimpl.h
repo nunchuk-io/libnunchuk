@@ -236,7 +236,9 @@ class NunchukImpl : public Nunchuk {
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) override;
 
-  std::vector<SingleSigner> ParseSeedSigner(
+  std::vector<SingleSigner> ParseSeedSigners(
+      const std::vector<std::string>& qr_data) override;
+  std::vector<SingleSigner> ParseQRSigners(
       const std::vector<std::string>& qr_data) override;
 
   // NFC

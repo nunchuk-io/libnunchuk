@@ -19,6 +19,7 @@
 
 #include <descriptor.h>
 #include <exception>
+#include <utility>
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
 #include <utils/json.hpp>
@@ -424,7 +425,8 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        // TODO(giahuy): should check against SignerType::UNKNOWN once we add it.
+        // TODO(giahuy): should check against SignerType::UNKNOWN once we add
+        // it.
         std::string signer_name = signer.get_type() == SignerType::AIRGAP
                                       ? "import"
                                       : signer.get_name();
@@ -831,16 +833,22 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   auto vtx = db.GetTransactions(count, skip);
 
   // remove invalid, out-of-date Send transactions
-  auto utxos = db.GetUtxos(true, true);
-  auto is_valid_input = [utxos](const TxInput& input) {
+
+  const auto utxos_set = [utxos = db.GetUtxos(true, true)]() {
+    std::set<std::pair<std::string, int>> ret;
     for (auto&& utxo : utxos) {
-      if (input.first == utxo.get_txid() && input.second == utxo.get_vout())
-        return true;
+      ret.insert({utxo.get_txid(), utxo.get_vout()});
     }
-    return false;
+    return ret;
+  }();
+
+  auto is_valid_input = [&](const TxInput& input) {
+    return utxos_set.find(input) != utxos_set.end();
   };
+
   auto end = std::remove_if(vtx.begin(), vtx.end(), [&](const Transaction& tx) {
     if (!tx.get_replace_txid().empty() && tx.get_replaced_by_txid().empty()) {
+      // TODO: some vtxs are already being moved
       for (auto&& r : vtx) {
         if (r.get_txid() == tx.get_replace_txid() &&
             r.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
@@ -848,7 +856,8 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
         }
       }
     }
-    if (tx.get_height() == -1) {
+    if (tx.get_height() == -1 ||
+        tx.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
       for (auto&& input : tx.get_inputs()) {
         if (!is_valid_input(input)) {
           return true;
