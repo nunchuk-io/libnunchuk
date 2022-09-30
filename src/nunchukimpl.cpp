@@ -41,6 +41,7 @@
 #include <cbor-lite.hpp>
 #include <util/bip32.h>
 #include <regex>
+#include <charconv>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -1357,8 +1358,9 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
 
   std::vector<SingleSigner> signers;
 
-  const std::string xfp =
-      (std::stringstream() << std::hex << account.masterFingerprint).str();
+  std::string xfp(8, '\0');
+  std::to_chars(xfp.data(), xfp.data() + xfp.size(), account.masterFingerprint,
+                16);
 
   for (auto&& key : account.outputDescriptors) {
     CExtPubKey xpub{};
