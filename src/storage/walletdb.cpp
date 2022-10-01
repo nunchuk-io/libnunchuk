@@ -732,7 +732,9 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
   for (auto&& tx : transactions) {
     memo_map[tx.get_txid()] = tx.get_memo();
     height_map[tx.get_txid()] = tx.get_height();
-    if (tx.get_height() != 0) continue;
+    if (tx.get_height() != 0 ||
+        tx.get_status() == TransactionStatus::NETWORK_REJECTED)
+      continue;
 
     if (include_mempool) {
       // CoreRPC uses polling requests to get new UTXO so it has some delay to
