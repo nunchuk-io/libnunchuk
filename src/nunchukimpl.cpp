@@ -137,7 +137,9 @@ std::vector<Wallet> NunchukImpl::GetWallets(
       case OrderBy::NEWEST_FIRST:
         return rhs.get_create_date() - lhs.get_create_date();
       case OrderBy::MOST_RECENTLY_USED:
+        return rhs.get_last_used() - lhs.get_last_used();
       case OrderBy::LEAST_RECENTLY_USED:
+        return lhs.get_last_used() - rhs.get_last_used();
         break;
     }
     throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
@@ -1068,7 +1070,10 @@ std::string NunchukImpl::GetSelectedWallet() {
 }
 
 bool NunchukImpl::SetSelectedWallet(const std::string& wallet_id) {
-  return storage_->SetSelectedWallet(chain_, wallet_id);
+  storage_->SetSelectedWallet(chain_, wallet_id);
+  auto wallet = GetWallet(wallet_id);
+  wallet.set_last_used(std::time(nullptr));
+  return storage_->UpdateWallet(chain_, wallet);
 }
 
 void NunchukImpl::DisplayAddressOnDevice(

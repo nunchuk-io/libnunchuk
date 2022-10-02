@@ -69,6 +69,7 @@ class NunchukStorage {
                                          int index);
 
   std::vector<std::string> ListWallets(Chain chain);
+  std::vector<std::string> ListRecentlyUsedWallets(Chain chain);
   std::vector<std::string> ListMasterSigners(Chain chain);
 
   Wallet GetWallet(Chain chain, const std::string &id,

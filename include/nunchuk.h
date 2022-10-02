@@ -403,6 +403,7 @@ class NUNCHUK_EXPORT Wallet {
   std::string get_description() const;
   std::string get_descriptor(DescriptorPath key_path, int index = -1,
                              bool sorted = true) const;
+  time_t get_last_used() const;
   void check_valid() const;
   void set_name(const std::string& value);
   void set_n(int n);
@@ -413,6 +414,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_balance(const Amount& value);
   void set_description(const std::string& value);
   void set_create_date(const time_t value);
+  void set_last_used(const time_t value);
 
  private:
   void post_update();
@@ -427,6 +429,7 @@ class NUNCHUK_EXPORT Wallet {
   time_t create_date_{std::time(0)};
   std::string description_;
   bool strict_{true};
+  time_t last_used_{0};
 };
 
 // Class that represents an Unspent Transaction Output (UTXO)
