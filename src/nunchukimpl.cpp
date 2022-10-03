@@ -289,12 +289,15 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int consecutive_unused = 0;
   std::vector<std::string> unused_addresses;
+  std::map<std::string, int> addresses_index;
   std::string wallet_id = wallet.get_id();
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
+    addresses_index[address] = index;
     if (synchronizer_->LookAhead(chain_, wallet_id, address, index, internal)) {
       for (auto&& a : unused_addresses) {
-        storage_->AddAddress(chain_, wallet_id, a, index, internal);
+        storage_->AddAddress(chain_, wallet_id, a, addresses_index[a],
+                             internal);
       }
       unused_addresses.clear();
       consecutive_unused = 0;
