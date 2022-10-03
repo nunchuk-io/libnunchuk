@@ -27,6 +27,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 #include <sstream>
+#include "storage/common.h"
 
 #include <univalue.h>
 #include <rpc/util.h>
@@ -150,6 +151,10 @@ bool NunchukWalletDb::SetDescription(const std::string& value) {
   return PutString(DbKeys::DESCRIPTION, value);
 }
 
+bool NunchukWalletDb::SetLastUsed(time_t value) {
+  return PutInt(DbKeys::LAST_USED, value);
+}
+
 Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) const {
   json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
   int m = immutable_data["m"];
@@ -161,6 +166,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) const {
   Wallet wallet(id_, m, n, GetSigners(), address_type, is_escrow, create_date);
   wallet.set_name(GetString(DbKeys::NAME));
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
+  wallet.set_last_used(GetInt(DbKeys::LAST_USED));
   if (!skip_balance) wallet.set_balance(GetBalance());
   if (!skip_provider) {
     GetAllAddressData();  // update range to max address index

@@ -622,13 +622,24 @@ std::string NunchukStorage::GetMasterSignerXPub(
 
 std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
   std::shared_lock<std::shared_mutex> lock(access_);
+  return ListWallets0(chain);
+}
+
+std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
+  std::shared_lock<std::shared_mutex> lock(access_);
   auto ids = ListWallets0(chain);
-  const std::string selected_id = GetAppStateDb(chain).GetSelectedWallet();
-  if (auto selected_iter = std::find(ids.begin(), ids.end(), selected_id);
-      selected_iter != ids.end()) {
-    // Move selected wallet to front, so it will be scanned first when open app
-    std::rotate(ids.begin(), selected_iter, std::next(selected_iter));
+
+  std::map<std::string, time_t> last_used_map;
+  for (auto&& id : ids) {
+    auto wallet_db = GetWalletDb(chain, id);
+    auto wallet = wallet_db.GetWallet(true, true);
+    last_used_map.insert({id, wallet.get_last_used()});
   }
+
+  std::sort(ids.begin(), ids.end(),
+            [&](const std::string& lhs, const std::string& rhs) {
+              return last_used_map[lhs] > last_used_map[rhs];
+            });
   return ids;
 }
 
@@ -704,6 +715,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_name(wallet.get_name());
   true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
+  true_wallet.set_last_used(wallet.get_last_used());
   return true_wallet;
 }
 
@@ -748,7 +760,8 @@ bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
   return wallet_db.SetName(wallet.get_name()) &&
-         wallet_db.SetDescription(wallet.get_description());
+         wallet_db.SetDescription(wallet.get_description()) &&
+         wallet_db.SetLastUsed(wallet.get_last_used());
 }
 
 bool NunchukStorage::UpdateMasterSigner(Chain chain,

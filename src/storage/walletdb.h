@@ -18,7 +18,6 @@
 #ifndef NUNCHUK_STORAGE_WALLETDB_H
 #define NUNCHUK_STORAGE_WALLETDB_H
 
-#include "common.h"
 #include "db.h"
 #include <nunchuk.h>
 #include <sqlcipher/sqlite3.h>
@@ -43,6 +42,7 @@ class NunchukWalletDb : public NunchukDb {
   void DeleteWallet();
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
+  bool SetLastUsed(time_t value);
   bool AddAddress(const std::string &address, int index, bool internal);
   Wallet GetWallet(bool skip_balance = false, bool skip_provider = false) const;
   std::vector<SingleSigner> GetSigners() const;

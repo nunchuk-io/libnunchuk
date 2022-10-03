@@ -64,6 +64,7 @@ bool Wallet::is_escrow() const { return escrow_; }
 Amount Wallet::get_balance() const { return balance_; }
 time_t Wallet::get_create_date() const { return create_date_; }
 std::string Wallet::get_description() const { return description_; }
+time_t Wallet::get_last_used() const { return last_used_; }
 void Wallet::check_valid() const {
   if (n_ <= 0)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -103,6 +104,7 @@ void Wallet::set_escrow(bool escrow) {
 void Wallet::set_balance(const Amount& value) { balance_ = value; }
 void Wallet::set_description(const std::string& value) { description_ = value; }
 void Wallet::set_create_date(const time_t value) { create_date_ = value; }
+void Wallet::set_last_used(const time_t value) { last_used_ = value; }
 
 std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
                                    bool sorted) const {

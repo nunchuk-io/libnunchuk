@@ -142,7 +142,7 @@ void CoreRpcSynchronizer::BlockchainSync(
     block_listener_(chain_tip_, blockchain_info["bestblockhash"]);
   }
 
-  auto wallet_ids = storage_->ListWallets(chain);
+  auto wallet_ids = storage_->ListRecentlyUsedWallets(chain);
   auto all_utxos = client_->ListUnspent();
   auto all_txs = client_->ListTransactions();
   json descriptors;

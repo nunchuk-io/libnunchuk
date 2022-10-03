@@ -156,7 +156,7 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
       OnScripthashStatusChange(app_settings_.get_chain(), notification);
     });
   }
-  auto wallet_ids = storage_->ListWallets(chain);
+  auto wallet_ids = storage_->ListRecentlyUsedWallets(chain);
   int process = 0;
   for (auto&& wallet_id : wallet_ids) {
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
