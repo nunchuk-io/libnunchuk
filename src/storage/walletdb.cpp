@@ -739,6 +739,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
     memo_map[tx.get_txid()] = tx.get_memo();
     height_map[tx.get_txid()] = tx.get_height();
     if (tx.get_height() != 0 ||
+        tx.get_status() == TransactionStatus::REPLACED ||
         tx.get_status() == TransactionStatus::NETWORK_REJECTED)
       continue;
 
