@@ -61,17 +61,29 @@ inline nunchuk::AddressType AddressTypeFromStr(const std::string& value) {
 }
 
 inline std::string SignerTypeToStr(nunchuk::SignerType value) {
-  if (value == nunchuk::SignerType::SOFTWARE) return "SOFTWARE";
-  if (value == nunchuk::SignerType::FOREIGN_SOFTWARE) return "FOREIGN_SOFTWARE";
-  if (value == nunchuk::SignerType::AIRGAP) return "AIRGAP";
-  if (value == nunchuk::SignerType::HARDWARE) return "HARDWARE";
-  if (value == nunchuk::SignerType::NFC) return "NFC";
-  if (value == nunchuk::SignerType::COLDCARD_NFC) return "COLDCARD_NFC";
+  switch (value) {
+    case nunchuk::SignerType::UNKNOWN:
+      return "UNKNOWN";
+    case nunchuk::SignerType::SOFTWARE:
+      return "SOFTWARE";
+    case nunchuk::SignerType::FOREIGN_SOFTWARE:
+      return "FOREIGN_SOFTWARE";
+    case nunchuk::SignerType::AIRGAP:
+      return "AIRGAP";
+    case nunchuk::SignerType::HARDWARE:
+      return "HARDWARE";
+    case nunchuk::SignerType::NFC:
+      return "NFC";
+    case nunchuk::SignerType::COLDCARD_NFC:
+      return "COLDCARD_NFC";
+  }
+
   throw nunchuk::NunchukException(
       nunchuk::NunchukException::INVALID_SIGNER_TYPE, "Invalid signer type");
 }
 
 inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
+  if (value == "UNKNOWN") return nunchuk::SignerType::UNKNOWN;
   if (value == "SOFTWARE") return nunchuk::SignerType::SOFTWARE;
   if (value == "FOREIGN_SOFTWARE") return nunchuk::SignerType::FOREIGN_SOFTWARE;
   if (value == "AIRGAP") return nunchuk::SignerType::AIRGAP;

@@ -105,8 +105,8 @@ void NunchukImpl::VerifyTapsignerBackup(const std::string& file_path,
     if (!master_signer_id.empty() && id != master_signer_id) {
       throw NunchukException(TapProtocolException::INVALID_DEVICE,
                              strprintf("Invalid device: key fingerprint "
-                                       "does not match. Expected '%s'. '%s'",
-                                       id, master_xprv));
+                                       "does not match. Expected '%s'",
+                                       id));
     }
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);

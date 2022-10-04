@@ -425,15 +425,14 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        // TODO(giahuy): should check against SignerType::UNKNOWN once we add
-        // it.
-        std::string signer_name = signer.get_type() == SignerType::AIRGAP
-                                      ? "import"
-                                      : signer.get_name();
+        std::string signer_name = signer.get_name();
+        if (signer_name.empty()) {
+          signer_name = signer.get_master_fingerprint();
+        }
 
         signer_db.AddRemote(
             signer_name, signer.get_xpub(), signer.get_public_key(),
-            signer.get_derivation_path(), true, signer.get_type());
+            signer.get_derivation_path(), true, SignerType::UNKNOWN);
       }
     }
   }
@@ -506,7 +505,7 @@ bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
   NunchukSignerDb signer_db{chain, id, db_file.string(), passphrase_};
   if (signer_db.IsMaster()) return true;
   auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
-  return remote.get_name() != "import" &&
+  return remote.get_type() == SignerType::UNKNOWN &&
          remote.get_xpub() == signer.get_xpub() &&
          remote.get_public_key() == signer.get_public_key();
 }
