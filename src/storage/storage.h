@@ -213,6 +213,8 @@ class NunchukStorage {
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
   Wallet CreateWallet0(Chain chain, const Wallet &wallet,
                        bool allow_used_signer);
+  SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
+                              bool create_if_not_exist) const;
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
 

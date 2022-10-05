@@ -199,7 +199,8 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
     ba::to_lower(master_fingerprint);
     time_t last_health_check = sqlite3_column_int64(stmt, 3);
     SingleSigner signer(name, xpub, public_key, derivation_path,
-                        master_fingerprint, last_health_check, master_id);
+                        master_fingerprint, last_health_check, master_id, false,
+                        SignerType::UNKNOWN);
     signers.push_back(signer);
     sqlite3_step(stmt);
   }
