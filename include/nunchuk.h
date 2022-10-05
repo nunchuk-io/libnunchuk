@@ -114,6 +114,7 @@ enum class DescriptorPath {
 };
 
 enum class SignerType {
+  UNKNOWN = -1,
   HARDWARE,
   AIRGAP,
   SOFTWARE,

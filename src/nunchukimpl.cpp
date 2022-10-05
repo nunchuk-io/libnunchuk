@@ -451,8 +451,8 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
     const AddressType& address_type) {
   int index = GetCurrentIndexFromMasterSigner(mastersigner_id, wallet_type,
                                               address_type);
+  auto mastersigner = GetMasterSigner(mastersigner_id);
   if (index < 0) {
-    auto mastersigner = GetMasterSigner(mastersigner_id);
     // Auto top up XPUBs for SOFTWARE signer
     if (mastersigner.get_type() == SignerType::SOFTWARE) {
       auto ss = storage_->GetSoftwareSigner(chain_, mastersigner_id);
@@ -467,8 +467,8 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
   if (index < 0) {
     throw NunchukException(
         NunchukException::RUN_OUT_OF_CACHED_XPUB,
-        strprintf("Run out of cached xpub! mastersigner_id = '%s'",
-                  mastersigner_id));
+        strprintf("[%s] has run out of XPUBs. Please top up.",
+                  mastersigner.get_name()));
   }
   return GetSignerFromMasterSigner(mastersigner_id, wallet_type, address_type,
                                    index);
@@ -978,29 +978,44 @@ bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,
 void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
                                         std::function<bool(int)> progress) {
   auto mastersigner = GetMasterSigner(mastersigner_id);
-  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           strprintf("Can not cache xpub with foreign software "
-                                     "signer mastersigner_id = '%s'",
-                                     mastersigner_id));
-  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
-    auto software_signer = storage_->GetSoftwareSigner(chain_, mastersigner_id);
-    storage_->CacheMasterSignerXPub(
-        chain_, mastersigner_id,
-        [&](const std::string& path) {
-          return software_signer.GetXpubAtPath(path);
-        },
-        progress, false);
-    storage_listener_();
-  } else {
-    Device device{mastersigner_id};
-    storage_->CacheMasterSignerXPub(
-        chain_, mastersigner_id,
-        [&](const std::string& path) {
-          return hwi_.GetXpubAtPath(device, path);
-        },
-        progress, false);
-    storage_listener_();
+  switch (mastersigner.get_type()) {
+    case SignerType::FOREIGN_SOFTWARE:
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          strprintf("Can not cache xpub with foreign software "
+                    "signer mastersigner_id = '%s'",
+                    mastersigner_id));
+    case SignerType::SOFTWARE: {
+      auto software_signer =
+          storage_->GetSoftwareSigner(chain_, mastersigner_id);
+      storage_->CacheMasterSignerXPub(
+          chain_, mastersigner_id,
+          [&](const std::string& path) {
+            return software_signer.GetXpubAtPath(path);
+          },
+          progress, false);
+      storage_listener_();
+      break;
+    }
+    case SignerType::HARDWARE: {
+      Device device{mastersigner_id};
+      storage_->CacheMasterSignerXPub(
+          chain_, mastersigner_id,
+          [&](const std::string& path) {
+            return hwi_.GetXpubAtPath(device, path);
+          },
+          progress, false);
+      storage_listener_();
+      break;
+    }
+    case SignerType::NFC:
+    case SignerType::AIRGAP:
+    case SignerType::COLDCARD_NFC:
+    case SignerType::UNKNOWN:
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          strprintf("Can not cache xpub for this signer mastersigner_id = '%s'",
+                    mastersigner_id));
   }
 }
 

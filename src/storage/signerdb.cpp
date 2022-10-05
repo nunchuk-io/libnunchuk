@@ -404,14 +404,11 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     time_t last_health_check = sqlite3_column_int64(stmt, 4);
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
-                        used);
-    signer.set_type(GetSignerType());
-
-    if (signer.get_type() == SignerType::COLDCARD_NFC) {
-      signers.push_back(signer);
-    } else if (name != "import") {
+                        used, GetSignerType());
+    if (signer.get_type() != SignerType::UNKNOWN) {
       signers.push_back(signer);
     }
+
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
