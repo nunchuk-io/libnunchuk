@@ -442,7 +442,6 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
 }
 
 bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
-  // Only update its type if current is airgap
   const std::string cur_type_str = GetString(DbKeys::SIGNER_TYPE);
   if (cur_type_str.empty()) {
     PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
@@ -450,7 +449,8 @@ bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
   }
 
   const SignerType cur_type = SignerTypeFromStr(cur_type_str);
-  if (cur_type == SignerType::AIRGAP && cur_type != signer_type) {
+  if ((cur_type == SignerType::AIRGAP || cur_type == SignerType::UNKNOWN) &&
+      cur_type != signer_type) {
     PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
     return true;
   }

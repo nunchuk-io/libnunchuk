@@ -425,13 +425,8 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        std::string signer_name = signer.get_name();
-        if (signer_name.empty()) {
-          signer_name = signer.get_master_fingerprint();
-        }
-
         signer_db.AddRemote(
-            signer_name, signer.get_xpub(), signer.get_public_key(),
+            "Unknown", signer.get_xpub(), signer.get_public_key(),
             signer.get_derivation_path(), true, SignerType::UNKNOWN);
       }
     }
@@ -857,7 +852,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
     std::set<std::pair<std::string, int>> ret;
     for (auto&& tx : vtx) {
       if (tx.get_height() > 0) {
-        for (auto& input : tx.get_inputs()) {
+        for (auto&& input : tx.get_inputs()) {
           ret.insert(input);
         }
       }
