@@ -846,7 +846,6 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   auto vtx = db.GetTransactions(count, skip);
 
   // remove invalid, out-of-date Send transactions
-
   const auto utxos_set = [utxos = db.GetUtxos(true, true)]() {
     std::set<std::pair<std::string, int>> ret;
     for (auto&& utxo : utxos) {
@@ -855,8 +854,24 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
     return ret;
   }();
 
+  const auto used_inputs_set = [&]() {
+    std::set<std::pair<std::string, int>> ret;
+    for (auto&& tx : vtx) {
+      if (tx.get_height() > 0) {
+        for (auto& input : tx.get_inputs()) {
+          ret.insert(input);
+        }
+      }
+    }
+    return ret;
+  }();
+
   auto is_valid_input = [&](const TxInput& input) {
     return utxos_set.find(input) != utxos_set.end();
+  };
+
+  auto is_used_input = [&](const TxInput& input) {
+    return used_inputs_set.find(input) != used_inputs_set.end();
   };
 
   auto end = std::remove_if(vtx.begin(), vtx.end(), [&](const Transaction& tx) {
@@ -869,13 +884,19 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
         }
       }
     }
-    if (tx.get_height() == -1 ||
-        tx.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
+    if (tx.get_height() == -1) {
       for (auto&& input : tx.get_inputs()) {
         if (!is_valid_input(input)) {
           return true;
         }
       }
+    }
+
+    // Remove replaced transaction on recipient's side
+    if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION &&
+        std::find_if(tx.get_inputs().begin(), tx.get_inputs().end(),
+                     is_used_input) != tx.get_inputs().end()) {
+      return true;
     }
     return false;
   });
