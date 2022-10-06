@@ -165,17 +165,12 @@ std::vector<Wallet> NunchukImpl::GetWallets(
     return lhs.get_id() < rhs.get_id();
   };
 
-  auto wallet_ids = storage_->ListWallets(chain_);
-  std::vector<Wallet> wallets;
-  for (auto&& id : wallet_ids) {
-    try {
-      wallets.push_back(GetWallet(id));
-    } catch (StorageException& se) {
-      if (se.code() != StorageException::SIGNER_NOT_FOUND) {
-        throw;
-      }
-    }
-  }
+  const auto wallet_ids = storage_->ListWallets(chain_);
+  std::vector<Wallet> wallets(wallet_ids.size());
+
+  std::transform(
+      wallet_ids.begin(), wallet_ids.end(), wallets.begin(),
+      [&](const std::string& wallet_id) { return GetWallet(wallet_id); });
 
   std::sort(wallets.begin(), wallets.end(),
             [&](const Wallet& lhs, const Wallet& rhs) {

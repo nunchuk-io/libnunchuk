@@ -448,9 +448,28 @@ bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
     return true;
   }
 
+  const auto order = [](SignerType signer_type) {
+    switch (signer_type) {
+      case SignerType::UNKNOWN:
+        return 0;
+      case SignerType::AIRGAP:
+        return 1;
+      case SignerType::FOREIGN_SOFTWARE:
+        return 2;
+      case SignerType::COLDCARD_NFC:
+        return 3;
+      case SignerType::NFC:
+        return 4;
+      case SignerType::HARDWARE:
+        return 5;
+      case SignerType::SOFTWARE:
+        return 6;
+    }
+    return -1;
+  };
+
   const SignerType cur_type = SignerTypeFromStr(cur_type_str);
-  if ((cur_type == SignerType::AIRGAP || cur_type == SignerType::UNKNOWN) &&
-      cur_type != signer_type) {
+  if (order(cur_type) < order(signer_type)) {
     PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(signer_type));
     return true;
   }

@@ -397,10 +397,11 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const Wallet& wallet,
 
 Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
                                      bool allow_used_signer) {
-  AddressType address_type = wallet.get_address_type();
-  WalletType wallet_type = wallet.get_wallet_type();
-  for (auto&& signer : wallet.get_signers()) {
-    auto master_id = signer.get_master_fingerprint();
+  const AddressType address_type = wallet.get_address_type();
+  const WalletType wallet_type = wallet.get_wallet_type();
+
+  const auto save_signer = [&](const SingleSigner& signer) {
+    const std::string master_id = signer.get_master_fingerprint();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
     if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
@@ -425,11 +426,24 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
         signer_db.UseRemote(signer.get_derivation_path());
       } catch (StorageException& se) {
         if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        signer_db.AddRemote(
-            "Unknown", signer.get_xpub(), signer.get_public_key(),
-            signer.get_derivation_path(), true, SignerType::UNKNOWN);
+        // Import/Recover wallet, signers may not exist => we create as UNKNOWN
+        // signers to hide on Key Manager, except for COLDCARD_NFC signers, make
+        // them visible to able to sign transaction
+        if (signer.get_type() == SignerType::COLDCARD_NFC) {
+          signer_db.AddRemote(
+              signer.get_name(), signer.get_xpub(), signer.get_public_key(),
+              signer.get_derivation_path(), true, signer.get_type());
+        } else {
+          signer_db.AddRemote(
+              "import", signer.get_xpub(), signer.get_public_key(),
+              signer.get_derivation_path(), true, SignerType::UNKNOWN);
+        }
       }
     }
+  };
+
+  for (auto&& signer : wallet.get_signers()) {
+    save_signer(signer);
   }
   auto id = wallet.get_id();
   fs::path wallet_file = GetWalletDir(chain, id);
@@ -441,6 +455,39 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
   wallet_db.InitWallet(wallet);
   GetAppStateDb(chain).RemoveDeletedWallet(id);
   return wallet;
+}
+
+SingleSigner NunchukStorage::GetTrueSigner0(Chain chain,
+                                            const SingleSigner& signer,
+                                            bool create_if_not_exist) const {
+  const std::string master_id = signer.get_master_fingerprint();
+  NunchukSignerDb signer_db{
+      chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+
+  if (signer_db.IsMaster()) {
+    return SingleSigner(signer_db.GetName(), signer.get_xpub(),
+                        signer.get_public_key(), signer.get_derivation_path(),
+                        signer.get_master_fingerprint(),
+                        signer_db.GetLastHealthCheck(), master_id, false,
+                        signer_db.GetSignerType());
+  }
+
+  // remote
+  try {
+    auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
+    return SingleSigner(
+        remote.get_name(), signer.get_xpub(), signer.get_public_key(),
+        signer.get_derivation_path(), signer.get_master_fingerprint(),
+        remote.get_last_health_check(), {}, false, signer_db.GetSignerType());
+  } catch (StorageException& se) {
+    if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
+    if (create_if_not_exist) {
+      signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                          signer.get_public_key(), signer.get_derivation_path(),
+                          true, signer.get_type());
+    }
+    return signer;
+  }
 }
 
 std::string NunchukStorage::CreateMasterSigner(Chain chain,
@@ -667,43 +714,13 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
   Wallet wallet = wallet_db.GetWallet();
-  std::vector<SingleSigner> signers;
 
+  std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {
-    std::string name = signer.get_name();
-    std::string master_id = signer.get_master_fingerprint();
-    time_t last_health_check = signer.get_last_health_check();
-    NunchukSignerDb signer_db{
-        chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
-    SignerType signer_type = signer_db.GetSignerType();
-    if (signer_db.IsMaster()) {
-      name = signer_db.GetName();
-      last_health_check = signer_db.GetLastHealthCheck();
-    } else {
-      // master_id is used by the caller to check if the signer is master or
-      // remote
-      master_id = "";
-      try {
-        auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
-        name = remote.get_name();
-        last_health_check = remote.get_last_health_check();
-      } catch (StorageException& se) {
-        if (se.code() != StorageException::SIGNER_NOT_FOUND ||
-            !create_signers_if_not_exist)
-          throw;
-        signer_db.AddRemote(
-            signer.get_name(), signer.get_xpub(), signer.get_public_key(),
-            signer.get_derivation_path(), true, signer.get_type());
-      }
-    }
-    SingleSigner true_signer(name, signer.get_xpub(), signer.get_public_key(),
-                             signer.get_derivation_path(),
-                             signer.get_master_fingerprint(), last_health_check,
-                             master_id);
-    true_signer.set_type(signer_type);
-    signers.push_back(true_signer);
+    true_signers.push_back(
+        GetTrueSigner0(chain, signer, create_signers_if_not_exist));
   }
-  Wallet true_wallet(id, wallet.get_m(), wallet.get_n(), signers,
+  Wallet true_wallet(id, wallet.get_m(), wallet.get_n(), true_signers,
                      wallet.get_address_type(), wallet.is_escrow(),
                      wallet.get_create_date());
   true_wallet.set_name(wallet.get_name());
