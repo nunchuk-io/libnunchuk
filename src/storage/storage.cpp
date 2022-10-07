@@ -1173,6 +1173,8 @@ std::string NunchukStorage::ExportBackup() {
     }
 
     rs["signers"] = json::array();
+    rs["tapsigners"] = json::array();
+    auto tapprotocolDb = GetTaprotocolDb(chain);
     auto sids = ListMasterSigners0(chain);
     for (auto&& id : sids) {
       auto signerDb = GetSignerDb(chain, id);
@@ -1184,6 +1186,18 @@ std::string NunchukStorage::ExportBackup() {
                      {"last_health_check", signerDb.GetLastHealthCheck()},
                      {"bip32", json::array()},
                      {"remote", json::array()}};
+      if (signerDb.GetDeviceModel() == "tapsigner") {
+        auto tapsignerStatus =
+            tapprotocolDb.GetTapsignerStatusFromMasterSigner(signerDb.GetId());
+        rs["tapsigners"].push_back(json{
+            {"card_ident", tapsignerStatus.get_card_ident()},
+            {"master_signer_id", tapsignerStatus.get_master_signer_id()},
+            {"birth_height", tapsignerStatus.get_birth_height()},
+            {"number_of_backup", tapsignerStatus.get_number_of_backup()},
+            {"version", tapsignerStatus.get_version()},
+            {"is_testnet", tapsignerStatus.is_testnet()},
+        });
+      }
       auto singleSigners = signerDb.GetSingleSigners(false);
       for (auto&& singleSigner : singleSigners) {
         signer["bip32"].push_back({{"path", singleSigner.get_derivation_path()},
@@ -1200,6 +1214,7 @@ std::string NunchukStorage::ExportBackup() {
       }
       rs["signers"].push_back(signer);
     }
+
     auto appstate = GetAppStateDb(chain);
     rs["deleted_wallets"] = appstate.GetDeletedWallets();
     rs["deleted_signers"] = appstate.GetDeletedSigners();
@@ -1234,6 +1249,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
   auto importChain = [&](Chain chain, json& d) {
     if (d == nullptr) return;
     auto appstate = GetAppStateDb(chain);
+    auto tapprotocolDb = GetTaprotocolDb(chain);
     json signers = d["signers"];
     auto dsids = appstate.GetDeletedSigners();
     for (auto&& signer : signers) {
@@ -1262,6 +1278,20 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         fs::remove(GetSignerDir(chain, id));
       }
     }
+
+    const auto deleted_signers = appstate.GetDeletedSigners();
+    for (auto&& tapsigner : d["tapsigners"]) {
+      std::string master_signer_id = tapsigner["master_signer_id"];
+      if (std::find(deleted_signers.begin(), deleted_signers.end(),
+                    master_signer_id) != deleted_signers.end())
+        continue;
+      const TapsignerStatus status(
+          tapsigner["card_ident"], tapsigner["birth_height"],
+          tapsigner["number_of_backup"], tapsigner["version"], std::string{},
+          tapsigner["is_testnet"], 0, master_signer_id);
+      tapprotocolDb.AddTapsigner(status);
+    }
+
     percent += 25;
     progress(percent);
 

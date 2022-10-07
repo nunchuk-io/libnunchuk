@@ -64,7 +64,7 @@ CoinSelector::CoinSelector(const std::string& descriptors,
 }
 
 CoinSelector::CoinSelector(CFeeRate fee_rate, CFeeRate discard_rate,
-                           const CScriptWitness& dummy_scriptwitness)
+                           CScriptWitness dummy_scriptwitness)
     : fee_rate_(std::move(fee_rate)),
       discard_rate_(std::move(discard_rate)),
       dummy_scriptwitness_(std::move(dummy_scriptwitness)) {}
