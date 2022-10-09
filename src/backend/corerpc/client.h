@@ -38,6 +38,7 @@ class CoreRpcClient {
   void LoadWallet();
   void RescanBlockchain(int start_height, int stop_height = -1);
   nlohmann::json GetBlockchainInfo();
+  nlohmann::json GetNetworkInfo();
   nlohmann::json GetWalletInfo();
   nlohmann::json GetAddressInfo(const std::string &address);
   nlohmann::json ListTransactions();
@@ -52,6 +53,7 @@ class CoreRpcClient {
   std::string user_;
   std::string pw_;
   std::string name_;
+  int version_;
 };
 
 }  // namespace nunchuk

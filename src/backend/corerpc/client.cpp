@@ -66,6 +66,7 @@ CoreRpcClient::CoreRpcClient(const AppSettings& appsettings) {
   user_ = appsettings.get_corerpc_username();
   pw_ = appsettings.get_corerpc_password();
   name_ = "nunchuk";
+  version_ = GetNetworkInfo()["version"];
 }
 
 CoreRpcClient::~CoreRpcClient() {}
@@ -104,6 +105,14 @@ json CoreRpcClient::GetBlockchainInfo() {
   return ParseResponse(resp);
 }
 
+json CoreRpcClient::GetNetworkInfo() {
+  json req = {{"method", "getnetworkinfo"},
+              {"params", json::array({})},
+              {"id", "placeholder"}};
+  std::string resp = SendRequest("/", req.dump());
+  return ParseResponse(resp);
+}
+
 void CoreRpcClient::ImportDescriptors(const std::string& descriptors) {
   json options = {{"rescan", true}};
   json req = {{"method", "importmulti"},
@@ -136,9 +145,11 @@ json CoreRpcClient::GetAddressInfo(const std::string& address) {
 }
 
 void CoreRpcClient::CreateWallet() {
-  json req = {{"method", "createwallet"},
-              {"params", json::array({name_, true, true, "", false, false})},
-              {"id", "placeholder"}};
+  json params = version_ <= 230000
+                    ? json::array({name_, true, true, "", false})
+                    : json::array({name_, true, true, "", false, false});
+  json req = {
+      {"method", "createwallet"}, {"params", params}, {"id", "placeholder"}};
   std::string resp = SendRequest("/", req.dump());
   json rs = ParseResponse(resp);
   if (rs["name"] != name_) {
