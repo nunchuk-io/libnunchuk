@@ -114,10 +114,10 @@ json CoreRpcClient::GetNetworkInfo() {
 }
 
 void CoreRpcClient::ImportDescriptors(const std::string& descriptors) {
-  json options = {{"rescan", true}};
-  json req = {{"method", "importmulti"},
-              {"params", json::array({json::parse(descriptors), options})},
-              {"id", "placeholder"}};
+  json req = {
+      {"method", version_ < 230000 ? "importmulti" : "importdescriptors"},
+      {"params", json::array({json::parse(descriptors)})},
+      {"id", "placeholder"}};
   std::string resp = SendRequest("/wallet/" + name_, req.dump());
   json rs = ParseResponse(resp);
   for (auto& el : rs.items()) {
@@ -145,11 +145,9 @@ json CoreRpcClient::GetAddressInfo(const std::string& address) {
 }
 
 void CoreRpcClient::CreateWallet() {
-  json params = version_ <= 230000
-                    ? json::array({name_, true, true, "", false})
-                    : json::array({name_, true, true, "", false, false});
-  json req = {
-      {"method", "createwallet"}, {"params", params}, {"id", "placeholder"}};
+  json req = {{"method", "createwallet"},
+              {"params", json::array({name_, true, true, "", false})},
+              {"id", "placeholder"}};
   std::string resp = SendRequest("/", req.dump());
   json rs = ParseResponse(resp);
   if (rs["name"] != name_) {
