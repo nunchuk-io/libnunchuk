@@ -137,7 +137,7 @@ json CoreRpcClient::GetAddressInfo(const std::string& address) {
 
 void CoreRpcClient::CreateWallet() {
   json req = {{"method", "createwallet"},
-              {"params", json::array({name_, true, true, "", false})},
+              {"params", json::array({name_, true, true, "", false, false})},
               {"id", "placeholder"}};
   std::string resp = SendRequest("/", req.dump());
   json rs = ParseResponse(resp);
