@@ -371,4 +371,39 @@ Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
   return wallet;
 }
 
+SingleSigner Utils::SanitizeSingleSigner(const SingleSigner& signer) {
+  std::string target_format =
+      Utils::GetChain() == Chain::MAIN ? "xpub" : "tpub";
+  std::string sanitized_xpub =
+      Utils::SanitizeBIP32Input(signer.get_xpub(), target_format);
+  if (!Utils::IsValidXPub(sanitized_xpub) &&
+      !Utils::IsValidPublicKey(signer.get_public_key())) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid xpub and public_key");
+  }
+  if (!Utils::IsValidDerivationPath(signer.get_derivation_path())) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid derivation path");
+  }
+  if (!Utils::IsValidFingerPrint(signer.get_master_fingerprint())) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid master fingerprint");
+  }
+  std::string xfp = boost::to_lower_copy(signer.get_master_fingerprint());
+  std::string name = boost::trim_copy(signer.get_name());
+  return SingleSigner(
+      name, sanitized_xpub, signer.get_public_key(),
+      signer.get_derivation_path(), xfp, signer.get_last_health_check(),
+      signer.get_master_signer_id(), signer.is_used(), signer.get_type());
+}
+
+std::vector<SingleSigner> Utils::SanitizeSingleSigners(
+    const std::vector<SingleSigner>& signers) {
+  std::vector<SingleSigner> ret;
+  for (const SingleSigner& signer : signers) {
+    ret.emplace_back(SanitizeSingleSigner(signer));
+  }
+  return ret;
+}
+
 }  // namespace nunchuk

@@ -109,8 +109,13 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
 }
 
 Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
-  w.check_valid();
-  Wallet wallet = storage_->CreateWallet(chain_, w, allow_used_signer);
+  Wallet sanitized_wallet = w;
+  sanitized_wallet.set_signers(
+      Utils::SanitizeSingleSigners(sanitized_wallet.get_signers()));
+  sanitized_wallet.check_valid();
+
+  Wallet wallet =
+      storage_->CreateWallet(chain_, sanitized_wallet, allow_used_signer);
   ScanWalletAddress(wallet.get_id());
   storage_listener_();
   return storage_->GetWallet(chain_, wallet.get_id(), true);
@@ -120,7 +125,8 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
                                      const std::string& description) {
-  Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
+  Wallet wallet("", m, n, Utils::SanitizeSingleSigners(signers), address_type,
+                is_escrow, 0);
   return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
@@ -406,26 +412,13 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
                                        const std::string& derivation_path,
                                        const std::string& master_fingerprint,
                                        SignerType signer_type) {
-  std::string target_format = chain_ == Chain::MAIN ? "xpub" : "tpub";
-  std::string sanitized_xpub = Utils::SanitizeBIP32Input(xpub, target_format);
-  if (!Utils::IsValidXPub(sanitized_xpub) &&
-      !Utils::IsValidPublicKey(public_key)) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid xpub and public_key");
-  }
-  if (!Utils::IsValidDerivationPath(derivation_path)) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid derivation path");
-  }
-  if (!Utils::IsValidFingerPrint(master_fingerprint)) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid master fingerprint");
-  }
-  std::string xfp = to_lower_copy(master_fingerprint);
-  std::string name = trim_copy(raw_name);
-  auto rs =
-      storage_->CreateSingleSigner(chain_, name, sanitized_xpub, public_key,
-                                   derivation_path, xfp, signer_type);
+  const SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
+      raw_name, xpub, public_key, derivation_path, master_fingerprint,
+      std::time(nullptr), {}, false, signer_type));
+  auto rs = storage_->CreateSingleSigner(
+      chain_, signer.get_name(), signer.get_xpub(), signer.get_public_key(),
+      signer.get_derivation_path(), signer.get_master_fingerprint(),
+      signer.get_type());
   storage_listener_();
   return rs;
 }
@@ -1376,7 +1369,7 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
 
   std::vector<SingleSigner> signers;
 
-  std::string xfp(8, '\0');
+  std::string xfp(8, '0');
   std::to_chars(xfp.data(), xfp.data() + xfp.size(), account.masterFingerprint,
                 16);
 
@@ -1419,9 +1412,14 @@ std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
     return {ParseKeystoneSigner(qr_data[0])};
   };
 
-  return RunThrowOne(parse_signer_string, parse_keystone_signer,
-                     std::bind(&Nunchuk::ParseSeedSigners, this, qr_data),
-                     std::bind(&Nunchuk::ParsePassportSigners, this, qr_data));
+  auto ret =
+      RunThrowOne(parse_signer_string, parse_keystone_signer,
+                  std::bind(&Nunchuk::ParseSeedSigners, this, qr_data),
+                  std::bind(&Nunchuk::ParsePassportSigners, this, qr_data));
+  for (SingleSigner& signer : ret) {
+    signer = Utils::SanitizeSingleSigner(signer);
+  }
+  return ret;
 }
 
 std::string NunchukImpl::ExportBackup() { return storage_->ExportBackup(); }
@@ -1461,8 +1459,7 @@ std::vector<Wallet> NunchukImpl::ParseJSONWallets(const std::string& json_str) {
 
   try {
     const nlohmann::json data = json::parse(json_str);
-    const std::string target_format = chain_ == Chain::MAIN ? "xpub" : "tpub";
-    const std::string xfp = to_lower_copy(data["xfp"].get<std::string>());
+    const std::string xfp = data["xfp"];
 
     std::vector<Wallet> result;
     for (auto&& [bip, tmp_name, address_type] : FILTER_WALLETS) {
@@ -1471,13 +1468,13 @@ std::vector<Wallet> NunchukImpl::ParseJSONWallets(const std::string& json_str) {
         continue;
       }
 
-      const std::string xpub =
-          Utils::SanitizeBIP32Input(bip_iter.value()["xpub"], target_format);
+      const std::string xpub = bip_iter.value()["xpub"];
       const std::string derivation_path = bip_iter.value()["deriv"];
-      SingleSigner signer(
+
+      SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
           GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
-          {}, derivation_path, xfp, 0);
-      signer.set_type(SignerType::COLDCARD_NFC);
+          {}, derivation_path, xfp, std::time(nullptr), {}, false,
+          SignerType::COLDCARD_NFC));
 
       Wallet wallet({}, 1, 1, {std::move(signer)}, address_type, false,
                     std::time(0));
