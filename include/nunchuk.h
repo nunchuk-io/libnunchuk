@@ -1116,6 +1116,9 @@ class NUNCHUK_EXPORT Utils {
                                     const std::vector<std::string>& qr_data);
   static BtcUri ParseBtcUri(const std::string& value);
   static Wallet ParseWalletConfig(Chain chain, const std::string& config);
+  static SingleSigner SanitizeSingleSigner(const SingleSigner& signer);
+  static std::vector<SingleSigner> SanitizeSingleSigners(
+      const std::vector<SingleSigner>& signers);
 
  private:
   Utils() {}

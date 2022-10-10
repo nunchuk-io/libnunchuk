@@ -1187,16 +1187,22 @@ std::string NunchukStorage::ExportBackup() {
                      {"bip32", json::array()},
                      {"remote", json::array()}};
       if (signerDb.GetDeviceModel() == "tapsigner") {
-        auto tapsignerStatus =
-            tapprotocolDb.GetTapsignerStatusFromMasterSigner(signerDb.GetId());
-        rs["tapsigners"].push_back(json{
-            {"card_ident", tapsignerStatus.get_card_ident()},
-            {"master_signer_id", tapsignerStatus.get_master_signer_id()},
-            {"birth_height", tapsignerStatus.get_birth_height()},
-            {"number_of_backup", tapsignerStatus.get_number_of_backup()},
-            {"version", tapsignerStatus.get_version()},
-            {"is_testnet", tapsignerStatus.is_testnet()},
-        });
+        try {
+          auto tapsignerStatus =
+              tapprotocolDb.GetTapsignerStatusFromMasterSigner(
+                  signerDb.GetId());
+          rs["tapsigners"].push_back(json{
+              {"card_ident", tapsignerStatus.get_card_ident()},
+              {"master_signer_id", tapsignerStatus.get_master_signer_id()},
+              {"birth_height", tapsignerStatus.get_birth_height()},
+              {"number_of_backup", tapsignerStatus.get_number_of_backup()},
+              {"version", tapsignerStatus.get_version()},
+              {"is_testnet", tapsignerStatus.is_testnet()},
+          });
+        } catch (...) {
+          // Don't sync Tapsigner if it doesn't have card_ident
+          continue;
+        }
       }
       auto singleSigners = signerDb.GetSingleSigners(false);
       for (auto&& singleSigner : singleSigners) {
@@ -1279,17 +1285,19 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       }
     }
 
-    const auto deleted_signers = appstate.GetDeletedSigners();
-    for (auto&& tapsigner : d["tapsigners"]) {
-      std::string master_signer_id = tapsigner["master_signer_id"];
-      if (std::find(deleted_signers.begin(), deleted_signers.end(),
-                    master_signer_id) != deleted_signers.end())
-        continue;
-      const TapsignerStatus status(
-          tapsigner["card_ident"], tapsigner["birth_height"],
-          tapsigner["number_of_backup"], tapsigner["version"], std::string{},
-          tapsigner["is_testnet"], 0, master_signer_id);
-      tapprotocolDb.AddTapsigner(status);
+    if (auto tapsigners = d.find("tapsigners"); tapsigners != d.end()) {
+      const auto deleted_signers = appstate.GetDeletedSigners();
+      for (auto&& tapsigner : *tapsigners) {
+        std::string master_signer_id = tapsigner["master_signer_id"];
+        if (std::find(deleted_signers.begin(), deleted_signers.end(),
+                      master_signer_id) != deleted_signers.end())
+          continue;
+        const TapsignerStatus status(
+            tapsigner["card_ident"], tapsigner["birth_height"],
+            tapsigner["number_of_backup"], tapsigner["version"], std::string{},
+            tapsigner["is_testnet"], 0, master_signer_id);
+        tapprotocolDb.AddTapsigner(status);
+      }
     }
 
     percent += 25;
