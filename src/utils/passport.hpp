@@ -39,8 +39,8 @@ inline bool ParsePassportSignerConfig(
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
 
     auto getXfp = [](unsigned int n) {
-      int r = ((n << 24) | (((n >> 16) << 24) >> 16) |
-               (((n << 16) >> 24) << 16) | (n >> 24));
+      uint32_t r = ((n << 24) | (((n >> 16) << 24) >> 16) |
+                    (((n << 16) >> 24) << 16) | (n >> 24));
       std::stringstream s;
       s << std::setfill('0') << std::setw(8) << std::hex << r;
       return s.str();

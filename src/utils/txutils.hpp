@@ -102,6 +102,10 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
   tx.set_m(m);
 
+  for (auto&& signer : signers) {
+    tx.set_signer(signer.get_master_fingerprint(), false);
+  }
+
   // Parse partial sigs
   const PSBTInput& input = psbtx.inputs[0];
 
@@ -113,9 +117,6 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     }
 
     auto psbt = DecodePsbt(EncodePsbt(psbtx));
-    for (auto&& signer : signers) {
-      tx.set_signer(signer.get_master_fingerprint(), false);
-    }
 
     auto txCredit = psbt.tx.value();
     auto input = psbt.inputs[0];

@@ -22,6 +22,8 @@
 #include <key_io.h>
 #include <validation.h>
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include "descriptor.h"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
@@ -791,11 +793,11 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
       std::vector<std::string> keypaths;
       auto base = wallet.get_signers()[0].get_derivation_path();
       int internal = storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
-      for (int index = 0; index < internal; index++) {
+      for (int index = 0; index <= internal; index++) {
         keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base % index));
       }
       int external = storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
-      for (int index = 0; index < external; index++) {
+      for (int index = 0; index <= external; index++) {
         keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base % index));
       }
       signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
@@ -1191,12 +1193,15 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   xpub.nDepth = key.origin.depth;
   u8from32(xpub.vchFingerprint, key.parentFingerprint);
 
-  std::stringstream xfp;
-  xfp << std::hex << account.masterFingerprint;
+  std::ostringstream iss;
+  iss << std::setfill('0') << std::setw(8) << std::hex
+      << account.masterFingerprint;
+  const std::string xfp = iss.str();
+
   std::stringstream path;
   path << "m" << FormatHDKeypath(key.origin.keypath);
-  auto signer = SingleSigner("Keystone", EncodeExtPubKey(xpub), {}, path.str(),
-                             xfp.str(), 0);
+  auto signer =
+      SingleSigner("Keystone", EncodeExtPubKey(xpub), {}, path.str(), xfp, 0);
   signer.set_type(SignerType::AIRGAP);
   return signer;
 }
@@ -1369,9 +1374,10 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
 
   std::vector<SingleSigner> signers;
 
-  std::string xfp(8, '0');
-  std::to_chars(xfp.data(), xfp.data() + xfp.size(), account.masterFingerprint,
-                16);
+  std::ostringstream iss;
+  iss << std::setfill('0') << std::setw(8) << std::hex
+      << account.masterFingerprint;
+  const std::string xfp = iss.str();
 
   for (auto&& key : account.outputDescriptors) {
     CExtPubKey xpub{};
