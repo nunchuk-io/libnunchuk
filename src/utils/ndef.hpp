@@ -18,10 +18,8 @@
 #ifndef NUNCHUK_NDEF_H
 #define NUNCHUK_NDEF_H
 
-#include "key_io.h"
 #include "nunchuk.h"
 #include "util/strencodings.h"
-#include "utils/stringutils.hpp"
 #include "utils/multisigconfig.hpp"
 
 namespace nunchuk {
@@ -221,7 +219,8 @@ inline NDEFMessageType DetectNDEFMessageType(
       if (uri.find("tapsigner.com") != std::string::npos) {
         return NDEFMessageType::TAPSIGNER;
       }
-      if (uri.find("getsatscard.com") != std::string::npos) {
+      if (uri.find("getsatscard.com") != std::string::npos ||
+          uri.find("satscard.com") != std::string::npos) {
         return NDEFMessageType::SATSCARD;
       }
       return NDEFMessageType::UNKNOWN;
