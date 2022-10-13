@@ -464,6 +464,22 @@ SingleSigner NunchukImpl::GetUnusedSignerFromMasterSigner(
                                    index);
 }
 
+SingleSigner NunchukImpl::GetDefaultSignerFromMasterSigner(
+    const std::string& mastersigner_id, const WalletType& wallet_type,
+    const AddressType& address_type) {
+  return GetSignerFromMasterSigner(mastersigner_id, wallet_type, address_type,
+                                   1);
+}
+
+SingleSigner NunchukImpl::GetSignerFromMasterSigner(
+    const std::string& mastersigner_id, const std::string& path) {
+  if (!Utils::IsValidDerivationPath(path)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           strprintf("Invalid derivation path [%s].", path));
+  }
+  return storage_->GetSignerFromMasterSigner(chain_, mastersigner_id, path);
+}
+
 std::vector<SingleSigner> NunchukImpl::GetSignersFromMasterSigner(
     const std::string& mastersigner_id) {
   return storage_->GetSignersFromMasterSigner(chain_, mastersigner_id);

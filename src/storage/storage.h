@@ -67,6 +67,9 @@ class NunchukStorage {
                                          const WalletType &wallet_type,
                                          const AddressType &address_type,
                                          int index);
+  SingleSigner GetSignerFromMasterSigner(Chain chain,
+                                         const std::string &mastersigner_id,
+                                         const std::string &path);
 
   std::vector<std::string> ListWallets(Chain chain);
   std::vector<std::string> ListRecentlyUsedWallets(Chain chain);
@@ -217,6 +220,7 @@ class NunchukStorage {
                               bool create_if_not_exist) const;
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
+  SoftwareSigner GetSoftwareSigner0(Chain chain, const std::string &id);
 
   boost::filesystem::path basedatadir_;
   boost::filesystem::path datadir_;

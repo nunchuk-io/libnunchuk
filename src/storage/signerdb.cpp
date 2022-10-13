@@ -83,7 +83,7 @@ bool NunchukSignerDb::AddXPub(const std::string& path, const std::string& xpub,
   std::string sql =
       "INSERT INTO BIP32(PATH, XPUB, TYPE, USED)"
       "VALUES (?1, ?2, ?3, -1)"
-      "ON CONFLICT(PATH) DO UPDATE SET XPUB=excluded.XPUB;";
+      "ON CONFLICT(PATH) DO UPDATE SET TYPE=excluded.TYPE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_bind_text(stmt, 2, xpub.c_str(), xpub.size(), NULL);

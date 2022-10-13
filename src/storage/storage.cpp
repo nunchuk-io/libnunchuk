@@ -407,18 +407,18 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
     if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
       int index = GetIndexFromPath(signer.get_derivation_path());
       if (FormalizePath(
-              GetBip32Path(chain, wallet_type, address_type, index)) !=
+              GetBip32Path(chain, wallet_type, address_type, index)) ==
           FormalizePath(signer.get_derivation_path())) {
-        throw NunchukException(
-            NunchukException::INVALID_BIP32_PATH,
-            strprintf("Invalid bip32 path! master_id = '%s'", master_id));
-      }
-      signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
-      if (!signer_db.UseIndex(wallet_type, address_type, index) &&
-          !allow_used_signer) {
-        throw StorageException(
-            StorageException::SIGNER_USED,
-            strprintf("Signer used! master_id = '%s'", master_id));
+        signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
+        if (!signer_db.UseIndex(wallet_type, address_type, index) &&
+            !allow_used_signer) {
+          throw StorageException(
+              StorageException::SIGNER_USED,
+              strprintf("Signer used! master_id = '%s'", master_id));
+        }
+      } else {
+        // custom derivation path
+        signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(), "custom");
       }
     } else {
       try {
@@ -566,6 +566,31 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
         NunchukException::RUN_OUT_OF_CACHED_XPUB,
         strprintf("[%s] has run out of XPUBs. Please top up.",
                   signer_db.GetName()));
+  }
+  auto signer = SingleSigner(signer_db.GetName(), xpub, "", path,
+                             signer_db.GetFingerprint(),
+                             signer_db.GetLastHealthCheck(), mastersigner_id);
+  signer.set_type(signer_db.GetSignerType());
+  return signer;
+}
+
+SingleSigner NunchukStorage::GetSignerFromMasterSigner(
+    Chain chain, const std::string& mastersigner_id, const std::string& path) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto signer_db = GetSignerDb(chain, mastersigner_id);
+  std::string xpub = signer_db.GetXpub(path);
+
+  if (xpub.empty()) {
+    if (signer_db.GetSignerType() == SignerType::SOFTWARE) {
+      auto ss = GetSoftwareSigner0(chain, mastersigner_id);
+      xpub = ss.GetXpubAtPath(path);
+      signer_db.AddXPub(path, xpub, "custom");
+    } else {
+      throw NunchukException(
+          NunchukException::RUN_OUT_OF_CACHED_XPUB,
+          strprintf("[%s] has run out of XPUBs. Please top up.",
+                    signer_db.GetName()));
+    }
   }
   auto signer = SingleSigner(signer_db.GetName(), xpub, "", path,
                              signer_db.GetFingerprint(),
@@ -757,6 +782,11 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
 SoftwareSigner NunchukStorage::GetSoftwareSigner(Chain chain,
                                                  const std::string& id) {
   std::shared_lock<std::shared_mutex> lock(access_);
+  return GetSoftwareSigner0(chain, id);
+}
+
+SoftwareSigner NunchukStorage::GetSoftwareSigner0(Chain chain,
+                                                  const std::string& id) {
   auto mid = ba::to_lower_copy(id);
   auto signer_db = GetSignerDb(chain, mid);
   if (signer_passphrase_.count(mid) == 0) {

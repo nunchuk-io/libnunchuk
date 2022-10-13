@@ -97,6 +97,11 @@ class NunchukImpl : public Nunchuk {
   SingleSigner GetUnusedSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type) override;
+  SingleSigner GetDefaultSignerFromMasterSigner(
+      const std::string& mastersigner_id, const WalletType& wallet_type,
+      const AddressType& address_type) override;
+  SingleSigner GetSignerFromMasterSigner(const std::string& mastersigner_id,
+                                         const std::string& path) override;
   std::vector<SingleSigner> GetSignersFromMasterSigner(
       const std::string& mastersigner_id) override;
   int GetNumberOfSignersFromMasterSigner(

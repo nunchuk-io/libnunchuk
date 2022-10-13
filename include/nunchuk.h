@@ -783,6 +783,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual SingleSigner GetUnusedSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type) = 0;
+  virtual SingleSigner GetDefaultSignerFromMasterSigner(
+      const std::string& mastersigner_id, const WalletType& wallet_type,
+      const AddressType& address_type) = 0;
+  virtual SingleSigner GetSignerFromMasterSigner(
+      const std::string& mastersigner_id, const std::string& path) = 0;
   virtual std::vector<SingleSigner> GetSignersFromMasterSigner(
       const std::string& mastersigner_id) = 0;
   virtual int GetNumberOfSignersFromMasterSigner(
