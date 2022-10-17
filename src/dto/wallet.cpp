@@ -78,6 +78,11 @@ void Wallet::check_valid() const {
   if (n_ != signers_.size())
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: n and signers are not match");
+  if (n_ == 1 && is_escrow()) {
+    throw NunchukException(
+        NunchukException::INVALID_PARAMETER,
+        "Invalid parameter: can not create single sig escrow wallet");
+  }
   // TODO: need to call get_descriptor() for bitcoin core validation?
 }
 void Wallet::set_name(const std::string& value) { name_ = value; }
