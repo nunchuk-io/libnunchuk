@@ -650,7 +650,6 @@ void NunchukStorage::CacheMasterSignerXPub(
   auto cacheIndex = [&](WalletType w, AddressType a) {
     int n = cacheNumber(w, a);
     int index = signer_db.GetCachedIndex(w, a);
-    if (index < 0 && w == WalletType::MULTI_SIG) index = 0;
     for (int i = index + 1; i <= index + n; i++) {
       signer_db.AddXPub(w, a, i, getxpub(GetBip32Path(chain, w, a, i)));
       progress(count++ * 100 / total);
