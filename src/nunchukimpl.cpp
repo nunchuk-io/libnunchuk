@@ -467,7 +467,7 @@ SingleSigner NunchukImpl::GetDefaultSignerFromMasterSigner(
     const std::string& mastersigner_id, const WalletType& wallet_type,
     const AddressType& address_type) {
   return GetSignerFromMasterSigner(mastersigner_id, wallet_type, address_type,
-                                   1);
+                                   0);
 }
 
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(
