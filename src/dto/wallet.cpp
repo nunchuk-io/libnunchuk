@@ -56,9 +56,9 @@ const std::vector<SingleSigner>& Wallet::get_signers() const {
 }
 AddressType Wallet::get_address_type() const { return address_type_; }
 WalletType Wallet::get_wallet_type() const {
-  return get_n() == 1  ? WalletType::SINGLE_SIG
-         : is_escrow() ? WalletType::ESCROW
-                       : WalletType::MULTI_SIG;
+  return is_escrow()    ? WalletType::ESCROW
+         : get_n() == 1 ? WalletType::SINGLE_SIG
+                        : WalletType::MULTI_SIG;
 }
 bool Wallet::is_escrow() const { return escrow_; }
 Amount Wallet::get_balance() const { return balance_; }
