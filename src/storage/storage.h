@@ -48,8 +48,7 @@ class NunchukStorage {
                                   ExportFormat format);
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
   void SetPassphrase(const std::string &new_passphrase);
-  Wallet CreateWallet(Chain chain, const Wallet &wallet,
-                      bool allow_used_signer);
+  Wallet CreateWallet(Chain chain, const Wallet &wallet);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
                                  const std::string &mnemonic = {});
@@ -214,8 +213,7 @@ class NunchukStorage {
   boost::filesystem::path GetTapprotocolDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
-  Wallet CreateWallet0(Chain chain, const Wallet &wallet,
-                       bool allow_used_signer);
+  Wallet CreateWallet0(Chain chain, const Wallet &wallet);
   SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
                               bool create_if_not_exist) const;
   std::vector<std::string> ListWallets0(Chain chain);

@@ -116,8 +116,7 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
       Utils::SanitizeSingleSigners(sanitized_wallet.get_signers()));
   sanitized_wallet.check_valid();
 
-  Wallet wallet =
-      storage_->CreateWallet(chain_, sanitized_wallet, allow_used_signer);
+  Wallet wallet = storage_->CreateWallet(chain_, sanitized_wallet);
   ScanWalletAddress(wallet.get_id());
   storage_listener_();
   return storage_->GetWallet(chain_, wallet.get_id(), true);
