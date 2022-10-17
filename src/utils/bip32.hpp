@@ -21,6 +21,7 @@
 #include <nunchuk.h>
 
 #include <boost/format.hpp>
+#include <tinyformat.h>
 #include <iomanip>
 #include <regex>
 #include <string>
@@ -42,6 +43,8 @@ static const int TOTAL_CACHE_NUMBER =
 static const std::string TESTNET_HEALTH_CHECK_PATH = "m/45'/1'/0'/1/0";
 static const std::string MAINNET_HEALTH_CHECK_PATH = "m/45'/0'/0'/1/0";
 static const std::string LOGIN_SIGNING_PATH = "m/45'/0'/0'/1/0";
+
+static const int ESCROW_ACCOUNT_INDEX = 9999;
 
 inline std::string GetBip32Path(nunchuk::Chain chain,
                                 const nunchuk::WalletType& wallet_type,
@@ -71,15 +74,19 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
       }
       break;
     case WalletType::MULTI_SIG:
-      if (index == 0)
+      if (index == ESCROW_ACCOUNT_INDEX)
         throw NunchukException(
             NunchukException::INVALID_PARAMETER,
-            "Multisig account index 0 is reserved for escrow wallets");
-      // Multi-sig BIP48 Wallets: m/48h/ch/ph, c = coin, p = index, p != 0
+            strprintf(
+                "Multisig account index %d is reserved for escrow wallets",
+                ESCROW_ACCOUNT_INDEX));
+
+      //  Multi-sig BIP48 Wallets: m/48h/ch/ph, c = coin, p = index, p != 0
       return boost::str(boost::format{"m/48h/%dh/%dh"} % coin_type % index);
     case WalletType::ESCROW:
       // Multi-sig Escrow Wallets: m/48h/ch/0h/qh, c = coin, q = index
-      return boost::str(boost::format{"m/48h/%dh/0h/%dh"} % coin_type % index);
+      return boost::str(boost::format{"m/48h/%dh/%dh/%dh"} % coin_type %
+                        ESCROW_ACCOUNT_INDEX % index);
   }
   throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                          "Invalid wallet type");
@@ -90,7 +97,8 @@ inline std::string GetBip32Type(const std::string& path) {
   if (path.rfind("m/49h/", 0) == 0) return "bip49";
   if (path.rfind("m/84h/", 0) == 0) return "bip84";
   if (path.rfind("m/86h/", 0) == 0) return "bip86";
-  if (path.rfind("m/48h/0h/0h", 0) == 0 || path.rfind("m/48h/1h/0h", 0) == 0)
+  if (path.rfind(strprintf("m/48h/0h/%dh", ESCROW_ACCOUNT_INDEX), 0) == 0 ||
+      path.rfind(strprintf("m/48h/1h/%dh", ESCROW_ACCOUNT_INDEX), 0) == 0)
     return "escrow";
   if (path.rfind("m/48h/", 0) == 0) return "bip48";
   return "custom";

@@ -389,72 +389,73 @@ NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
   return db;
 }
 
-Wallet NunchukStorage::CreateWallet(Chain chain, const Wallet& wallet,
-                                    bool allow_used_signer) {
+Wallet NunchukStorage::CreateWallet(Chain chain, const Wallet& wallet) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return CreateWallet0(chain, wallet, allow_used_signer);
+  return CreateWallet0(chain, wallet);
 }
 
-Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet,
-                                     bool allow_used_signer) {
+Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
   const AddressType address_type = wallet.get_address_type();
   const WalletType wallet_type = wallet.get_wallet_type();
 
-  const auto save_signer = [&](const SingleSigner& signer) {
+  const auto save_true_signer = [&](SingleSigner signer) {
     const std::string master_id = signer.get_master_fingerprint();
     NunchukSignerDb signer_db{
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+
     if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
       int index = GetIndexFromPath(signer.get_derivation_path());
       if (FormalizePath(
               GetBip32Path(chain, wallet_type, address_type, index)) ==
           FormalizePath(signer.get_derivation_path())) {
         signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
-        if (!signer_db.UseIndex(wallet_type, address_type, index) &&
-            !allow_used_signer) {
-          throw StorageException(
-              StorageException::SIGNER_USED,
-              strprintf("Signer used! master_id = '%s'", master_id));
-        }
+        signer_db.UseIndex(wallet_type, address_type, index);
+
       } else {
         // custom derivation path
-        signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(), "custom");
+        signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
+                          "custom");
       }
-    } else {
-      try {
-        signer_db.GetRemoteSigner(signer.get_derivation_path());
-        signer_db.UseRemote(signer.get_derivation_path());
-      } catch (StorageException& se) {
-        if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-        // Import/Recover wallet, signers may not exist => we create as UNKNOWN
-        // signers to hide on Key Manager, except for COLDCARD_NFC signers, make
-        // them visible to able to sign transaction
-        if (signer.get_type() == SignerType::COLDCARD_NFC) {
-          signer_db.AddRemote(
-              signer.get_name(), signer.get_xpub(), signer.get_public_key(),
-              signer.get_derivation_path(), true, signer.get_type());
-        } else {
-          signer_db.AddRemote(
-              "import", signer.get_xpub(), signer.get_public_key(),
-              signer.get_derivation_path(), true, SignerType::UNKNOWN);
-        }
-      }
+      return signer;
     }
+
+    try {
+      signer_db.GetRemoteSigner(signer.get_derivation_path());
+      signer_db.UseRemote(signer.get_derivation_path());
+    } catch (StorageException& se) {
+      if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
+      // Import/Recover wallet, signers may not exist => we create as UNKNOWN
+      // signers to hide on Key Manager, except for COLDCARD_NFC signers, make
+      // them visible to able to sign transaction
+      if (signer.get_type() != SignerType::COLDCARD_NFC) {
+        signer.set_name("import");
+        signer.set_type(SignerType::UNKNOWN);
+      }
+      signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                          signer.get_public_key(), signer.get_derivation_path(),
+                          true, signer.get_type());
+      return signer;
+    }
+    return signer;
   };
 
-  for (auto&& signer : wallet.get_signers()) {
-    save_signer(signer);
-  }
   auto id = wallet.get_id();
   fs::path wallet_file = GetWalletDir(chain, id);
   if (fs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
                            strprintf("Wallet existed! id = '%s'", id));
   }
+  std::vector<SingleSigner> true_signers;
+  for (auto&& signer : wallet.get_signers()) {
+    true_signers.emplace_back(save_true_signer(signer));
+  }
   NunchukWalletDb wallet_db{chain, id, wallet_file.string(), passphrase_};
   wallet_db.InitWallet(wallet);
   GetAppStateDb(chain).RemoveDeletedWallet(id);
-  return wallet;
+
+  Wallet true_wallet = wallet;
+  true_wallet.set_signers(true_signers);
+  return true_wallet;
 }
 
 SingleSigner NunchukStorage::GetTrueSigner0(Chain chain,
@@ -547,7 +548,7 @@ bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
   NunchukSignerDb signer_db{chain, id, db_file.string(), passphrase_};
   if (signer_db.IsMaster()) return true;
   auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
-  return remote.get_type() == SignerType::UNKNOWN &&
+  return remote.get_type() != SignerType::UNKNOWN &&
          remote.get_xpub() == signer.get_xpub() &&
          remote.get_public_key() == signer.get_public_key();
 }
@@ -618,7 +619,7 @@ void NunchukStorage::CacheMasterSignerXPub(
 
   int count = 0;
   auto total =
-      first ? (is_software ? 62 : (is_nfc ? 10 : (is_bitbox2 ? 4 : 8)))
+      first ? (is_software ? 62 : (is_bitbox2 ? 4 : (is_nfc ? 7 : 8)))
             : (is_software ? 60 : (is_bitbox2 ? 10 : TOTAL_CACHE_NUMBER));
   progress(count++ * 100 / total);
 
@@ -635,7 +636,6 @@ void NunchukStorage::CacheMasterSignerXPub(
 
   auto cacheNumber = [&](WalletType w, AddressType a) {
     if (is_software) return 10;
-    if (first && is_nfc && w == WalletType::MULTI_SIG) return 3;
     if (first) return 1;
     if (w == WalletType::MULTI_SIG) return MULTISIG_CACHE_NUMBER;
     if (w == WalletType::ESCROW && !is_bitbox2) return ESCROW_CACHE_NUMBER;
@@ -658,7 +658,9 @@ void NunchukStorage::CacheMasterSignerXPub(
   };
   cacheIndex(WalletType::MULTI_SIG, AddressType::ANY);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT);
-  cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
+  if (!is_nfc) {
+    cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
+  }
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
@@ -1344,7 +1346,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
         w.set_name(wallet["name"]);
         w.set_description(wallet["description"]);
         w.set_create_date(wallet["create_date"]);
-        CreateWallet0(chain, w, true);
+        CreateWallet0(chain, w);
       } else {
         auto db = GetWalletDb(chain, id);
         db.SetName(wallet["name"]);
