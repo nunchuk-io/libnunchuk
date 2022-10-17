@@ -677,9 +677,13 @@ std::vector<std::string> NunchukImpl::GetAddresses(const std::string& wallet_id,
 
 std::string NunchukImpl::NewAddress(const std::string& wallet_id,
                                     bool internal) {
-  std::string descriptor = GetWallet(wallet_id).get_descriptor(
+  auto wallet = GetWallet(wallet_id);
+  std::string descriptor = wallet.get_descriptor(
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
-  int index = storage_->GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
+  int index =
+      wallet.is_escrow()
+          ? -1
+          : storage_->GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     if (!synchronizer_->LookAhead(chain_, wallet_id, address, index,
