@@ -298,6 +298,10 @@ class NunchukImpl : public Nunchuk {
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& master_signer_id,
       std::function<bool /* stop */ (int /* percent */)> progress) override;
+  void CacheDefaultTapsignerMasterSignerXPub(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id,
+      std::function<bool /* stop */ (int /* percent */)> progress) override;
   TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) override;
 
