@@ -964,6 +964,10 @@ class NUNCHUK_EXPORT Nunchuk {
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& master_signer_id,
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+  virtual void CacheDefaultTapsignerMasterSignerXPub(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id,
+      std::function<bool /* stop */ (int /* percent */)> progress) = 0;
   virtual TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) = 0;
 

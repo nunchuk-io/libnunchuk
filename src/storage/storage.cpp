@@ -650,6 +650,13 @@ void NunchukStorage::CacheMasterSignerXPub(
   auto cacheIndex = [&](WalletType w, AddressType a) {
     int n = cacheNumber(w, a);
     int index = signer_db.GetCachedIndex(w, a);
+    // cache 0 index multisig for old key
+    if (index != -1 && w == WalletType::MULTI_SIG) {
+      auto xpub = signer_db.GetXpub(w, a, 0);
+      if (xpub.empty()) {
+        signer_db.AddXPub(w, a, 0, getxpub(GetBip32Path(chain, w, a, 0)));
+      }
+    }
     for (int i = index + 1; i <= index + n; i++) {
       signer_db.AddXPub(w, a, i, getxpub(GetBip32Path(chain, w, a, i)));
       progress(count++ * 100 / total);
@@ -663,6 +670,20 @@ void NunchukStorage::CacheMasterSignerXPub(
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
+}
+
+void NunchukStorage::CacheMasterSignerXPub(
+    Chain chain, const std::string& mastersigner_id, WalletType wallet_type,
+    AddressType address_type, std::function<std::string(std::string)> getxpub,
+    std::function<bool(int)> progress) {
+  auto signer_db = GetSignerDb(chain, mastersigner_id);
+  const std::string path = GetBip32Path(chain, wallet_type, address_type, 0);
+  progress(10);
+  if (signer_db.AddXPub(wallet_type, address_type, 0, getxpub(path))) {
+    progress(100);
+  } else {
+    throw StorageException(StorageException::SQL_ERROR, "Cache xpub failed");
+  }
 }
 
 int NunchukStorage::GetCurrentIndexFromMasterSigner(

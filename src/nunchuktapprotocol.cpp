@@ -572,6 +572,40 @@ void NunchukImpl::CacheTapsignerMasterSignerXPub(
   }
 }
 
+void NunchukImpl::CacheDefaultTapsignerMasterSignerXPub(
+    tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+    const std::string& master_signer_id,
+    std::function<bool /* stop */ (int /* percent */)> progress) {
+  try {
+    hwi_tapsigner_->SetDevice(tapsigner, cvc);
+
+    auto st =
+        storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
+    if (st.get_card_ident() != tapsigner->GetIdent()) {
+      throw NunchukException(
+          TapProtocolException::INVALID_DEVICE,
+          strprintf(
+              "Invalid device: key fingerprint does not match. Expected '%s'.",
+              master_signer_id));
+    }
+    auto mastersigner = GetMasterSigner(master_signer_id);
+    if (mastersigner.get_type() != SignerType::NFC) {
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          strprintf("Only for NFC signer master_signer_id = '%s'",
+                    master_signer_id));
+    }
+    storage_->CacheMasterSignerXPub(
+        chain_, master_signer_id, WalletType::MULTI_SIG, AddressType::ANY,
+        [&](const std::string& path) {
+          return hwi_tapsigner_->GetXpubAtPath(path);
+        },
+        progress);
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
 TapsignerStatus NunchukImpl::GetTapsignerStatusFromMasterSigner(
     const std::string& master_signer_id) {
   return storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
