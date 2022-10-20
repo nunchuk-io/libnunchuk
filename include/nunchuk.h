@@ -1001,7 +1001,8 @@ class NUNCHUK_EXPORT Nunchuk {
 
   // Coldcard mk4
   virtual std::vector<SingleSigner> ParseJSONSigners(
-      const std::string& json_str) = 0;
+      const std::string& json_str,
+      SignerType signer_type = SignerType::COLDCARD_NFC) = 0;
   virtual std::vector<Wallet> ParseJSONWallets(const std::string& json_str) = 0;
   virtual Transaction ImportRawTransaction(const std::string& wallet_id,
                                            const std::string& raw_tx) = 0;
