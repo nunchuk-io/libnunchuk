@@ -334,7 +334,8 @@ class NunchukImpl : public Nunchuk {
 
   // Coldcard mk4
   std::vector<SingleSigner> ParseJSONSigners(
-      const std::string& json_str) override;
+      const std::string& json_str,
+      SignerType signer_type = SignerType::COLDCARD_NFC) override;
   std::vector<Wallet> ParseJSONWallets(const std::string& json_str) override;
   Transaction ImportRawTransaction(const std::string& wallet_id,
                                    const std::string& raw_tx) override;

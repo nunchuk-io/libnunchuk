@@ -1459,12 +1459,11 @@ bool NunchukImpl::SyncWithBackup(const std::string& data,
   return rs;
 }
 std::vector<SingleSigner> NunchukImpl::ParseJSONSigners(
-    const std::string& json_str) {
+    const std::string& json_str, SignerType signer_type) {
   std::vector<SingleSigner> signers;
   if (ParsePassportSignerConfig(chain_, json_str, signers)) {
     for (auto&& signer : signers) {
-      signer.set_type(SignerType::COLDCARD_NFC);
-      signer.set_name("COLDCARD");
+      signer.set_type(signer_type);
     }
     return signers;
   } else {
