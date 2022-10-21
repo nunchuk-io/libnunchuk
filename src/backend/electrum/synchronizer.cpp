@@ -234,9 +234,9 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
   std::string address = scripthash_to_wallet_address_.at(scripthash).second;
   json utxo = client_->blockchain_scripthash_listunspent(scripthash);
   std::string utxostatus = join(std::vector{utxo.dump(), status}, '|');
-  storage_->SetUtxos(chain, wallet_id, address, utxostatus);
   json history = client_->blockchain_scripthash_get_history(scripthash);
   UpdateTransactions(chain, wallet_id, history);
+  storage_->SetUtxos(chain, wallet_id, address, utxostatus);
   if (check_balance) {
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);
