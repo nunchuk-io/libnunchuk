@@ -64,6 +64,10 @@ std::string FormalizePath(const std::string& path) {
   std::string rs(path);
   if (rs.rfind("m", 0) == 0) rs.erase(0, 1);  // Remove leading m
   std::replace(rs.begin(), rs.end(), 'h', '\'');
+  // Prepend '/'
+  if (!rs.empty() && rs[0] != '/') {
+    rs = '/' + rs;
+  }
   return rs;
 }
 

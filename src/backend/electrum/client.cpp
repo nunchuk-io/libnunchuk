@@ -248,11 +248,11 @@ void ElectrumClient::start() {
 
 void ElectrumClient::stop() {
   stopped_ = true;
-  request_queue_.clear();
   signal_worker_.reset();
   io_service_.stop();
   signal_thread_.join();
   io_thread_.join();
+  request_queue_.clear();
 }
 
 void ElectrumClient::enqueue_message(const std::string& jsonrpc_request) {
