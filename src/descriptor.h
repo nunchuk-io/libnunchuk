@@ -30,6 +30,8 @@ std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
 
+std::string GetDerivationPathView(std::string path);
+
 std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
                         AddressType address_type, WalletType wallet_type);
 
