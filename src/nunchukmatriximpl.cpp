@@ -198,8 +198,8 @@ NunchukMatrixEvent NunchukMatrixImpl::JoinWallet(const std::string& room_id,
     auto join_body = json::parse(join_event.get_content())["body"];
     std::string join_key = join_body["key"];
     if (key == join_key) {
-      throw NunchukMatrixException(NunchukMatrixException::DUPPLICATE_KEYS,
-                                   "Dupplicate keys");
+      throw NunchukMatrixException(NunchukMatrixException::DUPLICATE_KEYS,
+                                   "Duplicate keys");
     }
   }
 

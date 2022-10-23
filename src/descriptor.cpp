@@ -29,6 +29,7 @@
 #include <boost/algorithm/string.hpp>
 #include <signingprovider.h>
 #include <utils/stringutils.hpp>
+#include "util/bip32.h"
 
 using json = nlohmann::json;
 namespace nunchuk {
@@ -58,6 +59,18 @@ std::string GetDescriptorsImportString(const Wallet& wallet) {
   return GetDescriptorsImportString(
       wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
       wallet.get_descriptor(DescriptorPath::INTERNAL_ALL), range);
+}
+
+std::string GetDerivationPathView(std::string path) {
+  std::replace(path.begin(), path.end(), 'h', '\'');
+  std::vector<uint32_t> path_int;
+  if (!ParseHDKeypath(path, path_int)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid derivation path");
+  }
+  path = WriteHDKeypath(path_int);
+  std::replace(path.begin(), path.end(), '\'', 'h');
+  return path;
 }
 
 std::string FormalizePath(const std::string& path) {
