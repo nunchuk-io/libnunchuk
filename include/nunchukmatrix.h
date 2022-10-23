@@ -36,7 +36,7 @@ class NUNCHUK_EXPORT NunchukMatrixException : public BaseException {
   static const int TRANSACTION_NOT_FOUND = -5004;
   static const int MISMATCHED_NETWORKS = -5005;
   static const int MISMATCHED_KEY_TYPES = -5006;
-  static const int DUPPLICATE_KEYS = -5007;
+  static const int DUPLICATE_KEYS = -5007;
   static const int INVALID_KEY = -5008;
   using BaseException::BaseException;
 };
