@@ -25,6 +25,7 @@
 #include <utils/bip32.hpp>
 #include <utils/bsms.hpp>
 #include <utils/multisigconfig.hpp>
+#include <utils/unchained.hpp>
 #include <storage/storage.h>
 
 #include <base58.h>
@@ -245,6 +246,8 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
   if (ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers) ||
       ParseDescriptors(descs, address_type, wallet_type, m, n, signers) ||
       ParseJSONDescriptors(descs, name, address_type, wallet_type, m, n,
+                           signers) ||
+      ParseUnchainedWallet(descs, name, address_type, wallet_type, m, n,
                            signers) ||
       ParseConfig(Utils::GetChain(), descs, name, address_type, wallet_type, m,
                   n, signers)) {

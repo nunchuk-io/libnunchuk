@@ -20,6 +20,7 @@
 
 #include <nunchuk.h>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/format.hpp>
 #include <tinyformat.h>
 #include <iomanip>
@@ -136,6 +137,23 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
 inline int GetIndexFromPath(const std::string& path) {
   std::size_t last = path.find_last_of("/");
   return std::stoi(path.substr(last + 1));
+}
+
+inline nunchuk::AddressType GetAddressTypeFromStr(const std::string& str) {
+  if (boost::iequals(str, "p2sh")) {
+    return nunchuk::AddressType::LEGACY;
+  }
+  if (boost::iequals(str, "p2wsh")) {
+    return nunchuk::AddressType::NATIVE_SEGWIT;
+  }
+  if (boost::iequals(str, "p2wsh-p2sh") || boost::iequals(str, "p2sh-p2wsh")) {
+    return nunchuk::AddressType::NESTED_SEGWIT;
+  }
+  if (boost::iequals(str, "p2tr")) {
+    return nunchuk::AddressType::TAPROOT;
+  }
+  throw nunchuk::NunchukException(
+      nunchuk::NunchukException::INVALID_ADDRESS_TYPE, "Invalid address type");
 }
 
 }  // namespace
