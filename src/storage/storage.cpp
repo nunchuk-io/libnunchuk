@@ -1111,11 +1111,25 @@ bool NunchukStorage::SetSelectedWallet(Chain chain, const std::string& value) {
 
 std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto signers = ListMasterSigners0(chain);
+  auto signer_ids = ListMasterSigners0(chain);
   std::vector<SingleSigner> rs;
-  for (auto&& signer_id : signers) {
-    auto remote = GetSignerDb(chain, signer_id).GetRemoteSigners();
-    rs.insert(rs.end(), remote.begin(), remote.end());
+  for (auto&& signer_id : signer_ids) {
+    auto remotes = GetSignerDb(chain, signer_id).GetRemoteSigners();
+    for (auto&& signer : remotes) {
+      auto existed =
+          std::find_if(rs.begin(), rs.end(), [&](const SingleSigner& existed) {
+            return existed.get_descriptor() == signer.get_descriptor();
+          });
+
+      if (existed != rs.end()) {
+        // filter out duplicated signers
+        if (existed->get_name() == "import") {
+          *existed = std::move(signer);
+        }
+      } else {
+        rs.emplace_back(std::move(signer));
+      }
+    }
   }
   return rs;
 }
