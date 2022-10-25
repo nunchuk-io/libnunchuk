@@ -261,9 +261,13 @@ bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
         name_iter != json_descs.end()) {
       name = *name_iter;
     }
-    return ParseDescriptors(json_descs["descriptor"], address_type, wallet_type,
-                            m, n, signers);
-  } catch (std::exception& e) {
+    if (auto desc_iter = json_descs.find("descriptor");
+        desc_iter != json_descs.end()) {
+      return ParseDescriptors(*desc_iter, address_type, wallet_type, m, n,
+                              signers);
+    }
+    return false;
+  } catch (...) {
     return false;
   }
 }

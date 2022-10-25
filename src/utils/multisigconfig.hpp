@@ -25,6 +25,7 @@
 #include <regex>
 #include <utils/stringutils.hpp>
 #include "descriptor.h"
+#include "utils/bip32.hpp"
 
 namespace {
 
@@ -72,7 +73,7 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
   try {
     std::istringstream content_stream(content);
     std::string line;
-    std::string derivation_path = "";
+    std::string derivation_path;
     while (safeGetline(content_stream, line)) {
       if (boost::starts_with(line, "#")) continue;
       std::smatch sm;
@@ -83,17 +84,7 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
         n = std::stoi(sm[3].str());
       } else if (std::regex_match(line, sm, FORMAT_REGEX)) {
         std::string format = boost::trim_copy(sm[1].str());
-        if (boost::iequals(format, "p2sh")) {
-          a = AddressType::LEGACY;
-        } else if (boost::iequals(format, "p2wsh")) {
-          a = AddressType::NATIVE_SEGWIT;
-        } else if (boost::iequals(format, "p2wsh-p2sh") ||
-                   boost::iequals(format, "p2sh-p2wsh")) {
-          a = AddressType::NESTED_SEGWIT;
-        } else {
-          throw NunchukException(NunchukException::INVALID_FORMAT,
-                                 "Invalid address format");
-        }
+        a = GetAddressTypeFromStr(format);
       } else if (std::regex_match(line, sm, DERIVATION_REGEX)) {
         derivation_path = boost::trim_copy(sm[1].str());
         if (!Utils::IsValidDerivationPath(derivation_path)) {
