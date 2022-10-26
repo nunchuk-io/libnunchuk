@@ -34,7 +34,7 @@ bool ParseUnchainedWallet(const std::string& content, std::string& name,
   signers.clear();
 
   try {
-    const json j = json::parse(content);
+    json j = json::parse(content);
     name = j["name"];
     address_type = GetAddressTypeFromStr(j["addressType"]);
     n = j["quorum"]["totalSigners"];
