@@ -121,6 +121,7 @@ enum class SignerType {
   FOREIGN_SOFTWARE,
   NFC,
   COLDCARD_NFC,
+  SERVER,
 };
 
 enum class OrderBy {
