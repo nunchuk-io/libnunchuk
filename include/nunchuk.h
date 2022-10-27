@@ -1119,9 +1119,16 @@ class NUNCHUK_EXPORT Utils {
 
   static std::string GetMasterFingerprint(const std::string& mnemonic,
                                           const std::string& passphrase);
+  static std::string GetMasterFingerprint(tap_protocol::Tapsigner* tapsigner,
+                                          const std::string& cvc);
+
   static std::string SignLoginMessage(const std::string& mnemonic,
                                       const std::string& passphrase,
                                       const std::string& message);
+  static std::string SignLoginMessage(tap_protocol::Tapsigner* tapsigner,
+                                      const std::string& cvc,
+                                      const std::string& message);
+
   static Wallet ParseWalletDescriptor(const std::string& descs);
   static Wallet ParseKeystoneWallet(Chain chain,
                                     const std::vector<std::string>& qr_data);

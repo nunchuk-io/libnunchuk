@@ -226,11 +226,31 @@ std::string Utils::GetMasterFingerprint(const std::string& mnemonic,
   return signer.GetMasterFingerprint();
 }
 
+std::string Utils::GetMasterFingerprint(tap_protocol::Tapsigner* tapsigner,
+                                        const std::string& cvc) {
+  try {
+    return tapsigner->GetXFP(cvc);
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
 std::string Utils::SignLoginMessage(const std::string& mnemonic,
                                     const std::string& passphrase,
                                     const std::string& message) {
   SoftwareSigner signer{mnemonic, passphrase};
   return signer.SignMessage(message, LOGIN_SIGNING_PATH);
+}
+
+std::string Utils::SignLoginMessage(tap_protocol::Tapsigner* tapsigner,
+                                    const std::string& cvc,
+                                    const std::string& message) {
+  try {
+    auto hwi = tap_protocol::MakeHWITapsigner(tapsigner, cvc);
+    return hwi->SignMessage(message, LOGIN_SIGNING_PATH);
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
 }
 
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
