@@ -1021,6 +1021,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
     case SignerType::AIRGAP:
     case SignerType::COLDCARD_NFC:
     case SignerType::UNKNOWN:
+    case SignerType::SERVER:
       throw NunchukException(
           NunchukException::INVALID_SIGNER_TYPE,
           strprintf("Can not cache xpub for this signer mastersigner_id = '%s'",

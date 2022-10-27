@@ -76,6 +76,8 @@ inline std::string SignerTypeToStr(nunchuk::SignerType value) {
       return "NFC";
     case nunchuk::SignerType::COLDCARD_NFC:
       return "COLDCARD_NFC";
+    case nunchuk::SignerType::SERVER:
+      return "SERVER";
   }
 
   throw nunchuk::NunchukException(
@@ -90,6 +92,7 @@ inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
   if (value == "HARDWARE") return nunchuk::SignerType::HARDWARE;
   if (value == "NFC") return nunchuk::SignerType::NFC;
   if (value == "COLDCARD_NFC") return nunchuk::SignerType::COLDCARD_NFC;
+  if (value == "SERVER") return nunchuk::SignerType::SERVER;
 
   throw nunchuk::NunchukException(
       nunchuk::NunchukException::INVALID_SIGNER_TYPE, "Invalid signer type");
