@@ -611,6 +611,17 @@ TapsignerStatus NunchukImpl::GetTapsignerStatusFromMasterSigner(
   return storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
 }
 
+void NunchukImpl::AddTapsigner(const std::string& card_ident,
+                               const std::string& xfp,
+                               const std::string& version) {
+  TapsignerStatus status(card_ident, 0, 0, version);
+  status.set_master_signer_id(xfp);
+  if (!storage_->AddTapsigner(chain_, status)) {
+    throw StorageException(StorageException::SQL_ERROR,
+                           "Can't save TAPSIGNER data");
+  }
+}
+
 // SATSCARD
 std::unique_ptr<tap_protocol::Satscard> NunchukImpl::CreateSatscard(
     std::unique_ptr<tap_protocol::Transport> transport) {

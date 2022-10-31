@@ -304,6 +304,8 @@ class NunchukImpl : public Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) override;
   TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) override;
+  void AddTapsigner(const std::string& card_ident, const std::string& xfp,
+                    const std::string& version = {}) override;
 
   // SATSCARD
   std::unique_ptr<tap_protocol::Satscard> CreateSatscard(
