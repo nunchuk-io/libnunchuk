@@ -971,6 +971,9 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
   virtual TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) = 0;
+  virtual void AddTapsigner(const std::string& card_ident,
+                            const std::string& xfp,
+                            const std::string& version = {}) = 0;
 
   // SATSCARD
   virtual std::unique_ptr<tap_protocol::Satscard> CreateSatscard(
