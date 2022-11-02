@@ -55,8 +55,19 @@ class ElectrumClient {
   json blockchain_estimatefee(int number);
   json blockchain_relayfee();
   json blockchain_transaction_broadcast(const std::string& raw_tx);
-  json blockchain_transaction_get(const std::string& tx_hash,
-                                  bool verbose = true);
+  json blockchain_transaction_get(const std::string& tx_hash);
+  json blockchain_block_header(int height);
+
+  json server_version();
+  bool support_batch_requests();
+  std::vector<json> call_batch(const std::vector<std::string>& methods,
+                               const std::vector<json>& params);
+  std::map<std::string, std::string> get_multi_rawtx(
+      const std::vector<std::string>& txs_hash);
+  std::map<int, std::string> get_multi_rawheader(
+      const std::vector<int>& heights);
+  std::map<std::string, std::string> subscribe_multi_scripthash(
+      const std::vector<std::string>& scripthashes);
 
  private:
   void start();
@@ -98,6 +109,7 @@ class ElectrumClient {
   std::deque<std::string> request_queue_;
   std::map<std::string, NotifySignal> sigmap_;
   std::map<int, std::promise<json>> callback_;
+  std::map<std::string, std::promise<json>> batch_callback_;
   boost::signals2::signal<void()> disconnect_signal_;
   boost::posix_time::seconds interval_;
   boost::asio::deadline_timer timer_;

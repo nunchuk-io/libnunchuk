@@ -28,7 +28,7 @@ using json = nlohmann::json;
 namespace nunchuk {
 
 static int RECONNECT_DELAY_SECOND = 3;
-static long long SUBCRIBE_DELAY_MS = 100;
+static long long SUBCRIBE_DELAY_MS = 50;
 
 ElectrumSynchronizer::~ElectrumSynchronizer() {
   {
@@ -109,9 +109,10 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
     } catch (StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) continue;
     }
-    auto tx = client_->blockchain_transaction_get(tx_id);
-    std::string raw = tx["hex"];
-    time_t time = tx["blocktime"] == nullptr ? 0 : time_t(tx["blocktime"]);
+    std::string raw = client_->blockchain_transaction_get(tx_id);
+    time_t time = height <= 0
+                      ? 0
+                      : GetBlockTime(client_->blockchain_block_header(height));
     Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
     auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
     if (height <= 0) height = 0;
@@ -279,7 +280,7 @@ std::string ElectrumSynchronizer::GetRawTx(const std::string& tx_id) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
   }
-  auto tx = client_->blockchain_transaction_get(tx_id, false);
+  auto tx = client_->blockchain_transaction_get(tx_id);
   return tx;
 }
 
@@ -290,15 +291,27 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
                            "Disconnected");
   }
 
-  auto tx_json = client_->blockchain_transaction_get(tx_id);
-  int conf = tx_json.value("confirmations", 0);
-  int height = (conf == 0) ? 0 : GetChainTip() - conf + 1;
-  auto tx = GetTransactionFromCMutableTransaction(
-      DecodeRawTransaction(tx_json["hex"]), {}, height);
+  std::string raw = client_->blockchain_transaction_get(tx_id);
+  auto cmutx = DecodeRawTransaction(raw);
+  auto getHeight = [&]() {
+    auto tx = GetTransactionFromCMutableTransaction(cmutx, {}, 0);
+    std::string scripthash = AddressToScriptHash(tx.get_outputs()[0].first);
+    json history = client_->blockchain_scripthash_get_history(scripthash);
+    for (auto item : history) {
+      std::string tx_hash = item["tx_hash"];
+      int height = item["height"];
+      if (tx_id == tx_hash) return height;
+    }
+    return 0;
+  };
+  int height = getHeight();
+  time_t time =
+      height <= 0 ? 0 : GetBlockTime(client_->blockchain_block_header(height));
+  auto tx = GetTransactionFromCMutableTransaction(cmutx, {}, height);
 
   Amount total_input = 0;
   for (auto&& [txin_id, vout] : tx.get_inputs()) {
-    auto txin_raw = client_->blockchain_transaction_get(txin_id, false);
+    auto txin_raw = client_->blockchain_transaction_get(txin_id);
     auto txin = DecodeRawTransaction(txin_raw);
     total_input += txin.vout[vout].nValue;
   }
@@ -309,9 +322,9 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
 
   tx.set_fee(total_input - total_output);
   tx.set_sub_amount(total_output);
-  tx.set_raw(tx_json["hex"]);
+  tx.set_raw(raw);
   tx.set_receive(false);
-  tx.set_blocktime(tx_json.value("blocktime", 0));
+  tx.set_blocktime(time);
 
   return tx;
 }

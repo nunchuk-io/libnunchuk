@@ -19,6 +19,7 @@
 #include <iterator>
 #include <utils/loguru.hpp>
 #include <utils/errorutils.hpp>
+#include <utils/stringutils.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -224,9 +225,111 @@ json ElectrumClient::blockchain_transaction_broadcast(
   return call_method("blockchain.transaction.broadcast", {raw_tx});
 }
 
-json ElectrumClient::blockchain_transaction_get(const std::string& tx_hash,
-                                                bool verbose) {
-  return call_method("blockchain.transaction.get", {tx_hash, verbose});
+json ElectrumClient::blockchain_transaction_get(const std::string& tx_hash) {
+  return call_method("blockchain.transaction.get", {tx_hash});
+}
+
+json ElectrumClient::blockchain_block_header(int height) {
+  return call_method("blockchain.block.header", {height});
+}
+
+json ElectrumClient::server_version() {
+  return call_method("server.version", {"Nunchuk", {"1.3", "1.4.2"}});
+}
+
+bool ElectrumClient::support_batch_requests() {
+  std::string version = server_version()[0].get<std::string>();
+  if (boost::starts_with(version, "ElectrumX")) {
+    return true;
+  }
+  return false;
+}
+
+std::vector<json> ElectrumClient::call_batch(
+    const std::vector<std::string>& methods, const std::vector<json>& params) {
+  if (stopped_) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  }
+
+  std::vector<int> ids{};
+  json req = json::array();
+  for (int i = 0; i < params.size(); i++) {
+    int id = id_++;
+    ids.push_back(id);
+    req.push_back({{"jsonrpc", "2.0"},
+                   {"method", methods[i]},
+                   {"id", id},
+                   {"params", params[i]}});
+  }
+
+  std::string bid = join(ids, '-');
+  batch_callback_[bid] =
+      std::promise<json>(std::allocator_arg, std::allocator<json>());
+  enqueue_message(req.dump());
+  json resp = batch_callback_[bid].get_future().get();
+  batch_callback_.erase(bid);
+  std::map<int, json> respMap{};
+  for (auto&& item : resp) {
+    int id = item["id"].get<int>();
+    respMap[id] = item;
+  }
+  std::vector<json> rs{};
+  for (auto&& id : ids) {
+    rs.push_back(respMap[id]);
+  }
+  return rs;
+}
+
+std::map<std::string, std::string> ElectrumClient::get_multi_rawtx(
+    const std::vector<std::string>& txs_hash) {
+  std::vector<std::string> methods(txs_hash.size(),
+                                   "blockchain.transaction.get");
+  std::vector<json> params{};
+  for (auto&& tx_hash : txs_hash) {
+    params.push_back({tx_hash});
+  }
+  auto batchResp = call_batch(methods, params);
+  std::map<std::string, std::string> rs;
+  for (int i = 0; i < txs_hash.size(); i++) {
+    if (batchResp[i].contains("error")) continue;
+    rs[txs_hash[i]] = batchResp[i]["result"];
+  }
+  return rs;
+}
+
+std::map<int, std::string> ElectrumClient::get_multi_rawheader(
+    const std::vector<int>& heights) {
+  std::vector<std::string> methods(heights.size(), "blockchain.block.header");
+  std::vector<json> params{};
+  for (auto&& height : heights) {
+    params.push_back({height});
+  }
+  auto batchResp = call_batch(methods, params);
+  std::map<int, std::string> rs;
+  for (int i = 0; i < heights.size(); i++) {
+    if (batchResp[i].contains("error")) continue;
+    rs[heights[i]] = batchResp[i]["result"];
+  }
+  return rs;
+}
+
+std::map<std::string, std::string> ElectrumClient::subscribe_multi_scripthash(
+    const std::vector<std::string>& scripthashes) {
+  std::vector<std::string> methods(scripthashes.size(),
+                                   "blockchain.scripthash.subscribe");
+  std::vector<json> params{};
+  for (auto&& scripthash : scripthashes) {
+    params.push_back({scripthash});
+  }
+  auto batchResp = call_batch(methods, params);
+  std::map<std::string, std::string> rs;
+  for (int i = 0; i < scripthashes.size(); i++) {
+    if (batchResp[i].contains("error")) continue;
+    rs[scripthashes[i]] =
+        batchResp[i]["result"] == nullptr ? "" : batchResp[i]["result"];
+  }
+  return rs;
 }
 
 void ElectrumClient::start() {
@@ -357,7 +460,18 @@ void ElectrumClient::handle_read(const boost::system::error_code& error) {
   if (!message.empty()) {
     DLOG_F(INFO, "Read message: %s", message.c_str());
     json response = json::parse(message);
-    if (response["method"] != nullptr) {
+    if (response.is_array()) {
+      std::vector<int> ids{};
+      for (auto&& item : response) {
+        ids.push_back(item["id"].get<int>());
+      }
+      sort(ids.begin(), ids.end());
+      std::string bid = join(ids, '-');
+      auto cb = batch_callback_.find(bid);
+      if (cb != batch_callback_.end()) {
+        cb->second.set_value(response);
+      }
+    } else if (response["method"] != nullptr) {
       signal_service_.post([this, response]() {
         sigmap_.at(response["method"])(response["params"]);
       });
