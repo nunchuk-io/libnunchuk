@@ -972,8 +972,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual TapsignerStatus GetTapsignerStatusFromMasterSigner(
       const std::string& master_signer_id) = 0;
   virtual void AddTapsigner(const std::string& card_ident,
-                            const std::string& xfp,
-                            const std::string& version = {}) = 0;
+                            const std::string& xfp, const std::string& name,
+                            const std::string& version = {},
+                            int birth_height = 0, bool is_testnet = false) = 0;
 
   // SATSCARD
   virtual std::unique_ptr<tap_protocol::Satscard> CreateSatscard(

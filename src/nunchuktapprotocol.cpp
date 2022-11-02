@@ -612,10 +612,15 @@ TapsignerStatus NunchukImpl::GetTapsignerStatusFromMasterSigner(
 }
 
 void NunchukImpl::AddTapsigner(const std::string& card_ident,
-                               const std::string& xfp,
-                               const std::string& version) {
-  TapsignerStatus status(card_ident, 0, 0, version);
-  status.set_master_signer_id(xfp);
+                               const std::string& xfp, const std::string& name,
+                               const std::string& version, int birth_height,
+                               bool is_testnet) {
+  TapsignerStatus status(card_ident, birth_height, 0, version, std::nullopt,
+                         is_testnet);
+  Device device("nfc", "tapsigner", xfp);
+  std::string id = storage_->CreateMasterSigner(chain_, name, device);
+  status.set_master_signer_id(id);
+
   if (!storage_->AddTapsigner(chain_, status)) {
     throw StorageException(StorageException::SQL_ERROR,
                            "Can't save TAPSIGNER data");
