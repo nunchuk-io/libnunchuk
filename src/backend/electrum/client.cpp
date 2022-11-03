@@ -237,13 +237,7 @@ json ElectrumClient::server_version() {
   return call_method("server.version", {"Nunchuk", {"1.3", "1.4.2"}});
 }
 
-bool ElectrumClient::support_batch_requests() {
-  std::string version = server_version()[0].get<std::string>();
-  if (boost::starts_with(version, "ElectrumX")) {
-    return true;
-  }
-  return false;
-}
+bool ElectrumClient::support_batch_requests() { return support_batch_request_; }
 
 std::vector<json> ElectrumClient::call_batch(
     const std::vector<std::string>& methods, const std::vector<json>& params) {
@@ -347,6 +341,8 @@ void ElectrumClient::start() {
       LOG_F(ERROR, "ElectrumClient::signal_thread_ %s", e.what());
     }
   });
+  std::string version = server_version()[0].get<std::string>();
+  support_batch_request_ = boost::starts_with(version, "ElectrumX");
 }
 
 void ElectrumClient::stop() {

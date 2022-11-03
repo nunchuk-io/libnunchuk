@@ -113,6 +113,7 @@ class ElectrumClient {
   boost::signals2::signal<void()> disconnect_signal_;
   boost::posix_time::seconds interval_;
   boost::asio::deadline_timer timer_;
+  bool support_batch_request_ = false;
 };
 
 }  // namespace nunchuk
