@@ -117,10 +117,6 @@ std::unique_ptr<tap_protocol::CKTapCard> NunchukImpl::CreateCKTapCard(
     std::unique_ptr<tap_protocol::Transport> transport) {
   try {
     auto card = std::make_unique<tap_protocol::CKTapCard>(std::move(transport));
-    Chain card_chain = card->IsTestnet() ? Chain::TESTNET : Chain::MAIN;
-    if (card_chain != chain_) {
-      throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
-    }
     if (card->IsTampered()) {
       throw TapProtocolException(TapProtocolException::INVALID_STATE,
                                  "Card is tampered");
@@ -165,10 +161,6 @@ std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
   try {
     auto tapsigner =
         std::make_unique<tap_protocol::Tapsigner>(std::move(transport));
-    Chain card_chain = tapsigner->IsTestnet() ? Chain::TESTNET : Chain::MAIN;
-    if (card_chain != chain_) {
-      throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
-    }
     if (tapsigner->IsTampered()) {
       throw TapProtocolException(TapProtocolException::INVALID_STATE,
                                  "Card is tampered");
@@ -633,10 +625,7 @@ std::unique_ptr<tap_protocol::Satscard> NunchukImpl::CreateSatscard(
   try {
     auto satscard =
         std::make_unique<tap_protocol::Satscard>(std::move(transport));
-    Chain card_chain = satscard->IsTestnet() ? Chain::TESTNET : Chain::MAIN;
-    if (card_chain != chain_) {
-      throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
-    }
+
     if (satscard->IsTampered()) {
       throw TapProtocolException(TapProtocolException::INVALID_STATE,
                                  "Card is tampered");
@@ -841,6 +830,10 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
 SatscardStatus NunchukImpl::GetSatscardStatus(
     tap_protocol::Satscard* satscard) {
   try {
+    Chain card_chain = satscard->IsTestnet() ? Chain::TESTNET : Chain::MAIN;
+    if (card_chain != chain_) {
+      throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
+    }
     return GetSatscardstatus(satscard);
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
