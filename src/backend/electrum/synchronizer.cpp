@@ -105,7 +105,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
     try {
       auto stx = storage_->GetTransaction(chain, wallet_id, tx_id);
       found = true;
-      if (stx.get_status() == TS::CONFIRMED || height <= 0) continue;
+      if (stx.get_status() == TS::CONFIRMED) continue;
     } catch (StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) continue;
     }
