@@ -766,17 +766,21 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
                                     const std::string& base64_psbt) {
   std::string psbt = boost::trim_copy(base64_psbt);
   std::string tx_id = GetTxIdFromPsbt(psbt);
-  std::string existed_psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
-  if (!existed_psbt.empty()) {
+  try {
+    auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
+    if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) return tx;
+    std::string existed_psbt = tx.get_psbt();
     std::string combined_psbt =
         CoreUtils::getInstance().CombinePsbt({psbt, existed_psbt});
     storage_->UpdatePsbt(chain_, wallet_id, combined_psbt);
     storage_listener_();
     return GetTransaction(wallet_id, tx_id);
+  } catch (StorageException& se) {
+    if (se.code() != StorageException::TX_NOT_FOUND) throw;
+    auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt);
+    storage_listener_();
+    return rs;
   }
-  auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt);
-  storage_listener_();
-  return rs;
 }
 
 Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
