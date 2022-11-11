@@ -135,6 +135,8 @@ class NunchukStorage {
                          time_t blocktime, const std::string &reject_msg = {});
   bool UpdateTransactionMemo(Chain chain, const std::string &wallet_id,
                              const std::string &tx_id, const std::string &memo);
+  bool UpdateTransactionSchedule(Chain chain, const std::string &wallet_id,
+                                 const std::string &tx_id, time_t value);
   bool DeleteTransaction(Chain chain, const std::string &wallet_id,
                          const std::string &tx_id);
   Transaction CreatePsbt(Chain chain, const std::string &wallet_id,

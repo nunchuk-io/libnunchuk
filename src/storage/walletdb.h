@@ -56,6 +56,7 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdateTransaction(const std::string &raw_tx, int height,
                          time_t blocktime, const std::string &reject_msg);
   bool UpdateTransactionMemo(const std::string &tx_id, const std::string &memo);
+  bool UpdateTransactionSchedule(const std::string &tx_id, time_t value);
   bool DeleteTransaction(const std::string &tx_id);
   Transaction CreatePsbt(const std::string &psbt, Amount fee,
                          const std::string &memo, int change_pos,

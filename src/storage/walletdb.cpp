@@ -517,6 +517,33 @@ bool NunchukWalletDb::UpdateTransactionMemo(const std::string& tx_id,
   return updated;
 }
 
+bool NunchukWalletDb::UpdateTransactionSchedule(const std::string& tx_id,
+                                                time_t value) {
+  sqlite3_stmt* select_stmt;
+  std::string select_sql = "SELECT EXTRA FROM VTX WHERE ID = ?;";
+  sqlite3_prepare_v2(db_, select_sql.c_str(), -1, &select_stmt, NULL);
+  sqlite3_bind_text(select_stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_step(select_stmt);
+  bool updated = false;
+  if (sqlite3_column_text(select_stmt, 0)) {
+    std::string extra = std::string((char*)sqlite3_column_text(select_stmt, 0));
+    json extra_json = extra.empty() ? json{} : json::parse(extra);
+    extra_json["schedule_time"] = value;
+    extra = extra_json.dump();
+
+    sqlite3_stmt* update_stmt;
+    std::string update_sql = "UPDATE VTX SET EXTRA = ?1 WHERE ID = ?2;";
+    sqlite3_prepare_v2(db_, update_sql.c_str(), -1, &update_stmt, NULL);
+    sqlite3_bind_text(update_stmt, 1, extra.c_str(), extra.size(), NULL);
+    sqlite3_bind_text(update_stmt, 2, tx_id.c_str(), tx_id.size(), NULL);
+    sqlite3_step(update_stmt);
+    SQLCHECK(sqlite3_finalize(update_stmt));
+    updated = true;
+  }
+  SQLCHECK(sqlite3_finalize(select_stmt));
+  return updated;
+}
+
 Transaction NunchukWalletDb::CreatePsbt(
     const std::string& psbt, Amount fee, const std::string& memo,
     int change_pos, const std::map<std::string, Amount>& outputs,
@@ -669,6 +696,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
+    tx.set_schedule_time(-1);
     // Default value, will set in FillSendReceiveData
     // TODO: Replace this asap. This code is fragile and potentially dangerous,
     // since it relies on external assumptions (flow of outside code) that might
@@ -741,6 +769,16 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
     memo_map[tx.get_txid()] = tx.get_memo();
     height_map[tx.get_txid()] = tx.get_height();
     status_map[tx.get_txid()] = tx.get_status();
+
+    if (tx.get_height() == -1 && tx.get_schedule_time() > 0 &&
+        !include_locked) {
+      // remove UTXOs of schedule transactions
+      for (auto&& input : tx.get_inputs()) {
+        locked_utxos.insert(input_str(input.first, input.second));
+      }
+      continue;
+    }
+
     if (tx.get_height() != 0 ||
         tx.get_status() == TransactionStatus::REPLACED ||
         tx.get_status() == TransactionStatus::NETWORK_REJECTED)
@@ -856,6 +894,7 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     tx.set_memo(memo);
     tx.set_change_index(change_pos);
     tx.set_blocktime(blocktime);
+    tx.set_schedule_time(-1);
     tx.set_receive(false);
     tx.set_sub_amount(0);
     if (is_hex_tx) {
@@ -959,6 +998,9 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
     }
     if (extra_json["replace_txid"] != nullptr) {
       tx.set_replace_txid(extra_json["replace_txid"]);
+    }
+    if (extra_json["schedule_time"] != nullptr) {
+      tx.set_schedule_time(extra_json["schedule_time"]);
     }
     if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION &&
         extra_json["replaced_by_txid"] != nullptr) {

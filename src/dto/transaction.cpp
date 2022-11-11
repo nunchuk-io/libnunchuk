@@ -55,6 +55,7 @@ Amount Transaction::get_sub_amount() const { return sub_amount_; }
 std::string Transaction::get_psbt() const { return psbt_; }
 std::string Transaction::get_raw() const { return raw_; }
 std::string Transaction::get_reject_msg() const { return reject_msg_; }
+time_t Transaction::get_schedule_time() const { return schedule_time_; }
 
 void Transaction::set_txid(const std::string& value) { txid_ = value; }
 void Transaction::set_height(int value) { height_ = value; }
@@ -94,5 +95,6 @@ void Transaction::set_raw(const std::string& value) { raw_ = value; }
 void Transaction::set_reject_msg(const std::string& value) {
   reject_msg_ = value;
 }
+void Transaction::set_schedule_time(time_t value) { schedule_time_ = value; }
 
 }  // namespace nunchuk

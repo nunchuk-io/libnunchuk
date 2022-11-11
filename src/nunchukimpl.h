@@ -184,6 +184,9 @@ class NunchukImpl : public Nunchuk {
   bool UpdateTransactionMemo(const std::string& wallet_id,
                              const std::string& tx_id,
                              const std::string& new_memo) override;
+  bool UpdateTransactionSchedule(const std::string& wallet_id,
+                                 const std::string& tx_id,
+                                 time_t broadcast_ts) override;
   bool ExportHealthCheckMessage(const std::string& message,
                                 const std::string& file_path) override;
   std::string ImportHealthCheckSignature(const std::string& file_path) override;

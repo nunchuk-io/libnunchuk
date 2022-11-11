@@ -1005,6 +1005,14 @@ bool NunchukStorage::UpdateTransactionMemo(Chain chain,
   return GetWalletDb(chain, wallet_id).UpdateTransactionMemo(tx_id, memo);
 }
 
+bool NunchukStorage::UpdateTransactionSchedule(Chain chain,
+                                               const std::string& wallet_id,
+                                               const std::string& tx_id,
+                                               time_t value) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).UpdateTransactionSchedule(tx_id, value);
+}
+
 bool NunchukStorage::DeleteTransaction(Chain chain,
                                        const std::string& wallet_id,
                                        const std::string& tx_id) {

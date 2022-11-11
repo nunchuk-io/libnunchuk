@@ -489,6 +489,7 @@ class Transaction {
   std::string get_psbt() const;
   std::string get_raw() const;
   std::string get_reject_msg() const;
+  time_t get_schedule_time() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -512,6 +513,7 @@ class Transaction {
   void set_psbt(const std::string& value);
   void set_raw(const std::string& value);
   void set_reject_msg(const std::string& value);
+  void set_schedule_time(time_t value);
 
  private:
   std::string txid_;
@@ -536,6 +538,7 @@ class Transaction {
   std::string psbt_;
   std::string raw_;
   std::string reject_msg_;
+  time_t schedule_time_;
 };
 
 class TapsignerStatus {
@@ -864,6 +867,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual bool UpdateTransactionMemo(const std::string& wallet_id,
                                      const std::string& tx_id,
                                      const std::string& new_memo) = 0;
+  virtual bool UpdateTransactionSchedule(const std::string& wallet_id,
+                                         const std::string& tx_id,
+                                         time_t broadcast_ts) = 0;
   virtual bool ExportHealthCheckMessage(const std::string& message,
                                         const std::string& file_path) = 0;
   virtual std::string ImportHealthCheckSignature(

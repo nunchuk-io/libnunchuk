@@ -988,6 +988,12 @@ bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,
   return storage_->UpdateTransactionMemo(chain_, wallet_id, tx_id, new_memo);
 }
 
+bool NunchukImpl::UpdateTransactionSchedule(const std::string& wallet_id,
+                                            const std::string& tx_id,
+                                            time_t ts) {
+  return storage_->UpdateTransactionSchedule(chain_, wallet_id, tx_id, ts);
+}
+
 void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
                                         std::function<bool(int)> progress) {
   auto mastersigner = GetMasterSigner(mastersigner_id);
