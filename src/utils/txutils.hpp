@@ -33,6 +33,17 @@
 
 namespace {
 
+inline int64_t GetBlockTime(const std::string& raw_header) {
+  using namespace nunchuk;
+  CBlockHeader header;
+  if (!DecodeHexBlockHeader(header, raw_header)) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid raw header");
+  } else {
+    return header.GetBlockTime();
+  }
+}
+
 inline PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
   using namespace nunchuk;
   PartiallySignedTransaction psbtx;
