@@ -19,6 +19,7 @@
 #include <coreutils.h>
 #include <descriptor.h>
 #include <softwaresigner.h>
+#include <signingprovider.h>
 #include <boost/algorithm/string/trim.hpp>
 #include <map>
 #include <utils/addressutils.hpp>
@@ -26,6 +27,7 @@
 #include <utils/bsms.hpp>
 #include <utils/multisigconfig.hpp>
 #include <utils/unchained.hpp>
+#include <utils/txutils.hpp>
 #include <storage/storage.h>
 
 #include <base58.h>
@@ -428,6 +430,75 @@ std::vector<SingleSigner> Utils::SanitizeSingleSigners(
     ret.emplace_back(SanitizeSingleSigner(signer));
   }
   return ret;
+}
+
+std::string Utils::GetHealthCheckMessage(const std::string& body) {
+  CSHA256 hasher;
+  std::vector<unsigned char> stream(body.begin(), body.end());
+  hasher.Write((unsigned char*)&(*stream.begin()),
+               stream.end() - stream.begin());
+  uint8_t hash[32];
+  hasher.Finalize(hash);
+  std::stringstream ss;
+  ss << std::hex;
+  for (int i(0); i < 32; ++i)
+    ss << std::setw(2) << std::setfill('0') << (int)hash[i];
+  return ss.str();
+}
+
+std::string Utils::GetHealthCheckDummyTx(const Wallet& wallet,
+                                         const std::string& body) {
+  std::string descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+
+  // Create UTXO
+  std::string body_hash = GetHealthCheckMessage(body);
+  auto address = CoreUtils::getInstance().DeriveAddress(descriptor, 1);
+  auto prev_psbt = DecodePsbt(CoreUtils::getInstance().CreatePsbt(
+      {{body_hash, 0}}, {{address, 20805}}));
+
+  // Create dummy TX
+  auto address2 = CoreUtils::getInstance().DeriveAddress(descriptor, 2);
+  std::string base64_psbt = CoreUtils::getInstance().CreatePsbt(
+      {{prev_psbt.tx->GetHash().GetHex(), 0}}, {{address2, 10805}});
+
+  // Fill PSBT
+  auto psbt = DecodePsbt(base64_psbt);
+  auto desc = GetDescriptorsImportString(wallet);
+  auto provider = SigningProviderCache::getInstance().GetProvider(desc);
+
+  psbt.inputs[0].non_witness_utxo = MakeTransactionRef(*prev_psbt.tx);
+  psbt.inputs[0].witness_utxo = prev_psbt.tx->vout[0];
+
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
+  SignPSBTInput(provider, psbt, 0, &txdata, 1);
+  UpdatePSBTOutput(provider, psbt, 0);
+
+  for (auto&& signer : wallet.get_signers()) {
+    std::vector<unsigned char> key;
+    if (DecodeBase58Check(signer.get_xpub(), key, 78)) {
+      auto value = ParseHex(signer.get_master_fingerprint());
+      std::vector<uint32_t> keypath;
+      std::string formalized = signer.get_derivation_path();
+      std::replace(formalized.begin(), formalized.end(), 'h', '\'');
+      if (ParseHDKeypath(formalized, keypath)) {
+        for (uint32_t index : keypath) {
+          value.push_back(index);
+          value.push_back(index >> 8);
+          value.push_back(index >> 16);
+          value.push_back(index >> 24);
+        }
+      }
+      key.insert(key.begin(), 1);
+      psbt.unknown[key] = value;
+    }
+  }
+
+  return EncodePsbt(psbt);
+}
+
+std::string Utils::CreateRequestToken(const std::string& signature,
+                                      const std::string& fingerprint) {
+  return fingerprint + "." + signature;
 }
 
 }  // namespace nunchuk

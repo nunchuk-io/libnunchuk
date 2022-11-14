@@ -1617,71 +1617,6 @@ std::string NunchukImpl::CreatePsbt(
   return storage_->FillPsbt(chain_, wallet_id, psbt);
 }
 
-std::string NunchukImpl::GetHealthCheckMessage(const std::string& body) {
-  CSHA256 hasher;
-  std::vector<unsigned char> stream(body.begin(), body.end());
-  hasher.Write((unsigned char*)&(*stream.begin()),
-               stream.end() - stream.begin());
-  uint8_t hash[32];
-  hasher.Finalize(hash);
-  std::stringstream ss;
-  ss << std::hex;
-  for (int i(0); i < 32; ++i)
-    ss << std::setw(2) << std::setfill('0') << (int)hash[i];
-  return ss.str();
-}
-
-std::string NunchukImpl::GetHealthCheckDummyTx(const std::string& wallet_id,
-                                               const std::string& body) {
-  auto wallet = GetWallet(wallet_id);
-  std::string descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-
-  // Create UTXO
-  std::string body_hash = GetHealthCheckMessage(body);
-  auto address = CoreUtils::getInstance().DeriveAddress(descriptor, 1);
-  auto prev_psbt = DecodePsbt(CoreUtils::getInstance().CreatePsbt(
-      {{body_hash, 0}}, {{address, 20805}}));
-
-  // Create dummy TX
-  auto address2 = CoreUtils::getInstance().DeriveAddress(descriptor, 2);
-  std::string base64_psbt = CoreUtils::getInstance().CreatePsbt(
-      {{prev_psbt.tx->GetHash().GetHex(), 0}}, {{address2, 10805}});
-
-  // Fill PSBT
-  auto psbt = DecodePsbt(base64_psbt);
-  auto desc = GetDescriptorsImportString(wallet);
-  auto provider = SigningProviderCache::getInstance().GetProvider(desc);
-
-  psbt.inputs[0].non_witness_utxo = MakeTransactionRef(*prev_psbt.tx);
-  psbt.inputs[0].witness_utxo = prev_psbt.tx->vout[0];
-
-  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
-  SignPSBTInput(provider, psbt, 0, &txdata, 1);
-  UpdatePSBTOutput(provider, psbt, 0);
-
-  for (auto&& signer : wallet.get_signers()) {
-    std::vector<unsigned char> key;
-    if (DecodeBase58Check(signer.get_xpub(), key, 78)) {
-      auto value = ParseHex(signer.get_master_fingerprint());
-      std::vector<uint32_t> keypath;
-      std::string formalized = signer.get_derivation_path();
-      std::replace(formalized.begin(), formalized.end(), 'h', '\'');
-      if (ParseHDKeypath(formalized, keypath)) {
-        for (uint32_t index : keypath) {
-          value.push_back(index);
-          value.push_back(index >> 8);
-          value.push_back(index >> 16);
-          value.push_back(index >> 24);
-        }
-      }
-      key.insert(key.begin(), 1);
-      psbt.unknown[key] = value;
-    }
-  }
-
-  return EncodePsbt(psbt);
-}
-
 std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
                                                 const std::string& message) {
   SignerType signerType = signer.get_type();
@@ -1707,11 +1642,6 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            strprintf("Must be sign with Airgap id = '%s'", id));
   }
-}
-
-std::string NunchukImpl::CreateRequestToken(const std::string& signature,
-                                            const std::string& fingerprint) {
-  return fingerprint + "." + signature;
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,

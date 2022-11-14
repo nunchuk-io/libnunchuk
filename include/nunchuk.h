@@ -1083,13 +1083,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                       const std::string& passphrase) = 0;
 
   // The following methods is for signing server requests
-  virtual std::string GetHealthCheckMessage(const std::string& body) = 0;
-  virtual std::string GetHealthCheckDummyTx(const std::string& wallet_id,
-                                            const std::string& body) = 0;
   virtual std::string SignHealthCheckMessage(const SingleSigner& signer,
                                              const std::string& message) = 0;
-  virtual std::string CreateRequestToken(const std::string& signature,
-                                         const std::string& fingerprint) = 0;
 
  protected:
   Nunchuk() = default;
@@ -1156,6 +1151,11 @@ class NUNCHUK_EXPORT Utils {
   static SingleSigner SanitizeSingleSigner(const SingleSigner& signer);
   static std::vector<SingleSigner> SanitizeSingleSigners(
       const std::vector<SingleSigner>& signers);
+  static std::string GetHealthCheckMessage(const std::string& body);
+  static std::string GetHealthCheckDummyTx(const Wallet& wallet,
+                                           const std::string& body);
+  static std::string CreateRequestToken(const std::string& signature,
+                                        const std::string& fingerprint);
 
  private:
   Utils() {}
