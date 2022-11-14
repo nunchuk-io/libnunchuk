@@ -364,6 +364,14 @@ class NunchukImpl : public Nunchuk {
       std::function<void(ConnectionStatus, int)> listener) override;
   void AddStorageUpdateListener(std::function<void()> listener) override;
 
+  std::string GetHealthCheckMessage(const std::string& body) override;
+  std::string GetHealthCheckDummyTx(const std::string& wallet_id,
+                                    const std::string& body) override;
+  std::string SignHealthCheckMessage(const SingleSigner& signer,
+                                     const std::string& message) override;
+  std::string CreateRequestToken(const std::string& signature,
+                                 const std::string& fingerprint) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

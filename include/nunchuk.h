@@ -1082,6 +1082,15 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void SendPassphraseToDevice(const Device& device,
                                       const std::string& passphrase) = 0;
 
+  // The following methods is for signing server requests
+  virtual std::string GetHealthCheckMessage(const std::string& body) = 0;
+  virtual std::string GetHealthCheckDummyTx(const std::string& wallet_id,
+                                            const std::string& body) = 0;
+  virtual std::string SignHealthCheckMessage(const SingleSigner& signer,
+                                             const std::string& message) = 0;
+  virtual std::string CreateRequestToken(const std::string& signature,
+                                         const std::string& fingerprint) = 0;
+
  protected:
   Nunchuk() = default;
 };
