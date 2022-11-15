@@ -277,6 +277,7 @@ std::vector<json> ElectrumClient::call_batch(
 
 std::map<std::string, std::string> ElectrumClient::get_multi_rawtx(
     const std::vector<std::string>& txs_hash) {
+  if (txs_hash.size() == 0) return {};
   std::vector<std::string> methods(txs_hash.size(),
                                    "blockchain.transaction.get");
   std::vector<json> params{};
@@ -294,6 +295,7 @@ std::map<std::string, std::string> ElectrumClient::get_multi_rawtx(
 
 std::map<int, std::string> ElectrumClient::get_multi_rawheader(
     const std::vector<int>& heights) {
+  if (heights.size() == 0) return {};
   std::vector<std::string> methods(heights.size(), "blockchain.block.header");
   std::vector<json> params{};
   for (auto&& height : heights) {
@@ -310,6 +312,7 @@ std::map<int, std::string> ElectrumClient::get_multi_rawheader(
 
 std::map<std::string, std::string> ElectrumClient::subscribe_multi_scripthash(
     const std::vector<std::string>& scripthashes) {
+  if (scripthashes.size() == 0) return {};
   std::vector<std::string> methods(scripthashes.size(),
                                    "blockchain.scripthash.subscribe");
   std::vector<json> params{};
