@@ -438,7 +438,15 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
           LOG_F(INFO, "Verifying %s", subject_name);
           return preverified;
         });
-    secure_socket_->handshake(ssl::stream_base::client);
+    try {
+      secure_socket_->handshake(ssl::stream_base::client);
+    } catch (boost::system::system_error& err) {
+      is_secure_ = false;
+      socket_ =
+          std::unique_ptr<ip::tcp::socket>(new ip::tcp::socket(io_service_));
+      socket_connect();
+      return;
+    }
   }
 
   connected_ = true;

@@ -83,7 +83,7 @@ class ElectrumClient {
   bool handle_socks5();
   void handle_error(const std::string& where, const std::string& message);
 
-  std::string protocol_ = "tcp";
+  std::string protocol_ = "ssl";
   std::string host_;
   int port_ = 50001;
   bool is_secure_;
