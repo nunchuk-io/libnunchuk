@@ -146,6 +146,11 @@ void ElectrumClient::handle_error(const std::string& where,
     it->second.set_value(
         {{"error", {{"code", 1}, {"message", "Disconnected"}}}});
   }
+  for (auto &&it = batch_callback_.begin(), next = it;
+       it != batch_callback_.end(); it = next) {
+    ++next;
+    it->second.set_value(json::array());
+  }
   disconnect_signal_();
 }
 
@@ -344,8 +349,12 @@ void ElectrumClient::start() {
       LOG_F(ERROR, "ElectrumClient::signal_thread_ %s", e.what());
     }
   });
-  std::string version = server_version()[0].get<std::string>();
-  support_batch_request_ = boost::starts_with(version, "ElectrumX");
+  try {
+    std::string version = server_version()[0].get<std::string>();
+    support_batch_request_ = boost::starts_with(version, "ElectrumX");
+  } catch (...) {
+    support_batch_request_ = true;
+  }
 }
 
 void ElectrumClient::stop() {
