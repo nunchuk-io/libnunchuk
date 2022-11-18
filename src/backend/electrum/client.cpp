@@ -353,7 +353,7 @@ void ElectrumClient::start() {
     std::string version = server_version()[0].get<std::string>();
     support_batch_request_ = boost::starts_with(version, "ElectrumX");
   } catch (...) {
-    support_batch_request_ = true;
+    support_batch_request_ = false;
   }
 }
 
