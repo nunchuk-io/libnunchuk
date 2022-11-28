@@ -207,6 +207,31 @@ GetTransactionFromStr(const std::string& str,
           true};
 }
 
+inline std::string GetPartialSignature(const std::string& base64_psbt,
+                                       const std::string& xfp) {
+  using namespace nunchuk;
+
+  // Parse partial sigs
+  const PSBTInput& input = DecodePsbt(base64_psbt).inputs[0];
+  std::map<std::string, std::string> signed_pubkey;
+  if (!input.partial_sigs.empty()) {
+    for (const auto& sig : input.partial_sigs) {
+      signed_pubkey[HexStr(sig.second.first)] = HexStr(sig.second.second);
+    }
+  }
+
+  if (!input.hd_keypaths.empty()) {
+    for (auto entry : input.hd_keypaths) {
+      std::string master_fingerprint =
+          strprintf("%08x", ReadBE32(entry.second.fingerprint));
+      if (master_fingerprint == xfp) {
+        return signed_pubkey[HexStr(entry.first)];
+      }
+    }
+  }
+  return "";
+}
+
 }  // namespace
 
 #endif  //  NUNCHUK_TXUTILS_H

@@ -1622,14 +1622,14 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
   SignerType signerType = signer.get_type();
   std::string id = signer.get_master_fingerprint();
 
+  bool isPsbt = message.size() != 64;
   if (signerType == SignerType::SOFTWARE) {
     auto ss = storage_->GetSoftwareSigner(chain_, id);
+    if (isPsbt) return GetPartialSignature(ss.SignTx(message), id);
     return ss.SignMessage(message, signer.get_derivation_path());
   } else if (signerType == SignerType::HARDWARE) {
     Device device{id};
-    std::string xpub = signer.get_xpub();
-    std::string descriptor = GetPkhDescriptor(xpub);
-    std::string address = CoreUtils::getInstance().DeriveAddress(descriptor);
+    if (isPsbt) return GetPartialSignature(hwi_.SignTx(device, message), id);
     return hwi_.SignMessage(device, message, signer.get_derivation_path());
   } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(
