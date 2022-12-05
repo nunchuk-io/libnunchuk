@@ -496,6 +496,12 @@ std::string Utils::GetHealthCheckDummyTx(const Wallet& wallet,
   return EncodePsbt(psbt);
 }
 
+Transaction Utils::DecodeDummyTx(const Wallet& wallet,
+                                 const std::string& psbt) {
+  return GetTransactionFromPartiallySignedTransaction(
+      DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
+}
+
 std::string Utils::CreateRequestToken(const std::string& signature,
                                       const std::string& fingerprint) {
   return fingerprint + "." + signature;

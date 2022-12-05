@@ -1154,6 +1154,8 @@ class NUNCHUK_EXPORT Utils {
   static std::string GetHealthCheckMessage(const std::string& body);
   static std::string GetHealthCheckDummyTx(const Wallet& wallet,
                                            const std::string& body);
+  static Transaction DecodeDummyTx(const Wallet& wallet,
+                                   const std::string& psbt);
   static std::string CreateRequestToken(const std::string& signature,
                                         const std::string& fingerprint);
 
