@@ -498,8 +498,12 @@ std::string Utils::GetHealthCheckDummyTx(const Wallet& wallet,
 
 Transaction Utils::DecodeDummyTx(const Wallet& wallet,
                                  const std::string& psbt) {
-  return GetTransactionFromPartiallySignedTransaction(
+  auto tx = GetTransactionFromPartiallySignedTransaction(
       DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
+  tx.set_fee(10000);
+  tx.set_change_index(-1);
+  tx.set_subtract_fee_from_amount(false);
+  return tx;
 }
 
 std::string Utils::CreateRequestToken(const std::string& signature,
