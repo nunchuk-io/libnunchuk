@@ -454,12 +454,12 @@ std::string Utils::GetHealthCheckDummyTx(const Wallet& wallet,
   std::string body_hash = GetHealthCheckMessage(body);
   auto address = CoreUtils::getInstance().DeriveAddress(descriptor, 1);
   auto prev_psbt = DecodePsbt(CoreUtils::getInstance().CreatePsbt(
-      {{body_hash, 0}}, {{address, 20805}}));
+      {{body_hash, 0}}, {{address, 10150}}));
 
   // Create dummy TX
   auto address2 = CoreUtils::getInstance().DeriveAddress(descriptor, 2);
   std::string base64_psbt = CoreUtils::getInstance().CreatePsbt(
-      {{prev_psbt.tx->GetHash().GetHex(), 0}}, {{address2, 10805}});
+      {{prev_psbt.tx->GetHash().GetHex(), 0}}, {{address2, 10000}});
 
   // Fill PSBT
   auto psbt = DecodePsbt(base64_psbt);
@@ -500,7 +500,8 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
                                  const std::string& psbt) {
   auto tx = GetTransactionFromPartiallySignedTransaction(
       DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
-  tx.set_fee(10000);
+  tx.set_fee(150);
+  tx.set_sub_amount(10000);
   tx.set_change_index(-1);
   tx.set_subtract_fee_from_amount(false);
   return tx;
