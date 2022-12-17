@@ -931,8 +931,15 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& file_path, const std::string& backup_key,
       const std::string& name, std::function<bool(int)> progress,
       bool is_primary = false) = 0;
+  virtual MasterSigner ImportTapsignerMasterSigner(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false) = 0;
   virtual void VerifyTapsignerBackup(
       const std::string& file_path, const std::string& backup_key,
+      const std::string& master_signer_id = {}) = 0;
+  virtual void VerifyTapsignerBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
       const std::string& master_signer_id = {}) = 0;
   virtual std::unique_ptr<tap_protocol::Tapsigner> CreateTapsigner(
       std::unique_ptr<tap_protocol::Transport> transport) = 0;
@@ -1016,8 +1023,11 @@ class NUNCHUK_EXPORT Nunchuk {
       SignerType signer_type = SignerType::COLDCARD_NFC) = 0;
   virtual std::vector<Wallet> ParseJSONWallets(const std::string& json_str) = 0;
   virtual Transaction ImportRawTransaction(const std::string& wallet_id,
-                                           const std::string& raw_tx) = 0;
+                                           const std::string& raw_tx,
+                                           const std::string& tx_id = {}) = 0;
   virtual std::string GetWalletExportData(const std::string& wallet_id,
+                                          ExportFormat format) = 0;
+  virtual std::string GetWalletExportData(const Wallet& wallet,
                                           ExportFormat format) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
@@ -1070,6 +1080,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction SignTransaction(const std::string& wallet_id,
                                       const std::string& tx_id,
                                       const Device& device) = 0;
+  virtual Transaction SignTransaction(const Wallet& wallet,
+                                      const Transaction& tx,
+                                      const Device& device) = 0;
   virtual void CacheMasterSignerXPub(
       const std::string& mastersigner_id,
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
@@ -1084,6 +1097,10 @@ class NUNCHUK_EXPORT Nunchuk {
 
   // The following methods is for signing server requests
   virtual std::string SignHealthCheckMessage(const SingleSigner& signer,
+                                             const std::string& message) = 0;
+  virtual std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,
+                                             const std::string& cvc,
+                                             const SingleSigner& signer,
                                              const std::string& message) = 0;
 
  protected:
@@ -1156,8 +1173,22 @@ class NUNCHUK_EXPORT Utils {
                                            const std::string& body);
   static Transaction DecodeDummyTx(const Wallet& wallet,
                                    const std::string& psbt);
+  static Transaction DecodeTx(const Wallet& wallet, const std::string& psbt,
+                              const Amount& sub_amount, const Amount& fee,
+                              const Amount& fee_rate);
   static std::string CreateRequestToken(const std::string& signature,
                                         const std::string& fingerprint);
+  static std::string GetPartialSignature(const SingleSigner& signer,
+                                         const std::string& signed_psbt);
+
+  static std::vector<std::string> ExportKeystoneTransaction(
+      const std::string& psbt);
+  static std::vector<std::string> ExportPassportTransaction(
+      const std::string& psbt);
+  static std::string ParseKeystoneTransaction(
+      const std::vector<std::string>& qr_data);
+  static std::string ParsePassportTransaction(
+      const std::vector<std::string>& qr_data);
 
  private:
   Utils() {}

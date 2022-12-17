@@ -44,10 +44,19 @@ MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
     const std::string& file_path, const std::string& backup_key,
     const std::string& raw_name, std::function<bool(int)> progress,
     bool is_primary) {
+  const std::string data = storage_->LoadFile(file_path);
+  return ImportTapsignerMasterSigner(
+      std::vector<unsigned char>(std::begin(data), std::end(data)), backup_key,
+      raw_name, progress, is_primary);
+}
+
+MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& raw_name, std::function<bool(int)> progress,
+    bool is_primary) {
   try {
-    const std::string data = storage_->LoadFile(file_path);
-    const std::string decrypted = hwi_tapsigner_->DecryptBackup(
-        {std::begin(data), std::end(data)}, backup_key);
+    const std::string decrypted =
+        hwi_tapsigner_->DecryptBackup(data, backup_key);
     const std::vector<std::string> sp = split(decrypted, '\n');
     if (sp.empty()) {
       throw NunchukException(NunchukException::INVALID_FORMAT,
@@ -90,10 +99,18 @@ MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
 void NunchukImpl::VerifyTapsignerBackup(const std::string& file_path,
                                         const std::string& backup_key,
                                         const std::string& master_signer_id) {
+  std::string data = storage_->LoadFile(file_path);
+  VerifyTapsignerBackup(
+      std::vector<unsigned char>(std::begin(data), std::end(data)), backup_key,
+      master_signer_id);
+}
+
+void NunchukImpl::VerifyTapsignerBackup(const std::vector<unsigned char>& data,
+                                        const std::string& backup_key,
+                                        const std::string& master_signer_id) {
   try {
-    const std::string data = storage_->LoadFile(file_path);
-    const std::string decrypted = hwi_tapsigner_->DecryptBackup(
-        {std::begin(data), std::end(data)}, backup_key);
+    const std::string decrypted =
+        hwi_tapsigner_->DecryptBackup(data, backup_key);
     const std::vector<std::string> sp = split(decrypted, '\n');
     if (sp.empty()) {
       throw NunchukException(NunchukException::INVALID_FORMAT,
@@ -498,6 +515,43 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
   }
 }
 
+std::string NunchukImpl::SignHealthCheckMessage(
+    tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+    const SingleSigner& signer, const std::string& message) {
+  std::string id = signer.get_master_fingerprint();
+  try {
+    auto st = storage_->GetTapsignerStatusFromMasterSigner(chain_, id);
+    if (st.get_card_ident() != tapsigner->GetIdent()) {
+      throw NunchukException(
+          TapProtocolException::INVALID_DEVICE,
+          strprintf(
+              "Invalid device: key fingerprint does not match. Expected '%s'.",
+              id));
+    }
+  } catch (StorageException& se) {
+    if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
+      if (id.empty()) {
+        throw NunchukException(TapProtocolException::INVALID_DEVICE,
+                               strprintf("Invalid device: key fingerprint does "
+                                         "not match. Expected '%s'.",
+                                         id));
+      }
+    }
+    throw;
+  }
+
+  bool isPsbt = message.size() != 64;
+  try {
+    hwi_tapsigner_->SetDevice(tapsigner, cvc);
+    if (isPsbt) {
+      return GetPartialSignature(hwi_tapsigner_->SignTx(message), id);
+    }
+    return hwi_tapsigner_->SignMessage(message, signer.get_derivation_path());
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
 TapsignerStatus NunchukImpl::WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
                                            std::function<bool(int)> progress) {
   try {
@@ -553,6 +607,16 @@ void NunchukImpl::CacheTapsignerMasterSignerXPub(
           strprintf("Only for NFC signer master_signer_id = '%s'",
                     master_signer_id));
     }
+
+    if (storage_->CacheDefaultMasterSignerXpub(
+            chain_, master_signer_id,
+            [&](const std::string& path) {
+              return hwi_tapsigner_->GetXpubAtPath(path);
+            },
+            progress)) {
+      return;
+    }
+
     storage_->CacheMasterSignerXPub(
         chain_, master_signer_id,
         [&](const std::string& path) {
@@ -587,8 +651,8 @@ void NunchukImpl::CacheDefaultTapsignerMasterSignerXPub(
           strprintf("Only for NFC signer master_signer_id = '%s'",
                     master_signer_id));
     }
-    storage_->CacheMasterSignerXPub(
-        chain_, master_signer_id, WalletType::MULTI_SIG, AddressType::ANY,
+    storage_->CacheDefaultMasterSignerXpub(
+        chain_, master_signer_id,
         [&](const std::string& path) {
           return hwi_tapsigner_->GetXpubAtPath(path);
         },

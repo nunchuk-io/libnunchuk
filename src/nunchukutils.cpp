@@ -504,12 +504,100 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
   tx.set_sub_amount(10000);
   tx.set_change_index(-1);
   tx.set_subtract_fee_from_amount(false);
+  tx.set_psbt(psbt);
+  return tx;
+}
+
+Transaction Utils::DecodeTx(const Wallet& wallet, const std::string& psbt,
+                            const Amount& sub_amount, const Amount& fee,
+                            const Amount& fee_rate) {
+  auto tx = GetTransactionFromPartiallySignedTransaction(
+      DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
+  tx.set_sub_amount(sub_amount);
+  tx.set_fee(fee);
+  tx.set_fee_rate(fee_rate);
+  tx.set_receive(false);
+  tx.set_subtract_fee_from_amount(true);
+  tx.set_psbt(psbt);
   return tx;
 }
 
 std::string Utils::CreateRequestToken(const std::string& signature,
                                       const std::string& fingerprint) {
   return fingerprint + "." + signature;
+}
+
+std::string Utils::GetPartialSignature(const SingleSigner& signer,
+                                       const std::string& signed_psbt) {
+  return ::GetPartialSignature(signed_psbt, signer.get_master_fingerprint());
+}
+
+std::vector<std::string> Utils::ExportKeystoneTransaction(
+    const std::string& psbt) {
+  static const int MAX_FRAGMENT_LEN = 100;
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
+  }
+  bool invalid;
+  auto data = DecodeBase64(psbt.c_str(), &invalid);
+  if (invalid) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+  }
+  bcr2::CryptoPSBT crypto_psbt{data};
+  ur::ByteVector cbor;
+  encodeCryptoPSBT(cbor, crypto_psbt);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  std::vector<std::string> qr_data;
+  do {
+    qr_data.push_back(encoder.next_part());
+  } while (!encoder.is_complete());
+  for (std::string& s : qr_data) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](char c) { return std::toupper(c); });
+  }
+  return qr_data;
+}
+
+std::vector<std::string> Utils::ExportPassportTransaction(
+    const std::string& psbt) {
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
+  }
+  bool invalid;
+  auto data = DecodeBase64(psbt.c_str(), &invalid);
+  if (invalid) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+  }
+  auto qr_data = nunchuk::bcr::EncodeUniformResource(data);
+  for (std::string& s : qr_data) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](char c) { return std::toupper(c); });
+  }
+  return qr_data;
+}
+
+std::string Utils::ParseKeystoneTransaction(
+    const std::vector<std::string>& qr_data) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
+  }
+  auto decoded = decoder.result_ur();
+  auto i = decoded.cbor().begin();
+  auto end = decoded.cbor().end();
+  bcr2::CryptoPSBT psbt{};
+  decodeCryptoPSBT(i, end, psbt);
+  return EncodeBase64(MakeUCharSpan(psbt.data));
+}
+
+std::string Utils::ParsePassportTransaction(
+    const std::vector<std::string>& qr_data) {
+  auto psbt = nunchuk::bcr::DecodeUniformResource(qr_data);
+  return EncodeBase64(MakeUCharSpan(psbt));
 }
 
 }  // namespace nunchuk

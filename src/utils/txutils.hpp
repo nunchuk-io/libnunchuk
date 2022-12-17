@@ -211,8 +211,9 @@ inline std::string GetPartialSignature(const std::string& base64_psbt,
                                        const std::string& xfp) {
   using namespace nunchuk;
 
+  auto psbt = DecodePsbt(base64_psbt);
   // Parse partial sigs
-  const PSBTInput& input = DecodePsbt(base64_psbt).inputs[0];
+  const PSBTInput& input = psbt.inputs[0];
   std::map<std::string, std::string> signed_pubkey;
   if (!input.partial_sigs.empty()) {
     for (const auto& sig : input.partial_sigs) {
