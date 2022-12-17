@@ -316,7 +316,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
   sqlite3_stmt* stmt;
   std::string sql =
       "SELECT XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED FROM REMOTE WHERE "
-      "PATH = ?;";
+      "PATH = ? OR PATH = REPLACE(?, 'h', '''');";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_step(stmt);
@@ -340,7 +340,8 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
 
 bool NunchukSignerDb::DeleteRemoteSigner(const std::string& path) {
   sqlite3_stmt* stmt;
-  std::string sql = "DELETE FROM REMOTE WHERE PATH = ?;";
+  std::string sql =
+      "DELETE FROM REMOTE WHERE PATH = ? OR PATH = REPLACE(?, 'h', '''');";
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_step(stmt);
@@ -352,7 +353,8 @@ bool NunchukSignerDb::DeleteRemoteSigner(const std::string& path) {
 bool NunchukSignerDb::UseRemote(const std::string& path) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "UPDATE REMOTE SET USED = ?1 WHERE PATH = ?2 AND USED = -1;";
+      "UPDATE REMOTE SET USED = ?1 "
+      "WHERE (PATH = ?2 OR PATH = REPLACE(?2, 'h', '''')) AND USED = -1;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_int(stmt, 1, 1);
   sqlite3_bind_text(stmt, 2, path.c_str(), path.size(), NULL);
@@ -365,7 +367,9 @@ bool NunchukSignerDb::UseRemote(const std::string& path) {
 bool NunchukSignerDb::SetRemoteName(const std::string& path,
                                     const std::string& value) {
   sqlite3_stmt* stmt;
-  std::string sql = "UPDATE REMOTE SET NAME = ?1 WHERE PATH = ?2;";
+  std::string sql =
+      "UPDATE REMOTE SET NAME = ?1 "
+      "WHERE PATH = ?2 OR PATH = REPLACE(?2, 'h', '''');";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, value.c_str(), value.size(), NULL);
   sqlite3_bind_text(stmt, 2, path.c_str(), path.size(), NULL);
@@ -378,7 +382,9 @@ bool NunchukSignerDb::SetRemoteName(const std::string& path,
 bool NunchukSignerDb::SetRemoteLastHealthCheck(const std::string& path,
                                                time_t value) {
   sqlite3_stmt* stmt;
-  std::string sql = "UPDATE REMOTE SET LAST_HEALTHCHECK = ?1 WHERE PATH = ?2;";
+  std::string sql =
+      "UPDATE REMOTE SET LAST_HEALTHCHECK = ?1 "
+      "WHERE PATH = ?2 OR PATH = REPLACE(?2, 'h', '''');";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_int64(stmt, 1, value);
   sqlite3_bind_text(stmt, 2, path.c_str(), path.size(), NULL);

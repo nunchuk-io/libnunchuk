@@ -161,6 +161,8 @@ class NunchukImpl : public Nunchuk {
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
+  Transaction SignTransaction(const Wallet& wallet, const Transaction& tx,
+                              const Device& device) override;
   Transaction BroadcastTransaction(const std::string& wallet_id,
                                    const std::string& tx_id) override;
   Transaction GetTransaction(const std::string& wallet_id,
@@ -261,7 +263,14 @@ class NunchukImpl : public Nunchuk {
                                            const std::string& name,
                                            std::function<bool(int)> progress,
                                            bool is_primary = false) override;
+  MasterSigner ImportTapsignerMasterSigner(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false) override;
   void VerifyTapsignerBackup(const std::string& file_path,
+                             const std::string& backup_key,
+                             const std::string& master_signer_id = {}) override;
+  void VerifyTapsignerBackup(const std::vector<unsigned char>& data,
                              const std::string& backup_key,
                              const std::string& master_signer_id = {}) override;
   std::unique_ptr<tap_protocol::Tapsigner> CreateTapsigner(
@@ -344,8 +353,11 @@ class NunchukImpl : public Nunchuk {
       SignerType signer_type = SignerType::COLDCARD_NFC) override;
   std::vector<Wallet> ParseJSONWallets(const std::string& json_str) override;
   Transaction ImportRawTransaction(const std::string& wallet_id,
-                                   const std::string& raw_tx) override;
+                                   const std::string& raw_tx,
+                                   const std::string& tx_id = {}) override;
   std::string GetWalletExportData(const std::string& wallet_id,
+                                  ExportFormat format) override;
+  std::string GetWalletExportData(const Wallet& wallet,
                                   ExportFormat format) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
@@ -365,6 +377,10 @@ class NunchukImpl : public Nunchuk {
   void AddStorageUpdateListener(std::function<void()> listener) override;
 
   std::string SignHealthCheckMessage(const SingleSigner& signer,
+                                     const std::string& message) override;
+  std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,
+                                     const std::string& cvc,
+                                     const SingleSigner& signer,
                                      const std::string& message) override;
 
  private:

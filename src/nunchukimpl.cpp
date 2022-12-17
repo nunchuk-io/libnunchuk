@@ -845,6 +845,55 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   return GetTransaction(wallet_id, tx_id);
 }
 
+Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
+                                         const Transaction& tx,
+                                         const Device& device) {
+  std::string psbt = tx.get_psbt();
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
+  }
+  DLOG_F(INFO, "NunchukImpl::SignTransaction(), psbt='%s'", psbt.c_str());
+  auto mastersigner_id = device.get_master_fingerprint();
+  std::string signed_psbt;
+  auto mastersigner = GetMasterSigner(mastersigner_id);
+  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           strprintf("Can not sign with foreign software "
+                                     "mastersigner_id = '%s'",
+                                     mastersigner_id));
+  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
+    auto software_signer = storage_->GetSoftwareSigner(chain_, mastersigner_id);
+    // if (wallet.get_address_type() == AddressType::TAPROOT) {
+    //   std::vector<std::string> keypaths;
+    //   auto base = wallet.get_signers()[0].get_derivation_path();
+    //   for (int index = 0; index <= 1000; index++) {
+    //     keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base %
+    //     index));
+    //   }
+    //   for (int index = 0; index <= 1000; index++) {
+    //     keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base %
+    //     index));
+    //   }
+    //   signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
+    // } else {
+    signed_psbt = software_signer.SignTx(psbt);
+    //}
+    storage_->ClearSignerPassphrase(chain_, mastersigner_id);
+  } else if (mastersigner.get_type() == SignerType::HARDWARE) {
+    signed_psbt = hwi_.SignTx(device, psbt);
+  } else if (mastersigner.get_type() == SignerType::NFC) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           strprintf("Transaction must be sign with NFC "
+                                     "mastersigner_id = '%s'",
+                                     mastersigner_id));
+  }
+  DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
+         signed_psbt.c_str());
+  Transaction signed_tx = tx;
+  signed_tx.set_psbt(signed_psbt);
+  return signed_tx;
+}
+
 Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
   auto [tx_value, is_hex_tx] =
@@ -1527,18 +1576,44 @@ std::vector<Wallet> NunchukImpl::ParseJSONWallets(const std::string& json_str) {
 }
 
 Transaction NunchukImpl::ImportRawTransaction(const std::string& wallet_id,
-                                              const std::string& raw_tx) {
+                                              const std::string& raw_tx,
+                                              const std::string& tx_id) {
   CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
-  std::string tx_id = mtx.GetHash().GetHex();
+  std::string new_txid = mtx.GetHash().GetHex();
+
+  if (!tx_id.empty() && new_txid != tx_id) {
+    // finalizepsbt will change the txid for legacy and nested-segwit
+    // transactions. We need to update our PSBT record in the DB
+    storage_->UpdatePsbtTxId(chain_, wallet_id, tx_id, new_txid);
+  }
 
   storage_->UpdateTransaction(chain_, wallet_id, raw_tx, -1, 0);
   storage_listener_();
-  return GetTransaction(wallet_id, tx_id);
+  return GetTransaction(wallet_id, new_txid);
 }
 
 std::string NunchukImpl::GetWalletExportData(const std::string& wallet_id,
                                              ExportFormat format) {
   return storage_->GetWalletExportData(chain_, wallet_id, format);
+}
+
+std::string NunchukImpl::GetWalletExportData(const Wallet& wallet,
+                                             ExportFormat format) {
+  switch (format) {
+    case ExportFormat::COLDCARD:
+      return ::GetMultisigConfig(wallet);
+    case ExportFormat::DESCRIPTOR:
+      return wallet.get_descriptor(DescriptorPath::ANY);
+    case ExportFormat::BSMS:
+      return GetDescriptorRecord(wallet);
+    case ExportFormat::DB:
+      return {};
+    case ExportFormat::COBO:
+      return {};
+    case ExportFormat::CSV:
+      return {};
+  }
+  return {};
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
@@ -1642,6 +1717,8 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            strprintf("Must be sign with Airgap id = '%s'", id));
   }
+  throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                         "Invalid signer type");
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,

@@ -537,7 +537,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
                              master_fingerprint, 0);
   signer.set_type(signer_type);
   GetAppStateDb(chain).RemoveDeletedSigner(id);
-  return signer;
+  return signer_db.GetRemoteSigner(derivation_path);
 }
 
 bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
@@ -672,18 +672,42 @@ void NunchukStorage::CacheMasterSignerXPub(
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
 }
 
-void NunchukStorage::CacheMasterSignerXPub(
-    Chain chain, const std::string& mastersigner_id, WalletType wallet_type,
-    AddressType address_type, std::function<std::string(std::string)> getxpub,
+bool NunchukStorage::CacheDefaultMasterSignerXpub(
+    Chain chain, const std::string& mastersigner_id,
+    std::function<std::string(std::string)> getxpub,
     std::function<bool(int)> progress) {
+  std::vector<std::string> DEFAULT_PATHS = {
+      "m",
+      chain == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
+                           : TESTNET_HEALTH_CHECK_PATH,
+      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::ANY, 0),
+      GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
+                   0),
+      GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
+                   0),
+      GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::LEGACY, 0),
+      GetBip32Path(chain, WalletType::ESCROW, AddressType::ANY, 0),
+  };
   auto signer_db = GetSignerDb(chain, mastersigner_id);
-  const std::string path = GetBip32Path(chain, wallet_type, address_type, 0);
-  progress(10);
-  if (signer_db.AddXPub(wallet_type, address_type, 0, getxpub(path))) {
-    progress(100);
-  } else {
-    throw StorageException(StorageException::SQL_ERROR, "Cache xpub failed");
+
+  auto is_exist_path = [&](const std::string& path) {
+    if (signer_db.GetXpub(path).empty()) {
+      return false;
+    }
+    return true;
+  };
+
+  DEFAULT_PATHS.erase(
+      std::remove_if(DEFAULT_PATHS.begin(), DEFAULT_PATHS.end(), is_exist_path),
+      DEFAULT_PATHS.end());
+
+  int count = 0;
+  int total = DEFAULT_PATHS.size();
+  for (auto&& path : DEFAULT_PATHS) {
+    progress(count++ * 100 / total);
+    signer_db.AddXPub(path, getxpub(path), GetBip32Type(path));
   }
+  return count != 0;
 }
 
 int NunchukStorage::GetCurrentIndexFromMasterSigner(

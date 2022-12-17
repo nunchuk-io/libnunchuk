@@ -92,10 +92,11 @@ class NunchukStorage {
   void CacheMasterSignerXPub(Chain chain, const std::string &mastersigner_id,
                              std::function<std::string(std::string)> getxpub,
                              std::function<bool(int)> progress, bool first);
-  void CacheMasterSignerXPub(Chain chain, const std::string &mastersigner_id,
-                             WalletType wallet_type, AddressType address_type,
-                             std::function<std::string(std::string)> getxpub,
-                             std::function<bool(int)> progress);
+  bool CacheDefaultMasterSignerXpub(
+      Chain chain, const std::string &mastersigner_id,
+      std::function<std::string(std::string)> getxpub,
+      std::function<bool(int)> progress);
+
   int GetCurrentIndexFromMasterSigner(Chain chain,
                                       const std::string &mastersigner_id,
                                       const WalletType &wallet_type,
