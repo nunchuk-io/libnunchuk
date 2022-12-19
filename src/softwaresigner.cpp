@@ -19,6 +19,7 @@
 #include "softwaresigner.h"
 
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <iomanip>
 
@@ -186,6 +187,9 @@ std::string SoftwareSigner::SignMessage(const std::string& message,
 
 CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
                                         const std::string& passphrase) const {
+  static std::mutex mu;
+  std::scoped_lock<std::mutex> lock(mu);
+
   uint8_t seed[512 / 8];
   mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
   CExtKey bip32rootkey{};
