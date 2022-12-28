@@ -762,13 +762,25 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
   std::set<std::string> locked_utxos;
   std::map<std::string, std::string> memo_map;
   std::map<std::string, int> height_map;
-  std::map<std::string, TransactionStatus> status_map;
+  std::map<std::string, std::string> used_by;
+  std::map<std::string, bool> invalid_map;
 
   std::vector<UnspentOutput> rs;
   for (auto&& tx : transactions) {
+    if (tx.get_height() <= 0) continue;
+    for (auto&& input : tx.get_inputs()) {
+      used_by[input_str(input.first, input.second)] = tx.get_txid();
+    }
+  }
+  for (auto&& tx : transactions) {
     memo_map[tx.get_txid()] = tx.get_memo();
     height_map[tx.get_txid()] = tx.get_height();
-    status_map[tx.get_txid()] = tx.get_status();
+    invalid_map[tx.get_txid()] = tx.get_status() == TransactionStatus::REPLACED;
+    for (auto&& input : tx.get_inputs()) {
+      if (used_by[input_str(input.first, input.second)] != tx.get_txid()) {
+        invalid_map[tx.get_txid()] = true;
+      }
+    }
 
     if (tx.get_height() == -1 && tx.get_schedule_time() > 0 &&
         !include_locked) {
@@ -779,7 +791,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
       continue;
     }
 
-    if (tx.get_height() != 0 ||
+    if (invalid_map[tx.get_txid()] || tx.get_height() != 0 ||
         tx.get_status() == TransactionStatus::REPLACED ||
         tx.get_status() == TransactionStatus::NETWORK_REJECTED)
       continue;
@@ -838,9 +850,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
         vout = item["tx_pos"];
         amount = Amount(item["value"]);
         if (!include_mempool && item["height"].get<int>() == 0) continue;
-        if (status_map.count(txid) == 0 ||
-            status_map[txid] == TransactionStatus::REPLACED)
-          continue;
+        if (invalid_map[txid]) continue;
       } else {  // bitcoin core rpc format
         txid = item["txid"];
         vout = item["vout"];
