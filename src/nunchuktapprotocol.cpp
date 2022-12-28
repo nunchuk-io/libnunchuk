@@ -25,6 +25,7 @@
 #include <tap_protocol/utils.h>
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
+#include "base58.h"
 #include "coinselector.h"
 #include "key_io.h"
 #include "nunchuk.h"
@@ -39,6 +40,25 @@
 using namespace boost::algorithm;
 
 namespace nunchuk {
+static std::string ConvertXprivChain(std::string xpriv, Chain target) {
+  static constexpr unsigned char BASE58_MAINNET_PRIV_PREFIX[] = {0x04, 0x88,
+                                                                 0xAD, 0xE4};
+  static constexpr unsigned char BASE58_TESTNET_PRIV_PREFIX[] = {0x04, 0x35,
+                                                                 0x83, 0x94};
+  std::vector<unsigned char> data;
+  if (!DecodeBase58Check(xpriv, data, 78) || data.size() < 4) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid backup data");
+  }
+  if (target == Chain::MAIN) {
+    std::copy(BASE58_MAINNET_PRIV_PREFIX, BASE58_MAINNET_PRIV_PREFIX + 4,
+              data.begin());
+  } else {
+    std::copy(BASE58_TESTNET_PRIV_PREFIX, BASE58_TESTNET_PRIV_PREFIX + 4,
+              data.begin());
+  }
+  return EncodeBase58Check(data);
+}
 
 MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
     const std::string& file_path, const std::string& backup_key,
@@ -63,7 +83,7 @@ MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
                              "Invalid backup data");
     }
     const std::string name = trim_copy(raw_name);
-    const std::string& master_xprv = sp[0];
+    const std::string& master_xprv = ConvertXprivChain(sp[0], chain_);
     SoftwareSigner signer{master_xprv};
     const std::string id = to_lower_copy(signer.GetMasterFingerprint());
 
@@ -116,7 +136,7 @@ void NunchukImpl::VerifyTapsignerBackup(const std::vector<unsigned char>& data,
       throw NunchukException(NunchukException::INVALID_FORMAT,
                              "Invalid backup data");
     }
-    const std::string& master_xprv = sp[0];
+    const std::string& master_xprv = ConvertXprivChain(sp[0], chain_);
     SoftwareSigner signer{master_xprv};
     const std::string id = to_lower_copy(signer.GetMasterFingerprint());
     if (!master_signer_id.empty() && id != master_signer_id) {

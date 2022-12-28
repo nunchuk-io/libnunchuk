@@ -1236,6 +1236,15 @@ void NunchukStorage::ClearSignerPassphrase(Chain chain,
 std::string NunchukStorage::ExportBackup() {
   std::unique_lock<std::shared_mutex> lock(access_);
 
+  auto is_assisted_wallet = [&](const Wallet& wallet) {
+    const auto& signers = wallet.get_signers();
+    auto server_signer = std::find_if(
+        signers.begin(), signers.end(), [](const SingleSigner& signer) {
+          return signer.get_type() == SignerType::SERVER;
+        });
+    return server_signer != signers.end();
+  };
+
   auto exportChain = [&](Chain chain) {
     json rs;
     rs["wallets"] = json::array();
@@ -1243,6 +1252,11 @@ std::string NunchukStorage::ExportBackup() {
     for (auto&& id : wids) {
       auto wallet_db = GetWalletDb(chain, id);
       auto w = wallet_db.GetWallet(true, true);
+      if (is_assisted_wallet(w)) {
+        // skip sync assisted wallet
+        continue;
+      }
+
       json wallet = {
           {"id", w.get_id()},
           {"name", w.get_name()},
@@ -1277,6 +1291,8 @@ std::string NunchukStorage::ExportBackup() {
     for (auto&& id : sids) {
       auto signerDb = GetSignerDb(chain, id);
       if (signerDb.GetId().empty()) continue;
+      if (signerDb.GetSignerType() == SignerType::SERVER) continue;
+
       json signer = {{"id", signerDb.GetId()},
                      {"name", signerDb.GetName()},
                      {"device_type", signerDb.GetDeviceType()},
