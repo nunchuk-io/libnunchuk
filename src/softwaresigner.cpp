@@ -18,6 +18,7 @@
 
 #include "softwaresigner.h"
 
+#include <exception>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -61,6 +62,8 @@ std::string SoftwareSigner::GenerateMnemonic() {
 bool SoftwareSigner::CheckMnemonic(const std::string& mnemonic) {
   return mnemonic_check(mnemonic.c_str());
 }
+
+std::mutex SoftwareSigner::mu_;
 
 std::vector<std::string> SoftwareSigner::GetBIP39WordList() {
   std::vector<std::string> list{};
@@ -187,11 +190,15 @@ std::string SoftwareSigner::SignMessage(const std::string& message,
 
 CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
                                         const std::string& passphrase) const {
-  static std::mutex mu;
-  std::scoped_lock<std::mutex> lock(mu);
-
   uint8_t seed[512 / 8];
-  mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
+  try {
+    std::scoped_lock<std::mutex> lock(mu_);
+    mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
+  } catch (std::exception& e) {
+    // TODO: find out why
+    mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
+  }
+
   CExtKey bip32rootkey{};
   bip32rootkey.SetSeed(seed, 512 / 8);
   return bip32rootkey;
