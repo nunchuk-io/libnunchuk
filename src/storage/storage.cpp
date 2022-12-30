@@ -1101,6 +1101,10 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
   for (auto&& wallet_id : wallets) {
     GetWalletDb(chain, wallet_id).MaybeMigrate();
   }
+  auto signers = ListMasterSigners0(chain);
+  for (auto&& signer_id : signers) {
+    GetSignerDb(chain, signer_id).MaybeMigrate();
+  }
 
   // migrate app state
   auto appstate = GetAppStateDb(chain);

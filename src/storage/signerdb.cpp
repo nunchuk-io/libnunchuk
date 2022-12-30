@@ -71,6 +71,8 @@ void NunchukSignerDb::InitSignerMasterXprv(const std::string& name,
   PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }
 
+void NunchukSignerDb::MaybeMigrate() {}
+
 void NunchukSignerDb::DeleteSigner() {
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS REMOTE;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS BIP32;", NULL, 0, NULL));
