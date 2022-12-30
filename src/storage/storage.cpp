@@ -251,19 +251,12 @@ void NunchukStorage::Init(const std::string& datadir,
   fs::create_directories(datadir_ / "tmp");
 }
 
-void NunchukStorage::SetPassphrase(const std::string& value) {
+void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
+  std::unique_lock<std::shared_mutex> lock(access_);
   if (value == passphrase_) {
     throw NunchukException(NunchukException::PASSPHRASE_ALREADY_USED,
                            "Passphrase used");
   }
-  SetPassphrase(Chain::MAIN, value);
-  SetPassphrase(Chain::TESTNET, value);
-  SetPassphrase(Chain::SIGNET, value);
-  passphrase_ = value;
-}
-
-void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
-  std::unique_lock<std::shared_mutex> lock(access_);
   auto rekey = [&](const fs::path& old_file, const std::string& id) {
     auto new_file = datadir_ / "tmp" / id;
     NunchukDb db{chain, id, old_file.string(), passphrase_};
@@ -287,6 +280,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     rekey(GetSignerDir(chain, signer_id), signer_id);
   }
   rekey(GetRoomDir(chain), "matrix");
+  passphrase_ = value;
 }
 
 std::string NunchukStorage::ChainStr(Chain chain) const {

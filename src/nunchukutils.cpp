@@ -188,19 +188,19 @@ std::vector<std::string> Utils::GetBIP39WordList() {
 }
 
 void Utils::SetPassPhrase(const std::string& storage_path,
-                          const std::string& account,
+                          const std::string& account, Chain chain,
                           const std::string& old_passphrase,
                           const std::string& new_passphrase) {
   auto storage = NunchukStorage::get(account);
   storage->Init(storage_path, old_passphrase);
-  storage->SetPassphrase(new_passphrase);
+  storage->SetPassphrase(chain, new_passphrase);
 }
 
 std::vector<PrimaryKey> Utils::GetPrimaryKeys(const std::string& storage_path,
                                               Chain chain) {
-  auto storage = NunchukStorage::get("");
-  storage->Init(storage_path, "");
-  return storage->GetPrimaryKeys(chain);
+  NunchukStorage storage{""};
+  storage.Init(storage_path);
+  return storage.GetPrimaryKeys(chain);
 }
 
 std::string Utils::GetPrimaryKeyAddress(const std::string& mnemonic,

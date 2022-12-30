@@ -38,7 +38,7 @@ class NunchukStorage {
   static std::shared_ptr<NunchukStorage> get(const std::string &account);
 
   NunchukStorage(const std::string &account);
-  void Init(const std::string &datadir, const std::string &passphrase);
+  void Init(const std::string &datadir, const std::string &passphrase = "");
   void MaybeMigrate(Chain chain);
   bool WriteFile(const std::string &file_path, const std::string &value);
   std::string LoadFile(const std::string &file_path);
@@ -47,7 +47,7 @@ class NunchukStorage {
   std::string GetWalletExportData(Chain chain, const std::string &wallet_id,
                                   ExportFormat format);
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
-  void SetPassphrase(const std::string &new_passphrase);
+  void SetPassphrase(Chain chain, const std::string &new_passphrase);
   Wallet CreateWallet(Chain chain, const Wallet &wallet);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
@@ -219,7 +219,6 @@ class NunchukStorage {
   boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetTapprotocolDir(Chain chain) const;
   boost::filesystem::path GetDefaultDataDir() const;
-  void SetPassphrase(Chain chain, const std::string &new_passphrase);
   Wallet CreateWallet0(Chain chain, const Wallet &wallet);
   SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
                               bool create_if_not_exist) const;
