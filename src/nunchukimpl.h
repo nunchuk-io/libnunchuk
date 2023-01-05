@@ -65,6 +65,7 @@ class NunchukImpl : public Nunchuk {
                                 const std::string& description = {}) override;
   Wallet ImportWalletConfigFile(const std::string& file_path,
                                 const std::string& description = {}) override;
+  void ForceRefreshWallet(const std::string& wallet_id) override;
 
   std::vector<Device> GetDevices() override;
   MasterSigner CreateMasterSigner(
@@ -361,7 +362,8 @@ class NunchukImpl : public Nunchuk {
                                   ExportFormat format) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
-  void ScanWalletAddress(const std::string& wallet_id) override;
+  void ScanWalletAddress(const std::string& wallet_id,
+                         bool force = false) override;
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
