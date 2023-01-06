@@ -408,7 +408,12 @@ void ElectrumClient::socket_write() {
   }
 
   std::ostream request(&request_buffer_);
-  request << request_queue_.front() << "\n";
+  try {
+    std::string data = request_queue_.at(0);
+    request << data << "\n";
+  } catch (std::out_of_range& oor) {
+    return;
+  }
 
   if (is_secure_) {
     async_write(
@@ -499,8 +504,10 @@ void ElectrumClient::handle_write(const boost::system::error_code& error) {
   if (error) {
     return handle_error("handle_write", error.message());
   }
-  DLOG_F(INFO, "Write message: %s", request_queue_.front().c_str());
-  request_buffer_.consume(request_queue_.front().size());
+  if (request_queue_.empty()) return;
+  std::string data = request_queue_.front();
+  DLOG_F(INFO, "Write message: %s", data.c_str());
+  request_buffer_.consume(data.size());
   request_queue_.pop_front();
   socket_write();
 }

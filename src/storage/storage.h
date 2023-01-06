@@ -209,11 +209,9 @@ class NunchukStorage {
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
   NunchukTapprotocolDb GetTaprotocolDb(Chain chain);
-  std::string ChainStr(Chain chain) const;
-  boost::filesystem::path GetWalletDir(Chain chain,
-                                       const std::string &id) const;
-  boost::filesystem::path GetSignerDir(Chain chain,
-                                       const std::string &id) const;
+  boost::filesystem::path ChainStr(Chain chain) const;
+  boost::filesystem::path GetWalletDir(Chain chain, std::string id) const;
+  boost::filesystem::path GetSignerDir(Chain chain, std::string id) const;
   boost::filesystem::path GetAppStateDir(Chain chain) const;
   boost::filesystem::path GetPrimaryDir(Chain chain) const;
   boost::filesystem::path GetRoomDir(Chain chain) const;

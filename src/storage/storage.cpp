@@ -283,7 +283,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   passphrase_ = value;
 }
 
-std::string NunchukStorage::ChainStr(Chain chain) const {
+fs::path NunchukStorage::ChainStr(Chain chain) const {
   switch (chain) {
     case Chain::MAIN:
       return "mainnet";
@@ -297,8 +297,7 @@ std::string NunchukStorage::ChainStr(Chain chain) const {
   throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
 }
 
-fs::path NunchukStorage::GetWalletDir(Chain chain,
-                                      const std::string& id) const {
+fs::path NunchukStorage::GetWalletDir(Chain chain, std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            "Wallet id can not empty!");
@@ -306,13 +305,13 @@ fs::path NunchukStorage::GetWalletDir(Chain chain,
   return datadir_ / ChainStr(chain) / "wallets" / id;
 }
 
-fs::path NunchukStorage::GetSignerDir(Chain chain,
-                                      const std::string& id) const {
+fs::path NunchukStorage::GetSignerDir(Chain chain, std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
                            "Signer id can not empty!");
   }
-  return datadir_ / ChainStr(chain) / "signers" / ba::to_lower_copy(id);
+  std::string lowercase_id = ba::to_lower_copy(id);
+  return datadir_ / ChainStr(chain) / "signers" / lowercase_id;
 }
 
 fs::path NunchukStorage::GetAppStateDir(Chain chain) const {
