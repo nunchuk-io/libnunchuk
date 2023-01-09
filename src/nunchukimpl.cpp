@@ -55,7 +55,7 @@ namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
-static int MAX_FRAGMENT_LEN = 100;
+static int MAX_FRAGMENT_LEN = 200;
 static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
@@ -1295,8 +1295,8 @@ std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
   auto encoder = ur::UREncoder(ur::UR("bytes", cbor), MAX_FRAGMENT_LEN);
   std::vector<std::string> parts;
   do {
-    parts.push_back(encoder.next_part());
-  } while (!encoder.is_complete());
+    parts.push_back(to_upper_copy(encoder.next_part()));
+  } while (encoder.seq_num() > 2 * encoder.seq_len());
   return parts;
 }
 
@@ -1320,8 +1320,8 @@ std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
   std::vector<std::string> parts;
   do {
-    parts.push_back(encoder.next_part());
-  } while (!encoder.is_complete());
+    parts.push_back(to_upper_copy(encoder.next_part()));
+  } while (encoder.seq_num() > 2 * encoder.seq_len());
   return parts;
 }
 
