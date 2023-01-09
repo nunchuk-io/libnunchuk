@@ -1535,4 +1535,9 @@ bool NunchukStorage::DeleteTapsigner(Chain chain,
   return GetTaprotocolDb(chain).DeleteTapsigner(master_signer_id);
 }
 
+void NunchukStorage::ForceRefresh(Chain chain, const std::string& wallet_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetWalletDb(chain, wallet_id).ForceRefresh();
+}
+
 }  // namespace nunchuk

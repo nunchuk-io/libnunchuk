@@ -199,6 +199,7 @@ class NunchukStorage {
   TapsignerStatus GetTapsignerStatusFromMasterSigner(
       Chain chain, const std::string &master_signer_id);
   bool DeleteTapsigner(Chain chain, const std::string &master_signer_id);
+  void ForceRefresh(Chain chain, const std::string &wallet_id);
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;

@@ -771,6 +771,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& description = {}) = 0;
   virtual Wallet ImportWalletConfigFile(
       const std::string& file_path, const std::string& description = {}) = 0;
+  virtual void ForceRefreshWallet(const std::string& wallet_id) = 0;
 
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -1031,7 +1032,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                           ExportFormat format) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
-  virtual void ScanWalletAddress(const std::string& wallet_id) = 0;
+  virtual void ScanWalletAddress(const std::string& wallet_id,
+                                 bool force = false) = 0;
   virtual MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,

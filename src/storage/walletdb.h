@@ -79,6 +79,7 @@ class NunchukWalletDb : public NunchukDb {
   int GetAddressIndex(const std::string &address) const;
   Amount GetAddressBalance(const std::string &address) const;
   std::string GetAddressStatus(const std::string &address) const;
+  void ForceRefresh();
 
  private:
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);

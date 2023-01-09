@@ -118,7 +118,7 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
   sanitized_wallet.check_valid();
 
   Wallet wallet = storage_->CreateWallet(chain_, sanitized_wallet);
-  ScanWalletAddress(wallet.get_id());
+  ScanWalletAddress(wallet.get_id(), true);
   storage_listener_();
   return storage_->GetWallet(chain_, wallet.get_id(), true);
 }
@@ -254,10 +254,15 @@ Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
                       true);
 }
 
-void NunchukImpl::ScanWalletAddress(const std::string& wallet_id) {
+void NunchukImpl::ForceRefreshWallet(const std::string& wallet_id) {
+  storage_->ForceRefresh(chain_, wallet_id);
+  ScanWalletAddress(wallet_id, true);
+}
+
+void NunchukImpl::ScanWalletAddress(const std::string& wallet_id, bool force) {
   if (wallet_id.empty()) return;
   time_t current = std::time(0);
-  if (current - last_scan_[wallet_id] < 600) return;
+  if (!force && current - last_scan_[wallet_id] < 600) return;
   last_scan_[wallet_id] = current;
   scan_wallet_.push_back(std::async(std::launch::async, [this, wallet_id] {
     RunScanWalletAddress(wallet_id);
