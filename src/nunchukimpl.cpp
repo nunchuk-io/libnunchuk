@@ -1301,7 +1301,7 @@ std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() > 2 * encoder.seq_len());
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
   return parts;
 }
 
@@ -1326,7 +1326,7 @@ std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() > 2 * encoder.seq_len());
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
   return parts;
 }
 
@@ -1406,7 +1406,7 @@ std::vector<std::string> NunchukImpl::ExportPassportWallet(
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() > 2 * encoder.seq_len());
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
   return parts;
 }
 
@@ -1431,7 +1431,7 @@ std::vector<std::string> NunchukImpl::ExportPassportTransaction(
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() > 2 * encoder.seq_len());
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
   return parts;
 }
 
