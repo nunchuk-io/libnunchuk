@@ -815,6 +815,7 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
   }
   MasterSigner signer{id, device, signer_db.GetLastHealthCheck(), signer_type};
   signer.set_name(signer_db.GetName());
+  signer.set_tags(signer_db.GetTags());
   return signer;
 }
 
@@ -847,7 +848,9 @@ bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
 bool NunchukStorage::UpdateMasterSigner(Chain chain,
                                         const MasterSigner& signer) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetSignerDb(chain, signer.get_id()).SetName(signer.get_name());
+  auto signer_db = GetSignerDb(chain, signer.get_id());
+  return signer_db.SetName(signer.get_name()) &&
+         signer_db.SetTags(signer.get_tags());
 }
 
 bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
