@@ -809,40 +809,70 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   auto mastersigner_id = device.get_master_fingerprint();
   std::string signed_psbt;
   auto mastersigner = GetMasterSigner(mastersigner_id);
-  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
-    throw NunchukException(
-        NunchukException::INVALID_SIGNER_TYPE,
-        strprintf("Can not sign with foreign software "
-                  "signer wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
-                  wallet_id, tx_id, mastersigner_id));
-  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
-    auto software_signer = storage_->GetSoftwareSigner(chain_, mastersigner_id);
-    auto wallet = GetWallet(wallet_id);
-    if (wallet.get_address_type() == AddressType::TAPROOT) {
-      std::vector<std::string> keypaths;
-      auto base = wallet.get_signers()[0].get_derivation_path();
-      int internal = storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
-      for (int index = 0; index <= internal; index++) {
-        keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base % index));
+
+  switch (mastersigner.get_type()) {
+    case SignerType::FOREIGN_SOFTWARE:
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          strprintf(
+              "Can not sign with foreign software "
+              "signer wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
+              wallet_id, tx_id, mastersigner_id));
+    case SignerType::SOFTWARE: {
+      auto software_signer =
+          storage_->GetSoftwareSigner(chain_, mastersigner_id);
+      auto wallet = GetWallet(wallet_id);
+      if (wallet.get_address_type() == AddressType::TAPROOT) {
+        std::vector<std::string> keypaths;
+        auto base = wallet.get_signers()[0].get_derivation_path();
+        int internal =
+            storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
+        for (int index = 0; index <= internal; index++) {
+          keypaths.push_back(
+              boost::str(boost::format{"%s/1/%d"} % base % index));
+        }
+        int external =
+            storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
+        for (int index = 0; index <= external; index++) {
+          keypaths.push_back(
+              boost::str(boost::format{"%s/0/%d"} % base % index));
+        }
+        signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
+      } else {
+        signed_psbt = software_signer.SignTx(psbt);
       }
-      int external = storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
-      for (int index = 0; index <= external; index++) {
-        keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base % index));
-      }
-      signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
-    } else {
-      signed_psbt = software_signer.SignTx(psbt);
+      storage_->ClearSignerPassphrase(chain_, mastersigner_id);
+      break;
     }
-    storage_->ClearSignerPassphrase(chain_, mastersigner_id);
-  } else if (mastersigner.get_type() == SignerType::HARDWARE) {
-    signed_psbt = hwi_.SignTx(device, psbt);
-  } else if (mastersigner.get_type() == SignerType::NFC) {
-    throw NunchukException(
-        NunchukException::INVALID_SIGNER_TYPE,
-        strprintf("Transaction must be sign with NFC "
-                  "wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
-                  wallet_id, tx_id, mastersigner_id));
+    case SignerType::HARDWARE:
+      signed_psbt = hwi_.SignTx(device, psbt);
+      break;
+    case SignerType::COLDCARD_NFC:
+      signed_psbt = hwi_.SignTx(device, psbt);
+      break;
+    case SignerType::NFC:
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          strprintf("Transaction must be sign with NFC "
+                    "wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
+                    wallet_id, tx_id, mastersigner_id));
+    case SignerType::UNKNOWN:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Can not sign with unknown key type"
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
+    case SignerType::AIRGAP:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Transaction must be sign with Airgap "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
+    case SignerType::SERVER:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Can not sign with server key "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
   }
+
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
          signed_psbt.c_str());
   storage_->UpdatePsbt(chain_, wallet_id, signed_psbt);
@@ -861,37 +891,61 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
   auto mastersigner_id = device.get_master_fingerprint();
   std::string signed_psbt;
   auto mastersigner = GetMasterSigner(mastersigner_id);
-  if (mastersigner.get_type() == SignerType::FOREIGN_SOFTWARE) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           strprintf("Can not sign with foreign software "
-                                     "mastersigner_id = '%s'",
-                                     mastersigner_id));
-  } else if (mastersigner.get_type() == SignerType::SOFTWARE) {
-    auto software_signer = storage_->GetSoftwareSigner(chain_, mastersigner_id);
-    // if (wallet.get_address_type() == AddressType::TAPROOT) {
-    //   std::vector<std::string> keypaths;
-    //   auto base = wallet.get_signers()[0].get_derivation_path();
-    //   for (int index = 0; index <= 1000; index++) {
-    //     keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base %
-    //     index));
-    //   }
-    //   for (int index = 0; index <= 1000; index++) {
-    //     keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base %
-    //     index));
-    //   }
-    //   signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
-    // } else {
-    signed_psbt = software_signer.SignTx(psbt);
-    //}
-    storage_->ClearSignerPassphrase(chain_, mastersigner_id);
-  } else if (mastersigner.get_type() == SignerType::HARDWARE) {
-    signed_psbt = hwi_.SignTx(device, psbt);
-  } else if (mastersigner.get_type() == SignerType::NFC) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           strprintf("Transaction must be sign with NFC "
-                                     "mastersigner_id = '%s'",
-                                     mastersigner_id));
+  switch (mastersigner.get_type()) {
+    case SignerType::SOFTWARE: {
+      auto software_signer =
+          storage_->GetSoftwareSigner(chain_, mastersigner_id);
+      // if (wallet.get_address_type() == AddressType::TAPROOT) {
+      //   std::vector<std::string> keypaths;
+      //   auto base = wallet.get_signers()[0].get_derivation_path();
+      //   for (int index = 0; index <= 1000; index++) {
+      //     keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base %
+      //     index));
+      //   }
+      //   for (int index = 0; index <= 1000; index++) {
+      //     keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base %
+      //     index));
+      //   }
+      //   signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
+      // } else {
+      signed_psbt = software_signer.SignTx(psbt);
+      //}
+      storage_->ClearSignerPassphrase(chain_, mastersigner_id);
+      break;
+    }
+    case SignerType::HARDWARE:
+      signed_psbt = hwi_.SignTx(device, psbt);
+      break;
+    case SignerType::COLDCARD_NFC:
+      signed_psbt = hwi_.SignTx(device, psbt);
+      break;
+    case SignerType::FOREIGN_SOFTWARE:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Can not sign with foreign software "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
+    case SignerType::NFC:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Transaction must be sign with NFC "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
+    case SignerType::UNKNOWN:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Can not sign with unknown key type"
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
+    case SignerType::AIRGAP:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Transaction must be sign with Airgap "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
+    case SignerType::SERVER:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Can not sign with server key "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
   }
+
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
          signed_psbt.c_str());
   Transaction signed_tx = tx;
