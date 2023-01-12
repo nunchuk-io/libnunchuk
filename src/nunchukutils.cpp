@@ -534,7 +534,7 @@ std::string Utils::GetPartialSignature(const SingleSigner& signer,
 
 std::vector<std::string> Utils::ExportKeystoneTransaction(
     const std::string& psbt) {
-  static const int MAX_FRAGMENT_LEN = 100;
+  static const int MAX_FRAGMENT_LEN = 200;
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
@@ -550,7 +550,7 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
   std::vector<std::string> qr_data;
   do {
     qr_data.push_back(encoder.next_part());
-  } while (!encoder.is_complete());
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
   for (std::string& s : qr_data) {
     std::transform(s.begin(), s.end(), s.begin(),
                    [](char c) { return std::toupper(c); });
@@ -560,6 +560,7 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
 
 std::vector<std::string> Utils::ExportPassportTransaction(
     const std::string& psbt) {
+  static const int MAX_FRAGMENT_LEN = 200;
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
@@ -568,7 +569,14 @@ std::vector<std::string> Utils::ExportPassportTransaction(
   if (invalid) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  auto qr_data = nunchuk::bcr::EncodeUniformResource(data);
+  bcr2::CryptoPSBT crypto_psbt{data};
+  ur::ByteVector cbor;
+  encodeCryptoPSBT(cbor, crypto_psbt);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  std::vector<std::string> qr_data;
+  do {
+    qr_data.push_back(encoder.next_part());
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
   for (std::string& s : qr_data) {
     std::transform(s.begin(), s.end(), s.begin(),
                    [](char c) { return std::toupper(c); });
@@ -596,8 +604,20 @@ std::string Utils::ParseKeystoneTransaction(
 
 std::string Utils::ParsePassportTransaction(
     const std::vector<std::string>& qr_data) {
-  auto psbt = nunchuk::bcr::DecodeUniformResource(qr_data);
-  return EncodeBase64(MakeUCharSpan(psbt));
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
+  }
+  auto decoded = decoder.result_ur();
+  auto i = decoded.cbor().begin();
+  auto end = decoded.cbor().end();
+  bcr2::CryptoPSBT psbt{};
+  decodeCryptoPSBT(i, end, psbt);
+  return EncodeBase64(MakeUCharSpan(psbt.data));
 }
 
 }  // namespace nunchuk
