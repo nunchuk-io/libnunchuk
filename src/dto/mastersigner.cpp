@@ -16,6 +16,7 @@
  */
 
 #include <nunchuk.h>
+#include <algorithm>
 #include <vector>
 
 namespace nunchuk {
@@ -34,14 +35,18 @@ Device MasterSigner::get_device() const { return device_; }
 time_t MasterSigner::get_last_health_check() const {
   return last_health_check_;
 }
+const std::vector<SignerTag>& MasterSigner::get_tags() const { return tags_; }
 bool MasterSigner::is_software() const {
   return type_ == SignerType::SOFTWARE || type_ == SignerType::FOREIGN_SOFTWARE;
 }
 SignerType MasterSigner::get_type() const { return type_; }
 
 void MasterSigner::set_name(const std::string& value) { name_ = value; }
-bool MasterSigner::is_nfc() const {
-  return type_ == SignerType::NFC;
+void MasterSigner::set_tags(std::vector<SignerTag> tags) {
+  tags_ = std::move(tags);
+  std::sort(tags_.begin(), tags_.end());
+  tags_.erase(std::unique(tags_.begin(), tags_.end()), tags_.end());
 }
+bool MasterSigner::is_nfc() const { return type_ == SignerType::NFC; }
 
 }  // namespace nunchuk

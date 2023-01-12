@@ -177,6 +177,13 @@ int NunchukSignerDb::GetCachedIndex(const WalletType& wallet_type,
 bool NunchukSignerDb::SetName(const std::string& value) {
   return PutString(DbKeys::NAME, value);
 }
+bool NunchukSignerDb::SetTags(const std::vector<SignerTag>& value) {
+  json json_tags = json::array();
+  for (SignerTag tag : value) {
+    json_tags.emplace_back(SignerTagToStr(tag));
+  }
+  return PutString(DbKeys::SIGNER_TAGS, json_tags.dump());
+}
 
 bool NunchukSignerDb::SetLastHealthCheck(time_t value) {
   return PutInt(DbKeys::LAST_HEALTH_CHECK, value);
@@ -195,6 +202,21 @@ std::string NunchukSignerDb::GetDeviceModel() const {
 }
 
 std::string NunchukSignerDb::GetName() const { return GetString(DbKeys::NAME); }
+
+std::vector<SignerTag> NunchukSignerDb::GetTags() const {
+  std::vector<SignerTag> tags;
+
+  std::string str_tags = GetString(DbKeys::SIGNER_TAGS);
+  if (str_tags.empty()) {
+    return tags;
+  }
+
+  json json_tags = json::parse(str_tags);
+  for (std::string tag : json_tags) {
+    tags.emplace_back(SignerTagFromStr(tag));
+  }
+  return tags;
+}
 
 time_t NunchukSignerDb::GetLastHealthCheck() const {
   return GetInt(DbKeys::LAST_HEALTH_CHECK);

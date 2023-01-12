@@ -133,6 +133,10 @@ enum class OrderBy {
   LEAST_RECENTLY_USED,
 };
 
+enum class SignerTag {
+  INHERITANCE,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -350,10 +354,12 @@ class NUNCHUK_EXPORT MasterSigner {
   std::string get_name() const;
   Device get_device() const;
   time_t get_last_health_check() const;
+  const std::vector<SignerTag>& get_tags() const;
   bool is_software() const;
   bool is_nfc() const;
   SignerType get_type() const;
   void set_name(const std::string& value);
+  void set_tags(std::vector<SignerTag> tags);
 
  private:
   std::string id_;
@@ -361,6 +367,7 @@ class NUNCHUK_EXPORT MasterSigner {
   Device device_;
   time_t last_health_check_;
   SignerType type_;
+  std::vector<SignerTag> tags_;
 };
 
 class NUNCHUK_EXPORT PrimaryKey {

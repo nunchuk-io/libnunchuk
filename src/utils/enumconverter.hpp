@@ -98,6 +98,21 @@ inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
       nunchuk::NunchukException::INVALID_SIGNER_TYPE, "Invalid signer type");
 }
 
+inline std::string SignerTagToStr(nunchuk::SignerTag tag) {
+  switch (tag) {
+    case nunchuk::SignerTag::INHERITANCE:
+      return "INHERITANCE";
+  }
+  throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
+                                  "Invalid signer tag");
+}
+
+inline nunchuk::SignerTag SignerTagFromStr(const std::string& tag) {
+  if (tag == "INHERITANCE") return nunchuk::SignerTag::INHERITANCE;
+  throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
+                                  "Invalid signer tag");
+}
+
 inline std::string SlotStatusToStr(nunchuk::SatscardSlot::Status status) {
   switch (status) {
     case nunchuk::SatscardSlot::Status::UNUSED:

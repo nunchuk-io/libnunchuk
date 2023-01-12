@@ -37,6 +37,7 @@ class NunchukSignerDb : public NunchukDb {
   void MaybeMigrate();
   void DeleteSigner();
   bool SetName(const std::string &value);
+  bool SetTags(const std::vector<SignerTag> &value);
   bool SetLastHealthCheck(time_t value);
   bool AddXPub(const std::string &path, const std::string &xpub,
                const std::string &type);
@@ -55,6 +56,7 @@ class NunchukSignerDb : public NunchukDb {
   std::string GetDeviceModel() const;
   std::string GetDeviceType() const;
   std::string GetName() const;
+  std::vector<SignerTag> GetTags() const;
   time_t GetLastHealthCheck() const;
   std::vector<SingleSigner> GetSingleSigners(bool usedOnly = true) const;
   bool IsMaster() const;
