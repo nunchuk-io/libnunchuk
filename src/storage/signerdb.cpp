@@ -340,7 +340,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
   sqlite3_stmt* stmt;
   std::string sql =
       "SELECT XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED FROM REMOTE WHERE "
-      "PATH = ? OR PATH = REPLACE(?, 'h', '''');";
+      "PATH = ?1 OR PATH = REPLACE(?1, 'h', '''');";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_step(stmt);
@@ -365,7 +365,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
 bool NunchukSignerDb::DeleteRemoteSigner(const std::string& path) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "DELETE FROM REMOTE WHERE PATH = ? OR PATH = REPLACE(?, 'h', '''');";
+      "DELETE FROM REMOTE WHERE PATH = ?1 OR PATH = REPLACE(?1, 'h', '''');";
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, path.c_str(), path.size(), NULL);
   sqlite3_step(stmt);
