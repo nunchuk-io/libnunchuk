@@ -19,6 +19,7 @@
 #define NUNCHUK_MULTISIGCONFIG_H
 
 #include <nunchuk.h>
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <sstream>
 #include <iostream>
@@ -52,7 +53,9 @@ inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
 
   content << std::endl;
   for (auto&& signer : wallet.get_signers()) {
-    content << "Derivation: " << signer.get_derivation_path() << std::endl;
+    std::string derivation_path = signer.get_derivation_path();
+    std::replace(derivation_path.begin(), derivation_path.end(), 'h', '\'');
+    content << "Derivation: " << derivation_path << std::endl;
     content << signer.get_master_fingerprint() << ": " << signer.get_xpub()
             << std::endl
             << std::endl;
