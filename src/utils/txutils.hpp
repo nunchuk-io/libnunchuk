@@ -173,6 +173,25 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
         tx.set_signer(master_fingerprint, false);
       }
     }
+  } else {
+    // Hotfix: decode dummy tx sign by SeedSigner
+    for (auto signer : signers) {
+      std::string pubkey = signer.get_public_key();
+      if (pubkey.empty()) {
+        auto xpub = DecodeExtPubKey(signer.get_xpub());
+        CExtPubKey xpub0;
+        xpub.Derive(xpub0, 0);
+        CExtPubKey xpub01;
+        xpub0.Derive(xpub01, 1);
+        pubkey = HexStr(xpub01.pubkey);
+      }
+      if (std::find(signed_pubkey.begin(), signed_pubkey.end(), pubkey) !=
+          signed_pubkey.end()) {
+        tx.set_signer(signer.get_master_fingerprint(), true);
+      } else {
+        tx.set_signer(signer.get_master_fingerprint(), false);
+      }
+    }
   }
 
   tx.set_status(signed_pubkey.size() == m
