@@ -227,6 +227,47 @@ GetTransactionFromStr(const std::string& str,
 }
 
 inline std::string GetPartialSignature(const std::string& base64_psbt,
+                                       const nunchuk::SingleSigner& signer) {
+  using namespace nunchuk;
+
+  std::string xfp = signer.get_master_fingerprint();
+
+  auto psbt = DecodePsbt(base64_psbt);
+  // Parse partial sigs
+  const PSBTInput& input = psbt.inputs[0];
+  std::map<std::string, std::string> signed_pubkey;
+  if (!input.partial_sigs.empty()) {
+    for (const auto& sig : input.partial_sigs) {
+      signed_pubkey[HexStr(sig.second.first)] = HexStr(sig.second.second);
+    }
+  }
+
+  if (!input.hd_keypaths.empty()) {
+    for (auto entry : input.hd_keypaths) {
+      std::string master_fingerprint =
+          strprintf("%08x", ReadBE32(entry.second.fingerprint));
+      if (master_fingerprint == xfp) {
+        return signed_pubkey[HexStr(entry.first)];
+      }
+    }
+  } else {
+    // Hotfix: decode dummy tx sign by SeedSigner
+    std::string pubkey = signer.get_public_key();
+    if (pubkey.empty()) {
+      auto xpub = DecodeExtPubKey(signer.get_xpub());
+      CExtPubKey xpub0;
+      xpub.Derive(xpub0, 0);
+      CExtPubKey xpub01;
+      xpub0.Derive(xpub01, 1);
+      pubkey = HexStr(xpub01.pubkey);
+    }
+    return signed_pubkey[pubkey];
+  }
+
+  return "";
+}
+
+inline std::string GetPartialSignature(const std::string& base64_psbt,
                                        const std::string& xfp) {
   using namespace nunchuk;
 

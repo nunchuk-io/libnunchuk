@@ -529,7 +529,7 @@ std::string Utils::CreateRequestToken(const std::string& signature,
 
 std::string Utils::GetPartialSignature(const SingleSigner& signer,
                                        const std::string& signed_psbt) {
-  return ::GetPartialSignature(signed_psbt, signer.get_master_fingerprint());
+  return ::GetPartialSignature(signed_psbt, signer);
 }
 
 std::vector<std::string> Utils::ExportKeystoneTransaction(
