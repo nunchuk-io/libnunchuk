@@ -505,6 +505,7 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
   tx.set_change_index(-1);
   tx.set_subtract_fee_from_amount(false);
   tx.set_psbt(psbt);
+  tx.set_receive(false);
   return tx;
 }
 
