@@ -58,6 +58,13 @@ inline bool ParsePassportSignerConfig(
   if (data["xfp"] == nullptr) return false;
   std::string xfp = to_lower_copy(data["xfp"].get<std::string>());
 
+  if (auto xpub = data.find("xpub"), path = data.find("path");
+      xpub != data.end() && path != data.end()) {
+    signers.push_back(SingleSigner(
+        "Passport", Utils::SanitizeBIP32Input(*xpub, target_format), {}, *path,
+        xfp, 0));
+  }
+
   auto addSigner = [&](const json& j) {
     if (j == nullptr) return;
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
