@@ -33,7 +33,12 @@ inline bool ParsePassportSignerConfig(
   using json = nlohmann::json;
   std::string target_format = chain == Chain::MAIN ? "xpub" : "tpub";
 
-  json data = json::parse(content);
+  json data;
+  try {
+    data = json::parse(content);
+  } catch (std::exception& e) {
+    return false;
+  }
   if (data["keystore"] != nullptr) {
     json j = data["keystore"];
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
