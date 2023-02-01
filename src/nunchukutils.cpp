@@ -498,13 +498,16 @@ std::string Utils::GetHealthCheckDummyTx(const Wallet& wallet,
 
 Transaction Utils::DecodeDummyTx(const Wallet& wallet,
                                  const std::string& psbt) {
+  std::string base64_psbt = boost::starts_with(psbt, "psbt")
+                                ? EncodeBase64(MakeUCharSpan(psbt))
+                                : psbt;
   auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
+      DecodePsbt(base64_psbt), wallet.get_signers(), wallet.get_m());
   tx.set_fee(150);
   tx.set_sub_amount(10000);
   tx.set_change_index(-1);
   tx.set_subtract_fee_from_amount(false);
-  tx.set_psbt(psbt);
+  tx.set_psbt(base64_psbt);
   tx.set_receive(false);
   return tx;
 }
