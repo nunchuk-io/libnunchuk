@@ -791,7 +791,7 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
 
 Transaction NunchukImpl::ImportTransaction(const std::string& wallet_id,
                                            const std::string& file_path) {
-  std::string psbt = storage_->LoadFile(file_path);
+  std::string psbt = boost::trim_copy(storage_->LoadFile(file_path));
   if (boost::starts_with(psbt, "psbt")) {
     psbt = EncodeBase64(MakeUCharSpan(psbt));
   }
