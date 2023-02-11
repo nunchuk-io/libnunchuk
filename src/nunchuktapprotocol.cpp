@@ -858,8 +858,12 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
 
     change_address = slot.get_address();
 
-    utxos.insert(std::end(utxos), std::begin(slot.get_utxos()),
-                 std::end(slot.get_utxos()));
+    for (auto&& utxo : slot.get_utxos()) {
+      if (utxo.get_height() > 0) {
+        utxos.emplace_back(utxo);
+      }
+    }
+
     total_balance += slot.get_balance();
   }
 
