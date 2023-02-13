@@ -196,17 +196,17 @@ void NunchukImpl::WaitCKTapCard(tap_protocol::CKTapCard* card,
 std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
     std::unique_ptr<tap_protocol::Transport> transport) {
   try {
-    auto tapsigner =
-        std::make_unique<tap_protocol::Tapsigner>(std::move(transport));
-    if (tapsigner->IsTampered()) {
+    auto card = tap_protocol::CKTapCard(std::move(transport));
+    if (card.IsTampered()) {
       throw TapProtocolException(TapProtocolException::INVALID_STATE,
                                  "Card is tampered");
     }
-    if (!tapsigner->IsTapsigner()) {
+    if (!card.IsTapsigner()) {
       throw TapProtocolException(
           TapProtocolException::INVALID_DEVICE,
           "Incorrect device type detected. Please try again.");
     }
+    auto tapsigner = tap_protocol::ToTapsigner(std::move(card));
     tapsigner->CertificateCheck();
     return tapsigner;
   } catch (tap_protocol::TapProtoException& te) {
@@ -858,8 +858,12 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
 
     change_address = slot.get_address();
 
-    utxos.insert(std::end(utxos), std::begin(slot.get_utxos()),
-                 std::end(slot.get_utxos()));
+    for (auto&& utxo : slot.get_utxos()) {
+      if (utxo.get_height() > 0) {
+        utxos.emplace_back(utxo);
+      }
+    }
+
     total_balance += slot.get_balance();
   }
 
