@@ -255,6 +255,7 @@ class TapProtocolException : public BaseException {
   using BaseException::BaseException;
   static const int TAP_PROTOCOL_ERROR = -6000;
   static const int INVALID_DEVICE = TAP_PROTOCOL_ERROR - 100;
+  static const int INVALID_DEVICE_TYPE = TAP_PROTOCOL_ERROR - 101;
   static const int UNLUCKY_NUMBER = TAP_PROTOCOL_ERROR - 205;
   static const int BAD_ARGUMENT = TAP_PROTOCOL_ERROR - 400;
   static const int BAD_AUTH = TAP_PROTOCOL_ERROR - 401;

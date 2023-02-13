@@ -203,7 +203,7 @@ std::unique_ptr<tap_protocol::Tapsigner> NunchukImpl::CreateTapsigner(
     }
     if (!card.IsTapsigner()) {
       throw TapProtocolException(
-          TapProtocolException::INVALID_DEVICE,
+          TapProtocolException::INVALID_DEVICE_TYPE,
           "Incorrect device type detected. Please try again.");
     }
     auto tapsigner = tap_protocol::ToTapsigner(std::move(card));
@@ -716,7 +716,7 @@ std::unique_ptr<tap_protocol::Satscard> NunchukImpl::CreateSatscard(
     }
     if (satscard->IsTapsigner()) {
       throw TapProtocolException(
-          TapProtocolException::INVALID_DEVICE,
+          TapProtocolException::INVALID_DEVICE_TYPE,
           "Incorrect device type detected. Please try again.");
     }
     satscard->CertificateCheck();
