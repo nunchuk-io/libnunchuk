@@ -55,7 +55,6 @@ namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
-static int MAX_FRAGMENT_LEN = 200;
 static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
@@ -1346,12 +1345,12 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
 }
 
 std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
-    const std::string& wallet_id) {
+    const std::string& wallet_id, int fragment_len) {
   auto content = storage_->GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   ur::ByteVector cbor;
   encodeBytes(cbor, data);
-  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), MAX_FRAGMENT_LEN);
+  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), fragment_len);
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
@@ -1360,7 +1359,7 @@ std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
 }
 
 std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
-    const std::string& wallet_id, const std::string& tx_id) {
+    const std::string& wallet_id, const std::string& tx_id, int fragment_len) {
   std::string base64_psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
   if (base64_psbt.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
@@ -1376,7 +1375,7 @@ std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
   CryptoPSBT psbt{data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
@@ -1451,12 +1450,12 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 }
 
 std::vector<std::string> NunchukImpl::ExportPassportWallet(
-    const std::string& wallet_id) {
+    const std::string& wallet_id, int fragment_len) {
   auto content = storage_->GetMultisigConfig(chain_, wallet_id);
   std::vector<uint8_t> data(content.begin(), content.end());
   ur::ByteVector cbor;
   encodeBytes(cbor, data);
-  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), MAX_FRAGMENT_LEN);
+  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), fragment_len);
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));
@@ -1465,7 +1464,7 @@ std::vector<std::string> NunchukImpl::ExportPassportWallet(
 }
 
 std::vector<std::string> NunchukImpl::ExportPassportTransaction(
-    const std::string& wallet_id, const std::string& tx_id) {
+    const std::string& wallet_id, const std::string& tx_id, int fragment_len) {
   std::string base64_psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
   if (base64_psbt.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
@@ -1481,7 +1480,7 @@ std::vector<std::string> NunchukImpl::ExportPassportTransaction(
   CryptoPSBT psbt{data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
   std::vector<std::string> parts;
   do {
     parts.push_back(to_upper_copy(encoder.next_part()));

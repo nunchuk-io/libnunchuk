@@ -905,9 +905,10 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual SingleSigner ParseKeystoneSigner(const std::string& qr_data) = 0;
   virtual std::vector<std::string> ExportKeystoneWallet(
-      const std::string& wallet_id) = 0;
+      const std::string& wallet_id, int fragment_len = 200) = 0;
   virtual std::vector<std::string> ExportKeystoneTransaction(
-      const std::string& wallet_id, const std::string& tx_id) = 0;
+      const std::string& wallet_id, const std::string& tx_id,
+      int fragment_len = 200) = 0;
   virtual Transaction ImportKeystoneTransaction(
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) = 0;
@@ -917,9 +918,10 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<SingleSigner> ParsePassportSigners(
       const std::vector<std::string>& qr_data) = 0;
   virtual std::vector<std::string> ExportPassportWallet(
-      const std::string& wallet_id) = 0;
+      const std::string& wallet_id, int fragment_len = 200) = 0;
   virtual std::vector<std::string> ExportPassportTransaction(
-      const std::string& wallet_id, const std::string& tx_id) = 0;
+      const std::string& wallet_id, const std::string& tx_id,
+      int fragment_len = 200) = 0;
   virtual Transaction ImportPassportTransaction(
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) = 0;
@@ -1192,9 +1194,9 @@ class NUNCHUK_EXPORT Utils {
                                          const std::string& signed_psbt);
 
   static std::vector<std::string> ExportKeystoneTransaction(
-      const std::string& psbt);
+      const std::string& psbt, int fragment_len = 200);
   static std::vector<std::string> ExportPassportTransaction(
-      const std::string& psbt);
+      const std::string& psbt, int fragment_len = 200);
   static std::string ParseKeystoneTransaction(
       const std::vector<std::string>& qr_data);
   static std::string ParsePassportTransaction(

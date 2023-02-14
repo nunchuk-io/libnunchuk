@@ -538,8 +538,7 @@ std::string Utils::GetPartialSignature(const SingleSigner& signer,
 }
 
 std::vector<std::string> Utils::ExportKeystoneTransaction(
-    const std::string& psbt) {
-  static const int MAX_FRAGMENT_LEN = 200;
+    const std::string& psbt, int fragment_len) {
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
@@ -551,7 +550,7 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
   bcr2::CryptoPSBT crypto_psbt{data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, crypto_psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
   std::vector<std::string> qr_data;
   do {
     qr_data.push_back(encoder.next_part());
@@ -564,8 +563,7 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
 }
 
 std::vector<std::string> Utils::ExportPassportTransaction(
-    const std::string& psbt) {
-  static const int MAX_FRAGMENT_LEN = 200;
+    const std::string& psbt, int fragment_len) {
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
@@ -577,7 +575,7 @@ std::vector<std::string> Utils::ExportPassportTransaction(
   bcr2::CryptoPSBT crypto_psbt{data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, crypto_psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), MAX_FRAGMENT_LEN);
+  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
   std::vector<std::string> qr_data;
   do {
     qr_data.push_back(encoder.next_part());

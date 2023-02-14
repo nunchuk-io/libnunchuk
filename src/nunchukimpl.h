@@ -228,9 +228,10 @@ class NunchukImpl : public Nunchuk {
 
   SingleSigner ParseKeystoneSigner(const std::string& qr_data) override;
   std::vector<std::string> ExportKeystoneWallet(
-      const std::string& wallet_id) override;
+      const std::string& wallet_id, int fragment_len = 200) override;
   std::vector<std::string> ExportKeystoneTransaction(
-      const std::string& wallet_id, const std::string& tx_id) override;
+      const std::string& wallet_id, const std::string& tx_id,
+      int fragment_len = 200) override;
   Transaction ImportKeystoneTransaction(
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) override;
@@ -240,9 +241,10 @@ class NunchukImpl : public Nunchuk {
   std::vector<SingleSigner> ParsePassportSigners(
       const std::vector<std::string>& qr_data) override;
   std::vector<std::string> ExportPassportWallet(
-      const std::string& wallet_id) override;
+      const std::string& wallet_id, int fragment_len = 200) override;
   std::vector<std::string> ExportPassportTransaction(
-      const std::string& wallet_id, const std::string& tx_id) override;
+      const std::string& wallet_id, const std::string& tx_id,
+      int fragment_len = 200) override;
   Transaction ImportPassportTransaction(
       const std::string& wallet_id,
       const std::vector<std::string>& qr_data) override;
