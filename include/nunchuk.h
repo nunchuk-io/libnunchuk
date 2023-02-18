@@ -19,6 +19,7 @@
 #define NUNCHUK_INCLUDE_H
 
 #include <optional>
+#include <set>
 #include "utils/errorutils.hpp"
 #define NUNCHUK_EXPORT
 
@@ -1127,6 +1128,17 @@ struct BtcUri {
   std::map<std::string, std::string> others;
 };
 
+struct AnalyzeQRResult {
+  bool is_success;
+  bool is_failure;
+  bool is_complete;
+  size_t expected_part_count;
+  std::set<size_t> received_part_indexes;
+  std::set<size_t> last_part_indexes;
+  size_t processed_parts_count;
+  double estimated_percent_complete;
+};
+
 class NUNCHUK_EXPORT Utils {
  public:
   static void SetChain(Chain chain);
@@ -1201,6 +1213,7 @@ class NUNCHUK_EXPORT Utils {
       const std::vector<std::string>& qr_data);
   static std::string ParsePassportTransaction(
       const std::vector<std::string>& qr_data);
+  static AnalyzeQRResult AnalyzeQR(const std::vector<std::string>& qr_data);
 
  private:
   Utils() {}
