@@ -72,7 +72,7 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<UnspentOutput> GetUtxos(bool include_locked,
                                       bool include_mempool) const;
   bool SetUtxos(const std::string &address, const std::string &utxo);
-  Amount GetBalance() const;
+  Amount GetBalance(bool include_mempool) const;
   std::string FillPsbt(const std::string &psbt);
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;

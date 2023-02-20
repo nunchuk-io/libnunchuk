@@ -790,6 +790,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_name(wallet.get_name());
   true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
+  true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());
   true_wallet.set_last_used(wallet.get_last_used());
   return true_wallet;
 }
@@ -1089,7 +1090,7 @@ bool NunchukStorage::SetUtxos(Chain chain, const std::string& wallet_id,
 
 Amount NunchukStorage::GetBalance(Chain chain, const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetBalance();
+  return GetWalletDb(chain, wallet_id).GetBalance(false);
 }
 std::string NunchukStorage::FillPsbt(Chain chain, const std::string& wallet_id,
                                      const std::string& psbt) {

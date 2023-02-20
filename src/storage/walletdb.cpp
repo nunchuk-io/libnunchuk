@@ -167,7 +167,10 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) const {
   wallet.set_name(GetString(DbKeys::NAME));
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
-  if (!skip_balance) wallet.set_balance(GetBalance());
+  if (!skip_balance) {
+    wallet.set_balance(GetBalance(false));
+    wallet.set_unconfirmed_balance(GetBalance(true));
+  }
   if (!skip_provider) {
     GetAllAddressData();  // update range to max address index
     auto desc = GetDescriptorsImportString(wallet);
@@ -741,13 +744,14 @@ bool NunchukWalletDb::SetUtxos(const std::string& address,
   return true;
 }
 
-Amount NunchukWalletDb::GetBalance() const {
-  auto utxos = GetUtxos(false, true);
+Amount NunchukWalletDb::GetBalance(bool include_mempool) const {
+  auto utxos = GetUtxos(false, include_mempool);
   Amount balance = 0;
   for (auto&& utxo : utxos) {
     // Only include confirmed Receive amount and in-mempool Change amount
     // in the wallet balance
-    if (utxo.get_height() > 0 || IsMyChange(utxo.get_address()))
+    if (utxo.get_height() > 0 ||
+        (include_mempool && IsMyChange(utxo.get_address())))
       balance += utxo.get_amount();
   }
   return balance;

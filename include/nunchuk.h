@@ -409,6 +409,7 @@ class NUNCHUK_EXPORT Wallet {
   WalletType get_wallet_type() const;
   bool is_escrow() const;
   Amount get_balance() const;
+  Amount get_unconfirmed_balance() const;
   time_t get_create_date() const;
   std::string get_description() const;
   std::string get_descriptor(DescriptorPath key_path, int index = -1,
@@ -422,6 +423,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_address_type(AddressType address_type);
   void set_escrow(bool escrow);
   void set_balance(const Amount& value);
+  void set_unconfirmed_balance(const Amount& value);
   void set_description(const std::string& value);
   void set_create_date(const time_t value);
   void set_last_used(const time_t value);
@@ -436,6 +438,7 @@ class NUNCHUK_EXPORT Wallet {
   AddressType address_type_;
   bool escrow_{false};
   Amount balance_{0};
+  Amount unconfirmed_balance_{0};
   time_t create_date_{std::time(0)};
   std::string description_;
   bool strict_{true};
