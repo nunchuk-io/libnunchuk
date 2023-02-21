@@ -1092,6 +1092,12 @@ Amount NunchukStorage::GetBalance(Chain chain, const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetBalance(false);
 }
+
+Amount NunchukStorage::GetUnconfirmedBalance(Chain chain,
+                                             const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetBalance(true);
+}
 std::string NunchukStorage::FillPsbt(Chain chain, const std::string& wallet_id,
                                      const std::string& psbt) {
   std::shared_lock<std::shared_mutex> lock(access_);

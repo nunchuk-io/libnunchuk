@@ -159,6 +159,7 @@ class NunchukStorage {
   bool SetUtxos(Chain chain, const std::string &wallet_id,
                 const std::string &address, const std::string &utxo);
   Amount GetBalance(Chain chain, const std::string &wallet_id);
+  Amount GetUnconfirmedBalance(Chain chain, const std::string &wallet_id);
   std::string FillPsbt(Chain chain, const std::string &wallet_id,
                        const std::string &psbt);
 

@@ -369,6 +369,8 @@ class NunchukImpl : public Nunchuk {
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
+  void AddBalancesListener(
+      std::function<void(std::string, Amount, Amount)> listener) override;
   void AddBlockListener(
       std::function<void(int, std::string)> listener) override;
   void AddTransactionListener(

@@ -235,6 +235,9 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
     }
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);
+    Amount unconfirmed_balance =
+        storage_->GetUnconfirmedBalance(chain, wallet_id);
+    balances_listener_(wallet_id, balance, unconfirmed_balance);
     connection_listener_(ConnectionStatus::SYNCING,
                          ++process * 100 / wallet_ids.size());
   }
@@ -302,6 +305,9 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
   if (check_balance) {
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);
+    Amount unconfirmed_balance =
+        storage_->GetUnconfirmedBalance(chain, wallet_id);
+    balances_listener_(wallet_id, balance, unconfirmed_balance);
   }
 }
 

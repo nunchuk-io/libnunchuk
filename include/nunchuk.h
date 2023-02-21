@@ -1066,6 +1066,10 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void AddBalanceListener(
       std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>
           listener) = 0;
+  virtual void AddBalancesListener(
+      std::function<void(std::string /* wallet_id */, Amount /* balance */,
+                         Amount /* unconfirmed_balance */)>
+          listener) = 0;
   virtual void AddBlockListener(
       std::function<void(int /* height */, std::string /* hex_header */)>
           listener) = 0;

@@ -750,8 +750,8 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) const {
   for (auto&& utxo : utxos) {
     // Only include confirmed Receive amount and in-mempool Change amount
     // in the wallet balance
-    if (utxo.get_height() > 0 ||
-        (include_mempool && IsMyChange(utxo.get_address())))
+    if (utxo.get_height() > 0 || IsMyChange(utxo.get_address()) ||
+        (include_mempool && utxo.get_height() == 0))
       balance += utxo.get_amount();
   }
   return balance;

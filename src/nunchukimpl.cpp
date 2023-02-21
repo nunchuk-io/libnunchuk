@@ -1713,6 +1713,11 @@ void NunchukImpl::AddBalanceListener(
   synchronizer_->AddBalanceListener(listener);
 }
 
+void NunchukImpl::AddBalancesListener(
+    std::function<void(std::string, Amount, Amount)> listener) {
+  synchronizer_->AddBalancesListener(listener);
+}
+
 void NunchukImpl::AddBlockListener(
     std::function<void(int, std::string)> listener) {
   synchronizer_->AddBlockListener(listener);

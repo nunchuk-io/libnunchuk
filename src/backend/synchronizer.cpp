@@ -95,6 +95,11 @@ void Synchronizer::AddBalanceListener(
   balance_listener_.connect(listener);
 }
 
+void Synchronizer::AddBalancesListener(
+    std::function<void(std::string, Amount, Amount)> listener) {
+  balances_listener_.connect(listener);
+}
+
 void Synchronizer::AddBlockListener(
     std::function<void(int, std::string)> listener) {
   block_listener_.connect(listener);
