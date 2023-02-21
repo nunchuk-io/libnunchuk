@@ -781,7 +781,8 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
     height_map[tx.get_txid()] = tx.get_height();
     invalid_map[tx.get_txid()] = tx.get_status() == TransactionStatus::REPLACED;
     for (auto&& input : tx.get_inputs()) {
-      if (used_by[input_str(input.first, input.second)] != tx.get_txid()) {
+      if (used_by.count(input_str(input.first, input.second)) &&
+          used_by[input_str(input.first, input.second)] != tx.get_txid()) {
         invalid_map[tx.get_txid()] = true;
       }
     }
