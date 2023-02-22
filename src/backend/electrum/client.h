@@ -114,6 +114,7 @@ class ElectrumClient {
   boost::posix_time::seconds interval_;
   boost::asio::deadline_timer timer_;
   bool support_batch_request_ = false;
+  time_t last_read_ = std::time(0);
 };
 
 }  // namespace nunchuk

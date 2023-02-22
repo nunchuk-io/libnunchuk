@@ -82,7 +82,7 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
     : io_thread_(),
       signal_thread_(),
       signal_worker_(make_work_guard(signal_service_)),
-      interval_(60),
+      interval_(5),
       timer_(io_service_, interval_) {
   disconnect_signal_.connect(on_disconnect);
   std::string server_url = GetServerAddress(appsettings);
@@ -427,6 +427,11 @@ void ElectrumClient::socket_write() {
 }
 
 void ElectrumClient::ping(const boost::system::error_code& error) {
+  time_t current = std::time(0);
+  if (current - last_read_ > 10) {
+    return handle_error("handle_ping", "no pong");
+  }
+
   json req = {{"jsonrpc", "2.0"}, {"method", "server.ping"}, {"id", id_++}};
   enqueue_message(req.dump());
   timer_.expires_at(timer_.expires_at() + interval_);
@@ -497,6 +502,7 @@ void ElectrumClient::handle_read(const boost::system::error_code& error) {
     }
   }
   receive_buffer_.consume(message.size() + 1);
+  last_read_ = std::time(0);
   socket_read();
 }
 
