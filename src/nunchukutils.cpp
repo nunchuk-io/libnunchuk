@@ -623,4 +623,21 @@ std::string Utils::ParsePassportTransaction(
   return EncodeBase64(MakeUCharSpan(psbt.data));
 }
 
+AnalyzeQRResult Utils::AnalyzeQR(const std::vector<std::string>& qr_data) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  return AnalyzeQRResult{
+      decoder.is_success(),
+      decoder.is_failure(),
+      decoder.is_complete(),
+      decoder.expected_part_count(),
+      decoder.received_part_indexes(),
+      decoder.last_part_indexes(),
+      decoder.processed_parts_count(),
+      decoder.estimated_percent_complete(),
+  };
+}
+
 }  // namespace nunchuk
