@@ -281,9 +281,8 @@ class NunchukImpl : public Nunchuk {
       std::unique_ptr<tap_protocol::Transport> transport) override;
   TapsignerStatus GetTapsignerStatus(
       tap_protocol::Tapsigner* tapsigner) override;
-  void SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
-                      const std::string& cvc,
-                      const std::string& chain_code = {}) override;
+  void InitTapsigner(tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+                     const std::string& chain_code = {}) override;
   TapsignerStatus SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
                                  const std::string& cvc,
                                  const std::string& new_cvc,

@@ -252,9 +252,9 @@ TapsignerStatus NunchukImpl::GetTapsignerStatus(
   }
 }
 
-void NunchukImpl::SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
-                                 const std::string& cvc,
-                                 const std::string& chain_code) {
+void NunchukImpl::InitTapsigner(tap_protocol::Tapsigner* tapsigner,
+                                const std::string& cvc,
+                                const std::string& chain_code) {
   try {
     tapsigner->CertificateCheck();
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
