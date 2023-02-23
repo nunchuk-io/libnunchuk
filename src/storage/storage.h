@@ -60,7 +60,8 @@ class NunchukStorage {
                                   const std::string &public_key,
                                   const std::string &derivation_path,
                                   const std::string &master_fingerprint,
-                                  SignerType signer_type = SignerType::AIRGAP);
+                                  SignerType signer_type = SignerType::AIRGAP,
+                                  std::vector<SignerTag> tags = {});
   SingleSigner GetSignerFromMasterSigner(Chain chain,
                                          const std::string &mastersigner_id,
                                          const WalletType &wallet_type,

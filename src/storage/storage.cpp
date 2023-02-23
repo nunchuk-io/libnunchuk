@@ -26,6 +26,7 @@
 #include <utils/loguru.hpp>
 #include <utils/bsms.hpp>
 #include <utils/multisigconfig.hpp>
+#include <utils/enumconverter.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -463,22 +464,23 @@ SingleSigner NunchukStorage::GetTrueSigner0(Chain chain,
                         signer.get_public_key(), signer.get_derivation_path(),
                         signer.get_master_fingerprint(),
                         signer_db.GetLastHealthCheck(), master_id, false,
-                        signer_db.GetSignerType());
+                        signer_db.GetSignerType(), signer_db.GetTags());
   }
 
   // remote
   try {
     auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
-    return SingleSigner(
-        remote.get_name(), signer.get_xpub(), signer.get_public_key(),
-        signer.get_derivation_path(), signer.get_master_fingerprint(),
-        remote.get_last_health_check(), {}, false, signer_db.GetSignerType());
+    return SingleSigner(remote.get_name(), signer.get_xpub(),
+                        signer.get_public_key(), signer.get_derivation_path(),
+                        signer.get_master_fingerprint(),
+                        remote.get_last_health_check(), {}, false,
+                        signer_db.GetSignerType(), signer_db.GetTags());
   } catch (StorageException& se) {
     if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
     if (create_if_not_exist) {
       signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
                           signer.get_public_key(), signer.get_derivation_path(),
-                          true, signer.get_type());
+                          true, signer.get_type(), signer.get_tags());
     }
     return signer;
   }
@@ -512,7 +514,8 @@ std::string NunchukStorage::CreateMasterSignerFromMasterXprv(
 SingleSigner NunchukStorage::CreateSingleSigner(
     Chain chain, const std::string& name, const std::string& xpub,
     const std::string& public_key, const std::string& derivation_path,
-    const std::string& master_fingerprint, SignerType signer_type) {
+    const std::string& master_fingerprint, SignerType signer_type,
+    std::vector<SignerTag> tags) {
   std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = master_fingerprint;
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
@@ -522,13 +525,11 @@ SingleSigner NunchukStorage::CreateSingleSigner(
                            strprintf("Signer exists id = '%s'", id));
   }
   if (!signer_db.AddRemote(name, xpub, public_key, derivation_path, false,
-                           signer_type)) {
+                           signer_type, tags)) {
     throw StorageException(StorageException::SIGNER_EXISTS,
                            strprintf("Signer exists id = '%s'", id));
   }
-  auto signer = SingleSigner(name, xpub, public_key, derivation_path,
-                             master_fingerprint, 0);
-  signer.set_type(signer_type);
+
   GetAppStateDb(chain).RemoveDeletedSigner(id);
   return signer_db.GetRemoteSigner(derivation_path);
 }
@@ -561,10 +562,10 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
         strprintf("[%s] has run out of XPUBs. Please top up.",
                   signer_db.GetName()));
   }
-  auto signer = SingleSigner(signer_db.GetName(), xpub, "", path,
-                             signer_db.GetFingerprint(),
-                             signer_db.GetLastHealthCheck(), mastersigner_id);
-  signer.set_type(signer_db.GetSignerType());
+  auto signer = SingleSigner(
+      signer_db.GetName(), xpub, "", path, signer_db.GetFingerprint(),
+      signer_db.GetLastHealthCheck(), mastersigner_id, false,
+      signer_db.GetSignerType(), signer_db.GetTags());
   return signer;
 }
 
@@ -586,10 +587,10 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
                     signer_db.GetName()));
     }
   }
-  auto signer = SingleSigner(signer_db.GetName(), xpub, "", path,
-                             signer_db.GetFingerprint(),
-                             signer_db.GetLastHealthCheck(), mastersigner_id);
-  signer.set_type(signer_db.GetSignerType());
+  auto signer = SingleSigner(
+      signer_db.GetName(), xpub, "", path, signer_db.GetFingerprint(),
+      signer_db.GetLastHealthCheck(), mastersigner_id, false,
+      signer_db.GetSignerType(), signer_db.GetTags());
   return signer;
 }
 
@@ -1184,9 +1185,10 @@ bool NunchukStorage::DeleteRemoteSigner(Chain chain,
 bool NunchukStorage::UpdateRemoteSigner(Chain chain,
                                         const SingleSigner& remotesigner) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetSignerDb(chain, remotesigner.get_master_fingerprint())
-      .SetRemoteName(remotesigner.get_derivation_path(),
-                     remotesigner.get_name());
+  auto signer_db = GetSignerDb(chain, remotesigner.get_master_fingerprint());
+  return signer_db.SetRemoteName(remotesigner.get_derivation_path(),
+                                 remotesigner.get_name()) &&
+         signer_db.SetTags(remotesigner.get_tags());
 }
 
 bool NunchukStorage::IsMasterSigner(Chain chain, const std::string& id) {
@@ -1300,9 +1302,16 @@ std::string NunchukStorage::ExportBackup() {
       if (signerDb.GetId().empty()) continue;
       if (signerDb.GetSignerType() == SignerType::SERVER) continue;
 
+      json tags = json::array();
+      for (auto&& tag : signerDb.GetTags()) {
+        tags.emplace_back(SignerTagToStr(tag));
+      }
+
       json signer = {{"id", signerDb.GetId()},
                      {"name", signerDb.GetName()},
                      {"device_type", signerDb.GetDeviceType()},
+                     {"signer_type", SignerTypeToStr(signerDb.GetSignerType())},
+                     {"tags", tags},
                      {"device_model", signerDb.GetDeviceModel()},
                      {"last_health_check", signerDb.GetLastHealthCheck()},
                      {"bip32", json::array()},
@@ -1396,6 +1405,19 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       for (auto&& ss : signer["remote"]) {
         db.AddRemote(ss["name"], ss["xpub"], ss["pubkey"], ss["path"]);
         db.SetRemoteLastHealthCheck(ss["path"], ss["last_health_check"]);
+      }
+
+      if (auto signer_type = signer.find("signer_type");
+          signer_type != signer.end()) {
+        db.UpdateSignerType(SignerTypeFromStr(*signer_type));
+      }
+
+      if (auto signer_tags = signer.find("tags"); signer_tags != signer.end()) {
+        std::vector<SignerTag> tags;
+        for (std::string tag_str : *signer_tags) {
+          tags.emplace_back(SignerTagFromStr(tag_str));
+        }
+        db.SetTags(tags);
       }
     }
     if (d["deleted_signers"] != nullptr) {

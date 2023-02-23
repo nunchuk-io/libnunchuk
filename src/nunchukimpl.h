@@ -86,11 +86,12 @@ class NunchukImpl : public Nunchuk {
                                          const WalletType& wallet_type,
                                          const AddressType& address_type,
                                          int index) override;
-  SingleSigner CreateSigner(
-      const std::string& name, const std::string& xpub,
-      const std::string& public_key, const std::string& derivation_path,
-      const std::string& master_fingerprint,
-      SignerType signer_type = SignerType::AIRGAP) override;
+  SingleSigner CreateSigner(const std::string& name, const std::string& xpub,
+                            const std::string& public_key,
+                            const std::string& derivation_path,
+                            const std::string& master_fingerprint,
+                            SignerType signer_type = SignerType::AIRGAP,
+                            std::vector<SignerTag> tags = {}) override;
   bool HasSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,

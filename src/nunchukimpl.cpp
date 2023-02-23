@@ -417,14 +417,15 @@ SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
                                        const std::string& public_key,
                                        const std::string& derivation_path,
                                        const std::string& master_fingerprint,
-                                       SignerType signer_type) {
+                                       SignerType signer_type,
+                                       std::vector<SignerTag> tags) {
   const SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
       raw_name, xpub, public_key, derivation_path, master_fingerprint,
-      std::time(nullptr), {}, false, signer_type));
+      std::time(nullptr), {}, false, signer_type, tags));
   auto rs = storage_->CreateSingleSigner(
       chain_, signer.get_name(), signer.get_xpub(), signer.get_public_key(),
       signer.get_derivation_path(), signer.get_master_fingerprint(),
-      signer.get_type());
+      signer.get_type(), signer.get_tags());
   storage_listener_();
   return rs;
 }
