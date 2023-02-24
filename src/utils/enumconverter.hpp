@@ -102,6 +102,16 @@ inline std::string SignerTagToStr(nunchuk::SignerTag tag) {
   switch (tag) {
     case nunchuk::SignerTag::INHERITANCE:
       return "INHERITANCE";
+    case nunchuk::SignerTag::KEYSTONE:
+      return "KEYSTONE";
+    case nunchuk::SignerTag::JADE:
+      return "JADE";
+    case nunchuk::SignerTag::PASSPORT:
+      return "PASSPORT";
+    case nunchuk::SignerTag::SEEDSIGNER:
+      return "SEEDSIGNER";
+    case nunchuk::SignerTag::COLDCARD:
+      return "COLDCARD";
   }
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
                                   "Invalid signer tag");
@@ -109,6 +119,11 @@ inline std::string SignerTagToStr(nunchuk::SignerTag tag) {
 
 inline nunchuk::SignerTag SignerTagFromStr(const std::string& tag) {
   if (tag == "INHERITANCE") return nunchuk::SignerTag::INHERITANCE;
+  if (tag == "KEYSTONE") return nunchuk::SignerTag::KEYSTONE;
+  if (tag == "JADE") return nunchuk::SignerTag::JADE;
+  if (tag == "PASSPORT") return nunchuk::SignerTag::PASSPORT;
+  if (tag == "SEEDSIGNER") return nunchuk::SignerTag::SEEDSIGNER;
+  if (tag == "COLDCARD") return nunchuk::SignerTag::COLDCARD;
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
                                   "Invalid signer tag");
 }

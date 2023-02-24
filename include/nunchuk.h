@@ -136,6 +136,11 @@ enum class OrderBy {
 
 enum class SignerTag {
   INHERITANCE,
+  KEYSTONE,
+  JADE,
+  PASSPORT,
+  SEEDSIGNER,
+  COLDCARD,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
@@ -316,7 +321,8 @@ class NUNCHUK_EXPORT SingleSigner {
                const std::string& derivation_path,
                const std::string& master_fingerprint, time_t last_health_check,
                const std::string& master_signer_id = {}, bool used = false,
-               SignerType signer_type = SignerType::AIRGAP);
+               SignerType signer_type = SignerType::AIRGAP,
+               std::vector<SignerTag> tags = {});
 
   std::string get_name() const;
   std::string get_xpub() const;
@@ -325,6 +331,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string get_master_fingerprint() const;
   std::string get_master_signer_id() const;
   SignerType get_type() const;
+  const std::vector<SignerTag>& get_tags() const;
   bool is_used() const;
   bool has_master_signer() const;
   time_t get_last_health_check() const;
@@ -332,6 +339,7 @@ class NUNCHUK_EXPORT SingleSigner {
   void set_name(const std::string& value);
   void set_used(bool value);
   void set_type(SignerType value);
+  void set_tags(std::vector<SignerTag> tags);
 
  private:
   std::string name_;
@@ -343,6 +351,7 @@ class NUNCHUK_EXPORT SingleSigner {
   time_t last_health_check_;
   bool used_;
   SignerType type_;
+  std::vector<SignerTag> tags_;
 };
 
 class NUNCHUK_EXPORT MasterSigner {
@@ -788,11 +797,13 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type, int index) = 0;
-  virtual SingleSigner CreateSigner(
-      const std::string& name, const std::string& xpub,
-      const std::string& public_key, const std::string& derivation_path,
-      const std::string& master_fingerprint,
-      SignerType signer_type = SignerType::AIRGAP) = 0;
+  virtual SingleSigner CreateSigner(const std::string& name,
+                                    const std::string& xpub,
+                                    const std::string& public_key,
+                                    const std::string& derivation_path,
+                                    const std::string& master_fingerprint,
+                                    SignerType signer_type = SignerType::AIRGAP,
+                                    std::vector<SignerTag> tags = {}) = 0;
   virtual bool HasSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -961,9 +972,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual TapsignerStatus GetTapsignerStatus(
       tap_protocol::Tapsigner* tapsigner) = 0;
   // setup only
-  virtual void SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
-                              const std::string& cvc,
-                              const std::string& chain_code = {}) = 0;
+  virtual void InitTapsigner(tap_protocol::Tapsigner* tapsigner,
+                             const std::string& cvc,
+                             const std::string& chain_code = {}) = 0;
   // setup - backup - change CVC
   virtual TapsignerStatus SetupTapsigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,

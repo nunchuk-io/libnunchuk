@@ -417,10 +417,11 @@ SingleSigner Utils::SanitizeSingleSigner(const SingleSigner& signer) {
   std::string xfp = boost::to_lower_copy(signer.get_master_fingerprint());
   std::string name = boost::trim_copy(signer.get_name());
 
-  return SingleSigner(
-      name, sanitized_xpub, signer.get_public_key(),
-      signer.get_derivation_path(), xfp, signer.get_last_health_check(),
-      signer.get_master_signer_id(), signer.is_used(), signer.get_type());
+  return SingleSigner(name, sanitized_xpub, signer.get_public_key(),
+                      signer.get_derivation_path(), xfp,
+                      signer.get_last_health_check(),
+                      signer.get_master_signer_id(), signer.is_used(),
+                      signer.get_type(), signer.get_tags());
 }
 
 std::vector<SingleSigner> Utils::SanitizeSingleSigners(

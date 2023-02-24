@@ -65,7 +65,8 @@ class NunchukSignerDb : public NunchukDb {
   bool AddRemote(const std::string &name, const std::string &xpub,
                  const std::string &public_key,
                  const std::string &derivation_path, bool used = false,
-                 SignerType signer_type = SignerType::AIRGAP);
+                 SignerType signer_type = SignerType::AIRGAP,
+                 std::vector<SignerTag> tags = {});
   SingleSigner GetRemoteSigner(const std::string &derivation_path) const;
   bool DeleteRemoteSigner(const std::string &derivation_path);
   bool UseRemote(const std::string &derivation_path);

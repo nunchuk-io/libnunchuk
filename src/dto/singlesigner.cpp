@@ -29,7 +29,7 @@ SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
                            const std::string& master_fingerprint,
                            time_t last_health_check,
                            const std::string& master_signer_id, bool used,
-                           SignerType signer_type)
+                           SignerType signer_type, std::vector<SignerTag> tags)
     : name_(name),
       xpub_(xpub),
       public_key_(public_key),
@@ -38,7 +38,9 @@ SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
       master_signer_id_(master_signer_id),
       last_health_check_(last_health_check),
       used_(used),
-      type_(signer_type) {}
+      type_(signer_type) {
+  set_tags(std::move(tags));
+}
 
 std::string SingleSigner::get_name() const { return name_; }
 std::string SingleSigner::get_xpub() const { return xpub_; }
@@ -53,6 +55,7 @@ std::string SingleSigner::get_master_signer_id() const {
   return master_signer_id_;
 }
 SignerType SingleSigner::get_type() const { return type_; }
+const std::vector<SignerTag>& SingleSigner::get_tags() const { return tags_; }
 bool SingleSigner::is_used() const { return used_; }
 bool SingleSigner::has_master_signer() const {
   return !master_signer_id_.empty();
@@ -69,5 +72,10 @@ std::string SingleSigner::get_descriptor() const {
 void SingleSigner::set_name(const std::string& value) { name_ = value; }
 void SingleSigner::set_used(bool value) { used_ = value; }
 void SingleSigner::set_type(SignerType value) { type_ = value; }
+void SingleSigner::set_tags(std::vector<SignerTag> tags) {
+  tags_ = std::move(tags);
+  std::sort(tags_.begin(), tags_.end());
+  tags_.erase(std::unique(tags_.begin(), tags_.end()), tags_.end());
+}
 
 }  // namespace nunchuk

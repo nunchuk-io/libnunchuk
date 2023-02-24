@@ -315,7 +315,8 @@ bool NunchukSignerDb::AddRemote(const std::string& name,
                                 const std::string& xpub,
                                 const std::string& public_key,
                                 const std::string& path, bool used,
-                                SignerType signer_type) {
+                                SignerType signer_type,
+                                std::vector<SignerTag> tags) {
   InitRemote();
   sqlite3_stmt* stmt;
   std::string sql =
@@ -333,6 +334,7 @@ bool NunchukSignerDb::AddRemote(const std::string& name,
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
   updated |= UpdateSignerType(signer_type);
+  updated |= SetTags(tags);
   return updated;
 }
 
@@ -351,8 +353,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     time_t last_health_check = sqlite3_column_int64(stmt, 3);
     bool used = sqlite3_column_int(stmt, 4) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
-                        used);
-    signer.set_type(GetSignerType());
+                        used, GetSignerType(), GetTags());
     SQLCHECK(sqlite3_finalize(stmt));
     return signer;
   } else {
@@ -435,6 +436,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
                         used, GetSignerType());
+    signer.set_tags(GetTags());
     if (signer.get_type() != SignerType::UNKNOWN) {
       signers.push_back(signer);
     }
@@ -462,8 +464,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
     std::string path = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
     SingleSigner signer(name, xpub, "", path, master_fingerprint,
-                        last_health_check, id_, true);
-    signer.set_type(signer_type);
+                        last_health_check, id_, true, signer_type, GetTags());
     signers.push_back(signer);
     sqlite3_step(stmt);
   }
