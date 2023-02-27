@@ -476,56 +476,27 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
     throw NunchukException(NunchukException::MESSAGE_TOO_SHORT,
                            "Message too short!");
   }
-  bool existed = true;
-  SignerType signerType = SignerType::HARDWARE;
-  try {
-    auto st =
-        storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
-    if (st.get_card_ident() != tapsigner->GetIdent()) {
-      throw NunchukException(
-          TapProtocolException::INVALID_DEVICE,
-          strprintf(
-              "Invalid device: key fingerprint does not match. Expected '%s'.",
-              master_signer_id));
-    }
-    signerType = GetMasterSigner(master_signer_id).get_type();
-  } catch (StorageException& se) {
-    if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
-      existed = false;
-    } else {
-      throw;
-    }
+  auto st =
+      storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
+  if (st.get_card_ident() != tapsigner->GetIdent()) {
+    throw NunchukException(
+        TapProtocolException::INVALID_DEVICE,
+        strprintf(
+            "Invalid device: key fingerprint does not match. Expected '%s'.",
+            master_signer_id));
   }
   path = chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                                : TESTNET_HEALTH_CHECK_PATH;
-  if (signerType != SignerType::NFC) {
-    throw NunchukException(
-        NunchukException::INVALID_SIGNER_TYPE,
-        strprintf("Only work for NFC signer id = '%s'", master_signer_id));
-  }
+
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
 
     std::string xpub = hwi_tapsigner_->GetXpubAtPath(path);
-    if (existed) {
-      std::string master_xpub = hwi_tapsigner_->GetXpubAtPath("m");
-      if (master_xpub !=
-          storage_->GetMasterSignerXPub(chain_, master_signer_id, "m")) {
-        return HealthStatus::KEY_NOT_MATCHED;
-      }
-
-      if (xpub !=
-          storage_->GetMasterSignerXPub(chain_, master_signer_id, path)) {
-        return HealthStatus::KEY_NOT_MATCHED;
-      }
-    }
     std::string descriptor = GetPkhDescriptor(xpub);
     std::string address = CoreUtils::getInstance().DeriveAddress(descriptor);
     signature = hwi_tapsigner_->SignMessage(message, path);
     if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
-      if (existed) {
-        storage_->SetHealthCheckSuccess(chain_, master_signer_id);
-      }
+      storage_->SetHealthCheckSuccess(chain_, master_signer_id);
       return HealthStatus::SUCCESS;
     } else {
       return HealthStatus::SIGNATURE_INVALID;
