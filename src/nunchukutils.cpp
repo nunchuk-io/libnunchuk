@@ -187,6 +187,16 @@ std::vector<std::string> Utils::GetBIP39WordList() {
   return SoftwareSigner::GetBIP39WordList();
 }
 
+std::string Utils::SHA256(const std::string& data) {
+  CSHA256 hasher;
+  std::vector<unsigned char> stream(data.begin(), data.end());
+  hasher.Write((unsigned char*)&(*stream.begin()),
+               stream.end() - stream.begin());
+  uint8_t hash[32];
+  hasher.Finalize(hash);
+  return HexStr(hash);
+}
+
 void Utils::SetPassPhrase(const std::string& storage_path,
                           const std::string& account, Chain chain,
                           const std::string& old_passphrase,

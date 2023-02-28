@@ -1179,6 +1179,7 @@ class NUNCHUK_EXPORT Utils {
   static std::string GenerateMnemonic();
   static bool CheckMnemonic(const std::string& mnemonic);
   static std::vector<std::string> GetBIP39WordList();
+  static std::string SHA256(const std::string& data);
   static void SetPassPhrase(const std::string& storage_path,
                             const std::string& account, Chain chain,
                             const std::string& old_passphrase,
