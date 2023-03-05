@@ -63,7 +63,7 @@ bool SoftwareSigner::CheckMnemonic(const std::string& mnemonic) {
   return mnemonic_check(mnemonic.c_str());
 }
 
-std::mutex SoftwareSigner::mu_;
+std::mutex* SoftwareSigner::mu_ = new std::mutex;
 
 std::vector<std::string> SoftwareSigner::GetBIP39WordList() {
   std::vector<std::string> list{};
@@ -192,7 +192,7 @@ CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
                                         const std::string& passphrase) const {
   uint8_t seed[512 / 8];
   try {
-    std::scoped_lock<std::mutex> lock(mu_);
+    std::scoped_lock<std::mutex> lock(*mu_);
     mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
   } catch (std::exception& e) {
     // TODO: find out why
