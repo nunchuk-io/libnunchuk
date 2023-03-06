@@ -312,7 +312,11 @@ fs::path NunchukStorage::GetSignerDir(Chain chain, std::string id) const {
                            "Signer id can not empty!");
   }
   std::string lowercase_id = ba::to_lower_copy(id);
-  return datadir_ / ChainStr(chain) / "signers" / lowercase_id;
+  fs::path path = datadir_;
+  path /= ChainStr(chain);
+  path /= "signers";
+  path /= lowercase_id;
+  return path;
 }
 
 fs::path NunchukStorage::GetAppStateDir(Chain chain) const {
