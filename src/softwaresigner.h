@@ -45,7 +45,7 @@ class SoftwareSigner {
                           const std::string& derivation_path) const;
 
  private:
-  static std::mutex mu_;
+  static std::mutex *mu_;
   CExtKey GetBip32RootKey(const std::string& mnemonic,
                           const std::string& passphrase) const;
   CExtKey bip32rootkey_;
