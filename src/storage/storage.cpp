@@ -1000,7 +1000,20 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 std::vector<UnspentOutput> NunchukStorage::GetUtxos(
     Chain chain, const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetUtxos(false, false);
+  return GetUtxos0(chain, wallet_id);
+}
+
+std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
+    Chain chain, const std::string& wallet_id) {
+  auto wallet = GetWalletDb(chain, wallet_id);
+  auto utxos = wallet.GetUtxos(false, false);
+  for (auto&& utxo : utxos) {
+    utxo.set_locked(wallet.IsLock(utxo.get_txid(), utxo.get_vout()));
+    utxo.set_tags(wallet.GetAddedTags(utxo.get_txid(), utxo.get_vout()));
+    utxo.set_collections(
+        wallet.GetAddedCollections(utxo.get_txid(), utxo.get_vout()));
+  }
+  return utxos;
 }
 
 Transaction NunchukStorage::GetTransaction(Chain chain,
@@ -1574,6 +1587,132 @@ bool NunchukStorage::DeleteTapsigner(Chain chain,
 void NunchukStorage::ForceRefresh(Chain chain, const std::string& wallet_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   GetWalletDb(chain, wallet_id).ForceRefresh();
+}
+
+bool NunchukStorage::LockCoin(Chain chain, const std::string& wallet_id,
+                              const std::string& tx_id, int vout) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).LockCoin(tx_id, vout);
+}
+
+bool NunchukStorage::UnlockCoin(Chain chain, const std::string& wallet_id,
+                                const std::string& tx_id, int vout) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).UnlockCoin(tx_id, vout);
+}
+
+CoinTag NunchukStorage::CreateCoinTag(Chain chain, const std::string& wallet_id,
+                                      const std::string& name,
+                                      const std::string& color) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  int id = GetWalletDb(chain, wallet_id).CreateCoinTag(name, color);
+  return {id, name, color};
+}
+
+std::vector<CoinTag> NunchukStorage::GetCoinTags(Chain chain,
+                                                 const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetCoinTags();
+}
+
+bool NunchukStorage::UpdateCoinTag(Chain chain, const std::string& wallet_id,
+                                   const CoinTag& tag) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).UpdateCoinTag(tag);
+}
+
+bool NunchukStorage::DeleteCoinTag(Chain chain, const std::string& wallet_id,
+                                   int tag_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).DeleteCoinTag(tag_id);
+}
+
+bool NunchukStorage::AddToCoinTag(Chain chain, const std::string& wallet_id,
+                                  int tag_id, const std::string& tx_id,
+                                  int vout) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).AddToCoinTag(tag_id, tx_id, vout);
+}
+
+bool NunchukStorage::RemoveFromCoinTag(Chain chain,
+                                       const std::string& wallet_id, int tag_id,
+                                       const std::string& tx_id, int vout) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).RemoveFromCoinTag(tag_id, tx_id, vout);
+}
+
+std::vector<UnspentOutput> NunchukStorage::GetCoinByTag(
+    Chain chain, const std::string& wallet_id, int tag_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto coin = GetWalletDb(chain, wallet_id).GetCoinByTag(tag_id);
+  auto check = [&](const UnspentOutput& output) {
+    std::string c = strprintf("%s:%d", output.get_txid(), output.get_vout());
+    return std::find(coin.begin(), coin.end(), c) == coin.end();
+  };
+
+  auto utxo = GetUtxos0(chain, wallet_id);
+  utxo.erase(std::remove_if(utxo.begin(), utxo.end(), check), utxo.end());
+  return utxo;
+}
+
+CoinCollection NunchukStorage::CreateCoinCollection(
+    Chain chain, const std::string& wallet_id, const std::string& name) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  int id = GetWalletDb(chain, wallet_id).CreateCoinCollection(name);
+  return {id, name};
+}
+
+std::vector<CoinCollection> NunchukStorage::GetCoinCollections(
+    Chain chain, const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetCoinCollections();
+}
+
+bool NunchukStorage::UpdateCoinCollection(Chain chain,
+                                          const std::string& wallet_id,
+                                          const CoinCollection& collection) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).UpdateCoinCollection(collection);
+}
+
+bool NunchukStorage::DeleteCoinCollection(Chain chain,
+                                          const std::string& wallet_id,
+                                          int collection_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).DeleteCoinCollection(collection_id);
+}
+
+bool NunchukStorage::AddToCoinCollection(Chain chain,
+                                         const std::string& wallet_id,
+                                         int collection_id,
+                                         const std::string& tx_id, int vout) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id)
+      .AddToCoinCollection(collection_id, tx_id, vout);
+}
+
+bool NunchukStorage::RemoveFromCoinCollection(Chain chain,
+                                              const std::string& wallet_id,
+                                              int collection_id,
+                                              const std::string& tx_id,
+                                              int vout) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id)
+      .RemoveFromCoinCollection(collection_id, tx_id, vout);
+}
+
+std::vector<UnspentOutput> NunchukStorage::GetCoinInCollection(
+    Chain chain, const std::string& wallet_id, int collection_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto coin = GetWalletDb(chain, wallet_id).GetCoinInCollection(collection_id);
+  auto check = [&](const UnspentOutput& output) {
+    std::string c = strprintf("%s:%d", output.get_txid(), output.get_vout());
+    return std::find(coin.begin(), coin.end(), c) == coin.end();
+  };
+
+  auto utxo = GetUtxos0(chain, wallet_id);
+  utxo.erase(std::remove_if(utxo.begin(), utxo.end(), check), utxo.end());
+  return utxo;
 }
 
 }  // namespace nunchuk

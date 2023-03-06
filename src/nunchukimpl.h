@@ -389,6 +389,39 @@ class NunchukImpl : public Nunchuk {
                                      const SingleSigner& signer,
                                      const std::string& message) override;
 
+  // Coin control
+  bool LockCoin(const std::string& wallet_id, const std::string& tx_id,
+                int vout) override;
+  bool UnlockCoin(const std::string& wallet_id, const std::string& tx_id,
+                  int vout) override;
+
+  CoinTag CreateCoinTag(const std::string& wallet_id, const std::string& name,
+                        const std::string& color) override;
+  std::vector<CoinTag> GetCoinTags(const std::string& wallet_id) override;
+  bool UpdateCoinTag(const std::string& wallet_id, const CoinTag& tag) override;
+  bool DeleteCoinTag(const std::string& wallet_id, int tag_id) override;
+  bool AddToCoinTag(const std::string& wallet_id, int tag_id,
+                    const std::string& tx_id, int vout) override;
+  bool RemoveFromCoinTag(const std::string& wallet_id, int tag_id,
+                         const std::string& tx_id, int vout) override;
+  std::vector<UnspentOutput> GetCoinByTag(const std::string& wallet_id,
+                                          int tag_id) override;
+
+  CoinCollection CreateCoinCollection(const std::string& wallet_id,
+                                      const std::string& name) override;
+  std::vector<CoinCollection> GetCoinCollections(
+      const std::string& wallet_id) override;
+  bool UpdateCoinCollection(const std::string& wallet_id,
+                            const CoinCollection& collection) override;
+  bool DeleteCoinCollection(const std::string& wallet_id,
+                            int collection_id) override;
+  bool AddToCoinCollection(const std::string& wallet_id, int collection_id,
+                           const std::string& tx_id, int vout) override;
+  bool RemoveFromCoinCollection(const std::string& wallet_id, int collection_id,
+                                const std::string& tx_id, int vout) override;
+  std::vector<UnspentOutput> GetCoinInCollection(const std::string& wallet_id,
+                                                 int collection_id) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

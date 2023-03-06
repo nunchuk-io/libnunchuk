@@ -81,7 +81,32 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
 
+  bool LockCoin(const std::string& tx_id, int vout);
+  bool UnlockCoin(const std::string& tx_id, int vout);
+  bool IsLock(const std::string& tx_id, int vout);
+  
+  int CreateCoinTag(const std::string &name, const std::string &color);
+  std::vector<CoinTag> GetCoinTags();
+  bool UpdateCoinTag(const CoinTag &tag);
+  bool DeleteCoinTag(int tag_id);
+  bool AddToCoinTag(int tag_id, const std::string &tx_id, int vout);
+  bool RemoveFromCoinTag(int tag_id, const std::string &tx_id, int vout);
+  std::vector<std::string> GetCoinByTag(int tag_id);
+  std::vector<int> GetAddedTags(const std::string &tx_id, int vout);
+
+  int CreateCoinCollection(const std::string &name);
+  std::vector<CoinCollection> GetCoinCollections();
+  bool UpdateCoinCollection(const CoinCollection &collection);
+  bool DeleteCoinCollection(int collection_id);
+  bool AddToCoinCollection(int collection_id, const std::string &tx_id,
+                           int vout);
+  bool RemoveFromCoinCollection(int collection_id, const std::string &tx_id,
+                                int vout);
+  std::vector<std::string> GetCoinInCollection(int collection_id);
+  std::vector<int> GetAddedCollections(const std::string &tx_id, int vout);
+
  private:
+  void CreateCoinControlTable();
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);

@@ -1815,6 +1815,89 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
                          "Invalid signer type");
 }
 
+bool NunchukImpl::LockCoin(const std::string& wallet_id,
+                           const std::string& tx_id, int vout) {
+  return storage_->LockCoin(chain_, wallet_id, tx_id, vout);
+}
+
+bool NunchukImpl::UnlockCoin(const std::string& wallet_id,
+                             const std::string& tx_id, int vout) {
+  return storage_->UnlockCoin(chain_, wallet_id, tx_id, vout);
+}
+
+CoinTag NunchukImpl::CreateCoinTag(const std::string& wallet_id,
+                                   const std::string& name,
+                                   const std::string& color) {
+  return storage_->CreateCoinTag(chain_, wallet_id, name, color);
+}
+
+std::vector<CoinTag> NunchukImpl::GetCoinTags(const std::string& wallet_id) {
+  return storage_->GetCoinTags(chain_, wallet_id);
+}
+
+bool NunchukImpl::UpdateCoinTag(const std::string& wallet_id,
+                                const CoinTag& tag) {
+  return storage_->UpdateCoinTag(chain_, wallet_id, tag);
+}
+
+bool NunchukImpl::DeleteCoinTag(const std::string& wallet_id, int tag_id) {
+  return storage_->DeleteCoinTag(chain_, wallet_id, tag_id);
+}
+
+bool NunchukImpl::AddToCoinTag(const std::string& wallet_id, int tag_id,
+                               const std::string& tx_id, int vout) {
+  return storage_->AddToCoinTag(chain_, wallet_id, tag_id, tx_id, vout);
+}
+
+bool NunchukImpl::RemoveFromCoinTag(const std::string& wallet_id, int tag_id,
+                                    const std::string& tx_id, int vout) {
+  return storage_->RemoveFromCoinTag(chain_, wallet_id, tag_id, tx_id, vout);
+}
+
+std::vector<UnspentOutput> NunchukImpl::GetCoinByTag(
+    const std::string& wallet_id, int tag_id) {
+  return storage_->GetCoinByTag(chain_, wallet_id, tag_id);
+}
+
+CoinCollection NunchukImpl::CreateCoinCollection(const std::string& wallet_id,
+                                                 const std::string& name) {
+  return storage_->CreateCoinCollection(chain_, wallet_id, name);
+}
+
+std::vector<CoinCollection> NunchukImpl::GetCoinCollections(
+    const std::string& wallet_id) {
+  return storage_->GetCoinCollections(chain_, wallet_id);
+}
+
+bool NunchukImpl::UpdateCoinCollection(const std::string& wallet_id,
+                                       const CoinCollection& collection) {
+  return storage_->UpdateCoinCollection(chain_, wallet_id, collection);
+}
+
+bool NunchukImpl::DeleteCoinCollection(const std::string& wallet_id,
+                                       int collection_id) {
+  return storage_->DeleteCoinCollection(chain_, wallet_id, collection_id);
+}
+
+bool NunchukImpl::AddToCoinCollection(const std::string& wallet_id,
+                                      int collection_id,
+                                      const std::string& tx_id, int vout) {
+  return storage_->AddToCoinCollection(chain_, wallet_id, collection_id, tx_id,
+                                       vout);
+}
+
+bool NunchukImpl::RemoveFromCoinCollection(const std::string& wallet_id,
+                                           int collection_id,
+                                           const std::string& tx_id, int vout) {
+  return storage_->RemoveFromCoinCollection(chain_, wallet_id, collection_id,
+                                            tx_id, vout);
+}
+
+std::vector<UnspentOutput> NunchukImpl::GetCoinInCollection(
+    const std::string& wallet_id, int collection_id) {
+  return storage_->GetCoinInCollection(chain_, wallet_id, collection_id);
+}
+
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase) {
   return std::unique_ptr<NunchukImpl>(
