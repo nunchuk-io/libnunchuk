@@ -5,8 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(Boost_USE_STATIC_LIBS ON)
-
-if(NOT ANDROID)
+set(BITCOIN_FOLDER "contrib/bitcoin")
+if(ANDROID)
+    if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
+        set(BITCOIN_FOLDER "contrib/bitcoin-arm8")
+    endif ()
+elseif(NOT ANDROID)
     find_package(Threads REQUIRED)
     find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 endif()
@@ -29,13 +33,13 @@ if(WIN32)
     )
     foreach(btclib ${Bitcoin_LIBRARIES})
         add_library(${btclib} STATIC IMPORTED)
-        set_target_properties(${btclib} PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/build_msvc/x64/Release/lib${btclib}/lib${btclib}.lib")
+        set_target_properties(${btclib} PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/build_msvc/x64/Release/lib${btclib}/lib${btclib}.lib")
     endforeach()
 elseif(ANDROID)
     add_library(event STATIC IMPORTED)
-    set_target_properties(event PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/depends/${ANDROID_TARGET}/lib/libevent.a")
+    set_target_properties(event PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/lib/libevent.a")
     add_library(event_pthreads STATIC IMPORTED)
-    set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/depends/${ANDROID_TARGET}/lib/libevent_pthreads.a")
+    set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/lib/libevent_pthreads.a")
 
     if(ANDROID_ABI_ARM_64)
         set(Bitcoin_LIBRARIES
@@ -86,7 +90,7 @@ elseif(ANDROID)
         )
     endif()
 
-    set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src")
+    set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src")
     foreach(btclib common util server wallet consensus)
         add_library(bitcoin_${btclib} STATIC IMPORTED)
         set_target_properties(bitcoin_${btclib} PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/libbitcoin_${btclib}.a)
@@ -151,7 +155,7 @@ else()
         crc32c
         crc32c_sse42
     )
-    set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src")
+    set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src")
     set(Bitcoin_PATH_SUFFIXES "univalue/.libs" "leveldb" "crc32c" "crypto" "secp256k1/.libs")
     foreach(btclib ${Bitcoin_LIBRARIES})
         find_library(${btclib}_location ${btclib} PATHS ${Bitcoin_PATHS} PATH_SUFFIXES ${Bitcoin_PATH_SUFFIXES} NO_DEFAULT_PATH)
@@ -164,9 +168,9 @@ else()
 endif()
 
 set(Bitcoin_INCLUDE_DIRS
-    ${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src
-    ${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src/univalue/include
-    ${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src/leveldb/include
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/univalue/include
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb/include
 )
 
 add_library("${PROJECT_NAME}" embeddedrpc.cpp)
@@ -190,11 +194,11 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}"
     ${Bitcoin_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
-    "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/depends/${ANDROID_TARGET}/include"
+    "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/include"
 )
 
 # Pass secp256k1 for tap-protocol
 get_target_property(SECP256K1_LIBRARY secp256k1 IMPORTED_LOCATION)
 set(EXTERNAL_SECP256K1_LIBRARY "${SECP256K1_LIBRARY}" PARENT_SCOPE)
-set(EXTERNAL_SECP256K1_INCLUDE "${PROJECT_SOURCE_DIR}/../contrib/bitcoin/src/secp256k1/include" PARENT_SCOPE)
+set(EXTERNAL_SECP256K1_INCLUDE "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include" PARENT_SCOPE)
 set(USE_EXTERNAL_SECP256K1 ON PARENT_SCOPE)

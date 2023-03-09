@@ -13,18 +13,17 @@ set(OPENSSL_USE_STATIC_LIBS ON)
 set(UR__DISABLE_TESTS ON)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
+set(BITCOIN_FOLDER "contrib/bitcoin")
+set(OPENSSL_FOLDER "contrib/openssl")
 if(ANDROID)
-    add_library(OpenSSL::SSL STATIC IMPORTED)
-    set_target_properties(OpenSSL::SSL PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/openssl/libssl.a")
-    add_library(OpenSSL::Crypto STATIC IMPORTED)
-    set_target_properties(OpenSSL::Crypto PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/openssl/libcrypto.a")
-
     if(${ANDROID_ABI} STREQUAL "arm64-v8a")
         set(ANDROID_TARGET "aarch64-linux-android")
         set(ANDROID_ABI_ARM ON)
         set(ANDROID_ABI_ARM_64 ON)
     elseif(${ANDROID_ABI} STREQUAL "armeabi-v7a")
         set(ANDROID_TARGET "armv7a-linux-androideabi")
+        set(BITCOIN_FOLDER "contrib/bitcoin-arm8")
+        set(OPENSSL_FOLDER "contrib/openssl-arm8")
         set(ANDROID_ABI_ARM ON)
         set(ANDROID_ABI_ARM_64 OFF)
     else()
@@ -33,6 +32,10 @@ if(ANDROID)
     endif()
 
     set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/lib/cmake")
+    add_library(OpenSSL::SSL STATIC IMPORTED)
+    set_target_properties(OpenSSL::SSL PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/${OPENSSL_FOLDER}/libssl.a")
+    add_library(OpenSSL::Crypto STATIC IMPORTED)
+    set_target_properties(OpenSSL::Crypto PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/${OPENSSL_FOLDER}/libcrypto.a")
 else()
     find_package(OpenSSL REQUIRED)
 endif()
@@ -71,7 +74,7 @@ add_library(trezor-crypto STATIC
     "contrib/trezor-firmware/crypto/aes/aestab.c"
 )
 
-target_include_directories(trezor-crypto PUBLIC 
+target_include_directories(trezor-crypto PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
 )
 
@@ -91,7 +94,7 @@ if(WIN32)
     endif()
 endif()
 
-add_library(ur-2 STATIC 
+add_library(ur-2 STATIC
     "contrib/bc-ur-2/src/crc32.c"
     "contrib/bc-ur-2/src/memzero.c"
     "contrib/bc-ur-2/src/sha2.c"
@@ -107,7 +110,7 @@ add_library(ur-2 STATIC
     "contrib/bc-ur-2/src/xoshiro256.cpp"
 )
 
-target_include_directories(ur-2 PUBLIC 
+target_include_directories(ur-2 PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"
     ${Boost_INCLUDE_DIRS}
     "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/include"
