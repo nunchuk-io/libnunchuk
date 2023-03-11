@@ -501,6 +501,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::string get_memo() const;
   bool is_change() const;
   bool is_locked() const;
+  bool is_receive() const;
   std::vector<int> const& get_tags() const;
   std::vector<int> const& get_collections() const;
 
@@ -512,6 +513,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_memo(const std::string& value);
   void set_change(bool value);
   void set_locked(bool value);
+  void set_receive(bool value);
   void set_tags(std::vector<int> value);
   void set_collections(std::vector<int> value);
 
@@ -524,6 +526,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::string memo_;
   bool change_;
   bool locked_;
+  bool receive_;
   std::vector<int> tags_;
   std::vector<int> collections_;
 };
@@ -1155,6 +1158,9 @@ class NUNCHUK_EXPORT Nunchuk {
                                         const std::string& tx_id, int vout) = 0;
   virtual std::vector<UnspentOutput> GetCoinInCollection(
       const std::string& wallet_id, int collection_id) = 0;
+
+  virtual std::string ExportCoinControlData() = 0;
+  virtual void ImportCoinControlData(const std::string& data) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

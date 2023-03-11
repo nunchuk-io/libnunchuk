@@ -30,6 +30,7 @@ int UnspentOutput::get_height() const { return height_; }
 std::string UnspentOutput::get_memo() const { return memo_; }
 bool UnspentOutput::is_change() const { return change_; }
 bool UnspentOutput::is_locked() const { return locked_; }
+bool UnspentOutput::is_receive() const { return receive_; }
 std::vector<int> const& UnspentOutput::get_tags() const { return tags_; }
 std::vector<int> const& UnspentOutput::get_collections() const {
   return collections_;
@@ -43,6 +44,7 @@ void UnspentOutput::set_height(int value) { height_ = value; }
 void UnspentOutput::set_memo(const std::string& value) { memo_ = value; }
 void UnspentOutput::set_change(bool value) { change_ = value; }
 void UnspentOutput::set_locked(bool value) { locked_ = value; }
+void UnspentOutput::set_receive(bool value) { receive_ = value; }
 void UnspentOutput::set_tags(std::vector<int> value) {
   tags_ = std::move(value);
 }
