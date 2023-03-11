@@ -422,6 +422,9 @@ class NunchukImpl : public Nunchuk {
   std::vector<UnspentOutput> GetCoinInCollection(const std::string& wallet_id,
                                                  int collection_id) override;
 
+  std::string ExportCoinControlData() override;
+  void ImportCoinControlData(const std::string& data) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

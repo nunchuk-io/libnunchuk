@@ -1898,6 +1898,10 @@ std::vector<UnspentOutput> NunchukImpl::GetCoinInCollection(
   return storage_->GetCoinInCollection(chain_, wallet_id, collection_id);
 }
 
+std::string NunchukImpl::ExportCoinControlData() { return "{}"; }
+
+void NunchukImpl::ImportCoinControlData(const std::string& data) {}
+
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
                                      const std::string& passphrase) {
   return std::unique_ptr<NunchukImpl>(

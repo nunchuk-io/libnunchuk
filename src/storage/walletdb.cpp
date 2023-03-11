@@ -823,6 +823,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
         utxo.set_height(tx.get_height());
         utxo.set_memo(tx.get_memo());
         utxo.set_change(true);
+        utxo.set_receive(true);
         rs.push_back(utxo);
       }
     }
@@ -878,6 +879,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
       utxo.set_height(height_map[txid]);
       utxo.set_memo(memo_map[txid]);
       utxo.set_change(IsMyChange(address));
+      utxo.set_receive(IsMyAddress(address));
       rs.push_back(utxo);
     }
     sqlite3_step(stmt);
