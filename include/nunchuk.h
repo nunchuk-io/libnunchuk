@@ -504,6 +504,8 @@ class NUNCHUK_EXPORT UnspentOutput {
   bool is_receive() const;
   std::vector<int> const& get_tags() const;
   std::vector<int> const& get_collections() const;
+  time_t get_blocktime() const;
+  time_t get_schedule_time() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
@@ -516,6 +518,8 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_receive(bool value);
   void set_tags(std::vector<int> value);
   void set_collections(std::vector<int> value);
+  void set_blocktime(time_t value);
+  void set_schedule_time(time_t value);
 
  private:
   std::string txid_;
@@ -529,6 +533,8 @@ class NUNCHUK_EXPORT UnspentOutput {
   bool receive_;
   std::vector<int> tags_;
   std::vector<int> collections_;
+  time_t blocktime_;
+  time_t schedule_time_;
 };
 
 // Class that represents a Transaction

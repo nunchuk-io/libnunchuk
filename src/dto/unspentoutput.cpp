@@ -35,6 +35,8 @@ std::vector<int> const& UnspentOutput::get_tags() const { return tags_; }
 std::vector<int> const& UnspentOutput::get_collections() const {
   return collections_;
 }
+time_t UnspentOutput::get_blocktime() const { return blocktime_; }
+time_t UnspentOutput::get_schedule_time() const { return schedule_time_; }
 
 void UnspentOutput::set_txid(const std::string& value) { txid_ = value; }
 void UnspentOutput::set_vout(int value) { vout_ = value; }
@@ -51,5 +53,7 @@ void UnspentOutput::set_tags(std::vector<int> value) {
 void UnspentOutput::set_collections(std::vector<int> value) {
   collections_ = std::move(value);
 }
+void UnspentOutput::set_blocktime(time_t value) { blocktime_ = value; }
+void UnspentOutput::set_schedule_time(time_t value) { schedule_time_ = value; }
 
 }  // namespace nunchuk
