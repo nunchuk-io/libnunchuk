@@ -1159,8 +1159,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<UnspentOutput> GetCoinInCollection(
       const std::string& wallet_id, int collection_id) = 0;
 
-  virtual std::string ExportCoinControlData() = 0;
-  virtual void ImportCoinControlData(const std::string& data) = 0;
+  virtual std::string ExportCoinControlData(const std::string& wallet_id) = 0;
+  virtual void ImportCoinControlData(const std::string& wallet_id,
+                                     const std::string& data) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
