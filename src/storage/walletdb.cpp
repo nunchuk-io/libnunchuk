@@ -772,6 +772,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
   std::map<std::string, int> height_map;
   std::map<std::string, time_t> blocktime_map;
   std::map<std::string, time_t> schedule_time_map;
+  std::map<std::string, TransactionStatus> status_map;
   std::map<std::string, std::string> used_by;
   std::map<std::string, bool> invalid_map;
 
@@ -787,6 +788,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
     height_map[tx.get_txid()] = tx.get_height();
     blocktime_map[tx.get_txid()] = tx.get_blocktime();
     schedule_time_map[tx.get_txid()] = tx.get_schedule_time();
+    status_map[tx.get_txid()] = tx.get_status();
     invalid_map[tx.get_txid()] = tx.get_status() == TransactionStatus::REPLACED;
     for (auto&& input : tx.get_inputs()) {
       if (used_by.count(input_str(input.first, input.second)) &&
@@ -827,6 +829,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
         utxo.set_height(tx.get_height());
         utxo.set_blocktime(tx.get_blocktime());
         utxo.set_schedule_time(tx.get_schedule_time());
+        utxo.set_status(tx.get_status());
         utxo.set_memo(tx.get_memo());
         utxo.set_change(true);
         utxo.set_receive(true);
@@ -885,6 +888,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
       utxo.set_height(height_map[txid]);
       utxo.set_blocktime(blocktime_map[txid]);
       utxo.set_schedule_time(schedule_time_map[txid]);
+      utxo.set_status(status_map[txid]);
       utxo.set_memo(memo_map[txid]);
       utxo.set_change(IsMyChange(address));
       utxo.set_receive(IsMyAddress(address));

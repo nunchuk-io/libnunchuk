@@ -37,6 +37,7 @@ std::vector<int> const& UnspentOutput::get_collections() const {
 }
 time_t UnspentOutput::get_blocktime() const { return blocktime_; }
 time_t UnspentOutput::get_schedule_time() const { return schedule_time_; }
+TransactionStatus UnspentOutput::get_status() const { return status_; }
 
 void UnspentOutput::set_txid(const std::string& value) { txid_ = value; }
 void UnspentOutput::set_vout(int value) { vout_ = value; }
@@ -55,5 +56,6 @@ void UnspentOutput::set_collections(std::vector<int> value) {
 }
 void UnspentOutput::set_blocktime(time_t value) { blocktime_ = value; }
 void UnspentOutput::set_schedule_time(time_t value) { schedule_time_ = value; }
+void UnspentOutput::set_status(TransactionStatus value) { status_ = value; }
 
 }  // namespace nunchuk
