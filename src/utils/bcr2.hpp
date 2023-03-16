@@ -177,6 +177,9 @@ size_t decodeCryptoAccount(InputIterator& pos, InputIterator end,
         } else if (t == 401) {
           descriptor.scriptType = "WSH";
           len += decodeTagAndValue(pos, end, tag, t, flags);
+        } else if (t == 409) {
+          descriptor.scriptType = "P2TR";
+          len += decodeTagAndValue(pos, end, tag, t, flags);
         }
         len += decodeCryptoHDKey(pos, end, descriptor, flags);
         m.outputDescriptors.push_back(descriptor);
