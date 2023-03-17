@@ -1715,4 +1715,23 @@ std::vector<UnspentOutput> NunchukStorage::GetCoinInCollection(
   return utxo;
 }
 
+std::string NunchukStorage::ExportCoinControlData(
+    Chain chain, const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).ExportCoinControlData();
+}
+
+void NunchukStorage::ImportCoinControlData(Chain chain,
+                                           const std::string& wallet_id,
+                                           const std::string& data) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).ImportCoinControlData(data);
+}
+
+bool NunchukStorage::IsMyAddress(Chain chain, const std::string& wallet_id,
+                                 const std::string& address) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).IsMyAddress(address);
+}
+
 }  // namespace nunchuk

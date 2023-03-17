@@ -426,6 +426,9 @@ class NunchukImpl : public Nunchuk {
   void ImportCoinControlData(const std::string& wallet_id,
                              const std::string& data) override;
 
+  bool IsMyAddress(const std::string& wallet_id,
+                   const std::string& address) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

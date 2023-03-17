@@ -1459,4 +1459,34 @@ std::vector<int> NunchukWalletDb::GetAddedCollections(const std::string& tx_id,
   return rs;
 }
 
+std::string NunchukWalletDb::ExportCoinControlData() {
+  json data;
+  data["tags"] = json::array();
+  auto tags = GetCoinTags();
+  for (auto&& i : tags) {
+    json tag = {
+        {"id", i.get_id()}, {"name", i.get_name()}, {"color", i.get_color()}};
+    tag["coins"] = json::array();
+    auto coins = GetCoinByTag(i.get_id());
+    for (auto&& coin : coins) {
+      tag["coins"].push_back(coin);
+    }
+    data["tags"].push_back(tag);
+  }
+  data["collections"] = json::array();
+  auto collections = GetCoinCollections();
+  for (auto&& i : collections) {
+    json collection = {{"id", i.get_id()}, {"name", i.get_name()}};
+    collection["coins"] = json::array();
+    auto coins = GetCoinInCollection(i.get_id());
+    for (auto&& coin : coins) {
+      collection["coins"].push_back(coin);
+    }
+    data["collections"].push_back(collection);
+  }
+  return data.dump();
+}
+
+void NunchukWalletDb::ImportCoinControlData(const std::string& data) {}
+
 }  // namespace nunchuk

@@ -1172,6 +1172,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void ImportCoinControlData(const std::string& wallet_id,
                                      const std::string& data) = 0;
 
+  virtual bool IsMyAddress(const std::string& wallet_id,
+                           const std::string& address) = 0;
+
   // Add listener methods
   virtual void AddBalanceListener(
       std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>

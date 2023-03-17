@@ -81,10 +81,10 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
 
-  bool LockCoin(const std::string& tx_id, int vout);
-  bool UnlockCoin(const std::string& tx_id, int vout);
-  bool IsLock(const std::string& tx_id, int vout);
-  
+  bool LockCoin(const std::string &tx_id, int vout);
+  bool UnlockCoin(const std::string &tx_id, int vout);
+  bool IsLock(const std::string &tx_id, int vout);
+
   int CreateCoinTag(const std::string &name, const std::string &color);
   std::vector<CoinTag> GetCoinTags();
   bool UpdateCoinTag(const CoinTag &tag);
@@ -104,6 +104,10 @@ class NunchukWalletDb : public NunchukDb {
                                 int vout);
   std::vector<std::string> GetCoinInCollection(int collection_id);
   std::vector<int> GetAddedCollections(const std::string &tx_id, int vout);
+  std::string ExportCoinControlData();
+  void ImportCoinControlData(const std::string &data);
+
+  bool IsMyAddress(const std::string &address) const;
 
  private:
   void CreateCoinControlTable();
@@ -114,7 +118,6 @@ class NunchukWalletDb : public NunchukDb {
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
   void UseAddress(const std::string &address) const;
-  bool IsMyAddress(const std::string &address) const;
   bool IsMyChange(const std::string &address) const;
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;

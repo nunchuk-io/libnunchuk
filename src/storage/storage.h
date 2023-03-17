@@ -240,6 +240,12 @@ class NunchukStorage {
   std::vector<UnspentOutput> GetCoinInCollection(Chain chain,
                                                  const std::string &wallet_id,
                                                  int collection_id);
+  std::string ExportCoinControlData(Chain chain, const std::string &wallet_id);
+  void ImportCoinControlData(Chain chain, const std::string &wallet_id,
+                             const std::string &data);
+
+  bool IsMyAddress(Chain chain, const std::string &wallet_id,
+                   const std::string &address);
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
