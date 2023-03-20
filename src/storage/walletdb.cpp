@@ -1106,13 +1106,13 @@ void NunchukWalletDb::CreateCoinControlTable() {
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS TAGS("
                         "ID INTEGER PRIMARY KEY,"
-                        "NAME            TEXT    NOT NULL,"
+                        "NAME            TEXT    NOT NULL UNIQUE,"
                         "COLOR           TEXT    NOT NULL);",
                         NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS COLLECTIONS("
                         "ID INTEGER PRIMARY KEY,"
-                        "NAME            TEXT    NOT NULL,"
+                        "NAME            TEXT    NOT NULL UNIQUE,"
                         "SETTINGS        TEXT    NOT NULL);",
                         NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_,
@@ -1278,7 +1278,8 @@ bool NunchukWalletDb::DeleteCoinTag(int tag_id) {
 bool NunchukWalletDb::AddToCoinTag(int tag_id, const std::string& tx_id,
                                    int vout) {
   sqlite3_stmt* stmt;
-  std::string sql = "INSERT INTO COINTAGS(COIN, TAGID) VALUES (?1, ?2);";
+  std::string sql =
+      "INSERT OR IGNORE INTO COINTAGS(COIN, TAGID) VALUES (?1, ?2);";
   std::string coin = strprintf("%s:%d", tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
@@ -1424,7 +1425,8 @@ bool NunchukWalletDb::AddToCoinCollection(int collection_id,
                                           const std::string& tx_id, int vout) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO COINCOLLECTIONS(COIN, COLLECTIONID) VALUES (?1, ?2);";
+      "INSERT OR IGNORE INTO COINCOLLECTIONS(COIN, COLLECTIONID) "
+      "VALUES (?1, ?2);";
   std::string coin = strprintf("%s:%d", tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
