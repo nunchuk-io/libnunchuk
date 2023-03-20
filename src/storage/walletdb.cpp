@@ -1135,6 +1135,23 @@ void NunchukWalletDb::CreateCoinControlTable() {
                         NULL, 0, NULL));
 }
 
+bool NunchukWalletDb::UpdateCoinMemo(const std::string& tx_id, int vout,
+                                     const std::string& memo) {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
+      "ON CONFLICT(COIN) DO UPDATE SET MEMO=excluded.MEMO;";
+  std::string coin = strprintf("%s:%d", tx_id, vout);
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
+  sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
+  sqlite3_bind_int(stmt, 3, 0);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
 bool NunchukWalletDb::LockCoin(const std::string& tx_id, int vout) {
   sqlite3_stmt* stmt;
   std::string sql =
@@ -1248,6 +1265,12 @@ bool NunchukWalletDb::DeleteCoinTag(int tag_id) {
   sqlite3_bind_int64(stmt, 1, tag_id);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+
+  sql = "DELETE FROM COINTAGS WHERE TAGID = ?1;";
+  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_int64(stmt, 1, tag_id);
+  sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
   return updated;
 }
@@ -1388,6 +1411,12 @@ bool NunchukWalletDb::DeleteCoinCollection(int collection_id) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+
+  sql = "DELETE FROM COINCOLLECTIONS WHERE COLLECTIONID = ?1;";
+  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_int64(stmt, 1, collection_id);
+  sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
   return updated;
 }
 
@@ -1461,6 +1490,8 @@ std::vector<int> NunchukWalletDb::GetAddedCollections(const std::string& tx_id,
 
 std::string NunchukWalletDb::ExportCoinControlData() {
   json data;
+  data["export_ts"] = std::time(0);
+  // export tags
   data["tags"] = json::array();
   auto tags = GetCoinTags();
   for (auto&& i : tags) {
@@ -1473,10 +1504,14 @@ std::string NunchukWalletDb::ExportCoinControlData() {
     }
     data["tags"].push_back(tag);
   }
+  // export collections
   data["collections"] = json::array();
   auto collections = GetCoinCollections();
   for (auto&& i : collections) {
-    json collection = {{"id", i.get_id()}, {"name", i.get_name()}};
+    json collection = {{"id", i.get_id()},
+                       {"name", i.get_name()},
+                       {"add_new_coin", i.is_add_new_coin()},
+                       {"auto_lock", i.is_auto_lock()}};
     collection["coins"] = json::array();
     auto coins = GetCoinInCollection(i.get_id());
     for (auto&& coin : coins) {
@@ -1484,9 +1519,120 @@ std::string NunchukWalletDb::ExportCoinControlData() {
     }
     data["collections"].push_back(collection);
   }
+  // export coininfo
+  data["coininfo"] = json::array();
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT * FROM COININFO;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_step(stmt);
+
+  while (sqlite3_column_text(stmt, 0)) {
+    std::string coin = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string memo = std::string((char*)sqlite3_column_text(stmt, 1));
+    int locked = sqlite3_column_int(stmt, 2);
+    data["coininfo"].push_back(
+        {{"coin", coin}, {"memo", memo}, {"locked", locked}});
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+
   return data.dump();
 }
 
-void NunchukWalletDb::ImportCoinControlData(const std::string& data) {}
+void NunchukWalletDb::ClearCoinControlData() {
+  SQLCHECK(sqlite3_exec(db_, "DELETE FROM TAGS;", NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_, "DELETE FROM COINTAGS;", NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_, "DELETE FROM COLLECTIONS;", NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_, "DELETE FROM COINCOLLECTIONS;", NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_, "DELETE FROM COININFO;", NULL, 0, NULL));
+}
+
+void NunchukWalletDb::ImportCoinControlData(const std::string& dataStr) {
+  json data = json::parse(dataStr);
+  ClearCoinControlData();
+  // import tags
+  json tags = data["tags"];
+  for (auto&& tag : tags) {
+    int id = tag["id"];
+    std::string name = tag["name"];
+    std::string color = tag["color"];
+
+    sqlite3_stmt* stmt;
+    std::string sql =
+        "INSERT INTO TAGS(ID, NAME, COLOR) VALUES (?1, ?2, ?3) "
+        "ON CONFLICT(ID) DO UPDATE SET NAME=excluded.NAME, "
+        "COLOR=excluded.COLOR;";
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_int(stmt, 1, id);
+    sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
+    sqlite3_bind_text(stmt, 3, color.c_str(), color.size(), NULL);
+    sqlite3_step(stmt);
+    SQLCHECK(sqlite3_finalize(stmt));
+
+    for (auto&& i : tag["coins"]) {
+      sqlite3_stmt* stmt;
+      std::string sql = "INSERT INTO COINTAGS(COIN, TAGID) VALUES (?1, ?2);";
+      std::string coin = i.get<std::string>();
+      sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+      sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
+      sqlite3_bind_int64(stmt, 2, id);
+      sqlite3_step(stmt);
+      SQLCHECK(sqlite3_finalize(stmt));
+    }
+  }
+
+  // import collections
+  json collections = data["collections"];
+  for (auto&& collection : collections) {
+    int id = collection["id"];
+    std::string name = collection["name"];
+
+    sqlite3_stmt* stmt;
+    std::string sql =
+        "INSERT INTO COLLECTIONS(ID, NAME, SETTINGS) VALUES (?1, ?2, ?3) "
+        "ON CONFLICT(ID) DO UPDATE SET NAME=excluded.NAME, "
+        "SETTINGS=excluded.SETTINGS;";
+    json collection_settings = {
+        {"add_new_coin", collection["add_new_coin"].get<bool>()},
+        {"auto_lock", collection["auto_lock"].get<bool>()}};
+    std::string settings = collection_settings.dump();
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_int(stmt, 1, id);
+    sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
+    sqlite3_bind_text(stmt, 3, settings.c_str(), settings.size(), NULL);
+    sqlite3_step(stmt);
+    SQLCHECK(sqlite3_finalize(stmt));
+
+    for (auto&& i : collection["coins"]) {
+      sqlite3_stmt* stmt;
+      std::string sql =
+          "INSERT INTO COINCOLLECTIONS(COIN, COLLECTIONID) VALUES (?1, ?2);";
+      std::string coin = i.get<std::string>();
+      sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+      sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
+      sqlite3_bind_int64(stmt, 2, id);
+      sqlite3_step(stmt);
+      SQLCHECK(sqlite3_finalize(stmt));
+    }
+  }
+  // import coininfo
+  json coininfo = data["coininfo"];
+  for (auto&& i : coininfo) {
+    std::string coin = i["coin"];
+    std::string memo = i["memo"];
+    int locked = i["locked"];
+    sqlite3_stmt* stmt;
+    std::string sql =
+        "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
+        "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED, "
+        "MEMO=excluded.MEMO;";
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
+    sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
+    sqlite3_bind_int(stmt, 3, locked);
+    sqlite3_step(stmt);
+    SQLCHECK(sqlite3_finalize(stmt));
+  }
+}
 
 }  // namespace nunchuk

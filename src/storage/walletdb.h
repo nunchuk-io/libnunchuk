@@ -81,9 +81,12 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
 
+  bool UpdateCoinMemo(const std::string &tx_id, int vout,
+                      const std::string &memo);
   bool LockCoin(const std::string &tx_id, int vout);
   bool UnlockCoin(const std::string &tx_id, int vout);
   bool IsLock(const std::string &tx_id, int vout);
+  std::vector<std::string> GetCoinLocked();
 
   int CreateCoinTag(const std::string &name, const std::string &color);
   std::vector<CoinTag> GetCoinTags();
@@ -111,6 +114,7 @@ class NunchukWalletDb : public NunchukDb {
 
  private:
   void CreateCoinControlTable();
+  void ClearCoinControlData();
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
