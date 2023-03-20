@@ -203,6 +203,8 @@ class NUNCHUK_EXPORT StorageException : public BaseException {
   static const int SIGNER_EXISTS = -2009;
   static const int SIGNER_NOT_FOUND = -2010;
   static const int ADDRESS_NOT_FOUND = -2011;
+  static const int TAG_EXISTS = -2012;
+  static const int COLLECTION_EXISTS = -2013;
   using BaseException::BaseException;
 };
 

@@ -1212,6 +1212,9 @@ int NunchukWalletDb::CreateCoinTag(const std::string& name,
   sqlite3_bind_text(stmt, 1, name.c_str(), name.size(), NULL);
   sqlite3_bind_text(stmt, 2, color.c_str(), color.size(), NULL);
   sqlite3_step(stmt);
+  if (sqlite3_changes(db_) != 1) {
+    throw StorageException(StorageException::TAG_EXISTS, "Tag exists");
+  }
 
   sql = "SELECT last_insert_rowid()";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -1351,6 +1354,9 @@ int NunchukWalletDb::CreateCoinCollection(const std::string& name) {
   sqlite3_bind_text(stmt, 1, name.c_str(), name.size(), NULL);
   sqlite3_bind_text(stmt, 2, settings.c_str(), settings.size(), NULL);
   sqlite3_step(stmt);
+  if (sqlite3_changes(db_) != 1) {
+    throw StorageException(StorageException::COLLECTION_EXISTS, "Collection exists");
+  }
 
   sql = "SELECT last_insert_rowid()";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
