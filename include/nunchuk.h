@@ -85,6 +85,15 @@ enum class TransactionStatus {
   CONFIRMED,
 };
 
+enum class CoinStatus {
+  INCOMING_PENDING_CONFIRMATION,
+  CONFIRMED,
+  OUTGOING_PENDING_SIGNATURES,
+  OUTGOING_PENDING_BROADCAST,
+  OUTGOING_PENDING_CONFIRMATION,
+  SPENT,
+};
+
 enum class ConnectionStatus {
   OFFLINE,
   SYNCING,
@@ -508,7 +517,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::vector<int> const& get_collections() const;
   time_t get_blocktime() const;
   time_t get_schedule_time() const;
-  TransactionStatus get_status() const;
+  CoinStatus get_status() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
@@ -523,7 +532,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_collections(std::vector<int> value);
   void set_blocktime(time_t value);
   void set_schedule_time(time_t value);
-  void set_status(TransactionStatus value);
+  void set_status(CoinStatus value);
 
  private:
   std::string txid_;
@@ -539,7 +548,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::vector<int> collections_;
   time_t blocktime_;
   time_t schedule_time_;
-  TransactionStatus status_;
+  CoinStatus status_;
 };
 
 // Class that represents a Transaction
