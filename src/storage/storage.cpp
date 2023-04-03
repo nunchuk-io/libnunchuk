@@ -935,7 +935,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   auto vtx = db.GetTransactions(count, skip);
 
   // remove invalid, out-of-date Send transactions
-  const auto utxos_set = [utxos = db.GetUtxos(true, true)]() {
+  const auto utxos_set = [utxos = db.GetCoins()]() {
     std::set<std::pair<std::string, int>> ret;
     for (auto&& utxo : utxos) {
       ret.insert({utxo.get_txid(), utxo.get_vout()});
@@ -1006,12 +1006,15 @@ std::vector<UnspentOutput> NunchukStorage::GetUtxos(
 std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
     Chain chain, const std::string& wallet_id) {
   auto wallet = GetWalletDb(chain, wallet_id);
-  auto utxos = wallet.GetUtxos(false, false);
-  for (auto&& utxo : utxos) {
-    utxo.set_locked(wallet.IsLock(utxo.get_txid(), utxo.get_vout()));
-    utxo.set_tags(wallet.GetAddedTags(utxo.get_txid(), utxo.get_vout()));
-    utxo.set_collections(
-        wallet.GetAddedCollections(utxo.get_txid(), utxo.get_vout()));
+  auto coins = wallet.GetCoins();
+  std::vector<UnspentOutput> utxos{};
+  for (auto&& coin : coins) {
+    if (coin.get_status() == CoinStatus::SPENT) continue;
+    coin.set_locked(wallet.IsLock(coin.get_txid(), coin.get_vout()));
+    coin.set_tags(wallet.GetAddedTags(coin.get_txid(), coin.get_vout()));
+    coin.set_collections(
+        wallet.GetAddedCollections(coin.get_txid(), coin.get_vout()));
+    utxos.push_back(coin);
   }
   return utxos;
 }

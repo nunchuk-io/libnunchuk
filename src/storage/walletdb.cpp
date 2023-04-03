@@ -315,12 +315,15 @@ int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
 }
 
 Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
-  auto utxos = GetUtxos(false, true);
+  auto coins = GetCoins();
   Amount balance = 0;
-  for (auto&& utxo : utxos) {
-    // Only include confirmed Receive amount
-    if (utxo.get_height() > 0 && utxo.get_address() == address)
-      balance += utxo.get_amount();
+  for (auto&& coin : coins) {
+    if (coin.get_status() == CoinStatus::SPENT ||
+        coin.get_status() == CoinStatus::OUTGOING_PENDING_CONFIRMATION ||
+        coin.get_status() == CoinStatus::INCOMING_PENDING_CONFIRMATION)
+      continue;
+    if (coin.get_address() != address) continue;
+    balance += coin.get_amount();
   }
   return balance;
 }
@@ -749,169 +752,18 @@ bool NunchukWalletDb::SetUtxos(const std::string& address,
 }
 
 Amount NunchukWalletDb::GetBalance(bool include_mempool) const {
-  auto utxos = GetUtxos(false, include_mempool);
+  auto coins = GetCoins();
   Amount balance = 0;
-  for (auto&& utxo : utxos) {
-    // Only include confirmed Receive amount and in-mempool Change amount
-    // in the wallet balance
-    if (utxo.get_height() > 0 || utxo.is_change() ||
-        (include_mempool && utxo.get_height() == 0))
-      balance += utxo.get_amount();
+  for (auto&& coin : coins) {
+    if (coin.get_status() == CoinStatus::SPENT ||
+        coin.get_status() == CoinStatus::OUTGOING_PENDING_CONFIRMATION)
+      continue;
+    if (!include_mempool && !coin.is_change() &&
+        coin.get_status() == CoinStatus::INCOMING_PENDING_CONFIRMATION)
+      continue;
+    balance += coin.get_amount();
   }
   return balance;
-}
-
-std::vector<UnspentOutput> NunchukWalletDb::GetUtxos(
-    bool include_locked, bool include_mempool) const {
-  std::vector<Transaction> transactions = GetTransactions();
-  auto input_str = [](std::string tx_id, int vout) {
-    return boost::str(boost::format{"%s:%d"} % tx_id % vout);
-  };
-  std::set<std::string> locked_utxos;
-  std::map<std::string, Transaction> tx_map;
-  std::map<std::string, std::string> used_by;
-  std::map<std::string, bool> invalid_map;
-  std::map<std::string, CoinStatus> status_map;
-
-  std::vector<UnspentOutput> rs;
-  for (auto&& tx : transactions) {
-    tx_map.insert(std::make_pair(tx.get_txid(), tx));
-    if (tx.get_height() <= 0) continue;
-    for (auto&& input : tx.get_inputs()) {
-      used_by[input_str(input.first, input.second)] = tx.get_txid();
-    }
-  }
-  for (auto&& tx : transactions) {
-    invalid_map[tx.get_txid()] = tx.get_status() == TransactionStatus::REPLACED;
-    for (auto&& input : tx.get_inputs()) {
-      auto coin = input_str(input.first, input.second);
-      if (used_by.count(coin) && used_by[coin] != tx.get_txid()) {
-        invalid_map[tx.get_txid()] = true;
-      } else {
-        CoinStatus status = CoinStatus::CONFIRMED;
-        if (tx.get_status() == TransactionStatus::PENDING_SIGNATURES) {
-          status = CoinStatus::OUTGOING_PENDING_SIGNATURES;
-        } else if (tx.get_status() == TransactionStatus::READY_TO_BROADCAST) {
-          status = CoinStatus::OUTGOING_PENDING_BROADCAST;
-        } else if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
-          status = CoinStatus::OUTGOING_PENDING_CONFIRMATION;
-        } else if (tx.get_status() == TransactionStatus::CONFIRMED) {
-          status = CoinStatus::SPENT;
-        }
-        if (status_map.count(coin) == 0 || status_map[coin] < status) {
-          status_map[coin] = status;
-        }
-      }
-    }
-
-    if (tx.get_height() == -1 && tx.get_schedule_time() > 0 &&
-        !include_locked) {
-      // remove UTXOs of schedule transactions
-      for (auto&& input : tx.get_inputs()) {
-        locked_utxos.insert(input_str(input.first, input.second));
-      }
-      continue;
-    }
-
-    if (invalid_map[tx.get_txid()] || tx.get_height() != 0 ||
-        tx.get_status() == TransactionStatus::REPLACED ||
-        tx.get_status() == TransactionStatus::NETWORK_REJECTED)
-      continue;
-
-    if (include_mempool) {
-      // CoreRPC uses polling requests to get new UTXO so it has some delay to
-      // update the balance. To fix #19 bug, we have to add change UTXO manually
-      int nout = tx.get_outputs().size();
-      for (int vout = 0; vout < nout; vout++) {
-        auto output = tx.get_outputs()[vout];
-        if (!IsMyChange(output.first)) continue;
-        // add it to locked_utxos to prevent duplicate UTXO
-        locked_utxos.insert(input_str(tx.get_txid(), vout));
-
-        UnspentOutput utxo;
-        utxo.set_txid(tx.get_txid());
-        utxo.set_vout(vout);
-        utxo.set_address(output.first);
-        utxo.set_amount(output.second);
-        utxo.set_height(tx.get_height());
-        utxo.set_blocktime(tx.get_blocktime());
-        utxo.set_schedule_time(tx.get_schedule_time());
-        utxo.set_status(CoinStatus::INCOMING_PENDING_CONFIRMATION);
-        utxo.set_memo(tx.get_memo());
-        utxo.set_change(true);
-        utxo.set_receive(true);
-        rs.push_back(utxo);
-      }
-    }
-
-    if (!include_locked) {
-      // remove UTXOs of unconfirmed transactions
-      for (auto&& input : tx.get_inputs()) {
-        locked_utxos.insert(input_str(input.first, input.second));
-      }
-    }
-  }
-
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT ADDR, UTXO FROM ADDRESS WHERE UTXO IS NOT NULL;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_step(stmt);
-
-  while (sqlite3_column_text(stmt, 0)) {
-    std::string address = std::string((char*)sqlite3_column_text(stmt, 0));
-    auto utxostatus_str = std::string((char*)sqlite3_column_text(stmt, 1));
-    auto utxostatus = split(utxostatus_str, '|');
-    if (utxostatus.empty() || utxostatus[0].empty()) {
-      sqlite3_step(stmt);
-      continue;
-    }
-    auto utxo_str = utxostatus[0];
-    json utxo_json = json::parse(utxo_str);
-    for (auto it = utxo_json.begin(); it != utxo_json.end(); ++it) {
-      json item = it.value();
-      std::string txid;
-      int vout;
-      Amount amount;
-      if (item["tx_hash"] != nullptr) {  // electrum format
-        txid = item["tx_hash"];
-        vout = item["tx_pos"];
-        amount = Amount(item["value"]);
-        if (!include_mempool && item["height"].get<int>() == 0) continue;
-        if (invalid_map[txid]) continue;
-      } else {  // bitcoin core rpc format
-        txid = item["txid"];
-        vout = item["vout"];
-        amount = Utils::AmountFromValue(item["amount"].dump());
-      }
-
-      std::string coin = input_str(txid, vout);
-      if (locked_utxos.find(coin) != locked_utxos.end()) continue;
-      if (tx_map.count(txid) == 0) continue;
-      auto tx = tx_map[txid];
-      UnspentOutput utxo;
-      utxo.set_txid(txid);
-      utxo.set_vout(vout);
-      utxo.set_address(address);
-      utxo.set_amount(amount);
-      utxo.set_height(tx.get_height());
-      utxo.set_blocktime(tx.get_blocktime());
-      utxo.set_schedule_time(tx.get_schedule_time());
-      if (status_map.count(coin)) {
-        utxo.set_status(status_map[coin]);
-      } else if (tx.get_height() > 0) {
-        utxo.set_status(CoinStatus::CONFIRMED);
-      } else {
-        utxo.set_status(CoinStatus::INCOMING_PENDING_CONFIRMATION);
-      }
-      utxo.set_memo(tx.get_memo());
-      utxo.set_change(IsMyChange(address));
-      utxo.set_receive(IsMyAddress(address));
-      rs.push_back(utxo);
-    }
-    sqlite3_step(stmt);
-  }
-  SQLCHECK(sqlite3_finalize(stmt));
-  return rs;
 }
 
 std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
@@ -1656,6 +1508,89 @@ void NunchukWalletDb::ImportCoinControlData(const std::string& dataStr) {
     sqlite3_step(stmt);
     SQLCHECK(sqlite3_finalize(stmt));
   }
+}
+
+std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
+  std::vector<Transaction> transactions = GetTransactions();
+
+  std::map<std::string, Transaction> tx_map;
+  std::map<std::string, std::string> used_by;
+  for (auto&& tx : transactions) {
+    tx_map.insert(std::make_pair(tx.get_txid(), tx));
+    if (tx.get_height() <= 0) continue;
+    for (auto&& input : tx.get_inputs()) {
+      used_by[strprintf("%s:%d", input.first, input.second)] = tx.get_txid();
+    }
+  }
+
+  std::map<std::string, UnspentOutput> coins;
+  auto set_status = [&](const std::string& id, const CoinStatus& status) {
+    if (coins[id].get_status() < status) coins[id].set_status(status);
+  };
+
+  for (auto&& tx : transactions) {
+    if (tx.get_status() == TransactionStatus::REPLACED ||
+        tx.get_status() == TransactionStatus::NETWORK_REJECTED)
+      continue;
+
+    bool invalid = false;
+    for (auto&& input : tx.get_inputs()) {
+      auto id = strprintf("%s:%d", input.first, input.second);
+      if (used_by.count(id) && used_by[id] != tx.get_txid()) invalid = true;
+    }
+    if (invalid) continue;
+
+    for (auto&& input : tx.get_inputs()) {
+      if (tx_map.count(input.first) == 0) continue;
+      auto prev_tx = tx_map[input.first];
+      auto address = prev_tx.get_outputs()[input.second].first;
+      if (!IsMyAddress(address)) continue;
+      auto id = strprintf("%s:%d", input.first, input.second);
+      coins[id].set_txid(input.first);
+      coins[id].set_vout(input.second);
+      coins[id].set_address(address);
+      coins[id].set_amount(prev_tx.get_outputs()[input.second].second);
+      coins[id].set_height(prev_tx.get_height());
+      coins[id].set_blocktime(prev_tx.get_blocktime());
+      coins[id].set_schedule_time(prev_tx.get_schedule_time());
+      if (tx.get_status() == TransactionStatus::CONFIRMED) {
+        set_status(id, CoinStatus::SPENT);
+      } else if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
+        set_status(id, CoinStatus::OUTGOING_PENDING_CONFIRMATION);
+      } else if (tx.get_status() == TransactionStatus::READY_TO_BROADCAST) {
+        set_status(id, CoinStatus::OUTGOING_PENDING_BROADCAST);
+      } else if (tx.get_status() == TransactionStatus::PENDING_SIGNATURES) {
+        set_status(id, CoinStatus::OUTGOING_PENDING_SIGNATURES);
+      }
+      coins[id].set_memo(prev_tx.get_memo());
+      coins[id].set_change(IsMyChange(address));
+    }
+
+    int nout = tx.get_outputs().size();
+    for (int vout = 0; vout < nout; vout++) {
+      auto output = tx.get_outputs()[vout];
+      if (!IsMyAddress(output.first)) continue;
+      auto id = strprintf("%s:%d", tx.get_txid(), vout);
+      coins[id].set_txid(tx.get_txid());
+      coins[id].set_vout(vout);
+      coins[id].set_address(output.first);
+      coins[id].set_amount(output.second);
+      coins[id].set_height(tx.get_height());
+      coins[id].set_blocktime(tx.get_blocktime());
+      coins[id].set_schedule_time(tx.get_schedule_time());
+      set_status(id, tx.get_height() > 0
+                         ? CoinStatus::CONFIRMED
+                         : CoinStatus::INCOMING_PENDING_CONFIRMATION);
+      coins[id].set_memo(tx.get_memo());
+      coins[id].set_change(IsMyChange(output.first));
+    }
+  }
+
+  std::vector<UnspentOutput> rs;
+  for (auto&& coin : coins) {
+    rs.push_back(coin.second);
+  }
+  return rs;
 }
 
 }  // namespace nunchuk

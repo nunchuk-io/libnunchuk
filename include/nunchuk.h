@@ -512,7 +512,6 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::string get_memo() const;
   bool is_change() const;
   bool is_locked() const;
-  bool is_receive() const;
   std::vector<int> const& get_tags() const;
   std::vector<int> const& get_collections() const;
   time_t get_blocktime() const;
@@ -527,7 +526,6 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_memo(const std::string& value);
   void set_change(bool value);
   void set_locked(bool value);
-  void set_receive(bool value);
   void set_tags(std::vector<int> value);
   void set_collections(std::vector<int> value);
   void set_blocktime(time_t value);
@@ -543,7 +541,6 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::string memo_;
   bool change_;
   bool locked_;
-  bool receive_;
   std::vector<int> tags_;
   std::vector<int> collections_;
   time_t blocktime_;

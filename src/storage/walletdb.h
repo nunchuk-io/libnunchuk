@@ -69,8 +69,6 @@ class NunchukWalletDb : public NunchukDb {
   std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
                                            int skip = 0) const;
-  std::vector<UnspentOutput> GetUtxos(bool include_locked,
-                                      bool include_mempool) const;
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance(bool include_mempool) const;
   std::string FillPsbt(const std::string &psbt);
@@ -111,6 +109,7 @@ class NunchukWalletDb : public NunchukDb {
   void ImportCoinControlData(const std::string &data);
 
   bool IsMyAddress(const std::string &address) const;
+  std::vector<UnspentOutput> GetCoins() const;
 
  private:
   void CreateCoinControlTable();

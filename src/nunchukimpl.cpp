@@ -713,19 +713,16 @@ std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
 
 std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputsFromTxInputs(
     const std::string& wallet_id, const std::vector<TxInput>& txInputs) {
-  std::vector<UnspentOutput> inputs;
-  for (auto&& input : txInputs) {
-    auto tx = storage_->GetTransaction(chain_, wallet_id, input.first);
-    auto output = tx.get_outputs()[input.second];
-    UnspentOutput utxo;
-    utxo.set_txid(input.first);
-    utxo.set_vout(input.second);
-    utxo.set_address(output.first);
-    utxo.set_amount(output.second);
-    utxo.set_height(tx.get_height());
-    inputs.push_back(utxo);
-  }
-  return inputs;
+  auto utxos = storage_->GetUtxos(chain_, wallet_id);
+  auto check = [&](const UnspentOutput& coin) {
+    for (auto&& input : txInputs) {
+      if (input.first == coin.get_txid() && input.second == coin.get_vout())
+        return false;
+    }
+    return true;
+  };
+  utxos.erase(std::remove_if(utxos.begin(), utxos.end(), check), utxos.end());
+  return utxos;
 }
 
 bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
@@ -1749,8 +1746,18 @@ std::string NunchukImpl::CreatePsbt(
     bool subtract_fee_from_amount, bool utxo_update_psbt, Amount& fee,
     int& change_pos) {
   Wallet wallet = GetWallet(wallet_id);
-  std::vector<UnspentOutput> utxos =
-      inputs.empty() ? GetUnspentOutputs(wallet_id) : inputs;
+  std::vector<UnspentOutput> utxos = inputs;
+  if (utxos.empty()) {
+    utxos = GetUnspentOutputs(wallet_id);
+    auto check = [&](const UnspentOutput& coin) {
+      if (coin.get_schedule_time() > 0) return true;
+      if (coin.get_status() == CoinStatus::INCOMING_PENDING_CONFIRMATION ||
+          coin.get_status() == CoinStatus::OUTGOING_PENDING_CONFIRMATION)
+        return true;
+      return false;
+    };
+    utxos.erase(std::remove_if(utxos.begin(), utxos.end(), check), utxos.end());
+  }
 
   std::vector<TxInput> selector_inputs;
   std::vector<TxOutput> selector_outputs;
