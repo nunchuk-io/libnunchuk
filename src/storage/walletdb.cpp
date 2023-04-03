@@ -1001,13 +1001,17 @@ void NunchukWalletDb::CreateCoinControlTable() {
                         NULL, 0, NULL));
 }
 
+std::string NunchukWalletDb::CoinId(const std::string& tx_id, int vout) const {
+  return strprintf("%s:%d", tx_id, vout);
+}
+
 bool NunchukWalletDb::UpdateCoinMemo(const std::string& tx_id, int vout,
                                      const std::string& memo) {
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
       "ON CONFLICT(COIN) DO UPDATE SET MEMO=excluded.MEMO;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
@@ -1023,7 +1027,7 @@ bool NunchukWalletDb::LockCoin(const std::string& tx_id, int vout) {
   std::string sql =
       "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
       "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   std::string memo = "";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
@@ -1040,7 +1044,7 @@ bool NunchukWalletDb::UnlockCoin(const std::string& tx_id, int vout) {
   std::string sql =
       "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
       "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   std::string memo = "";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
@@ -1055,7 +1059,7 @@ bool NunchukWalletDb::UnlockCoin(const std::string& tx_id, int vout) {
 bool NunchukWalletDb::IsLock(const std::string& tx_id, int vout) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM COININFO WHERE COIN = ?1;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_step(stmt);
@@ -1149,7 +1153,7 @@ bool NunchukWalletDb::AddToCoinTag(int tag_id, const std::string& tx_id,
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT OR IGNORE INTO COINTAGS(COIN, TAGID) VALUES (?1, ?2);";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_int64(stmt, 2, tag_id);
@@ -1163,7 +1167,7 @@ bool NunchukWalletDb::RemoveFromCoinTag(int tag_id, const std::string& tx_id,
                                         int vout) {
   sqlite3_stmt* stmt;
   std::string sql = "DELETE FROM COINTAGS WHERE COIN = ?1 AND TAGID = ?2;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_int64(stmt, 2, tag_id);
@@ -1194,7 +1198,7 @@ std::vector<int> NunchukWalletDb::GetAddedTags(const std::string& tx_id,
                                                int vout) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT TAGID FROM COINTAGS WHERE COIN = ?;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_step(stmt);
@@ -1300,7 +1304,7 @@ bool NunchukWalletDb::AddToCoinCollection(int collection_id,
   std::string sql =
       "INSERT OR IGNORE INTO COINCOLLECTIONS(COIN, COLLECTIONID) "
       "VALUES (?1, ?2);";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_int64(stmt, 2, collection_id);
@@ -1316,7 +1320,7 @@ bool NunchukWalletDb::RemoveFromCoinCollection(int collection_id,
   sqlite3_stmt* stmt;
   std::string sql =
       "DELETE FROM COINCOLLECTIONS WHERE COIN = ?1 AND COLLECTIONID = ?2;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_int64(stmt, 2, collection_id);
@@ -1348,7 +1352,7 @@ std::vector<int> NunchukWalletDb::GetAddedCollections(const std::string& tx_id,
                                                       int vout) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT COLLECTIONID FROM COINCOLLECTIONS WHERE COIN = ?;";
-  std::string coin = strprintf("%s:%d", tx_id, vout);
+  std::string coin = CoinId(tx_id, vout);
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_step(stmt);
@@ -1510,16 +1514,15 @@ void NunchukWalletDb::ImportCoinControlData(const std::string& dataStr) {
   }
 }
 
-std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
-  std::vector<Transaction> transactions = GetTransactions();
-
+std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
+    const std::vector<Transaction>& transactions) const {
   std::map<std::string, Transaction> tx_map;
   std::map<std::string, std::string> used_by;
   for (auto&& tx : transactions) {
     tx_map.insert(std::make_pair(tx.get_txid(), tx));
     if (tx.get_height() <= 0) continue;
     for (auto&& input : tx.get_inputs()) {
-      used_by[strprintf("%s:%d", input.first, input.second)] = tx.get_txid();
+      used_by[CoinId(input.first, input.second)] = tx.get_txid();
     }
   }
 
@@ -1535,7 +1538,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
 
     bool invalid = false;
     for (auto&& input : tx.get_inputs()) {
-      auto id = strprintf("%s:%d", input.first, input.second);
+      auto id = CoinId(input.first, input.second);
       if (used_by.count(id) && used_by[id] != tx.get_txid()) invalid = true;
     }
     if (invalid) continue;
@@ -1545,7 +1548,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
       auto prev_tx = tx_map[input.first];
       auto address = prev_tx.get_outputs()[input.second].first;
       if (!IsMyAddress(address)) continue;
-      auto id = strprintf("%s:%d", input.first, input.second);
+      auto id = CoinId(input.first, input.second);
       coins[id].set_txid(input.first);
       coins[id].set_vout(input.second);
       coins[id].set_address(address);
@@ -1570,7 +1573,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
     for (int vout = 0; vout < nout; vout++) {
       auto output = tx.get_outputs()[vout];
       if (!IsMyAddress(output.first)) continue;
-      auto id = strprintf("%s:%d", tx.get_txid(), vout);
+      auto id = CoinId(tx.get_txid(), vout);
       coins[id].set_txid(tx.get_txid());
       coins[id].set_vout(vout);
       coins[id].set_address(output.first);
@@ -1585,12 +1588,50 @@ std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
       coins[id].set_change(IsMyChange(output.first));
     }
   }
+  return coins;
+}
 
+std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
+  auto transactions = GetTransactions();
+  auto coins = GetCoinsFromTransactions(transactions);
   std::vector<UnspentOutput> rs;
   for (auto&& coin : coins) {
     rs.push_back(coin.second);
   }
   return rs;
+}
+
+std::vector<std::vector<UnspentOutput>> NunchukWalletDb::GetAncestry(
+    const std::string& tx_id, int vout) const {
+  auto transactions = GetTransactions();
+  auto coins = GetCoinsFromTransactions(transactions);
+  std::map<std::string, Transaction> tx_map;
+  for (auto&& tx : transactions) {
+    tx_map.insert(std::make_pair(tx.get_txid(), tx));
+  }
+
+  std::vector<std::vector<UnspentOutput>> ancestry{};
+  std::vector<UnspentOutput> parents{};
+  parents.push_back(coins[CoinId(tx_id, vout)]);
+  while (true) {
+    std::vector<UnspentOutput> grandparents{};
+    for (auto&& coin : parents) {
+      if (tx_map.count(coin.get_txid()) == 0) continue;
+      auto tx = tx_map[coin.get_txid()];
+      for (auto&& input : tx.get_inputs()) {
+        auto id = CoinId(input.first, input.second);
+        if (coins.count(id)) grandparents.push_back(coins[id]);
+      }
+    }
+    if (grandparents.empty()) {
+      break;
+    } else {
+      ancestry.push_back(grandparents);
+      parents = grandparents;
+    }
+  }
+
+  return ancestry;
 }
 
 }  // namespace nunchuk

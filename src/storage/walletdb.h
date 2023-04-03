@@ -110,6 +110,8 @@ class NunchukWalletDb : public NunchukDb {
 
   bool IsMyAddress(const std::string &address) const;
   std::vector<UnspentOutput> GetCoins() const;
+  std::vector<std::vector<UnspentOutput>> GetAncestry(const std::string &tx_id,
+                                                      int vout) const;
 
  private:
   void CreateCoinControlTable();
@@ -121,7 +123,10 @@ class NunchukWalletDb : public NunchukDb {
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
   void UseAddress(const std::string &address) const;
+  std::string CoinId(const std::string &tx_id, int vout) const;
   bool IsMyChange(const std::string &address) const;
+  std::map<std::string, UnspentOutput> GetCoinsFromTransactions(
+      const std::vector<Transaction> &transactions) const;
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   friend class NunchukStorage;

@@ -1914,6 +1914,11 @@ void NunchukImpl::ImportCoinControlData(const std::string& wallet_id,
   storage_->ImportCoinControlData(chain_, wallet_id, data);
 }
 
+std::vector<std::vector<UnspentOutput>> NunchukImpl::GetCoinAncestry(
+    const std::string& wallet_id, const std::string& tx_id, int vout) {
+  return storage_->GetAncestry(chain_, wallet_id, tx_id, vout);
+}
+
 bool NunchukImpl::IsMyAddress(const std::string& wallet_id,
                               const std::string& address) {
   return storage_->IsMyAddress(chain_, wallet_id, address);

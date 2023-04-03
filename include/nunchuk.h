@@ -1182,6 +1182,8 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual bool IsMyAddress(const std::string& wallet_id,
                            const std::string& address) = 0;
+  virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
+      const std::string& wallet_id, const std::string& tx_id, int vout) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(
