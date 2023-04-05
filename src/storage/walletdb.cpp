@@ -421,7 +421,9 @@ Transaction NunchukWalletDb::InsertTransaction(const std::string& raw_tx,
   sqlite3_bind_int64(stmt, 7, blocktime);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
-  return GetTransaction(tx_id);
+  auto tx = GetTransaction(tx_id);
+  AutoAddNewCoins(tx);
+  return tx;
 }
 
 void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
@@ -618,7 +620,9 @@ Transaction NunchukWalletDb::CreatePsbt(
   sqlite3_bind_text(stmt, 7, extra_str.c_str(), extra_str.size(), NULL);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
-  return GetTransaction(tx_id);
+  auto tx = GetTransaction(tx_id);
+  AutoAddNewCoins(tx);
+  return tx;
 }
 
 bool NunchukWalletDb::UpdatePsbt(const std::string& psbt) {
@@ -1673,6 +1677,21 @@ std::vector<std::vector<UnspentOutput>> NunchukWalletDb::GetAncestry(
   }
 
   return ancestry;
+}
+
+void NunchukWalletDb::AutoAddNewCoins(const Transaction& tx) {
+  std::vector<int> my_vout{};
+  for (size_t i = 0; i < tx.get_outputs().size(); i++) {
+    if (IsMyAddress(tx.get_outputs()[i].first)) my_vout.push_back(i);
+  }
+
+  auto auto_add = GetAutoAddData();
+  for (auto&& [collection_id, is_auto_add] : auto_add) {
+    if (!is_auto_add) continue;
+    for (auto&& vout : my_vout) {
+      AddToCoinCollection(collection_id, tx.get_txid(), vout);
+    }
+  }
 }
 
 }  // namespace nunchuk

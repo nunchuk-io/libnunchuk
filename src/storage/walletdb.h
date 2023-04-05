@@ -122,6 +122,7 @@ class NunchukWalletDb : public NunchukDb {
   std::map<std::string, AddressData> GetAllAddressData() const;
   std::map<int, bool> GetAutoLockData() const;
   std::map<int, bool> GetAutoAddData() const;
+  void AutoAddNewCoins(const Transaction &tx);
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
   void UseAddress(const std::string &address) const;
