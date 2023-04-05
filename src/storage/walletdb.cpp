@@ -48,6 +48,10 @@ static const int ADDRESS_LOOK_AHEAD = 20;
 std::map<std::string, std::map<std::string, AddressData>>
     NunchukWalletDb::addr_cache_;
 std::map<std::string, std::vector<SingleSigner>> NunchukWalletDb::signer_cache_;
+std::map<std::string, std::map<int, bool>>
+    NunchukWalletDb::collection_auto_lock_;
+std::map<std::string, std::map<int, bool>>
+    NunchukWalletDb::collection_auto_add_;
 
 void NunchukWalletDb::InitWallet(const Wallet& wallet) {
   CreateTable();
@@ -287,12 +291,38 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() const {
     }
     SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   }
-  addr_cache_[db_file_name_] = addresses;
+  addr_cache_.insert({db_file_name_, addresses});
   auto txs = GetTransactions();
   for (auto&& tx : txs) {
     for (auto&& output : tx.get_outputs()) UseAddress(output.first);
   }
   return addresses;
+}
+
+std::map<int, bool> NunchukWalletDb::GetAutoLockData() const {
+  if (collection_auto_lock_.count(db_file_name_)) {
+    return collection_auto_lock_[db_file_name_];
+  }
+  std::map<int, bool> data;
+  auto collections = GetCoinCollections();
+  for (auto&& c : collections) {
+    data[c.get_id()] = c.is_auto_lock();
+  }
+  collection_auto_lock_.insert({db_file_name_, data});
+  return data;
+}
+
+std::map<int, bool> NunchukWalletDb::GetAutoAddData() const {
+  if (collection_auto_add_.count(db_file_name_)) {
+    return collection_auto_add_[db_file_name_];
+  }
+  std::map<int, bool> data;
+  auto collections = GetCoinCollections();
+  for (auto&& c : collections) {
+    data[c.get_id()] = c.is_add_new_coin();
+  }
+  collection_auto_add_.insert({db_file_name_, data});
+  return data;
 }
 
 std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
@@ -1098,7 +1128,7 @@ int NunchukWalletDb::CreateCoinTag(const std::string& name,
   return id;
 }
 
-std::vector<CoinTag> NunchukWalletDb::GetCoinTags() {
+std::vector<CoinTag> NunchukWalletDb::GetCoinTags() const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM TAGS;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -1241,7 +1271,7 @@ int NunchukWalletDb::CreateCoinCollection(const std::string& name) {
   return id;
 }
 
-std::vector<CoinCollection> NunchukWalletDb::GetCoinCollections() {
+std::vector<CoinCollection> NunchukWalletDb::GetCoinCollections() const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM COLLECTIONS;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -1278,6 +1308,14 @@ bool NunchukWalletDb::UpdateCoinCollection(const CoinCollection& collection) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (collection_auto_lock_.count(db_file_name_)) {
+    collection_auto_lock_[db_file_name_][collection.get_id()] =
+        collection.is_auto_lock();
+  }
+  if (collection_auto_add_.count(db_file_name_)) {
+    collection_auto_add_[db_file_name_][collection.get_id()] =
+        collection.is_add_new_coin();
+  }
   return updated;
 }
 
@@ -1311,6 +1349,7 @@ bool NunchukWalletDb::AddToCoinCollection(int collection_id,
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (GetAutoLockData()[collection_id]) LockCoin(tx_id, vout);
   return updated;
 }
 
@@ -1424,6 +1463,8 @@ void NunchukWalletDb::ClearCoinControlData() {
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM COLLECTIONS;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM COINCOLLECTIONS;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM COININFO;", NULL, 0, NULL));
+  collection_auto_lock_.erase(db_file_name_);
+  collection_auto_add_.erase(db_file_name_);
 }
 
 void NunchukWalletDb::ImportCoinControlData(const std::string& dataStr) {

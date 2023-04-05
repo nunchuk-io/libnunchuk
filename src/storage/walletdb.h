@@ -87,7 +87,7 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<std::string> GetCoinLocked();
 
   int CreateCoinTag(const std::string &name, const std::string &color);
-  std::vector<CoinTag> GetCoinTags();
+  std::vector<CoinTag> GetCoinTags() const;
   bool UpdateCoinTag(const CoinTag &tag);
   bool DeleteCoinTag(int tag_id);
   bool AddToCoinTag(int tag_id, const std::string &tx_id, int vout);
@@ -96,7 +96,7 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<int> GetAddedTags(const std::string &tx_id, int vout);
 
   int CreateCoinCollection(const std::string &name);
-  std::vector<CoinCollection> GetCoinCollections();
+  std::vector<CoinCollection> GetCoinCollections() const;
   bool UpdateCoinCollection(const CoinCollection &collection);
   bool DeleteCoinCollection(int collection_id);
   bool AddToCoinCollection(int collection_id, const std::string &tx_id,
@@ -120,6 +120,8 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
   std::map<std::string, AddressData> GetAllAddressData() const;
+  std::map<int, bool> GetAutoLockData() const;
+  std::map<int, bool> GetAutoAddData() const;
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
   void UseAddress(const std::string &address) const;
@@ -129,6 +131,8 @@ class NunchukWalletDb : public NunchukDb {
       const std::vector<Transaction> &transactions) const;
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
+  static std::map<std::string, std::map<int, bool>> collection_auto_lock_;
+  static std::map<std::string, std::map<int, bool>> collection_auto_add_;
   friend class NunchukStorage;
 };
 
