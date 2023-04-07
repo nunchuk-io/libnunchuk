@@ -1750,6 +1750,7 @@ std::string NunchukImpl::CreatePsbt(
   if (utxos.empty()) {
     utxos = GetUnspentOutputs(wallet_id);
     auto check = [&](const UnspentOutput& coin) {
+      if (coin.is_locked()) return true;
       if (coin.get_schedule_time() > 0) return true;
       if (coin.get_status() == CoinStatus::INCOMING_PENDING_CONFIRMATION ||
           coin.get_status() == CoinStatus::OUTGOING_PENDING_CONFIRMATION)
