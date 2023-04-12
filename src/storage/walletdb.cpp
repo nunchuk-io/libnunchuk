@@ -1618,6 +1618,7 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     for (int vout = 0; vout < nout; vout++) {
       auto output = tx.get_outputs()[vout];
       if (!IsMyAddress(output.first)) continue;
+      if (tx.get_height() < 0) continue;
       auto id = CoinId(tx.get_txid(), vout);
       coins[id].set_txid(tx.get_txid());
       coins[id].set_vout(vout);
