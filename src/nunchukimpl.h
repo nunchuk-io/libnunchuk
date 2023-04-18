@@ -390,6 +390,8 @@ class NunchukImpl : public Nunchuk {
                                      const std::string& message) override;
 
   // Coin control
+  bool UpdateCoinMemo(const std::string& wallet_id, const std::string& tx_id,
+                      int vout, const std::string& memo) override;
   bool LockCoin(const std::string& wallet_id, const std::string& tx_id,
                 int vout) override;
   bool UnlockCoin(const std::string& wallet_id, const std::string& tx_id,
@@ -423,8 +425,11 @@ class NunchukImpl : public Nunchuk {
                                                  int collection_id) override;
 
   std::string ExportCoinControlData(const std::string& wallet_id) override;
-  void ImportCoinControlData(const std::string& wallet_id,
-                             const std::string& data) override;
+  bool ImportCoinControlData(const std::string& wallet_id,
+                             const std::string& data, bool force) override;
+  std::string ExportBIP329(const std::string& wallet_id) override;
+  void ImportBIP329(const std::string& wallet_id,
+                    const std::string& data) override;
 
   bool IsMyAddress(const std::string& wallet_id,
                    const std::string& address) override;

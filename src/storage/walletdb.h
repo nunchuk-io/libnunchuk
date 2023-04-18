@@ -81,6 +81,7 @@ class NunchukWalletDb : public NunchukDb {
 
   bool UpdateCoinMemo(const std::string &tx_id, int vout,
                       const std::string &memo);
+  std::string GetCoinMemo(const std::string &tx_id, int vout);
   bool LockCoin(const std::string &tx_id, int vout);
   bool UnlockCoin(const std::string &tx_id, int vout);
   bool IsLock(const std::string &tx_id, int vout);
@@ -106,7 +107,11 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<std::string> GetCoinInCollection(int collection_id);
   std::vector<int> GetAddedCollections(const std::string &tx_id, int vout);
   std::string ExportCoinControlData();
-  void ImportCoinControlData(const std::string &data);
+  bool ImportCoinControlData(const std::string &data, bool force);
+  std::string ExportBIP329();
+  void ImportBIP329(const std::string &data);
+  time_t GetLastModified() const;
+  bool SetLastModified(time_t value);
 
   bool IsMyAddress(const std::string &address) const;
   std::vector<UnspentOutput> GetCoins() const;

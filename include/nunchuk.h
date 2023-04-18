@@ -1140,6 +1140,9 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
 
   // Coin control
+  virtual bool UpdateCoinMemo(const std::string& wallet_id,
+                              const std::string& tx_id, int vout,
+                              const std::string& memo) = 0;
   virtual bool LockCoin(const std::string& wallet_id, const std::string& tx_id,
                         int vout) = 0;
   virtual bool UnlockCoin(const std::string& wallet_id,
@@ -1177,8 +1180,11 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& wallet_id, int collection_id) = 0;
 
   virtual std::string ExportCoinControlData(const std::string& wallet_id) = 0;
-  virtual void ImportCoinControlData(const std::string& wallet_id,
-                                     const std::string& data) = 0;
+  virtual bool ImportCoinControlData(const std::string& wallet_id,
+                                     const std::string& data, bool force) = 0;
+  virtual std::string ExportBIP329(const std::string& wallet_id) = 0;
+  virtual void ImportBIP329(const std::string& wallet_id,
+                            const std::string& data) = 0;
 
   virtual bool IsMyAddress(const std::string& wallet_id,
                            const std::string& address) = 0;

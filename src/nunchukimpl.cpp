@@ -1823,6 +1823,12 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
                          "Invalid signer type");
 }
 
+bool NunchukImpl::UpdateCoinMemo(const std::string& wallet_id,
+                                 const std::string& tx_id, int vout,
+                                 const std::string& memo) {
+  return storage_->UpdateCoinMemo(chain_, wallet_id, tx_id, vout, memo);
+}
+
 bool NunchukImpl::LockCoin(const std::string& wallet_id,
                            const std::string& tx_id, int vout) {
   return storage_->LockCoin(chain_, wallet_id, tx_id, vout);
@@ -1910,9 +1916,18 @@ std::string NunchukImpl::ExportCoinControlData(const std::string& wallet_id) {
   return storage_->ExportCoinControlData(chain_, wallet_id);
 }
 
-void NunchukImpl::ImportCoinControlData(const std::string& wallet_id,
-                                        const std::string& data) {
-  storage_->ImportCoinControlData(chain_, wallet_id, data);
+bool NunchukImpl::ImportCoinControlData(const std::string& wallet_id,
+                                        const std::string& data, bool force) {
+  return storage_->ImportCoinControlData(chain_, wallet_id, data, force);
+}
+
+std::string NunchukImpl::ExportBIP329(const std::string& wallet_id) {
+  return storage_->ExportBIP329(chain_, wallet_id);
+}
+
+void NunchukImpl::ImportBIP329(const std::string& wallet_id,
+                               const std::string& data) {
+  storage_->ImportBIP329(chain_, wallet_id, data);
 }
 
 std::vector<std::vector<UnspentOutput>> NunchukImpl::GetCoinAncestry(

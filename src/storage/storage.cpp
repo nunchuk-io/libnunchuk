@@ -1010,6 +1010,7 @@ std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
   std::vector<UnspentOutput> utxos{};
   for (auto&& coin : coins) {
     if (coin.get_status() == CoinStatus::SPENT) continue;
+    coin.set_memo(wallet.GetCoinMemo(coin.get_txid(), coin.get_vout()));
     coin.set_locked(wallet.IsLock(coin.get_txid(), coin.get_vout()));
     coin.set_tags(wallet.GetAddedTags(coin.get_txid(), coin.get_vout()));
     coin.set_collections(
@@ -1592,6 +1593,13 @@ void NunchukStorage::ForceRefresh(Chain chain, const std::string& wallet_id) {
   GetWalletDb(chain, wallet_id).ForceRefresh();
 }
 
+bool NunchukStorage::UpdateCoinMemo(Chain chain, const std::string& wallet_id,
+                                    const std::string& tx_id, int vout,
+                                    const std::string& memo) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).UpdateCoinMemo(tx_id, vout, memo);
+}
+
 bool NunchukStorage::LockCoin(Chain chain, const std::string& wallet_id,
                               const std::string& tx_id, int vout) {
   std::unique_lock<std::shared_mutex> lock(access_);
@@ -1724,11 +1732,24 @@ std::string NunchukStorage::ExportCoinControlData(
   return GetWalletDb(chain, wallet_id).ExportCoinControlData();
 }
 
-void NunchukStorage::ImportCoinControlData(Chain chain,
+bool NunchukStorage::ImportCoinControlData(Chain chain,
                                            const std::string& wallet_id,
-                                           const std::string& data) {
+                                           const std::string& data,
+                                           bool force) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).ImportCoinControlData(data);
+  return GetWalletDb(chain, wallet_id).ImportCoinControlData(data, force);
+}
+
+std::string NunchukStorage::ExportBIP329(Chain chain,
+                                         const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).ExportBIP329();
+}
+
+void NunchukStorage::ImportBIP329(Chain chain, const std::string& wallet_id,
+                                  const std::string& data) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).ImportBIP329(data);
 }
 
 bool NunchukStorage::IsMyAddress(Chain chain, const std::string& wallet_id,

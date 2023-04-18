@@ -204,6 +204,9 @@ class NunchukStorage {
   void ForceRefresh(Chain chain, const std::string &wallet_id);
 
   // Coin control
+  bool UpdateCoinMemo(Chain chain, const std::string &wallet_id,
+                      const std::string &tx_id, int vout,
+                      const std::string &memo);
   bool LockCoin(Chain chain, const std::string &wallet_id,
                 const std::string &tx_id, int vout);
   bool UnlockCoin(Chain chain, const std::string &wallet_id,
@@ -241,8 +244,11 @@ class NunchukStorage {
                                                  const std::string &wallet_id,
                                                  int collection_id);
   std::string ExportCoinControlData(Chain chain, const std::string &wallet_id);
-  void ImportCoinControlData(Chain chain, const std::string &wallet_id,
-                             const std::string &data);
+  bool ImportCoinControlData(Chain chain, const std::string &wallet_id,
+                             const std::string &data, bool force);
+  std::string ExportBIP329(Chain chain, const std::string &wallet_id);
+  void ImportBIP329(Chain chain, const std::string &wallet_id,
+                    const std::string &data);
 
   bool IsMyAddress(Chain chain, const std::string &wallet_id,
                    const std::string &address);
