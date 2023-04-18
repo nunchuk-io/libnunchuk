@@ -55,7 +55,6 @@ class NunchukWalletDb : public NunchukDb {
   Transaction GetTransaction(const std::string &tx_id) const;
   bool UpdateTransaction(const std::string &raw_tx, int height,
                          time_t blocktime, const std::string &reject_msg);
-  bool UpdateTransactionMemo(const std::string &tx_id, const std::string &memo);
   bool UpdateTransactionSchedule(const std::string &tx_id, time_t value);
   bool DeleteTransaction(const std::string &tx_id);
   Transaction CreatePsbt(const std::string &psbt, Amount fee,
@@ -79,13 +78,16 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
 
+  bool UpdateTransactionMemo(const std::string &tx_id, const std::string &memo);
+  std::string GetTransactionMemo(const std::string &tx_id) const;
   bool UpdateCoinMemo(const std::string &tx_id, int vout,
                       const std::string &memo);
-  std::string GetCoinMemo(const std::string &tx_id, int vout);
+  std::string GetCoinMemo(const std::string &tx_id, int vout) const;
+  std::map<std::string, std::string> GetAllMemo() const;
   bool LockCoin(const std::string &tx_id, int vout);
   bool UnlockCoin(const std::string &tx_id, int vout);
-  bool IsLock(const std::string &tx_id, int vout);
-  std::vector<std::string> GetCoinLocked();
+  bool IsLock(const std::string &tx_id, int vout) const;
+  std::vector<std::string> GetCoinLocked() const;
 
   int CreateCoinTag(const std::string &name, const std::string &color);
   std::vector<CoinTag> GetCoinTags() const;
@@ -93,8 +95,8 @@ class NunchukWalletDb : public NunchukDb {
   bool DeleteCoinTag(int tag_id);
   bool AddToCoinTag(int tag_id, const std::string &tx_id, int vout);
   bool RemoveFromCoinTag(int tag_id, const std::string &tx_id, int vout);
-  std::vector<std::string> GetCoinByTag(int tag_id);
-  std::vector<int> GetAddedTags(const std::string &tx_id, int vout);
+  std::vector<std::string> GetCoinByTag(int tag_id) const;
+  std::vector<int> GetAddedTags(const std::string &tx_id, int vout) const;
 
   int CreateCoinCollection(const std::string &name);
   std::vector<CoinCollection> GetCoinCollections() const;
@@ -104,8 +106,8 @@ class NunchukWalletDb : public NunchukDb {
                            int vout);
   bool RemoveFromCoinCollection(int collection_id, const std::string &tx_id,
                                 int vout);
-  std::vector<std::string> GetCoinInCollection(int collection_id);
-  std::vector<int> GetAddedCollections(const std::string &tx_id, int vout);
+  std::vector<std::string> GetCoinInCollection(int collection_id) const;
+  std::vector<int> GetAddedCollections(const std::string &tx_id, int vout) const;
   std::string ExportCoinControlData();
   bool ImportCoinControlData(const std::string &data, bool force);
   std::string ExportBIP329();
