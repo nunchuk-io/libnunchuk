@@ -421,6 +421,7 @@ Transaction NunchukWalletDb::InsertTransaction(const std::string& raw_tx,
   sqlite3_bind_int64(stmt, 7, blocktime);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (!memo.empty()) UpdateTransactionMemo(tx_id, memo);
   auto tx = GetTransaction(tx_id);
   AutoAddNewCoins(tx);
   return tx;
@@ -607,6 +608,7 @@ Transaction NunchukWalletDb::CreatePsbt(
   sqlite3_bind_text(stmt, 7, extra_str.c_str(), extra_str.size(), NULL);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (!memo.empty()) UpdateTransactionMemo(tx_id, memo);
   auto tx = GetTransaction(tx_id);
   AutoAddNewCoins(tx);
   return tx;
