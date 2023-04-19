@@ -1549,7 +1549,9 @@ void NunchukWalletDb::ClearCoinControlData() {
 
 bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
                                             bool force) {
+  if (dataStr.empty()) return false;
   json data = json::parse(dataStr);
+  if (data["last_modified_ts"] == nullptr) return false;
   time_t ts = data["last_modified_ts"];
   if (!force && ts < GetLastModified()) return false;
 
