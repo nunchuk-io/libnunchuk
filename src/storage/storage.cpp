@@ -1010,7 +1010,7 @@ std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
   std::vector<UnspentOutput> utxos{};
   for (auto&& coin : coins) {
     if (coin.get_status() == CoinStatus::SPENT) continue;
-    coin.set_memo(wallet.GetCoinMemo(coin.get_txid(), coin.get_vout()));
+    // coin.set_memo(wallet.GetCoinMemo(coin.get_txid(), coin.get_vout()));
     coin.set_locked(wallet.IsLock(coin.get_txid(), coin.get_vout()));
     coin.set_tags(wallet.GetAddedTags(coin.get_txid(), coin.get_vout()));
     coin.set_collections(
