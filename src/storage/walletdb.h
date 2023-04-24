@@ -55,7 +55,6 @@ class NunchukWalletDb : public NunchukDb {
   Transaction GetTransaction(const std::string &tx_id) const;
   bool UpdateTransaction(const std::string &raw_tx, int height,
                          time_t blocktime, const std::string &reject_msg);
-  bool UpdateTransactionMemo(const std::string &tx_id, const std::string &memo);
   bool UpdateTransactionSchedule(const std::string &tx_id, time_t value);
   bool DeleteTransaction(const std::string &tx_id);
   Transaction CreatePsbt(const std::string &psbt, Amount fee,
@@ -69,8 +68,6 @@ class NunchukWalletDb : public NunchukDb {
   std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
                                            int skip = 0) const;
-  std::vector<UnspentOutput> GetUtxos(bool include_locked,
-                                      bool include_mempool) const;
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance(bool include_mempool) const;
   std::string FillPsbt(const std::string &psbt);
@@ -81,18 +78,69 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
 
+  bool UpdateTransactionMemo(const std::string &tx_id, const std::string &memo);
+  std::string GetTransactionMemo(const std::string &tx_id) const;
+  bool UpdateCoinMemo(const std::string &tx_id, int vout,
+                      const std::string &memo);
+  std::string GetCoinMemo(const std::string &tx_id, int vout) const;
+  std::map<std::string, std::string> GetAllMemo() const;
+  bool LockCoin(const std::string &tx_id, int vout);
+  bool UnlockCoin(const std::string &tx_id, int vout);
+  bool IsLock(const std::string &tx_id, int vout) const;
+  std::vector<std::string> GetCoinLocked() const;
+
+  int CreateCoinTag(const std::string &name, const std::string &color);
+  std::vector<CoinTag> GetCoinTags() const;
+  bool UpdateCoinTag(const CoinTag &tag);
+  bool DeleteCoinTag(int tag_id);
+  bool AddToCoinTag(int tag_id, const std::string &tx_id, int vout);
+  bool RemoveFromCoinTag(int tag_id, const std::string &tx_id, int vout);
+  std::vector<std::string> GetCoinByTag(int tag_id) const;
+  std::vector<int> GetAddedTags(const std::string &tx_id, int vout) const;
+
+  int CreateCoinCollection(const std::string &name);
+  std::vector<CoinCollection> GetCoinCollections() const;
+  bool UpdateCoinCollection(const CoinCollection &collection);
+  bool DeleteCoinCollection(int collection_id);
+  bool AddToCoinCollection(int collection_id, const std::string &tx_id,
+                           int vout);
+  bool RemoveFromCoinCollection(int collection_id, const std::string &tx_id,
+                                int vout);
+  std::vector<std::string> GetCoinInCollection(int collection_id) const;
+  std::vector<int> GetAddedCollections(const std::string &tx_id, int vout) const;
+  std::string ExportCoinControlData();
+  bool ImportCoinControlData(const std::string &data, bool force);
+  std::string ExportBIP329();
+  void ImportBIP329(const std::string &data);
+  time_t GetLastModified() const;
+  bool SetLastModified(time_t value);
+
+  bool IsMyAddress(const std::string &address) const;
+  std::vector<UnspentOutput> GetCoins() const;
+  std::vector<std::vector<UnspentOutput>> GetAncestry(const std::string &tx_id,
+                                                      int vout) const;
+
  private:
+  void CreateCoinControlTable();
+  void ClearCoinControlData();
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
   std::map<std::string, AddressData> GetAllAddressData() const;
+  std::map<int, bool> GetAutoLockData() const;
+  std::map<int, bool> GetAutoAddData() const;
+  void AutoAddNewCoins(const Transaction &tx);
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
   void UseAddress(const std::string &address) const;
-  bool IsMyAddress(const std::string &address) const;
+  std::string CoinId(const std::string &tx_id, int vout) const;
   bool IsMyChange(const std::string &address) const;
+  std::map<std::string, UnspentOutput> GetCoinsFromTransactions(
+      const std::vector<Transaction> &transactions) const;
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
+  static std::map<std::string, std::map<int, bool>> collection_auto_lock_;
+  static std::map<std::string, std::map<int, bool>> collection_auto_add_;
   friend class NunchukStorage;
 };
 

@@ -133,6 +133,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/backend/corerpc/client.cpp
     src/backend/corerpc/synchronizer.cpp
     src/dto/appsettings.cpp
+    src/dto/coincollection.cpp
+    src/dto/cointag.cpp
     src/dto/device.cpp
     src/dto/primarykey.cpp
     src/dto/mastersigner.cpp

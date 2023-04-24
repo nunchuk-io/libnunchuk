@@ -57,9 +57,7 @@ Amount CoreRpcSynchronizer::EstimateFee(int conf_target) {
 }
 
 Amount CoreRpcSynchronizer::RelayFee() {
-  if (stopped)
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           "Disconnected");
+  if (stopped) return Amount(1000);
   return client_->RelayFee();
 }
 

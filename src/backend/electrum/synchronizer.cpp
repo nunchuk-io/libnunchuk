@@ -266,8 +266,7 @@ Amount ElectrumSynchronizer::EstimateFee(int conf_target) {
 Amount ElectrumSynchronizer::RelayFee() {
   std::unique_lock<std::mutex> lock_(status_mutex_);
   if (status_ != Status::READY && status_ != Status::SYNCING) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           "Disconnected");
+    return Amount(1000);
   }
   return Utils::AmountFromValue(client_->blockchain_relayfee().dump());
 }

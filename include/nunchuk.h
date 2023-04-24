@@ -85,6 +85,15 @@ enum class TransactionStatus {
   CONFIRMED,
 };
 
+enum class CoinStatus {
+  INCOMING_PENDING_CONFIRMATION,
+  CONFIRMED,
+  OUTGOING_PENDING_SIGNATURES,
+  OUTGOING_PENDING_BROADCAST,
+  OUTGOING_PENDING_CONFIRMATION,
+  SPENT,
+};
+
 enum class ConnectionStatus {
   OFFLINE,
   SYNCING,
@@ -203,6 +212,8 @@ class NUNCHUK_EXPORT StorageException : public BaseException {
   static const int SIGNER_EXISTS = -2009;
   static const int SIGNER_NOT_FOUND = -2010;
   static const int ADDRESS_NOT_FOUND = -2011;
+  static const int TAG_EXISTS = -2012;
+  static const int COLLECTION_EXISTS = -2013;
   using BaseException::BaseException;
 };
 
@@ -455,6 +466,39 @@ class NUNCHUK_EXPORT Wallet {
   time_t last_used_{0};
 };
 
+class NUNCHUK_EXPORT CoinTag {
+ public:
+  CoinTag(int id, const std::string& name, const std::string& color);
+
+  int get_id() const;
+  std::string get_name() const;
+  std::string get_color() const;
+
+ private:
+  int id_;
+  std::string name_;
+  std::string color_;
+};
+
+class NUNCHUK_EXPORT CoinCollection {
+ public:
+  CoinCollection(int id, const std::string& name);
+
+  int get_id() const;
+  std::string get_name() const;
+  bool is_add_new_coin() const;
+  bool is_auto_lock() const;
+
+  void set_add_new_coin(bool value);
+  void set_auto_lock(bool value);
+
+ private:
+  int id_;
+  std::string name_;
+  bool add_new_coin_;
+  bool auto_lock_;
+};
+
 // Class that represents an Unspent Transaction Output (UTXO)
 class NUNCHUK_EXPORT UnspentOutput {
  public:
@@ -466,6 +510,13 @@ class NUNCHUK_EXPORT UnspentOutput {
   Amount get_amount() const;
   int get_height() const;
   std::string get_memo() const;
+  bool is_change() const;
+  bool is_locked() const;
+  std::vector<int> const& get_tags() const;
+  std::vector<int> const& get_collections() const;
+  time_t get_blocktime() const;
+  time_t get_schedule_time() const;
+  CoinStatus get_status() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
@@ -473,6 +524,13 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_amount(const Amount& value);
   void set_height(int value);
   void set_memo(const std::string& value);
+  void set_change(bool value);
+  void set_locked(bool value);
+  void set_tags(std::vector<int> value);
+  void set_collections(std::vector<int> value);
+  void set_blocktime(time_t value);
+  void set_schedule_time(time_t value);
+  void set_status(CoinStatus value);
 
  private:
   std::string txid_;
@@ -481,6 +539,13 @@ class NUNCHUK_EXPORT UnspentOutput {
   Amount amount_;
   int height_;
   std::string memo_;
+  bool change_;
+  bool locked_;
+  std::vector<int> tags_;
+  std::vector<int> collections_;
+  time_t blocktime_;
+  time_t schedule_time_;
+  CoinStatus status_;
 };
 
 // Class that represents a Transaction
@@ -1073,6 +1138,58 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual bool SyncWithBackup(
       const std::string& data,
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;
+
+  // Coin control
+  virtual bool UpdateCoinMemo(const std::string& wallet_id,
+                              const std::string& tx_id, int vout,
+                              const std::string& memo) = 0;
+  virtual bool LockCoin(const std::string& wallet_id, const std::string& tx_id,
+                        int vout) = 0;
+  virtual bool UnlockCoin(const std::string& wallet_id,
+                          const std::string& tx_id, int vout) = 0;
+
+  virtual CoinTag CreateCoinTag(const std::string& wallet_id,
+                                const std::string& name,
+                                const std::string& color) = 0;
+  virtual std::vector<CoinTag> GetCoinTags(const std::string& wallet_id) = 0;
+  virtual bool UpdateCoinTag(const std::string& wallet_id,
+                             const CoinTag& tag) = 0;
+  virtual bool DeleteCoinTag(const std::string& wallet_id, int tag_id) = 0;
+  virtual bool AddToCoinTag(const std::string& wallet_id, int tag_id,
+                            const std::string& tx_id, int vout) = 0;
+  virtual bool RemoveFromCoinTag(const std::string& wallet_id, int tag_id,
+                                 const std::string& tx_id, int vout) = 0;
+  virtual std::vector<UnspentOutput> GetCoinByTag(const std::string& wallet_id,
+                                                  int tag_id) = 0;
+
+  virtual CoinCollection CreateCoinCollection(const std::string& wallet_id,
+                                              const std::string& name) = 0;
+  virtual std::vector<CoinCollection> GetCoinCollections(
+      const std::string& wallet_id) = 0;
+  virtual bool UpdateCoinCollection(const std::string& wallet_id,
+                                    const CoinCollection& collection) = 0;
+  virtual bool DeleteCoinCollection(const std::string& wallet_id,
+                                    int collection_id) = 0;
+  virtual bool AddToCoinCollection(const std::string& wallet_id,
+                                   int collection_id, const std::string& tx_id,
+                                   int vout) = 0;
+  virtual bool RemoveFromCoinCollection(const std::string& wallet_id,
+                                        int collection_id,
+                                        const std::string& tx_id, int vout) = 0;
+  virtual std::vector<UnspentOutput> GetCoinInCollection(
+      const std::string& wallet_id, int collection_id) = 0;
+
+  virtual std::string ExportCoinControlData(const std::string& wallet_id) = 0;
+  virtual bool ImportCoinControlData(const std::string& wallet_id,
+                                     const std::string& data, bool force) = 0;
+  virtual std::string ExportBIP329(const std::string& wallet_id) = 0;
+  virtual void ImportBIP329(const std::string& wallet_id,
+                            const std::string& data) = 0;
+
+  virtual bool IsMyAddress(const std::string& wallet_id,
+                           const std::string& address) = 0;
+  virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
+      const std::string& wallet_id, const std::string& tx_id, int vout) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

@@ -203,6 +203,59 @@ class NunchukStorage {
   bool DeleteTapsigner(Chain chain, const std::string &master_signer_id);
   void ForceRefresh(Chain chain, const std::string &wallet_id);
 
+  // Coin control
+  bool UpdateCoinMemo(Chain chain, const std::string &wallet_id,
+                      const std::string &tx_id, int vout,
+                      const std::string &memo);
+  bool LockCoin(Chain chain, const std::string &wallet_id,
+                const std::string &tx_id, int vout);
+  bool UnlockCoin(Chain chain, const std::string &wallet_id,
+                  const std::string &tx_id, int vout);
+
+  CoinTag CreateCoinTag(Chain chain, const std::string &wallet_id,
+                        const std::string &name, const std::string &color);
+  std::vector<CoinTag> GetCoinTags(Chain chain, const std::string &wallet_id);
+  bool UpdateCoinTag(Chain chain, const std::string &wallet_id,
+                     const CoinTag &tag);
+  bool DeleteCoinTag(Chain chain, const std::string &wallet_id, int tag_id);
+  bool AddToCoinTag(Chain chain, const std::string &wallet_id, int tag_id,
+                    const std::string &tx_id, int vout);
+  bool RemoveFromCoinTag(Chain chain, const std::string &wallet_id, int tag_id,
+                         const std::string &tx_id, int vout);
+  std::vector<UnspentOutput> GetCoinByTag(Chain chain,
+                                          const std::string &wallet_id,
+                                          int tag_id);
+
+  CoinCollection CreateCoinCollection(Chain chain, const std::string &wallet_id,
+                                      const std::string &name);
+  std::vector<CoinCollection> GetCoinCollections(Chain chain,
+                                                 const std::string &wallet_id);
+  bool UpdateCoinCollection(Chain chain, const std::string &wallet_id,
+                            const CoinCollection &collection);
+  bool DeleteCoinCollection(Chain chain, const std::string &wallet_id,
+                            int collection_id);
+  bool AddToCoinCollection(Chain chain, const std::string &wallet_id,
+                           int collection_id, const std::string &tx_id,
+                           int vout);
+  bool RemoveFromCoinCollection(Chain chain, const std::string &wallet_id,
+                                int collection_id, const std::string &tx_id,
+                                int vout);
+  std::vector<UnspentOutput> GetCoinInCollection(Chain chain,
+                                                 const std::string &wallet_id,
+                                                 int collection_id);
+  std::string ExportCoinControlData(Chain chain, const std::string &wallet_id);
+  bool ImportCoinControlData(Chain chain, const std::string &wallet_id,
+                             const std::string &data, bool force);
+  std::string ExportBIP329(Chain chain, const std::string &wallet_id);
+  void ImportBIP329(Chain chain, const std::string &wallet_id,
+                    const std::string &data);
+
+  bool IsMyAddress(Chain chain, const std::string &wallet_id,
+                   const std::string &address);
+  std::vector<std::vector<UnspentOutput>> GetAncestry(
+      Chain chain, const std::string &wallet_id, const std::string &tx_id,
+      int vout);
+
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
   static std::shared_mutex access_;
@@ -226,6 +279,8 @@ class NunchukStorage {
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
   SoftwareSigner GetSoftwareSigner0(Chain chain, const std::string &id);
+  std::vector<UnspentOutput> GetUtxos0(Chain chain,
+                                       const std::string &wallet_id);
 
   boost::filesystem::path basedatadir_;
   boost::filesystem::path datadir_;
