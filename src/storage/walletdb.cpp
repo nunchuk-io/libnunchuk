@@ -1669,6 +1669,14 @@ std::string NunchukWalletDb::ExportBIP329() {
     }
   }
 
+  auto collections = GetCoinCollections();
+  for (auto&& i : collections) {
+    auto coins = GetCoinInCollection(i.get_id());
+    for (auto&& coin : coins) {
+      all_label[coin] += " #collection_" + i.get_name();
+    }
+  }
+
   std::stringstream bip329;
   for (auto&& [coin, label] : all_label) {
     std::string type = coin.find(':') != std::string::npos ? "output" : "tx";
