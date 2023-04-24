@@ -1737,7 +1737,9 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
       coins[id].set_amount(prev_tx.get_outputs()[input.second].second);
       coins[id].set_height(prev_tx.get_height());
       coins[id].set_blocktime(prev_tx.get_blocktime());
-      coins[id].set_schedule_time(prev_tx.get_schedule_time());
+      if (tx.get_schedule_time() > coins[id].get_schedule_time()) {
+        coins[id].set_schedule_time(tx.get_schedule_time());
+      }
       if (tx.get_status() == TransactionStatus::CONFIRMED) {
         set_status(id, CoinStatus::SPENT);
       } else if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION) {
@@ -1763,7 +1765,6 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
       coins[id].set_amount(output.second);
       coins[id].set_height(tx.get_height());
       coins[id].set_blocktime(tx.get_blocktime());
-      coins[id].set_schedule_time(tx.get_schedule_time());
       set_status(id, tx.get_height() > 0
                          ? CoinStatus::CONFIRMED
                          : CoinStatus::INCOMING_PENDING_CONFIRMATION);

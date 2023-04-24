@@ -22,6 +22,7 @@ namespace nunchuk {
 
 UnspentOutput::UnspentOutput() {
   status_ = CoinStatus::INCOMING_PENDING_CONFIRMATION;
+  schedule_time_ = -1;
 }
 
 std::string UnspentOutput::get_txid() const { return txid_; }
