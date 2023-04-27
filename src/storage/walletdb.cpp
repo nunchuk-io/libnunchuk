@@ -795,8 +795,7 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) {
   return balance;
 }
 
-std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
-                                                          int skip) {
+std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -974,7 +973,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
       total_amount -= output.second;
       if (!IsMyAddress(output.first)) {
         send_amount += output.second;
-      } else if (tx.get_change_index() < 0) {
+      } else if (tx.get_change_index() < 0 && IsMyChange(output.first)) {
         tx.set_change_index(i);
       }
     }
