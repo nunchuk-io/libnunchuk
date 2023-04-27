@@ -23,6 +23,7 @@
 #include <sqlcipher/sqlite3.h>
 #include <vector>
 #include <string>
+#include <optional>
 
 namespace nunchuk {
 
@@ -44,15 +45,15 @@ class NunchukWalletDb : public NunchukDb {
   bool SetDescription(const std::string &value);
   bool SetLastUsed(time_t value);
   bool AddAddress(const std::string &address, int index, bool internal);
-  Wallet GetWallet(bool skip_balance = false, bool skip_provider = false) const;
+  Wallet GetWallet(bool skip_balance = false, bool skip_provider = false);
   std::vector<SingleSigner> GetSigners() const;
-  std::vector<std::string> GetAddresses(bool used, bool internal) const;
-  std::vector<std::string> GetAllAddresses() const;
+  std::vector<std::string> GetAddresses(bool used, bool internal);
+  std::vector<std::string> GetAllAddresses();
   int GetCurrentAddressIndex(bool internal) const;
   Transaction InsertTransaction(const std::string &raw_tx, int height,
                                 time_t blocktime, Amount fee,
                                 const std::string &memo, int change_pos);
-  Transaction GetTransaction(const std::string &tx_id) const;
+  Transaction GetTransaction(const std::string &tx_id);
   bool UpdateTransaction(const std::string &raw_tx, int height,
                          time_t blocktime, const std::string &reject_msg);
   bool UpdateTransactionSchedule(const std::string &tx_id, time_t value);
@@ -67,19 +68,19 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetPsbt(const std::string &tx_id) const;
   std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
   std::vector<Transaction> GetTransactions(int count = 1000,
-                                           int skip = 0) const;
+                                           int skip = 0);
   bool SetUtxos(const std::string &address, const std::string &utxo);
-  Amount GetBalance(bool include_mempool) const;
+  Amount GetBalance(bool include_mempool);
   std::string FillPsbt(const std::string &psbt);
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
-  int GetAddressIndex(const std::string &address) const;
-  Amount GetAddressBalance(const std::string &address) const;
+  int GetAddressIndex(const std::string &address);
+  Amount GetAddressBalance(const std::string &address);
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
 
   bool UpdateTransactionMemo(const std::string &tx_id, const std::string &memo);
-  std::string GetTransactionMemo(const std::string &tx_id) const;
+  std::optional<std::string> GetTransactionMemo(const std::string &tx_id) const;
   bool UpdateCoinMemo(const std::string &tx_id, int vout,
                       const std::string &memo);
   std::string GetCoinMemo(const std::string &tx_id, int vout) const;
@@ -115,10 +116,10 @@ class NunchukWalletDb : public NunchukDb {
   time_t GetLastModified() const;
   bool SetLastModified(time_t value);
 
-  bool IsMyAddress(const std::string &address) const;
-  std::vector<UnspentOutput> GetCoins() const;
+  bool IsMyAddress(const std::string &address);
+  std::vector<UnspentOutput> GetCoins();
   std::vector<std::vector<UnspentOutput>> GetAncestry(const std::string &tx_id,
-                                                      int vout) const;
+                                                      int vout);
 
  private:
   void CreateCoinControlTable();
@@ -126,17 +127,17 @@ class NunchukWalletDb : public NunchukDb {
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
-  std::map<std::string, AddressData> GetAllAddressData() const;
+  std::map<std::string, AddressData> GetAllAddressData();
   std::map<int, bool> GetAutoLockData() const;
   std::map<int, bool> GetAutoAddData() const;
   void AutoAddNewCoins(const Transaction &tx);
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
-  void UseAddress(const std::string &address) const;
+  void UseAddress(const std::string &address);
   std::string CoinId(const std::string &tx_id, int vout) const;
-  bool IsMyChange(const std::string &address) const;
+  bool IsMyChange(const std::string &address);
   std::map<std::string, UnspentOutput> GetCoinsFromTransactions(
-      const std::vector<Transaction> &transactions) const;
+      const std::vector<Transaction> &transactions);
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   static std::map<std::string, std::map<int, bool>> collection_auto_lock_;

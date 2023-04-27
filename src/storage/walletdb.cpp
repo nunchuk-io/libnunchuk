@@ -163,7 +163,7 @@ bool NunchukWalletDb::SetLastUsed(time_t value) {
   return PutInt(DbKeys::LAST_USED, value);
 }
 
-Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) const {
+Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
   int m = immutable_data["m"];
   int n = immutable_data["n"];
@@ -247,23 +247,23 @@ bool NunchukWalletDb::AddAddress(const std::string& address, int index,
   return true;
 }
 
-void NunchukWalletDb::UseAddress(const std::string& address) const {
+void NunchukWalletDb::UseAddress(const std::string& address) {
   if (address.empty()) return;
   if (!addr_cache_.count(db_file_name_)) return;
   if (!addr_cache_[db_file_name_].count(address)) return;
   addr_cache_[db_file_name_][address].used = true;
 }
 
-bool NunchukWalletDb::IsMyAddress(const std::string& address) const {
+bool NunchukWalletDb::IsMyAddress(const std::string& address) {
   return GetAllAddressData().count(address);
 }
 
-bool NunchukWalletDb::IsMyChange(const std::string& address) const {
+bool NunchukWalletDb::IsMyChange(const std::string& address) {
   auto all = GetAllAddressData();
   return all.count(address) && all.at(address).internal;
 }
 
-std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() const {
+std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() {
   if (addr_cache_.count(db_file_name_)) {
     return addr_cache_[db_file_name_];
   }
@@ -326,7 +326,7 @@ std::map<int, bool> NunchukWalletDb::GetAutoAddData() const {
 }
 
 std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
-                                                       bool internal) const {
+                                                       bool internal) {
   auto all = GetAllAddressData();
   auto cur = GetCurrentAddressIndex(internal);
   std::vector<std::string> rs;
@@ -338,13 +338,13 @@ std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
   return rs;
 }
 
-int NunchukWalletDb::GetAddressIndex(const std::string& address) const {
+int NunchukWalletDb::GetAddressIndex(const std::string& address) {
   auto all = GetAllAddressData();
   if (all.count(address)) return all.at(address).index;
   return -1;
 }
 
-Amount NunchukWalletDb::GetAddressBalance(const std::string& address) const {
+Amount NunchukWalletDb::GetAddressBalance(const std::string& address) {
   auto coins = GetCoins();
   Amount balance = 0;
   for (auto&& coin : coins) {
@@ -374,7 +374,7 @@ std::string NunchukWalletDb::GetAddressStatus(
   return status;
 }
 
-std::vector<std::string> NunchukWalletDb::GetAllAddresses() const {
+std::vector<std::string> NunchukWalletDb::GetAllAddresses() {
   auto all = GetAllAddressData();
   std::vector<std::string> rs;
   for (auto&& data : all) {
@@ -703,7 +703,7 @@ std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
   }
 }
 
-Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
+Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -747,7 +747,13 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) const {
     }
     SQLCHECK(sqlite3_finalize(stmt));
     for (auto&& output : tx.get_outputs()) UseAddress(output.first);
-    tx.set_memo(GetTransactionMemo(tx_id));
+    auto new_memo = GetTransactionMemo(tx_id);
+    if (new_memo) {
+      tx.set_memo(new_memo.value());
+    } else {
+      tx.set_memo(memo);
+      if (!memo.empty()) UpdateTransactionMemo(tx_id, memo);
+    }
     return tx;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -774,7 +780,7 @@ bool NunchukWalletDb::SetUtxos(const std::string& address,
   return true;
 }
 
-Amount NunchukWalletDb::GetBalance(bool include_mempool) const {
+Amount NunchukWalletDb::GetBalance(bool include_mempool) {
   auto coins = GetCoins();
   Amount balance = 0;
   for (auto&& coin : coins) {
@@ -790,7 +796,7 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) const {
 }
 
 std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
-                                                          int skip) const {
+                                                          int skip) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -820,6 +826,7 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
     tx.set_schedule_time(-1);
     tx.set_receive(false);
     tx.set_sub_amount(0);
+    tx.set_memo(memo);
     if (is_hex_tx) {
       tx.set_raw(value);
     } else {
@@ -838,6 +845,8 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count,
   for (auto&& tx : rs) {
     if (all_memo.count(tx.get_txid())) {
       tx.set_memo(all_memo[tx.get_txid()]);
+    } else if (!tx.get_memo().empty()) {
+      UpdateTransactionMemo(tx.get_txid(), tx.get_memo());
     }
   }
   return rs;
@@ -1050,7 +1059,7 @@ bool NunchukWalletDb::UpdateTransactionMemo(const std::string& tx_id,
   return updated;
 }
 
-std::string NunchukWalletDb::GetTransactionMemo(
+std::optional<std::string> NunchukWalletDb::GetTransactionMemo(
     const std::string& tx_id) const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM COININFO WHERE COIN = ?1;";
@@ -1058,13 +1067,12 @@ std::string NunchukWalletDb::GetTransactionMemo(
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
 
-  std::string rs = "";
-  while (sqlite3_column_text(stmt, 0)) {
-    rs = std::string((char*)sqlite3_column_text(stmt, 1));
-    sqlite3_step(stmt);
+  if (sqlite3_column_text(stmt, 0)) {
+    std::string rs = std::string((char*)sqlite3_column_text(stmt, 1));
+    SQLCHECK(sqlite3_finalize(stmt));
+    return rs;
   }
-  SQLCHECK(sqlite3_finalize(stmt));
-  return rs;
+  return {};
 }
 
 bool NunchukWalletDb::UpdateCoinMemo(const std::string& tx_id, int vout,
@@ -1697,7 +1705,7 @@ void NunchukWalletDb::ImportBIP329(const std::string& data) {
 }
 
 std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
-    const std::vector<Transaction>& transactions) const {
+    const std::vector<Transaction>& transactions) {
   std::map<std::string, Transaction> tx_map;
   std::map<std::string, std::string> used_by;
   for (auto&& tx : transactions) {
@@ -1775,7 +1783,7 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
   return coins;
 }
 
-std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
+std::vector<UnspentOutput> NunchukWalletDb::GetCoins() {
   auto transactions = GetTransactions();
   auto coins = GetCoinsFromTransactions(transactions);
   std::vector<UnspentOutput> rs;
@@ -1786,7 +1794,7 @@ std::vector<UnspentOutput> NunchukWalletDb::GetCoins() const {
 }
 
 std::vector<std::vector<UnspentOutput>> NunchukWalletDb::GetAncestry(
-    const std::string& tx_id, int vout) const {
+    const std::string& tx_id, int vout) {
   auto transactions = GetTransactions();
   auto coins = GetCoinsFromTransactions(transactions);
   std::map<std::string, Transaction> tx_map;
