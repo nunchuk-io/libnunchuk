@@ -121,8 +121,16 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
     for (auto item : history) {
       std::string tx_id = item["tx_hash"];
       int height = item["height"];
-      if (rawtx.count(tx_id) == 0) continue;
-      std::string raw = rawtx[tx_id];
+      std::string raw;
+      if (rawtx.count(tx_id) == 0) {
+        try {
+          raw = client_->blockchain_transaction_get(tx_id);
+        } catch (...) {
+          continue;
+        }
+      } else {
+        raw = rawtx[tx_id];
+      }
       time_t time = height <= 0 ? 0 : GetBlockTime(rawheader[height]);
       Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
       auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;

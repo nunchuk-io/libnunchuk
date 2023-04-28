@@ -309,8 +309,11 @@ std::map<int, std::string> ElectrumClient::get_multi_rawheader(
   auto batchResp = call_batch(methods, params);
   std::map<int, std::string> rs;
   for (int i = 0; i < heights.size(); i++) {
-    if (batchResp[i].contains("error")) continue;
-    rs[heights[i]] = batchResp[i]["result"];
+    if (batchResp[i].contains("error")) {
+      rs[heights[i]] = blockchain_block_header(heights[i]);
+    } else {
+      rs[heights[i]] = batchResp[i]["result"];
+    }
   }
   return rs;
 }
