@@ -122,7 +122,10 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
       std::string tx_id = item["tx_hash"];
       int height = item["height"];
       std::string raw;
-      if (rawtx.count(tx_id) == 0) {
+      if (std::find(txs_hash.begin(), txs_hash.end(), tx_id) ==
+          txs_hash.end()) {
+        continue;
+      } else if (rawtx.count(tx_id) == 0) {
         try {
           raw = client_->blockchain_transaction_get(tx_id);
         } catch (...) {
