@@ -291,12 +291,12 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() {
     }
     SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   }
-  addr_cache_.insert({db_file_name_, addresses});
+  addr_cache_.insert({db_file_name_, std::move(addresses)});
   auto txs = GetTransactions();
   for (auto&& tx : txs) {
     for (auto&& output : tx.get_outputs()) UseAddress(output.first);
   }
-  return addresses;
+  return addr_cache_[db_file_name_];
 }
 
 std::map<int, bool> NunchukWalletDb::GetAutoLockData() const {
