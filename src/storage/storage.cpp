@@ -598,6 +598,25 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
   return signer;
 }
 
+SingleSigner NunchukStorage::AddSignerToMasterSigner(
+    Chain chain, const std::string& mastersigner_id,
+    const SingleSigner& signer) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto signer_db = GetSignerDb(chain, mastersigner_id);
+  std::string xpub = signer_db.GetXpub(signer.get_derivation_path());
+  if (!xpub.empty()) {
+    throw StorageException(
+        StorageException::SIGNER_EXISTS,
+        strprintf("Signer exists id = '%s'", mastersigner_id));
+  }
+
+  signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(), "custom");
+  return SingleSigner(signer_db.GetName(), signer.get_xpub(), "",
+                      signer.get_derivation_path(), signer_db.GetFingerprint(),
+                      signer_db.GetLastHealthCheck(), mastersigner_id, false,
+                      signer_db.GetSignerType(), signer_db.GetTags());
+}
+
 std::vector<SingleSigner> NunchukStorage::GetSignersFromMasterSigner(
     Chain chain, const std::string& mastersigner_id) {
   std::shared_lock<std::shared_mutex> lock(access_);

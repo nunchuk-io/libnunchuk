@@ -950,6 +950,47 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
   return signed_tx;
 }
 
+std::string NunchukImpl::SignMessage(const SingleSigner& signer,
+                                     const std::string& message) {
+  switch (signer.get_type()) {
+    case SignerType::SOFTWARE: {
+      auto ss =
+          storage_->GetSoftwareSigner(chain_, signer.get_master_signer_id());
+      return ss.SignMessage(message, signer.get_derivation_path());
+    }
+    case SignerType::HARDWARE: {
+      Device device{signer.get_master_fingerprint()};
+      return hwi_.SignMessage(device, message, signer.get_derivation_path());
+    }
+    case SignerType::UNKNOWN:
+    case SignerType::AIRGAP:
+    case SignerType::FOREIGN_SOFTWARE:
+    case SignerType::NFC:
+    case SignerType::COLDCARD_NFC:
+    case SignerType::SERVER:
+      break;
+  }
+  throw NunchukException(
+      NunchukException::INVALID_SIGNER_TYPE,
+      strprintf("Can not sign message mastersigner_id = '%s'",
+                signer.get_master_signer_id()));
+}
+
+std::string NunchukImpl::GetSignerAddress(const SingleSigner& signer,
+                                          AddressType address_type) {
+  if (signer.get_public_key().empty()) {
+    std::string descriptor = GetDescriptor(signer, address_type);
+    return CoreUtils::getInstance().DeriveAddress(descriptor);
+  } else {
+    if (address_type == AddressType::LEGACY) {
+      CPubKey pubkey(ParseHex(signer.get_public_key()));
+      return EncodeDestination(PKHash(pubkey.GetID()));
+    }
+  }
+  throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
+                         "Invalid address type");
+}
+
 Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
   auto [tx_value, is_hex_tx] =

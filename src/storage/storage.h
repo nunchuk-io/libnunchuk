@@ -70,6 +70,9 @@ class NunchukStorage {
   SingleSigner GetSignerFromMasterSigner(Chain chain,
                                          const std::string &mastersigner_id,
                                          const std::string &path);
+  SingleSigner AddSignerToMasterSigner(Chain chain,
+                                       const std::string &mastersigner_id,
+                                       const SingleSigner &signer);
 
   std::vector<std::string> ListWallets(Chain chain);
   std::vector<std::string> ListRecentlyUsedWallets(Chain chain);

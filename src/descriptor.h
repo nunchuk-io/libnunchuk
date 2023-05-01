@@ -57,6 +57,8 @@ std::string GetDescriptorForSigners(
 
 std::string GetPkhDescriptor(const std::string& address);
 
+std::string GetDescriptor(const SingleSigner& signer, AddressType address_type);
+
 SingleSigner ParseSignerString(const std::string& signer_str);
 
 bool ParseDescriptors(const std::string& descs, AddressType& address_type,

@@ -398,6 +398,28 @@ Transaction NunchukImpl::SignTapsignerTransaction(
   }
 }
 
+std::string NunchukImpl::SignTapsignerMessage(
+    tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+    const SingleSigner& signer, const std::string& message) {
+  auto master_signer_id = signer.get_master_signer_id();
+  auto st = storage_->GetTapsignerStatusFromMasterSigner(
+      chain_, signer.get_master_signer_id());
+  if (st.get_card_ident() != tapsigner->GetIdent()) {
+    throw NunchukException(
+        TapProtocolException::INVALID_DEVICE,
+        strprintf(
+            "Invalid device: key fingerprint does not match. Expected '%s'.",
+            master_signer_id));
+  }
+
+  try {
+    hwi_tapsigner_->SetDevice(tapsigner, cvc);
+    return hwi_tapsigner_->SignMessage(message, signer.get_derivation_path());
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
 bool NunchukImpl::ChangeTapsignerCVC(tap_protocol::Tapsigner* tapsigner,
                                      const std::string& cvc,
                                      const std::string& new_cvc,
@@ -501,6 +523,45 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
     } else {
       return HealthStatus::SIGNATURE_INVALID;
     }
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
+SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
+    tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+    const std::string& master_signer_id, const std::string& path) {
+  if (!Utils::IsValidDerivationPath(path)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           strprintf("Invalid derivation path [%s].", path));
+  }
+  auto st =
+      storage_->GetTapsignerStatusFromMasterSigner(chain_, master_signer_id);
+  if (st.get_card_ident() != tapsigner->GetIdent()) {
+    throw NunchukException(
+        TapProtocolException::INVALID_DEVICE,
+        strprintf(
+            "Invalid device: key fingerprint does not match. Expected '%s'.",
+            master_signer_id));
+  }
+
+  try {
+    auto signer =
+        storage_->GetSignerFromMasterSigner(chain_, master_signer_id, path);
+    return signer;
+  } catch (nunchuk::BaseException& ex) {
+    if (ex.code() != NunchukException::RUN_OUT_OF_CACHED_XPUB) {
+      throw;
+    }
+  }
+
+  try {
+    hwi_tapsigner_->SetDevice(tapsigner, cvc);
+    std::string xpub = hwi_tapsigner_->GetXpubAtPath(path);
+    auto signer = storage_->AddSignerToMasterSigner(
+        chain_, master_signer_id,
+        SingleSigner({}, xpub, {}, path, master_signer_id, std::time(nullptr)));
+    return signer;
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }

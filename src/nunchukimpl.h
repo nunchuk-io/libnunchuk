@@ -124,6 +124,11 @@ class NunchukImpl : public Nunchuk {
   HealthStatus HealthCheckSingleSigner(const SingleSigner& signer,
                                        const std::string& message,
                                        const std::string& signature) override;
+  std::string SignMessage(const SingleSigner& signer,
+                          const std::string& message) override;
+  std::string GetSignerAddress(
+      const SingleSigner& signer,
+      AddressType address_type = AddressType::LEGACY) override;
 
   std::vector<Transaction> GetTransactionHistory(const std::string& wallet_id,
                                                  int count, int skip) override;
@@ -307,6 +312,13 @@ class NunchukImpl : public Nunchuk {
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& master_signer_id, std::string& message,
       std::string& signature, std::string& path) override;
+  SingleSigner GetSignerFromTapsignerMasterSigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& mastersigner_id, const std::string& path) override;
+  std::string SignTapsignerMessage(tap_protocol::Tapsigner* tapsigner,
+                                   const std::string& cvc,
+                                   const SingleSigner& signer,
+                                   const std::string& message) override;
   TapsignerStatus WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
                                 std::function<bool(int)> progress) override;
   void CacheTapsignerMasterSignerXPub(
