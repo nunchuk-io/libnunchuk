@@ -184,6 +184,22 @@ std::string GetPkhDescriptor(const std::string& address) {
   return AddChecksum(desc_without_checksum.str());
 }
 
+std::string GetDescriptor(const SingleSigner& signer,
+                          AddressType address_type) {
+  std::stringstream desc;
+  std::string path = FormalizePath(signer.get_derivation_path());
+  desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
+  desc << (address_type == AddressType::LEGACY    ? "pkh"
+           : address_type == AddressType::TAPROOT ? "tr"
+                                                  : "wpkh");
+  desc << "([" << signer.get_master_fingerprint() << path << "]"
+       << signer.get_xpub() << ")";
+  desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+
+  std::string desc_with_checksum = AddChecksum(desc.str());
+  return desc_with_checksum;
+}
+
 static std::regex SIGNER_REGEX("\\[([0-9a-fA-F]{8})(.+)\\](.+?)(/.*\\*)?\n?");
 
 static std::map<std::string, std::pair<AddressType, WalletType>>

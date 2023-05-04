@@ -1063,6 +1063,13 @@ class NUNCHUK_EXPORT Nunchuk {
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& master_signer_id, std::string& message,
       std::string& signature, std::string& path) = 0;
+  virtual SingleSigner GetSignerFromTapsignerMasterSigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& mastersigner_id, const std::string& path) = 0;
+  virtual std::string SignTapsignerMessage(tap_protocol::Tapsigner* tapsigner,
+                                           const std::string& cvc,
+                                           const SingleSigner& signer,
+                                           const std::string& message) = 0;
   virtual TapsignerStatus WaitTapsigner(tap_protocol::Tapsigner* tapsigner,
                                         std::function<bool(int)> progress) = 0;
   virtual void CacheTapsignerMasterSignerXPub(
@@ -1225,6 +1232,11 @@ class NUNCHUK_EXPORT Nunchuk {
                                                std::string& message,
                                                std::string& signature,
                                                std::string& path) = 0;
+  virtual std::string SignMessage(const SingleSigner& signer,
+                                  const std::string& message) = 0;
+  virtual std::string GetSignerAddress(
+      const SingleSigner& signer,
+      AddressType address_type = AddressType::LEGACY) = 0;
   virtual Transaction SignTransaction(const std::string& wallet_id,
                                       const std::string& tx_id,
                                       const Device& device) = 0;
