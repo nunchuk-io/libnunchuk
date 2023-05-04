@@ -560,7 +560,8 @@ SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
     std::string xpub = hwi_tapsigner_->GetXpubAtPath(path);
     auto signer = storage_->AddSignerToMasterSigner(
         chain_, master_signer_id,
-        SingleSigner({}, xpub, {}, path, master_signer_id, std::time(nullptr)));
+        Utils::SanitizeSingleSigner(SingleSigner(
+            {}, xpub, {}, path, master_signer_id, std::time(nullptr))));
     return signer;
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
