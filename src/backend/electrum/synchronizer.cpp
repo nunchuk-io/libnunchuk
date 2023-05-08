@@ -93,11 +93,12 @@ void ElectrumSynchronizer::Run() {
   });
 }
 
-void ElectrumSynchronizer::UpdateTransactions(Chain chain,
+bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
                                               const std::string& wallet_id,
                                               const json& history) {
   using TS = TransactionStatus;
-  if (!history.is_array()) return;
+  if (!history.is_array()) return false;
+  bool isSynced = true;
   if (client_->support_batch_requests()) {
     std::vector<std::string> txs_hash{};
     std::vector<int> heights{};
@@ -129,6 +130,7 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
         try {
           raw = client_->blockchain_transaction_get(tx_id);
         } catch (...) {
+          isSynced = false;
           continue;
         }
       } else {
@@ -143,9 +145,11 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
       } else {
         storage_->InsertTransaction(chain, wallet_id, raw, height, time, fee);
       }
-      transaction_listener_(tx_id, status, wallet_id);
+      if (status_ == Status::READY) {
+        transaction_listener_(tx_id, status, wallet_id);
+      }
     }
-    return;
+    return isSynced;
   }
 
   for (auto item : history) {
@@ -171,8 +175,11 @@ void ElectrumSynchronizer::UpdateTransactions(Chain chain,
     } else {
       storage_->InsertTransaction(chain, wallet_id, raw, height, time, fee);
     }
-    transaction_listener_(tx_id, status, wallet_id);
+    if (status_ == Status::READY) {
+      transaction_listener_(tx_id, status, wallet_id);
+    }
   }
+  return isSynced;
 }
 
 void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
@@ -307,11 +314,12 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
   if (scripthash_to_wallet_address_.count(scripthash) == 0) return;
   std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
   std::string address = scripthash_to_wallet_address_.at(scripthash).second;
-  json utxo = client_->blockchain_scripthash_listunspent(scripthash);
-  std::string utxostatus = join(std::vector{utxo.dump(), status}, '|');
   json history = client_->blockchain_scripthash_get_history(scripthash);
-  UpdateTransactions(chain, wallet_id, history);
-  storage_->SetUtxos(chain, wallet_id, address, utxostatus);
+  if (UpdateTransactions(chain, wallet_id, history)) {
+    json utxo = client_->blockchain_scripthash_listunspent(scripthash);
+    std::string utxostatus = join(std::vector{utxo.dump(), status}, '|');
+    storage_->SetUtxos(chain, wallet_id, address, utxostatus);
+  }
   if (check_balance) {
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);

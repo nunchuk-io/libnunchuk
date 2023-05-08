@@ -53,7 +53,7 @@ class ElectrumSynchronizer : public Synchronizer {
     STOPPED,
   };
 
-  void UpdateTransactions(Chain chain, const std::string& wallet_id,
+  bool UpdateTransactions(Chain chain, const std::string& wallet_id,
                           const json& history);
   void UpdateScripthashStatus(Chain chain, const std::string& scripthash,
                               const std::string& status,
