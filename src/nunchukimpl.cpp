@@ -586,6 +586,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
                                      id));
   }
 
+  if (deviceType == "ledger") std::replace(path.begin(), path.end(), '\'', 'h');
   Device device{fingerprint};
   std::string xpub;
   try {
@@ -600,7 +601,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   if (existed && signerType == SignerType::HARDWARE &&
-      deviceType != "bitbox02") {
+      deviceType != "bitbox02" && deviceType != "ledger") {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
     if (master_xpub != storage_->GetMasterSignerXPub(chain_, id, "m")) {
       return HealthStatus::KEY_NOT_MATCHED;

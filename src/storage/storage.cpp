@@ -633,15 +633,14 @@ void NunchukStorage::CacheMasterSignerXPub(
   bool is_software = signer_type == SignerType::SOFTWARE;
   bool is_nfc = signer_type == SignerType::NFC;
   bool is_bitbox2 = signer_db.GetDeviceType() == "bitbox02";
+  bool is_ledger = signer_db.GetDeviceType() == "ledger";
 
   int count = 0;
-  auto total =
-      first ? (is_software ? 62 : (is_bitbox2 ? 4 : (is_nfc ? 7 : 8)))
-            : (is_software ? 60 : (is_bitbox2 ? 10 : TOTAL_CACHE_NUMBER));
+  auto total = is_software ? 62 : 12;
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
-  if (first && !is_bitbox2) {
+  if (first && !is_bitbox2 && !is_ledger) {
     auto cachePath = [&](const std::string& path) {
       signer_db.AddXPub(path, getxpub(path), "custom");
       progress(count++ * 100 / total);
@@ -671,11 +670,15 @@ void NunchukStorage::CacheMasterSignerXPub(
     if (index != -1 && w == WalletType::MULTI_SIG) {
       auto xpub = signer_db.GetXpub(w, a, 0);
       if (xpub.empty()) {
-        signer_db.AddXPub(w, a, 0, getxpub(GetBip32Path(chain, w, a, 0)));
+        auto path = GetBip32Path(chain, w, a, 0);
+        if (is_ledger) std::replace(path.begin(), path.end(), '\'', 'h');
+        signer_db.AddXPub(w, a, 0, getxpub(path));
       }
     }
     for (int i = index + 1; i <= index + n; i++) {
-      signer_db.AddXPub(w, a, i, getxpub(GetBip32Path(chain, w, a, i)));
+      auto path = GetBip32Path(chain, w, a, i);
+      if (is_ledger) std::replace(path.begin(), path.end(), '\'', 'h');
+      signer_db.AddXPub(w, a, i, getxpub(path));
       progress(count++ * 100 / total);
     }
   };
@@ -687,6 +690,7 @@ void NunchukStorage::CacheMasterSignerXPub(
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
+  progress(100);
 }
 
 bool NunchukStorage::CacheDefaultMasterSignerXpub(
