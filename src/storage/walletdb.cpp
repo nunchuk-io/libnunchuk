@@ -1034,6 +1034,7 @@ void NunchukWalletDb::ForceRefresh() {
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM VTX;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM ADDRESS;", NULL, 0, NULL));
   addr_cache_.erase(db_file_name_);
+  txs_cache_.erase(db_file_name_);
 }
 
 void NunchukWalletDb::CreateCoinControlTable() {
