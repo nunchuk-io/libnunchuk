@@ -436,7 +436,9 @@ class NUNCHUK_EXPORT Wallet {
   std::string get_descriptor(DescriptorPath key_path, int index = -1,
                              bool sorted = true) const;
   time_t get_last_used() const;
+  int get_gap_limit() const;
   void check_valid() const;
+
   void set_name(const std::string& value);
   void set_n(int n);
   void set_m(int m);
@@ -448,6 +450,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_description(const std::string& value);
   void set_create_date(const time_t value);
   void set_last_used(const time_t value);
+  void set_gap_limit(int value);
 
  private:
   void post_update();
@@ -464,6 +467,7 @@ class NUNCHUK_EXPORT Wallet {
   std::string description_;
   bool strict_{true};
   time_t last_used_{0};
+  int gap_limit_{20};
 };
 
 class NUNCHUK_EXPORT CoinTag {

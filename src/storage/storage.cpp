@@ -820,6 +820,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_balance(wallet.get_balance());
   true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());
   true_wallet.set_last_used(wallet.get_last_used());
+  true_wallet.set_gap_limit(wallet.get_gap_limit());
   return true_wallet;
 }
 
@@ -871,7 +872,8 @@ bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
   return wallet_db.SetName(wallet.get_name()) &&
          wallet_db.SetDescription(wallet.get_description()) &&
-         wallet_db.SetLastUsed(wallet.get_last_used());
+         wallet_db.SetLastUsed(wallet.get_last_used()) && 
+         wallet_db.SetGapLimit(wallet.get_gap_limit());
 }
 
 bool NunchukStorage::UpdateMasterSigner(Chain chain,

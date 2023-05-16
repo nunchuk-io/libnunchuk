@@ -56,9 +56,9 @@ const std::vector<SingleSigner>& Wallet::get_signers() const {
 }
 AddressType Wallet::get_address_type() const { return address_type_; }
 WalletType Wallet::get_wallet_type() const {
-  return is_escrow()
-             ? WalletType::ESCROW
-             : get_n() == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG;
+  return is_escrow()    ? WalletType::ESCROW
+         : get_n() == 1 ? WalletType::SINGLE_SIG
+                        : WalletType::MULTI_SIG;
 }
 bool Wallet::is_escrow() const { return escrow_; }
 Amount Wallet::get_balance() const { return balance_; }
@@ -66,6 +66,7 @@ Amount Wallet::get_unconfirmed_balance() const { return unconfirmed_balance_; }
 time_t Wallet::get_create_date() const { return create_date_; }
 std::string Wallet::get_description() const { return description_; }
 time_t Wallet::get_last_used() const { return last_used_; }
+int Wallet::get_gap_limit() const { return gap_limit_; }
 void Wallet::check_valid() const {
   if (n_ <= 0)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -114,6 +115,7 @@ void Wallet::set_unconfirmed_balance(const Amount& value) {
 void Wallet::set_description(const std::string& value) { description_ = value; }
 void Wallet::set_create_date(const time_t value) { create_date_ = value; }
 void Wallet::set_last_used(const time_t value) { last_used_ = value; }
+void Wallet::set_gap_limit(int value) { gap_limit_ = value; }
 
 std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
                                    bool sorted) const {
@@ -123,7 +125,9 @@ std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
 }
 
 void Wallet::post_update() {
-  id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type());
+  if (signers_.size() > 0) {
+    id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type());
+  }
   if (strict_) {
     check_valid();
   }

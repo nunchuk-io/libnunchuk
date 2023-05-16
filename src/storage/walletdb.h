@@ -44,6 +44,7 @@ class NunchukWalletDb : public NunchukDb {
   bool SetName(const std::string &value);
   bool SetDescription(const std::string &value);
   bool SetLastUsed(time_t value);
+  bool SetGapLimit(int value);
   bool AddAddress(const std::string &address, int index, bool internal);
   Wallet GetWallet(bool skip_balance = false, bool skip_provider = false);
   std::vector<SingleSigner> GetSigners() const;
@@ -67,8 +68,7 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(const std::string &tx_id) const;
   std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
-  std::vector<Transaction> GetTransactions(int count = 1000,
-                                           int skip = 0);
+  std::vector<Transaction> GetTransactions(int count = 1000, int skip = 0);
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance(bool include_mempool);
   std::string FillPsbt(const std::string &psbt);
@@ -108,7 +108,8 @@ class NunchukWalletDb : public NunchukDb {
   bool RemoveFromCoinCollection(int collection_id, const std::string &tx_id,
                                 int vout);
   std::vector<std::string> GetCoinInCollection(int collection_id) const;
-  std::vector<int> GetAddedCollections(const std::string &tx_id, int vout) const;
+  std::vector<int> GetAddedCollections(const std::string &tx_id,
+                                       int vout) const;
   std::string ExportCoinControlData();
   bool ImportCoinControlData(const std::string &data, bool force);
   std::string ExportBIP329();

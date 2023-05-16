@@ -43,7 +43,7 @@ namespace ba = boost::algorithm;
 
 namespace nunchuk {
 
-static const int ADDRESS_LOOK_AHEAD = 20;
+static const int DEFAULT_ADDRESS_LOOK_AHEAD = 20;
 
 std::map<std::string, std::map<std::string, AddressData>>
     NunchukWalletDb::addr_cache_;
@@ -163,6 +163,10 @@ bool NunchukWalletDb::SetLastUsed(time_t value) {
   return PutInt(DbKeys::LAST_USED, value);
 }
 
+bool NunchukWalletDb::SetGapLimit(int value) {
+  return PutInt(DbKeys::GAP_LIMIT, value);
+}
+
 Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
   int m = immutable_data["m"];
@@ -170,11 +174,13 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   AddressType address_type = immutable_data["address_type"];
   bool is_escrow = immutable_data["is_escrow"];
   time_t create_date = immutable_data["create_date"];
+  int gap_limit = GetInt(DbKeys::GAP_LIMIT);
 
   Wallet wallet(id_, m, n, GetSigners(), address_type, is_escrow, create_date);
   wallet.set_name(GetString(DbKeys::NAME));
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
+  wallet.set_gap_limit(gap_limit <= 0 ? DEFAULT_ADDRESS_LOOK_AHEAD : gap_limit);
   if (!skip_balance) {
     wallet.set_balance(GetBalance(false));
     wallet.set_unconfirmed_balance(GetBalance(true));
@@ -277,7 +283,7 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() {
     int index = 0;
     auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
         wallet.get_descriptor(DescriptorPath::INTERNAL_ALL), index,
-        GetCurrentAddressIndex(true) + ADDRESS_LOOK_AHEAD);
+        GetCurrentAddressIndex(true) + wallet.get_gap_limit());
     for (auto&& addr : internal_addr) {
       addresses[addr] = {addr, index++, true, false};
     }
@@ -285,7 +291,7 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() {
     index = 0;
     auto external_addr = CoreUtils::getInstance().DeriveAddresses(
         wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL), index,
-        GetCurrentAddressIndex(false) + ADDRESS_LOOK_AHEAD);
+        GetCurrentAddressIndex(false) + wallet.get_gap_limit());
     for (auto&& addr : external_addr) {
       addresses[addr] = {addr, index++, false, false};
     }

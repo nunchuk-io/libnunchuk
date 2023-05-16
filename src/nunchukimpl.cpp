@@ -203,7 +203,9 @@ bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
 
 bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
   wallet.check_valid();
+
   bool rs = storage_->UpdateWallet(chain_, wallet);
+  ScanWalletAddress(wallet.get_id(), true);
   storage_listener_();
   return rs;
 }
@@ -313,8 +315,8 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
       consecutive_unused++;
     }
     index++;
-    if (consecutive_unused == 20) {
-      index = index - 20;
+    if (consecutive_unused == wallet.get_gap_limit()) {
+      index = index - wallet.get_gap_limit();
       return unused_addresses[0];
     }
   }
@@ -541,8 +543,9 @@ bool NunchukImpl::UpdateRemoteSigner(const SingleSigner& remotesigner) {
 }
 
 std::string NunchukImpl::GetHealthCheckPath() {
-  return (chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
-                                : TESTNET_HEALTH_CHECK_PATH);
+  return (chain_ == Chain::MAIN
+              ? GetDerivationPathView(MAINNET_HEALTH_CHECK_PATH)
+              : GetDerivationPathView(TESTNET_HEALTH_CHECK_PATH));
 }
 
 HealthStatus NunchukImpl::HealthCheckMasterSigner(
