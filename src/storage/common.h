@@ -63,6 +63,7 @@ const int MASTER_XPRV = 20;
 const int SIGNER_TYPE = 21;
 const int LAST_USED = 22;
 const int SIGNER_TAGS = 23;
+const int GAP_LIMIT = 24;
 }  // namespace DbKeys
 
 }  // namespace nunchuk
