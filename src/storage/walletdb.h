@@ -143,6 +143,7 @@ class NunchukWalletDb : public NunchukDb {
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   static std::map<std::string, std::map<int, bool>> collection_auto_lock_;
   static std::map<std::string, std::map<int, bool>> collection_auto_add_;
+  static std::map<std::string, std::map<std::string, Transaction>> txs_cache_;
   friend class NunchukStorage;
 };
 

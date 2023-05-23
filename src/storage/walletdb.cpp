@@ -52,6 +52,8 @@ std::map<std::string, std::map<int, bool>>
     NunchukWalletDb::collection_auto_lock_;
 std::map<std::string, std::map<int, bool>>
     NunchukWalletDb::collection_auto_add_;
+std::map<std::string, std::map<std::string, Transaction>>
+    NunchukWalletDb::txs_cache_;
 
 void NunchukWalletDb::InitWallet(const Wallet& wallet) {
   CreateTable();
@@ -190,6 +192,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
     auto desc = GetDescriptorsImportString(wallet);
     SigningProviderCache::getInstance().PreCalculate(desc);
   }
+  if (!txs_cache_.count(db_file_name_)) txs_cache_[db_file_name_] = {};
   return wallet;
 }
 
@@ -428,6 +431,7 @@ Transaction NunchukWalletDb::InsertTransaction(const std::string& raw_tx,
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
   if (!memo.empty()) UpdateTransactionMemo(tx_id, memo);
+  txs_cache_[db_file_name_].erase(tx_id);
   auto tx = GetTransaction(tx_id);
   AutoAddNewCoins(tx);
   return tx;
@@ -457,6 +461,7 @@ void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
     SQLCHECK(sqlite3_finalize(update_stmt));
   }
   SQLCHECK(sqlite3_finalize(select_stmt));
+  txs_cache_[db_file_name_].erase(old_txid);
 }
 
 bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
@@ -498,6 +503,7 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     sqlite3_step(stmt);
     bool updated = (sqlite3_changes(db_) == 1);
     SQLCHECK(sqlite3_finalize(stmt));
+    txs_cache_[db_file_name_].erase(tx_id);
     if (updated) GetTransaction(tx_id);
     return updated;
   }
@@ -549,6 +555,7 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  txs_cache_[db_file_name_].erase(tx_id);
   if (updated) GetTransaction(tx_id);
   return updated;
 }
@@ -615,6 +622,7 @@ Transaction NunchukWalletDb::CreatePsbt(
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
   if (!memo.empty()) UpdateTransactionMemo(tx_id, memo);
+  txs_cache_[db_file_name_].erase(tx_id);
   auto tx = GetTransaction(tx_id);
   AutoAddNewCoins(tx);
   return tx;
@@ -631,6 +639,7 @@ bool NunchukWalletDb::UpdatePsbt(const std::string& psbt) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  txs_cache_[db_file_name_].erase(tx_id);
   if (updated) GetTransaction(tx_id);
   return updated;
 }
@@ -710,6 +719,9 @@ std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
 }
 
 Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
+  if (txs_cache_[db_file_name_].count(tx_id))
+    return txs_cache_[db_file_name_][tx_id];
+
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -760,6 +772,7 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
       tx.set_memo(memo);
       if (!memo.empty()) UpdateTransactionMemo(tx_id, memo);
     }
+    txs_cache_[db_file_name_][tx_id] = tx;
     return tx;
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -775,6 +788,7 @@ bool NunchukWalletDb::DeleteTransaction(const std::string& tx_id) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  txs_cache_[db_file_name_].erase(tx_id);
   return updated;
 }
 
@@ -810,39 +824,42 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
   std::vector<Transaction> rs;
   while (sqlite3_column_text(stmt, 0)) {
     std::string tx_id = std::string((char*)sqlite3_column_text(stmt, 0));
-    std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
-    int height = sqlite3_column_int(stmt, 2);
-    int64_t fee = sqlite3_column_int64(stmt, 3);
-    std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
-    int change_pos = sqlite3_column_int(stmt, 5);
-    time_t blocktime = sqlite3_column_int64(stmt, 6);
+    if (!txs_cache_[db_file_name_].count(tx_id)) {
+      std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
+      int height = sqlite3_column_int(stmt, 2);
+      int64_t fee = sqlite3_column_int64(stmt, 3);
+      std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
+      int change_pos = sqlite3_column_int(stmt, 5);
+      time_t blocktime = sqlite3_column_int64(stmt, 6);
 
-    json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-    int m = immutable_data["m"];
+      json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
+      int m = immutable_data["m"];
 
-    auto signers = GetSigners();
-    auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
-    tx.set_txid(tx_id);
-    tx.set_m(m);
-    tx.set_fee(Amount(fee));
-    tx.set_fee_rate(0);
-    tx.set_change_index(change_pos);
-    tx.set_blocktime(blocktime);
-    tx.set_schedule_time(-1);
-    tx.set_receive(false);
-    tx.set_sub_amount(0);
-    tx.set_memo(memo);
-    if (is_hex_tx) {
-      tx.set_raw(value);
-    } else {
-      tx.set_psbt(value);
+      auto signers = GetSigners();
+      auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
+      tx.set_txid(tx_id);
+      tx.set_m(m);
+      tx.set_fee(Amount(fee));
+      tx.set_fee_rate(0);
+      tx.set_change_index(change_pos);
+      tx.set_blocktime(blocktime);
+      tx.set_schedule_time(-1);
+      tx.set_receive(false);
+      tx.set_sub_amount(0);
+      tx.set_memo(memo);
+      if (is_hex_tx) {
+        tx.set_raw(value);
+      } else {
+        tx.set_psbt(value);
+      }
+
+      if (sqlite3_column_text(stmt, 7)) {
+        std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
+        FillExtra(extra, tx);
+      }
+      txs_cache_[db_file_name_][tx_id] = tx;
     }
-
-    if (sqlite3_column_text(stmt, 7)) {
-      std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
-      FillExtra(extra, tx);
-    }
-    rs.push_back(tx);
+    rs.push_back(txs_cache_[db_file_name_][tx_id]);
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
@@ -958,6 +975,15 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
 
 // TODO (bakaoh): consider persisting these data
 void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
+  auto allAddr = GetAllAddressData();
+  auto isMyAddress = [&](const std::string& address) {
+    return allAddr.count(address);
+  };
+
+  auto isMyChange = [&](const std::string& address) {
+    return allAddr.count(address) && allAddr.at(address).internal;
+  };
+
   Amount total_amount = 0;
   bool is_send_tx = false;
   for (auto&& input : tx.get_inputs()) {
@@ -967,7 +993,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     } catch (StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) throw;
     }
-    if (IsMyAddress(prev_out.first)) {
+    if (isMyAddress(prev_out.first)) {
       total_amount += prev_out.second;
       is_send_tx = true;
     }
@@ -977,9 +1003,9 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     for (size_t i = 0; i < tx.get_outputs().size(); i++) {
       auto output = tx.get_outputs()[i];
       total_amount -= output.second;
-      if (!IsMyAddress(output.first)) {
+      if (!isMyAddress(output.first)) {
         send_amount += output.second;
-      } else if (tx.get_change_index() < 0 && IsMyChange(output.first)) {
+      } else if (tx.get_change_index() < 0 && isMyChange(output.first)) {
         tx.set_change_index(i);
       }
     }
@@ -994,7 +1020,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
   } else {
     Amount receive_amount{0};
     for (auto&& output : tx.get_outputs()) {
-      if (IsMyAddress(output.first)) {
+      if (isMyAddress(output.first)) {
         receive_amount += output.second;
         tx.add_receive_output(output);
       }
@@ -1008,6 +1034,7 @@ void NunchukWalletDb::ForceRefresh() {
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM VTX;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DELETE FROM ADDRESS;", NULL, 0, NULL));
   addr_cache_.erase(db_file_name_);
+  txs_cache_.erase(db_file_name_);
 }
 
 void NunchukWalletDb::CreateCoinControlTable() {
@@ -1711,6 +1738,15 @@ void NunchukWalletDb::ImportBIP329(const std::string& data) {
 
 std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     const std::vector<Transaction>& transactions) {
+  auto allAddr = GetAllAddressData();
+  auto isMyAddress = [&](const std::string& address) {
+    return allAddr.count(address);
+  };
+
+  auto isMyChange = [&](const std::string& address) {
+    return allAddr.count(address) && allAddr.at(address).internal;
+  };
+
   std::map<std::string, Transaction> tx_map;
   std::map<std::string, std::string> used_by;
   for (auto&& tx : transactions) {
@@ -1742,7 +1778,7 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
       if (tx_map.count(input.first) == 0) continue;
       auto prev_tx = tx_map[input.first];
       auto address = prev_tx.get_outputs()[input.second].first;
-      if (!IsMyAddress(address)) continue;
+      if (!isMyAddress(address)) continue;
       auto id = CoinId(input.first, input.second);
       coins[id].set_txid(input.first);
       coins[id].set_vout(input.second);
@@ -1763,13 +1799,13 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
         set_status(id, CoinStatus::OUTGOING_PENDING_SIGNATURES);
       }
       coins[id].set_memo(prev_tx.get_memo());
-      coins[id].set_change(IsMyChange(address));
+      coins[id].set_change(isMyChange(address));
     }
 
     int nout = tx.get_outputs().size();
     for (int vout = 0; vout < nout; vout++) {
       auto output = tx.get_outputs()[vout];
-      if (!IsMyAddress(output.first)) continue;
+      if (!isMyAddress(output.first)) continue;
       if (tx.get_height() < 0) continue;
       auto id = CoinId(tx.get_txid(), vout);
       coins[id].set_txid(tx.get_txid());
@@ -1782,7 +1818,7 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
                          ? CoinStatus::CONFIRMED
                          : CoinStatus::INCOMING_PENDING_CONFIRMATION);
       coins[id].set_memo(tx.get_memo());
-      coins[id].set_change(IsMyChange(output.first));
+      coins[id].set_change(isMyChange(output.first));
     }
   }
   return coins;
