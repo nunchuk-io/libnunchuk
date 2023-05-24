@@ -449,6 +449,9 @@ class NunchukImpl : public Nunchuk {
       const std::string& wallet_id, const std::string& tx_id,
       int vout) override;
 
+  bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
+              Amount& package_fee_rate) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

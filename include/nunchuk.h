@@ -1204,6 +1204,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
       const std::string& wallet_id, const std::string& tx_id, int vout) = 0;
 
+  virtual bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
+                      Amount& package_fee_rate) = 0;
+
   // Add listener methods
   virtual void AddBalanceListener(
       std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>
