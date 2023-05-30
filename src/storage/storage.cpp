@@ -634,13 +634,13 @@ void NunchukStorage::CacheMasterSignerXPub(
   bool is_nfc = signer_type == SignerType::NFC;
   bool is_bitbox2 = signer_db.GetDeviceType() == "bitbox02";
   bool is_ledger = signer_db.GetDeviceType() == "ledger";
-
+  bool is_trezor = signer_db.GetDeviceType() == "trezor";
   int count = 0;
   auto total = is_software ? 62 : 12;
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
-  if (first && !is_bitbox2 && !is_ledger) {
+  if (first && !is_bitbox2 && !is_ledger && !is_trezor) {
     auto cachePath = [&](const std::string& path) {
       signer_db.AddXPub(path, getxpub(path), "custom");
       progress(count++ * 100 / total);
@@ -872,7 +872,7 @@ bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
   return wallet_db.SetName(wallet.get_name()) &&
          wallet_db.SetDescription(wallet.get_description()) &&
-         wallet_db.SetLastUsed(wallet.get_last_used()) && 
+         wallet_db.SetLastUsed(wallet.get_last_used()) &&
          wallet_db.SetGapLimit(wallet.get_gap_limit());
 }
 

@@ -604,7 +604,8 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   if (existed && signerType == SignerType::HARDWARE &&
-      deviceType != "bitbox02" && deviceType != "ledger") {
+      deviceType != "bitbox02" && deviceType != "ledger" &&
+      deviceType != "trezor") {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
     if (master_xpub != storage_->GetMasterSignerXPub(chain_, id, "m")) {
       return HealthStatus::KEY_NOT_MATCHED;
