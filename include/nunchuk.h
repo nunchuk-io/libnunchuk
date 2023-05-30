@@ -150,6 +150,8 @@ enum class SignerTag {
   PASSPORT,
   SEEDSIGNER,
   COLDCARD,
+  TREZOR,
+  LEDGER,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {

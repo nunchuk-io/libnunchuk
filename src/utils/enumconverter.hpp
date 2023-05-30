@@ -112,6 +112,10 @@ inline std::string SignerTagToStr(nunchuk::SignerTag tag) {
       return "SEEDSIGNER";
     case nunchuk::SignerTag::COLDCARD:
       return "COLDCARD";
+    case nunchuk::SignerTag::TREZOR:
+      return "TREZOR";
+    case nunchuk::SignerTag::LEDGER:
+      return "LEDGER";
   }
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
                                   "Invalid signer tag");
