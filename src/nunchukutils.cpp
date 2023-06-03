@@ -295,13 +295,6 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
                          "Could not parse descriptor");
 }
 
-void u8from32(uint8_t b[4], uint32_t u32) {
-  b[3] = (uint8_t)u32;
-  b[2] = (uint8_t)(u32 >>= 8);
-  b[1] = (uint8_t)(u32 >>= 8);
-  b[0] = (uint8_t)(u32 >>= 8);
-};
-
 Wallet Utils::ParseKeystoneWallet(Chain chain,
                                   const std::vector<std::string>& qr_data) {
   using namespace nunchuk::bcr2;
@@ -337,21 +330,10 @@ Wallet Utils::ParseKeystoneWallet(Chain chain,
     name = s.str();
 
     for (auto&& key : output.outputDescriptors) {
-      std::ostringstream iss;
-      iss << std::setfill('0') << std::setw(8) << std::hex
-          << key.origin.sourceFingerprint;
-      const std::string xfp = iss.str();
-      std::stringstream path;
-      path << "m" << FormatHDKeypath(key.origin.keypath);
-      CExtPubKey xpub{};
-      xpub.chaincode = ChainCode(key.chaincode);
-      xpub.pubkey = CPubKey(key.keydata);
-      xpub.nChild = key.origin.childNumber;
-      xpub.nDepth = key.origin.depth;
-      u8from32(xpub.vchFingerprint, key.parentFingerprint);
-      signers.push_back(SingleSigner(
-          GetSignerNameFromDerivationPath(path.str(), "ImportedKey-"),
-          EncodeExtPubKey(xpub), {}, path.str(), xfp, 0));
+      std::string path = key.get_path();
+      signers.push_back(
+          SingleSigner(GetSignerNameFromDerivationPath(path, "ImportedKey-"),
+                       key.get_xpub(), {}, path, key.get_xfp(), 0));
     }
   } else {  // COLDCARD config format encoded in bytes
     std::vector<char> config;

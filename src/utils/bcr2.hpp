@@ -18,7 +18,15 @@
 #ifndef NUNCHUK_BCR2_H
 #define NUNCHUK_BCR2_H
 
+#include <vector>
+
+#include <nunchuk.h>
 #include <cbor-lite.hpp>
+
+#include <util/bip32.h>
+#include <uint256.h>
+#include <pubkey.h>
+#include <key_io.h>
 
 namespace nunchuk {
 namespace bcr2 {
@@ -98,6 +106,36 @@ struct CryptoHDKey {
   CryptoKeyPath children;
   uint32_t parentFingerprint;
   std::string scriptType;
+
+  void u8from32(uint8_t b[4], uint32_t u32) {
+    b[3] = (uint8_t)u32;
+    b[2] = (uint8_t)(u32 >>= 8);
+    b[1] = (uint8_t)(u32 >>= 8);
+    b[0] = (uint8_t)(u32 >>= 8);
+  }
+
+  std::string get_xfp() {
+    std::ostringstream iss;
+    iss << std::setfill('0') << std::setw(8) << std::hex
+        << origin.sourceFingerprint;
+    return iss.str();
+  }
+
+  std::string get_xpub() {
+    CExtPubKey xpub{};
+    xpub.chaincode = ChainCode(chaincode);
+    xpub.pubkey = CPubKey(keydata);
+    xpub.nChild = origin.childNumber;
+    xpub.nDepth = origin.depth;
+    u8from32(xpub.vchFingerprint, parentFingerprint);
+    return EncodeExtPubKey(xpub);
+  }
+
+  std::string get_path() {
+    std::stringstream path;
+    path << "m" << FormatHDKeypath(origin.keypath);
+    return path.str();
+  }
 };
 
 template <typename InputIterator>
