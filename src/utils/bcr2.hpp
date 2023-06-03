@@ -189,6 +189,93 @@ size_t decodeCryptoAccount(InputIterator& pos, InputIterator end,
   return len;
 }
 
+struct CryptoOutput {
+  AddressType addressType;
+  WalletType walletType;
+  bool isSorted;
+  uint32_t threshold;
+  std::vector<CryptoHDKey> outputDescriptors;
+};
+
+template <typename InputIterator>
+size_t decodeCryptoOutput(InputIterator& pos, InputIterator end,
+                          CryptoOutput& m, Flags flags = Flag::none) {
+  Tag tag;
+  Tag t;
+
+  auto len = decodeTagAndValue(pos, end, tag, t, flags);
+  if (t == 400) {  // sh
+    len += decodeTagAndValue(pos, end, tag, t, flags);
+    if (t == 404) {  // wpkh
+      m.addressType = AddressType::NESTED_SEGWIT;
+      m.walletType = WalletType::SINGLE_SIG;
+    } else if (t == 401) {  // wsh
+      len += decodeTagAndValue(pos, end, tag, t, flags);
+      if (t == 406 || t == 407) {
+        m.addressType = AddressType::NESTED_SEGWIT;
+        m.walletType = WalletType::MULTI_SIG;
+      } else {
+        throw NunchukException(NunchukException::INVALID_FORMAT,
+                               "Not supported");
+      }
+    } else if (t == 406 || t == 407) {  // multi or sortedmulti
+      m.addressType = AddressType::LEGACY;
+      m.walletType = WalletType::MULTI_SIG;
+    } else {
+      throw NunchukException(NunchukException::INVALID_FORMAT, "Not supported");
+    }
+  } else if (t == 403) {  // pkh
+    m.addressType = AddressType::LEGACY;
+    m.walletType = WalletType::SINGLE_SIG;
+  } else if (t == 404) {  // wpkh
+    m.addressType = AddressType::NATIVE_SEGWIT;
+    m.walletType = WalletType::SINGLE_SIG;
+  } else if (t == 401) {  // wsh
+    len += decodeTagAndValue(pos, end, tag, t, flags);
+    if (t == 406 || t == 407) {
+      m.addressType = AddressType::NATIVE_SEGWIT;
+      m.walletType = WalletType::MULTI_SIG;
+    } else {
+      throw NunchukException(NunchukException::INVALID_FORMAT, "Not supported");
+    }
+  }
+
+  if (t == 406 || t == 407) {
+    m.isSorted = (t == 407);
+    size_t nMap = 0;
+    len += decodeMapSize(pos, end, nMap, flags);
+    for (size_t i = 0; i < nMap; i++) {
+      unsigned long key;
+      len += decodeUnsigned(pos, end, key, flags);
+      if (key == 1) {
+        len += decodeUnsigned(pos, end, m.threshold, flags);
+      } else if (key == 2) {
+        size_t nOutputDescriptor = 0;
+        len += decodeArraySize(pos, end, nOutputDescriptor, flags);
+        for (size_t j = 0; j < nOutputDescriptor; j++) {
+          len += decodeTagAndValue(pos, end, tag, t, flags);
+          if (t != 303) {
+            throw NunchukException(NunchukException::INVALID_FORMAT,
+                                   "Not supported");
+          }
+          CryptoHDKey descriptor;
+          len += decodeCryptoHDKey(pos, end, descriptor, flags);
+          m.outputDescriptors.push_back(descriptor);
+        }
+      }
+    }
+  } else {
+    len += decodeTagAndValue(pos, end, tag, t, flags);
+    if (t != 303) {
+      throw NunchukException(NunchukException::INVALID_FORMAT, "Not supported");
+    }
+    CryptoHDKey descriptor;
+    len += decodeCryptoHDKey(pos, end, descriptor, flags);
+    m.outputDescriptors.push_back(descriptor);
+  }
+  return len;
+}
+
 struct CryptoPSBT {
   std::vector<unsigned char> data;
 };

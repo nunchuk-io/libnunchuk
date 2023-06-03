@@ -295,8 +295,17 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
                          "Could not parse descriptor");
 }
 
+void u8from32(uint8_t b[4], uint32_t u32) {
+  b[3] = (uint8_t)u32;
+  b[2] = (uint8_t)(u32 >>= 8);
+  b[1] = (uint8_t)(u32 >>= 8);
+  b[0] = (uint8_t)(u32 >>= 8);
+};
+
 Wallet Utils::ParseKeystoneWallet(Chain chain,
                                   const std::vector<std::string>& qr_data) {
+  using namespace nunchuk::bcr2;
+
   auto decoder = ur::URDecoder();
   for (auto&& part : qr_data) {
     decoder.receive_part(part);
@@ -308,20 +317,52 @@ Wallet Utils::ParseKeystoneWallet(Chain chain,
   auto cbor = decoder.result_ur().cbor();
   auto i = cbor.begin();
   auto end = cbor.end();
-  std::vector<char> config;
-  CborLite::decodeBytes(i, end, config);
-  std::string config_str(config.begin(), config.end());
-
   std::string name;
   AddressType address_type;
   WalletType wallet_type;
   int m;
   int n;
   std::vector<SingleSigner> signers;
-  if (!ParseConfig(chain, config_str, name, address_type, wallet_type, m, n,
-                   signers)) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Could not parse multisig config");
+
+  if (decoder.result_ur().type() == "crypto-output") {  // BCR-2020-010
+    CryptoOutput output{};
+    decodeCryptoOutput(i, end, output);
+
+    address_type = output.addressType;
+    wallet_type = output.walletType;
+    m = output.threshold;
+    n = output.outputDescriptors.size();
+    std::stringstream s;
+    s << "ImportedWallet-" << m << "of" << n;
+    name = s.str();
+
+    for (auto&& key : output.outputDescriptors) {
+      std::ostringstream iss;
+      iss << std::setfill('0') << std::setw(8) << std::hex
+          << key.origin.sourceFingerprint;
+      const std::string xfp = iss.str();
+      std::stringstream path;
+      path << "m" << FormatHDKeypath(key.origin.keypath);
+      CExtPubKey xpub{};
+      xpub.chaincode = ChainCode(key.chaincode);
+      xpub.pubkey = CPubKey(key.keydata);
+      xpub.nChild = key.origin.childNumber;
+      xpub.nDepth = key.origin.depth;
+      u8from32(xpub.vchFingerprint, key.parentFingerprint);
+      signers.push_back(SingleSigner(
+          GetSignerNameFromDerivationPath(path.str(), "ImportedKey-"),
+          EncodeExtPubKey(xpub), {}, path.str(), xfp, 0));
+    }
+  } else {  // COLDCARD config format encoded in bytes
+    std::vector<char> config;
+    CborLite::decodeBytes(i, end, config);
+    std::string config_str(config.begin(), config.end());
+
+    if (!ParseConfig(chain, config_str, name, address_type, wallet_type, m, n,
+                     signers)) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Could not parse multisig config");
+    }
   }
   std::string id = GetWalletId(signers, m, address_type, wallet_type);
   bool is_escrow = wallet_type == WalletType::ESCROW;
