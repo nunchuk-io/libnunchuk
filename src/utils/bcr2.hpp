@@ -280,6 +280,12 @@ size_t decodeCryptoOutput(InputIterator& pos, InputIterator end,
 
   if (t == 406 || t == 407) {
     m.isSorted = (t == 407);
+
+    if (t == 406) {
+      throw NunchukException(
+          NunchukException::INVALID_FORMAT,
+          "Script ‘multi’ is not supported. Please use ‘sortedmulti’.");
+    }
     size_t nMap = 0;
     len += decodeMapSize(pos, end, nMap, flags);
     for (size_t i = 0; i < nMap; i++) {
