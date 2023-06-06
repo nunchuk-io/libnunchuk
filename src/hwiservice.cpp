@@ -110,7 +110,9 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   try {
     bp::ipstream out;
 #ifdef _WIN32
-    bp::child c(cmd_str.c_str(), bp::std_out > out, bp::windows::hide);
+    bp::ipstream err;
+    bp::child c(cmd_str.c_str(), bp::std_out > out, bp::std_err > err,
+                bp::windows::hide);
 #else
     bp::child c(cmd_str.c_str(), bp::std_out > out);
 #endif
