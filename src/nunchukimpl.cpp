@@ -1353,13 +1353,6 @@ Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
   return ImportWalletFromConfig(config_str, description);
 }
 
-void u8from32(uint8_t b[4], uint32_t u32) {
-  b[3] = (uint8_t)u32;
-  b[2] = (uint8_t)(u32 >>= 8);
-  b[1] = (uint8_t)(u32 >>= 8);
-  b[0] = (uint8_t)(u32 >>= 8);
-};
-
 SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   auto decoded = ur::URDecoder::decode(qr_data);
   auto i = decoded.cbor().begin();
@@ -1368,22 +1361,8 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   decodeCryptoAccount(i, end, account);
   CryptoHDKey key = account.outputDescriptors[0];
 
-  CExtPubKey xpub{};
-  xpub.chaincode = ChainCode(key.chaincode);
-  xpub.pubkey = CPubKey(key.keydata);
-  xpub.nChild = key.origin.childNumber;
-  xpub.nDepth = key.origin.depth;
-  u8from32(xpub.vchFingerprint, key.parentFingerprint);
-
-  std::ostringstream iss;
-  iss << std::setfill('0') << std::setw(8) << std::hex
-      << account.masterFingerprint;
-  const std::string xfp = iss.str();
-
-  std::stringstream path;
-  path << "m" << FormatHDKeypath(key.origin.keypath);
-  auto signer =
-      SingleSigner("Keystone", EncodeExtPubKey(xpub), {}, path.str(), xfp, 0);
+  auto signer = SingleSigner("Keystone", key.get_xpub(), {}, key.get_path(),
+                             key.get_xfp(), 0);
   signer.set_type(SignerType::AIRGAP);
   return signer;
 }
@@ -1592,20 +1571,10 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
   const std::string xfp = iss.str();
 
   for (auto&& key : account.outputDescriptors) {
-    CExtPubKey xpub{};
-    xpub.chaincode = ChainCode(key.chaincode);
-    xpub.pubkey = CPubKey(key.keydata);
-    xpub.nChild = key.origin.childNumber;
-    xpub.nDepth = key.origin.depth;
-    u8from32(xpub.vchFingerprint, key.parentFingerprint);
-
-    std::stringstream path;
-    path << "m" << FormatHDKeypath(key.origin.keypath);
-    const std::string derivation_path = path.str();
+    const std::string path = key.get_path();
     signers.emplace_back(SingleSigner(
-        GetSignerNameFromDerivationPath(derivation_path, "SeedSigner-"),
-        EncodeExtPubKey(xpub), {}, derivation_path, xfp, 0, {}, false,
-        SignerType::AIRGAP));
+        GetSignerNameFromDerivationPath(path, "SeedSigner-"), key.get_xpub(),
+        {}, path, key.get_xfp(), 0, {}, false, SignerType::AIRGAP));
   }
 
   if (signers.empty()) {

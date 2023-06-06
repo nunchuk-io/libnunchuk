@@ -18,7 +18,15 @@
 #ifndef NUNCHUK_BCR2_H
 #define NUNCHUK_BCR2_H
 
+#include <vector>
+
+#include <nunchuk.h>
 #include <cbor-lite.hpp>
+
+#include <util/bip32.h>
+#include <uint256.h>
+#include <pubkey.h>
+#include <key_io.h>
 
 namespace nunchuk {
 namespace bcr2 {
@@ -98,6 +106,36 @@ struct CryptoHDKey {
   CryptoKeyPath children;
   uint32_t parentFingerprint;
   std::string scriptType;
+
+  void u8from32(uint8_t b[4], uint32_t u32) {
+    b[3] = (uint8_t)u32;
+    b[2] = (uint8_t)(u32 >>= 8);
+    b[1] = (uint8_t)(u32 >>= 8);
+    b[0] = (uint8_t)(u32 >>= 8);
+  }
+
+  std::string get_xfp() {
+    std::ostringstream iss;
+    iss << std::setfill('0') << std::setw(8) << std::hex
+        << origin.sourceFingerprint;
+    return iss.str();
+  }
+
+  std::string get_xpub() {
+    CExtPubKey xpub{};
+    xpub.chaincode = ChainCode(chaincode);
+    xpub.pubkey = CPubKey(keydata);
+    xpub.nChild = origin.childNumber;
+    xpub.nDepth = origin.depth;
+    u8from32(xpub.vchFingerprint, parentFingerprint);
+    return EncodeExtPubKey(xpub);
+  }
+
+  std::string get_path() {
+    std::stringstream path;
+    path << "m" << FormatHDKeypath(origin.keypath);
+    return path.str();
+  }
 };
 
 template <typename InputIterator>
@@ -185,6 +223,99 @@ size_t decodeCryptoAccount(InputIterator& pos, InputIterator end,
         m.outputDescriptors.push_back(descriptor);
       }
     }
+  }
+  return len;
+}
+
+struct CryptoOutput {
+  AddressType addressType;
+  WalletType walletType;
+  bool isSorted;
+  uint32_t threshold;
+  std::vector<CryptoHDKey> outputDescriptors;
+};
+
+template <typename InputIterator>
+size_t decodeCryptoOutput(InputIterator& pos, InputIterator end,
+                          CryptoOutput& m, Flags flags = Flag::none) {
+  Tag tag;
+  Tag t;
+
+  auto len = decodeTagAndValue(pos, end, tag, t, flags);
+  if (t == 400) {  // sh
+    len += decodeTagAndValue(pos, end, tag, t, flags);
+    if (t == 404) {  // wpkh
+      m.addressType = AddressType::NESTED_SEGWIT;
+      m.walletType = WalletType::SINGLE_SIG;
+    } else if (t == 401) {  // wsh
+      len += decodeTagAndValue(pos, end, tag, t, flags);
+      if (t == 406 || t == 407) {
+        m.addressType = AddressType::NESTED_SEGWIT;
+        m.walletType = WalletType::MULTI_SIG;
+      } else {
+        throw NunchukException(NunchukException::INVALID_FORMAT,
+                               "Not supported");
+      }
+    } else if (t == 406 || t == 407) {  // multi or sortedmulti
+      m.addressType = AddressType::LEGACY;
+      m.walletType = WalletType::MULTI_SIG;
+    } else {
+      throw NunchukException(NunchukException::INVALID_FORMAT, "Not supported");
+    }
+  } else if (t == 403) {  // pkh
+    m.addressType = AddressType::LEGACY;
+    m.walletType = WalletType::SINGLE_SIG;
+  } else if (t == 404) {  // wpkh
+    m.addressType = AddressType::NATIVE_SEGWIT;
+    m.walletType = WalletType::SINGLE_SIG;
+  } else if (t == 401) {  // wsh
+    len += decodeTagAndValue(pos, end, tag, t, flags);
+    if (t == 406 || t == 407) {
+      m.addressType = AddressType::NATIVE_SEGWIT;
+      m.walletType = WalletType::MULTI_SIG;
+    } else {
+      throw NunchukException(NunchukException::INVALID_FORMAT, "Not supported");
+    }
+  }
+
+  if (t == 406 || t == 407) {
+    m.isSorted = (t == 407);
+
+    if (t == 406) {
+      throw NunchukException(
+          NunchukException::INVALID_FORMAT,
+          "Script ‘multi’ is not supported. Please use ‘sortedmulti’.");
+    }
+    size_t nMap = 0;
+    len += decodeMapSize(pos, end, nMap, flags);
+    for (size_t i = 0; i < nMap; i++) {
+      unsigned long key;
+      len += decodeUnsigned(pos, end, key, flags);
+      if (key == 1) {
+        len += decodeUnsigned(pos, end, m.threshold, flags);
+      } else if (key == 2) {
+        size_t nOutputDescriptor = 0;
+        len += decodeArraySize(pos, end, nOutputDescriptor, flags);
+        for (size_t j = 0; j < nOutputDescriptor; j++) {
+          len += decodeTagAndValue(pos, end, tag, t, flags);
+          if (t != 303) {
+            throw NunchukException(NunchukException::INVALID_FORMAT,
+                                   "Not supported");
+          }
+          CryptoHDKey descriptor;
+          len += decodeCryptoHDKey(pos, end, descriptor, flags);
+          m.outputDescriptors.push_back(descriptor);
+        }
+      }
+    }
+  } else {
+    len += decodeTagAndValue(pos, end, tag, t, flags);
+    if (t != 303) {
+      throw NunchukException(NunchukException::INVALID_FORMAT, "Not supported");
+    }
+    CryptoHDKey descriptor;
+    len += decodeCryptoHDKey(pos, end, descriptor, flags);
+    m.outputDescriptors.push_back(descriptor);
   }
   return len;
 }
