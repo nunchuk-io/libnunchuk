@@ -582,6 +582,7 @@ class Transaction {
   std::string get_raw() const;
   std::string get_reject_msg() const;
   time_t get_schedule_time() const;
+  int get_vsize() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -606,6 +607,7 @@ class Transaction {
   void set_raw(const std::string& value);
   void set_reject_msg(const std::string& value);
   void set_schedule_time(time_t value);
+  void set_vsize(int value);
 
  private:
   std::string txid_;
@@ -631,6 +633,7 @@ class Transaction {
   std::string raw_;
   std::string reject_msg_;
   time_t schedule_time_;
+  int vsize_;
 };
 
 class TapsignerStatus {

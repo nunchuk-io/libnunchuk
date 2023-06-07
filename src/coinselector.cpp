@@ -285,7 +285,8 @@ bool CoinSelector::Select(const std::vector<UnspentOutput>& vAvailableCoins,
                           bool subtractFeeFromAmount,
                           std::vector<TxOutput>& vecSend,
                           std::vector<TxInput>& vecInput, CAmount& nFeeRet,
-                          std::string& error, int& nChangePosInOut) {
+                          int& signedVSize, std::string& error,
+                          int& nChangePosInOut) {
   CAmount nValue = 0;
   int nChangePosRequest = nChangePosInOut;
   unsigned int nSubtractFeeFromAmount =
@@ -304,7 +305,6 @@ bool CoinSelector::Select(const std::vector<UnspentOutput>& vAvailableCoins,
 
   CMutableTransaction txNew;
   CAmount nFeeNeeded;
-  int nBytes;
   std::set<CInputCoin> setCoins;
 
   CoinSelectionParams
@@ -442,13 +442,13 @@ bool CoinSelector::Select(const std::vector<UnspentOutput>& vAvailableCoins,
       txNew.vin.push_back(CTxIn(coin.outpoint, CScript()));
     }
 
-    nBytes = CalculateMaximumSignedTxSize(CTransaction(txNew));
-    if (nBytes < 0) {
+    signedVSize = CalculateMaximumSignedTxSize(CTransaction(txNew));
+    if (signedVSize < 0) {
       error = "Signing transaction failed";
       return false;
     }
 
-    nFeeNeeded = fee_rate_.GetFee(nBytes);
+    nFeeNeeded = fee_rate_.GetFee(signedVSize);
     if (nFeeRet >= nFeeNeeded) {
       // Reduce fee to only the needed amount if possible. This
       // prevents potential overpayment in fees if the coins
@@ -463,7 +463,7 @@ bool CoinSelector::Select(const std::vector<UnspentOutput>& vAvailableCoins,
       if (nChangePosInOut == -1 && nSubtractFeeFromAmount == 0 &&
           pick_new_inputs) {
         unsigned int tx_size_with_change =
-            nBytes + coin_selection_params.change_output_size +
+            signedVSize + coin_selection_params.change_output_size +
             2;  // Add 2 as a buffer in case increasing # of outputs changes
                 // compact size
         CAmount fee_needed_with_change = fee_rate_.GetFee(tx_size_with_change);
