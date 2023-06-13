@@ -128,6 +128,8 @@ inline nunchuk::SignerTag SignerTagFromStr(const std::string& tag) {
   if (tag == "PASSPORT") return nunchuk::SignerTag::PASSPORT;
   if (tag == "SEEDSIGNER") return nunchuk::SignerTag::SEEDSIGNER;
   if (tag == "COLDCARD") return nunchuk::SignerTag::COLDCARD;
+  if (tag == "TREZOR") return nunchuk::SignerTag::TREZOR;
+  if (tag == "LEDGER") return nunchuk::SignerTag::LEDGER;
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
                                   "Invalid signer tag");
 }
