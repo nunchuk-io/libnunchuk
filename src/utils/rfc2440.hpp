@@ -45,7 +45,7 @@ inline std::string ExportBitcoinSignedMessage(
       "-----BEGIN BITCOIN SIGNATURE-----\n"
       "%s\n"
       "%s\n"
-      "-----END BITCOIN SIGNED MESSAGE-----");
+      "-----END BITCOIN SIGNATURE-----");
   return strprintf(RFC2440_BITCOIN, signed_msg.message, signed_msg.address,
                    signed_msg.signature);
 }
@@ -56,7 +56,7 @@ inline BitcoinSignedMessage ParseBitcoinSignedMessage(const std::string &str) {
       "(.*)(\\r\\n|\\r|\\n)"
       "-----BEGIN {0,1}(BITCOIN){0,1} SIGNATURE-----(\\r\\n|\\r|\\n)"
       "(.*)(\\r\\n|\\r|\\n| )(.*)(\\r\\n|\\r|\\n)"
-      "-----END BITCOIN SIGNED MESSAGE-----");
+      "-----END BITCOIN (SIGNED MESSAGE|SIGNATURE)-----");
 
   std::smatch sm;
   if (!std::regex_search(str, sm, RFC2440_BITCOIN)) {
