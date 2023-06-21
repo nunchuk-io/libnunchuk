@@ -67,7 +67,8 @@ class CoinSelector {
               const std::vector<UnspentOutput>& presetInputs,
               const std::string& changeAddress, bool subtractFeeFromAmount,
               std::vector<TxOutput>& vecSend, std::vector<TxInput>& vecInput,
-              CAmount& nFeeRet, std::string& error, int& nChangePosInOut);
+              CAmount& nFeeRet, int& signedVSize, std::string& error,
+              int& nChangePosInOut);
 
  private:
   // Since scriptSig and scriptWitness for each descriptor have fixed sizes, we

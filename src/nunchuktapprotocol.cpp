@@ -925,10 +925,11 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   }();
 
   Amount fee = 0;
+  int vsize = 0;
   std::string error;
   int change_pos = 0;
   if (!selector.Select(utxos, utxos, change_address, true, selector_outputs,
-                       selector_inputs, fee, error, change_pos)) {
+                       selector_inputs, fee, vsize, error, change_pos)) {
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR, error);
   }
 
@@ -945,6 +946,7 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(true);
   tx.set_psbt(base64_psbt);
+  tx.set_vsize(vsize);
   return {std::move(tx), std::move(desc)};
 }
 

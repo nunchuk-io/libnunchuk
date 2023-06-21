@@ -246,8 +246,11 @@ std::vector<UnspentOutput> CoreRpcSynchronizer::ListUnspent(
 }
 
 std::string CoreRpcSynchronizer::GetRawTx(const std::string& tx_id) {
-  throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
-                         "Not support for core rpc");
+  if (stopped)
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  auto tx = client_->GetTransaction(tx_id);
+  return tx["hex"];
 }
 
 Transaction CoreRpcSynchronizer::GetTransaction(const std::string& tx_id) {

@@ -449,12 +449,16 @@ class NunchukImpl : public Nunchuk {
       const std::string& wallet_id, const std::string& tx_id,
       int vout) override;
 
+  bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
+              Amount& package_fee_rate) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,
                          const std::vector<UnspentOutput>& inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
-                         bool utxo_update_psbt, Amount& fee, int& change_pos);
+                         bool utxo_update_psbt, Amount& fee, int& vsize,
+                         int& change_pos);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
   void RunScanWalletAddress(const std::string& wallet_id);

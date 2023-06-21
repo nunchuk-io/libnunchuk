@@ -582,6 +582,7 @@ class Transaction {
   std::string get_raw() const;
   std::string get_reject_msg() const;
   time_t get_schedule_time() const;
+  int get_vsize() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -606,6 +607,7 @@ class Transaction {
   void set_raw(const std::string& value);
   void set_reject_msg(const std::string& value);
   void set_schedule_time(time_t value);
+  void set_vsize(int value);
 
  private:
   std::string txid_;
@@ -631,6 +633,7 @@ class Transaction {
   std::string raw_;
   std::string reject_msg_;
   time_t schedule_time_;
+  int vsize_;
 };
 
 class TapsignerStatus {
@@ -1203,6 +1206,9 @@ class NUNCHUK_EXPORT Nunchuk {
                            const std::string& address) = 0;
   virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
       const std::string& wallet_id, const std::string& tx_id, int vout) = 0;
+
+  virtual bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
+                      Amount& package_fee_rate) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

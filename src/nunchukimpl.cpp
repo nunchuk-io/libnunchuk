@@ -750,12 +750,15 @@ Transaction NunchukImpl::CreateTransaction(
     const std::string& memo, const std::vector<UnspentOutput>& inputs,
     Amount fee_rate, bool subtract_fee_from_amount) {
   Amount fee = 0;
+  int vsize = 0;
   int change_pos = 0;
   if (fee_rate <= 0) fee_rate = EstimateFee();
-  auto psbt = CreatePsbt(wallet_id, outputs, inputs, fee_rate,
-                         subtract_fee_from_amount, true, fee, change_pos);
+  auto psbt =
+      CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
+                 true, fee, vsize, change_pos);
   auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt, fee, memo, change_pos,
                                  outputs, fee_rate, subtract_fee_from_amount);
+  rs.set_vsize(vsize);
   storage_listener_();
   return rs;
 }
@@ -1081,10 +1084,11 @@ Transaction NunchukImpl::DraftTransaction(
     const std::vector<UnspentOutput>& inputs, Amount fee_rate,
     bool subtract_fee_from_amount) {
   Amount fee = 0;
+  int vsize = 0;
   int change_pos = 0;
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto psbt = CreatePsbt(wallet_id, outputs, inputs, fee_rate,
-                         subtract_fee_from_amount, false, fee, change_pos);
+                         subtract_fee_from_amount, false, fee, vsize, change_pos);
   Wallet wallet = GetWallet(wallet_id);
   int m = wallet.get_m();
   auto tx = GetTransactionFromPartiallySignedTransaction(
@@ -1103,6 +1107,7 @@ Transaction NunchukImpl::DraftTransaction(
   tx.set_sub_amount(sub_amount);
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(subtract_fee_from_amount);
+  tx.set_vsize(vsize);
   return tx;
 }
 
@@ -1124,12 +1129,15 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   auto inputs = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
 
   Amount fee = 0;
+  int vsize = 0;
   int change_pos = 0;
-  auto psbt = CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
-                         tx.subtract_fee_from_amount(), true, fee, change_pos);
+  auto psbt =
+      CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
+                 tx.subtract_fee_from_amount(), true, fee, vsize, change_pos);
   auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt, fee, tx.get_memo(),
                                  change_pos, outputs, new_fee_rate,
                                  tx.subtract_fee_from_amount(), tx.get_txid());
+  rs.set_vsize(vsize);
   storage_listener_();
   return rs;
 }
@@ -1759,7 +1767,7 @@ std::string NunchukImpl::CreatePsbt(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
     const std::vector<UnspentOutput>& inputs, Amount fee_rate,
     bool subtract_fee_from_amount, bool utxo_update_psbt, Amount& fee,
-    int& change_pos) {
+    int& vsize, int& change_pos) {
   Wallet wallet = GetWallet(wallet_id);
   std::vector<UnspentOutput> utxos = inputs;
   if (utxos.empty()) {
@@ -1767,8 +1775,7 @@ std::string NunchukImpl::CreatePsbt(
     auto check = [&](const UnspentOutput& coin) {
       if (coin.is_locked()) return true;
       if (coin.get_schedule_time() > 0) return true;
-      if (coin.get_status() == CoinStatus::INCOMING_PENDING_CONFIRMATION ||
-          coin.get_status() == CoinStatus::OUTGOING_PENDING_CONFIRMATION)
+      if (coin.get_status() == CoinStatus::OUTGOING_PENDING_CONFIRMATION)
         return true;
       return false;
     };
@@ -1797,7 +1804,7 @@ std::string NunchukImpl::CreatePsbt(
   // For escrow use all utxos as inputs
   if (!selector.Select(utxos, wallet.is_escrow() ? utxos : inputs,
                        change_address, subtract_fee_from_amount,
-                       selector_outputs, selector_inputs, fee, error,
+                       selector_outputs, selector_inputs, fee, vsize, error,
                        change_pos)) {
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
                            error + strprintf(" wallet_id = '%s'", wallet_id));
@@ -1953,6 +1960,41 @@ std::vector<std::vector<UnspentOutput>> NunchukImpl::GetCoinAncestry(
 bool NunchukImpl::IsMyAddress(const std::string& wallet_id,
                               const std::string& address) {
   return storage_->IsMyAddress(chain_, wallet_id, address);
+}
+
+bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,
+                         Amount& package_fee_rate) {
+  bool rs = false;
+  Amount package_fee = tx.get_fee();
+  int64_t package_size = tx.get_vsize();
+  std::vector<UnspentOutput> utxos = GetUnspentOutputs(wallet_id);
+  for (auto&& [txid, vout] : tx.get_inputs()) {
+    for (auto&& coin : utxos) {
+      if (coin.get_txid() == txid && coin.get_vout() == vout) {
+        if (coin.get_height() == 0) {
+          rs = true;
+          auto prev_tx = GetTransaction(wallet_id, txid);
+          auto mtx = DecodeRawTransaction(prev_tx.get_raw());
+          package_size += GetVirtualTransactionSize(CTransaction(mtx));
+
+          Amount prev_input_amount = 0;
+          for (auto&& input : prev_tx.get_inputs()) {
+            auto txin_raw = synchronizer_->GetRawTx(input.first);
+            auto txin = DecodeRawTransaction(txin_raw);
+            prev_input_amount += txin.vout[input.second].nValue;
+          }
+          Amount prev_output_amount = std::accumulate(
+              std::begin(prev_tx.get_outputs()),
+              std::end(prev_tx.get_outputs()), Amount(0),
+              [](Amount acc, const TxOutput& out) { return acc + out.second; });
+          package_fee += prev_input_amount - prev_output_amount;
+        }
+        break;
+      }
+    }
+  }
+  package_fee_rate = std::floor(1000.0 * package_fee / package_size);
+  return rs;
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,

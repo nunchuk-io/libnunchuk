@@ -252,6 +252,13 @@ void send() {
   }
   std::cout << "  Sub total: " << subtotal << std::endl;
   std::cout << "  Fee: " << tx.get_fee() << std::endl;
+  std::cout << "  Fee Rate: " << tx.get_fee_rate() << std::endl;
+  Amount package_fee_rate{0};
+  bool isCpfp = nu.get()->IsCPFP(wallet.get_id(), tx, package_fee_rate);
+  if (isCpfp) {
+    std::cout << "  Package Fee Rate: " << package_fee_rate << std::endl;
+  }
+  
   std::cout << "  Total: " << (subtotal + tx.get_fee()) << "\n\n";
 
   // Sign transaction
