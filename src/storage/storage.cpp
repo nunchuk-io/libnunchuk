@@ -393,8 +393,8 @@ Wallet NunchukStorage::CreateWallet(Chain chain, const Wallet& wallet) {
 }
 
 Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
-  const AddressType address_type = wallet.get_address_type();
-  const WalletType wallet_type = wallet.get_wallet_type();
+  const AddressType at = wallet.get_address_type();
+  const WalletType wt = wallet.get_wallet_type();
 
   const auto save_true_signer = [&](SingleSigner signer) {
     const std::string master_id = signer.get_master_fingerprint();
@@ -402,13 +402,11 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
         chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
 
     if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
-      int index = GetIndexFromPath(signer.get_derivation_path());
-      if (FormalizePath(
-              GetBip32Path(chain, wallet_type, address_type, index)) ==
+      int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
+      if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
           FormalizePath(signer.get_derivation_path())) {
-        signer_db.AddXPub(wallet_type, address_type, index, signer.get_xpub());
-        signer_db.UseIndex(wallet_type, address_type, index);
-
+        signer_db.AddXPub(wt, at, index, signer.get_xpub());
+        signer_db.UseIndex(wt, at, index);
       } else {
         // custom derivation path
         signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
@@ -636,7 +634,7 @@ void NunchukStorage::CacheMasterSignerXPub(
   bool is_ledger = signer_db.GetDeviceType() == "ledger";
   bool is_trezor = signer_db.GetDeviceType() == "trezor";
   int count = 0;
-  auto total = is_software ? 62 : 12;
+  auto total = is_software ? 82 : TOTAL_CACHE_NUMBER;
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
@@ -653,14 +651,20 @@ void NunchukStorage::CacheMasterSignerXPub(
   auto cacheNumber = [&](WalletType w, AddressType a) {
     if (is_software) return 10;
     if (first) return 1;
-    if (w == WalletType::MULTI_SIG) return MULTISIG_CACHE_NUMBER;
     if (w == WalletType::ESCROW && !is_bitbox2) return ESCROW_CACHE_NUMBER;
-    // SINGLE_SIG
-    if (a == AddressType::NATIVE_SEGWIT) return SINGLESIG_BIP84_CACHE_NUMBER;
-    if (a == AddressType::TAPROOT) return SINGLESIG_BIP86_CACHE_NUMBER;
-    if (a == AddressType::NESTED_SEGWIT) return SINGLESIG_BIP49_CACHE_NUMBER;
-    if (a == AddressType::LEGACY && !is_bitbox2)
-      return SINGLESIG_BIP48_CACHE_NUMBER;
+    if (w == WalletType::MULTI_SIG) {
+      if (a == AddressType::NATIVE_SEGWIT) return MULTISIG_BIP48_2_CACHE_NUMBER;
+      if (a == AddressType::NESTED_SEGWIT) return MULTISIG_BIP48_1_CACHE_NUMBER;
+      if (a == AddressType::LEGACY && !is_bitbox2)
+        return MULTISIG_BIP45_CACHE_NUMBER;
+    }
+    if (w == WalletType::SINGLE_SIG) {
+      if (a == AddressType::NATIVE_SEGWIT) return SINGLESIG_BIP84_CACHE_NUMBER;
+      if (a == AddressType::TAPROOT) return SINGLESIG_BIP86_CACHE_NUMBER;
+      if (a == AddressType::NESTED_SEGWIT) return SINGLESIG_BIP49_CACHE_NUMBER;
+      if (a == AddressType::LEGACY && !is_bitbox2)
+        return SINGLESIG_BIP44_CACHE_NUMBER;
+    }
     return 0;
   };
   auto cacheIndex = [&](WalletType w, AddressType a) {
@@ -682,13 +686,13 @@ void NunchukStorage::CacheMasterSignerXPub(
       progress(count++ * 100 / total);
     }
   };
-  cacheIndex(WalletType::MULTI_SIG, AddressType::ANY);
+  cacheIndex(WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT);
+  cacheIndex(WalletType::MULTI_SIG, AddressType::NESTED_SEGWIT);
+  cacheIndex(WalletType::MULTI_SIG, AddressType::LEGACY);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT);
-  if (!is_nfc) {
-    cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
-  }
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
+  if (!is_nfc) cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
   progress(100);
 }
@@ -701,7 +705,9 @@ bool NunchukStorage::CacheDefaultMasterSignerXpub(
       "m",
       chain == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                            : TESTNET_HEALTH_CHECK_PATH,
-      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::ANY, 0),
+      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT, 0),
+      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NESTED_SEGWIT, 0),
+      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::LEGACY, 0),
       GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
                    0),
       GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,

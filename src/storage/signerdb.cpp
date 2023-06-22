@@ -106,6 +106,11 @@ bool NunchukSignerDb::AddXPub(const WalletType& wallet_type,
 
 bool NunchukSignerDb::UseIndex(const WalletType& wallet_type,
                                const AddressType& address_type, int index) {
+  if (wallet_type == WalletType::MULTI_SIG &&
+      address_type == AddressType::LEGACY) {
+    // allow re-use BIP45 signer
+    return true;
+  }
   sqlite3_stmt* stmt;
   std::string sql = "UPDATE BIP32 SET USED = ?1 WHERE PATH = ?2 AND USED = -1;";
   std::string path = GetBip32Path(chain_, wallet_type, address_type, index);
@@ -151,7 +156,8 @@ int NunchukSignerDb::GetUnusedIndex(const WalletType& wallet_type,
   sqlite3_step(stmt);
   int value = -1;
   if (sqlite3_column_text(stmt, 0)) {
-    value = GetIndexFromPath(std::string((char*)sqlite3_column_text(stmt, 0)));
+    auto path = std::string((char*)sqlite3_column_text(stmt, 0));
+    value = GetIndexFromPath(wallet_type, address_type, path);
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return value;
@@ -167,8 +173,8 @@ int NunchukSignerDb::GetCachedIndex(const WalletType& wallet_type,
   sqlite3_step(stmt);
   int value = -1;
   while (sqlite3_column_text(stmt, 0)) {
-    int index =
-        GetIndexFromPath(std::string((char*)sqlite3_column_text(stmt, 0)));
+    auto path = std::string((char*)sqlite3_column_text(stmt, 0));
+    int index = GetIndexFromPath(wallet_type, address_type, path);
     if (index > value) value = index;
     sqlite3_step(stmt);
   }
