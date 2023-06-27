@@ -946,6 +946,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
                                      const std::string& tx_id) = 0;
+  virtual std::string GetRawTransaction(const std::string& wallet_id,
+                                        const std::string& tx_id) = 0;
   virtual bool DeleteTransaction(const std::string& wallet_id,
                                  const std::string& tx_id) = 0;
 

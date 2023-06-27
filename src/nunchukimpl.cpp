@@ -1001,14 +1001,7 @@ std::string NunchukImpl::GetSignerAddress(const SingleSigner& signer,
 
 Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
-  auto [tx_value, is_hex_tx] =
-      storage_->GetPsbtOrRawTx(chain_, wallet_id, tx_id);
-  if (tx_value.empty()) {
-    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
-  }
-  std::string raw_tx = is_hex_tx
-                           ? std::move(tx_value)
-                           : CoreUtils::getInstance().FinalizePsbt(tx_value);
+  std::string raw_tx = GetRawTransaction(wallet_id, tx_id);
   auto tx = DecodeRawTransaction(raw_tx);
   std::string new_txid = tx.GetHash().GetHex();
   std::string reject_msg{};
@@ -1052,6 +1045,17 @@ Transaction NunchukImpl::GetTransaction(const std::string& wallet_id,
   return storage_->GetTransaction(chain_, wallet_id, tx_id);
 }
 
+std::string NunchukImpl::GetRawTransaction(const std::string& wallet_id,
+                                           const std::string& tx_id) {
+  auto [tx_value, is_hex_tx] =
+      storage_->GetPsbtOrRawTx(chain_, wallet_id, tx_id);
+  if (tx_value.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
+  return is_hex_tx ? std::move(tx_value)
+                   : CoreUtils::getInstance().FinalizePsbt(tx_value);
+}
+
 bool NunchukImpl::DeleteTransaction(const std::string& wallet_id,
                                     const std::string& tx_id) {
   auto rs = storage_->DeleteTransaction(chain_, wallet_id, tx_id);
@@ -1087,8 +1091,9 @@ Transaction NunchukImpl::DraftTransaction(
   int vsize = 0;
   int change_pos = 0;
   if (fee_rate <= 0) fee_rate = EstimateFee();
-  auto psbt = CreatePsbt(wallet_id, outputs, inputs, fee_rate,
-                         subtract_fee_from_amount, false, fee, vsize, change_pos);
+  auto psbt =
+      CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
+                 false, fee, vsize, change_pos);
   Wallet wallet = GetWallet(wallet_id);
   int m = wallet.get_m();
   auto tx = GetTransactionFromPartiallySignedTransaction(
