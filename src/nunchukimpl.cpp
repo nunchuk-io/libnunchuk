@@ -777,6 +777,10 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
                                     const std::string& base64_psbt) {
   std::string psbt = boost::trim_copy(base64_psbt);
   std::string tx_id = GetTxIdFromPsbt(psbt);
+
+  auto wallet = GetWallet(wallet_id);
+  auto desc = GetDescriptorsImportString(wallet);
+  auto provider = SigningProviderCache::getInstance().GetProvider(desc);
   try {
     auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
     if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) return tx;
