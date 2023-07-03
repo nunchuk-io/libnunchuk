@@ -650,20 +650,23 @@ void NunchukStorage::CacheMasterSignerXPub(
 
   auto cacheNumber = [&](WalletType w, AddressType a) {
     if (is_software) return 10;
+    if (is_bitbox2) {
+      if (w == WalletType::ESCROW) return 0;
+      if (w == WalletType::MULTI_SIG && a == AddressType::LEGACY) return 0;
+      if (w == WalletType::SINGLE_SIG && a == AddressType::LEGACY) return 0;
+    }
     if (first) return 1;
-    if (w == WalletType::ESCROW && !is_bitbox2) return ESCROW_CACHE_NUMBER;
+    if (w == WalletType::ESCROW) return ESCROW_CACHE_NUMBER;
     if (w == WalletType::MULTI_SIG) {
       if (a == AddressType::NATIVE_SEGWIT) return MULTISIG_BIP48_2_CACHE_NUMBER;
       if (a == AddressType::NESTED_SEGWIT) return MULTISIG_BIP48_1_CACHE_NUMBER;
-      if (a == AddressType::LEGACY && !is_bitbox2)
-        return MULTISIG_BIP45_CACHE_NUMBER;
+      if (a == AddressType::LEGACY) return MULTISIG_BIP45_CACHE_NUMBER;
     }
     if (w == WalletType::SINGLE_SIG) {
       if (a == AddressType::NATIVE_SEGWIT) return SINGLESIG_BIP84_CACHE_NUMBER;
       if (a == AddressType::TAPROOT) return SINGLESIG_BIP86_CACHE_NUMBER;
       if (a == AddressType::NESTED_SEGWIT) return SINGLESIG_BIP49_CACHE_NUMBER;
-      if (a == AddressType::LEGACY && !is_bitbox2)
-        return SINGLESIG_BIP44_CACHE_NUMBER;
+      if (a == AddressType::LEGACY) return SINGLESIG_BIP44_CACHE_NUMBER;
     }
     return 0;
   };
