@@ -1311,6 +1311,7 @@ class NUNCHUK_EXPORT Utils {
   static bool IsValidPublicKey(const std::string& value);
   static bool IsValidDerivationPath(const std::string& value);
   static bool IsValidFingerPrint(const std::string& value);
+  static bool IsDustOutput(const TxOutput& txout);
   static Amount AmountFromValue(const std::string& value,
                                 const bool allow_negative = false);
   static std::string ValueFromAmount(const Amount& amount);

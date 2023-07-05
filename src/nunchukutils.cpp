@@ -38,6 +38,7 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <hash.h>
+#include <policy/policy.h>
 
 #include <ur.h>
 #include <ur-encoder.hpp>
@@ -135,6 +136,12 @@ bool Utils::IsValidDerivationPath(const std::string& value) {
 
 bool Utils::IsValidFingerPrint(const std::string& value) {
   return IsHex(value) && ParseHex(value).size() == 4;
+}
+
+bool Utils::IsDustOutput(const TxOutput& txout) {
+  CScript destScript = GetScriptForDestination(DecodeDestination(txout.first));
+  CTxOut ctxout(txout.second, destScript);
+  return IsDust(ctxout, CFeeRate(DUST_RELAY_TX_FEE));
 }
 
 Amount Utils::AmountFromValue(const std::string& value,
