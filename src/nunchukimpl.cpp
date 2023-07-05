@@ -1626,6 +1626,20 @@ std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
   return ret;
 }
 
+std::vector<std::string> NunchukImpl::ExportBCR2020010Wallet(
+    const std::string& wallet_id, int fragment_len) {
+  Wallet wallet = GetWallet(wallet_id);
+  CryptoOutput co = CryptoOutput::from_wallet(wallet);
+  ur::ByteVector cbor;
+  encodeCryptoOutput(cbor, co);
+  auto encoder = ur::UREncoder(ur::UR("crypto-output", cbor), fragment_len);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(to_upper_copy(encoder.next_part()));
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
+  return parts;
+}
+
 std::string NunchukImpl::ExportBackup() { return storage_->ExportBackup(); }
 
 bool NunchukImpl::SyncWithBackup(const std::string& data,

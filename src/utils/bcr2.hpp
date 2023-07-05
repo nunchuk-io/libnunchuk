@@ -54,6 +54,16 @@ size_t decodeCryptoInfo(InputIterator& pos, InputIterator end, CryptoInfo& m,
   return len;
 }
 
+template <typename Buffer>
+size_t encodeCryptoInfo(Buffer& buffer, const CryptoInfo& m) {
+  auto len = encodeMapSize(buffer, (size_t)2);
+  len += encodeUnsigned(buffer, (unsigned long)1);
+  len += encodeUnsigned(buffer, m.type);
+  len += encodeUnsigned(buffer, (unsigned long)2);
+  len += encodeUnsigned(buffer, m.network);
+  return len;
+}
+
 struct CryptoKeyPath {
   uint32_t sourceFingerprint;
   uint8_t depth;
@@ -97,6 +107,23 @@ size_t decodeCryptoKeyPath(InputIterator& pos, InputIterator end,
   return len;
 }
 
+template <typename Buffer>
+size_t encodeCryptoKeyPath(Buffer& buffer, const CryptoKeyPath& m) {
+  auto len = encodeMapSize(buffer, (size_t)3);
+  len += encodeUnsigned(buffer, (unsigned long)1);
+  len += encodeArraySize(buffer, (size_t)(m.keypath.size() * 2));
+  for (auto&& childIndex : m.keypath) {
+    bool isHardened = (childIndex >> 31);
+    len += encodeUnsigned(buffer, (childIndex << 1) >> 1);
+    len += encodeBool(buffer, isHardened);
+  }
+  len += encodeUnsigned(buffer, (unsigned long)2);
+  len += encodeUnsigned(buffer, m.sourceFingerprint);
+  len += encodeUnsigned(buffer, (unsigned long)3);
+  len += encodeUnsigned(buffer, m.depth);
+  return len;
+}
+
 struct CryptoHDKey {
   bool isPrivate = false;
   std::vector<unsigned char> keydata;
@@ -105,23 +132,24 @@ struct CryptoHDKey {
   CryptoKeyPath origin;
   CryptoKeyPath children;
   uint32_t parentFingerprint;
+  std::string name;
   std::string scriptType;
 
-  void u8from32(uint8_t b[4], uint32_t u32) {
+  void u8from32(uint8_t b[4], uint32_t u32) const {
     b[3] = (uint8_t)u32;
     b[2] = (uint8_t)(u32 >>= 8);
     b[1] = (uint8_t)(u32 >>= 8);
     b[0] = (uint8_t)(u32 >>= 8);
   }
 
-  std::string get_xfp() {
+  std::string get_xfp() const {
     std::ostringstream iss;
     iss << std::setfill('0') << std::setw(8) << std::hex
         << origin.sourceFingerprint;
     return iss.str();
   }
 
-  std::string get_xpub() {
+  std::string get_xpub() const {
     CExtPubKey xpub{};
     xpub.chaincode = ChainCode(chaincode);
     xpub.pubkey = CPubKey(keydata);
@@ -131,10 +159,40 @@ struct CryptoHDKey {
     return EncodeExtPubKey(xpub);
   }
 
-  std::string get_path() {
+  std::string get_path() const {
     std::stringstream path;
     path << "m" << FormatHDKeypath(origin.keypath);
     return path.str();
+  }
+
+  static uint32_t u8to32(uint8_t b[4]) {
+    return (uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 |
+           (uint32_t)b[3];
+  }
+
+  static CryptoHDKey from_signer(const SingleSigner& signer) {
+    auto xpub = DecodeExtPubKey(signer.get_xpub());
+
+    std::vector<uint32_t> keypath;
+    std::string formalized = signer.get_derivation_path();
+    std::replace(formalized.begin(), formalized.end(), 'h', '\'');
+    if (!ParseHDKeypath(formalized, keypath)) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid hd keypath");
+    }
+
+    uint32_t parentFp = u8to32(xpub.vchFingerprint);
+    std::vector<uint8_t> keydata{xpub.pubkey.begin(), xpub.pubkey.end()};
+    std::vector<uint8_t> chaincode{xpub.chaincode.begin(),
+                                   xpub.chaincode.end()};
+    uint32_t sourceFp =
+        u8to32(ParseHex(signer.get_master_fingerprint()).data());
+    std::string name = signer.get_name();
+
+    CryptoInfo ci{
+        0, static_cast<uint32_t>(Utils::GetChain() == Chain::MAIN ? 0 : 1)};
+    CryptoKeyPath ckp{sourceFp, xpub.nDepth, xpub.nChild, keypath};
+    return {false, keydata, chaincode, ci, ckp, {}, parentFp, name};
   }
 };
 
@@ -166,8 +224,32 @@ size_t decodeCryptoHDKey(InputIterator& pos, InputIterator end, CryptoHDKey& m,
       len += decodeCryptoKeyPath(pos, end, m.children, flags);
     } else if (key == 8) {
       len += decodeUnsigned(pos, end, m.parentFingerprint, flags);
+    } else if (key == 9) {
+      len += decodeText(pos, end, m.name, flags);
     }
   }
+  return len;
+}
+
+template <typename Buffer>
+size_t encodeCryptoHDKey(Buffer& buffer, const CryptoHDKey& m) {
+  auto len = encodeMapSize(buffer, (size_t)7);
+  len += encodeUnsigned(buffer, (unsigned long)2);
+  len += encodeBool(buffer, m.isPrivate);
+  len += encodeUnsigned(buffer, (unsigned long)3);
+  len += encodeBytes(buffer, m.keydata);
+  len += encodeUnsigned(buffer, (unsigned long)4);
+  len += encodeBytes(buffer, m.chaincode);
+  len += encodeUnsigned(buffer, (unsigned long)5);
+  len += encodeTagAndValue(buffer, Major::semantic, (Tag)305);
+  len += encodeCryptoInfo(buffer, m.useInfo);
+  len += encodeUnsigned(buffer, (unsigned long)6);
+  len += encodeTagAndValue(buffer, Major::semantic, (Tag)304);
+  len += encodeCryptoKeyPath(buffer, m.origin);
+  len += encodeUnsigned(buffer, (unsigned long)8);
+  len += encodeUnsigned(buffer, m.parentFingerprint);
+  len += encodeUnsigned(buffer, (unsigned long)9);
+  len += encodeText(buffer, m.name);
   return len;
 }
 
@@ -233,6 +315,15 @@ struct CryptoOutput {
   bool isSorted;
   uint32_t threshold;
   std::vector<CryptoHDKey> outputDescriptors;
+
+  static CryptoOutput from_wallet(const Wallet& wallet) {
+    std::vector<CryptoHDKey> outputDescriptors;
+    for (auto&& signer : wallet.get_signers()) {
+      outputDescriptors.push_back(CryptoHDKey::from_signer(signer));
+    }
+    return {wallet.get_address_type(), wallet.get_wallet_type(), true,
+            (uint32_t)wallet.get_m(), outputDescriptors};
+  }
 };
 
 template <typename InputIterator>
@@ -316,6 +407,46 @@ size_t decodeCryptoOutput(InputIterator& pos, InputIterator end,
     CryptoHDKey descriptor;
     len += decodeCryptoHDKey(pos, end, descriptor, flags);
     m.outputDescriptors.push_back(descriptor);
+  }
+  return len;
+}
+
+template <typename Buffer>
+size_t encodeCryptoOutput(Buffer& buffer, const CryptoOutput& m) {
+  size_t len = 0;
+  if (m.walletType == WalletType::SINGLE_SIG) {
+    if (m.addressType == AddressType::LEGACY) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)403);  // pkh
+    } else if (m.addressType == AddressType::NESTED_SEGWIT) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)400);  // sh
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)404);  // wpkh
+    } else if (m.addressType == AddressType::NATIVE_SEGWIT) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)404);  // wpkh
+    }
+    len += encodeTagAndValue(buffer, Major::semantic, (Tag)303);
+    len += encodeCryptoHDKey(buffer, m.outputDescriptors[0]);
+  } else if (m.walletType == WalletType::MULTI_SIG) {
+    if (m.addressType == AddressType::LEGACY) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)400);  // sh
+    } else if (m.addressType == AddressType::NESTED_SEGWIT) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)400);  // sh
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)401);  // wsh
+    } else if (m.addressType == AddressType::NATIVE_SEGWIT) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)401);  // wsh
+    }
+    len += encodeTagAndValue(buffer, Major::semantic, (Tag)407);  // sortedmulti
+    len += encodeMapSize(buffer, (size_t)2);
+    len += encodeUnsigned(buffer, (unsigned long)1);
+    len += encodeUnsigned(buffer, m.threshold);
+    len += encodeUnsigned(buffer, (unsigned long)2);
+    len += encodeArraySize(buffer, (size_t)m.outputDescriptors.size());
+    for (auto&& output : m.outputDescriptors) {
+      len += encodeTagAndValue(buffer, Major::semantic, (Tag)303);
+      len += encodeCryptoHDKey(buffer, output);
+    }
+  } else {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Escrow wallet is not supported.");
   }
   return len;
 }
