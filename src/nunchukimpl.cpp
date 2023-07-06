@@ -782,6 +782,9 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
     auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
     if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) return tx;
     std::string existed_psbt = tx.get_psbt();
+    if (existed_psbt == psbt) {
+      return tx;
+    }
     std::string combined_psbt =
         CoreUtils::getInstance().CombinePsbt({psbt, existed_psbt});
     storage_->UpdatePsbt(chain_, wallet_id, combined_psbt);
