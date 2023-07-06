@@ -190,7 +190,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   if (!skip_provider) {
     GetAllAddressData();  // update range to max address index
     auto desc = GetDescriptorsImportString(wallet);
-    SigningProviderCache::getInstance().PreCalculate(desc);
+    SigningProviderCache::getInstance().GetProvider(desc);
   }
   if (!txs_cache_.count(db_file_name_)) txs_cache_[db_file_name_] = {};
   return wallet;
@@ -722,10 +722,6 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
   if (txs_cache_[db_file_name_].count(tx_id))
     return txs_cache_[db_file_name_][tx_id];
 
-  auto wallet = GetWallet(true);
-  auto desc = GetDescriptorsImportString(wallet);
-  auto provider = SigningProviderCache::getInstance().GetProvider(desc);
-
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -820,10 +816,6 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) {
 }
 
 std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
-  auto wallet = GetWallet(true);
-  auto desc = GetDescriptorsImportString(wallet);
-  auto provider = SigningProviderCache::getInstance().GetProvider(desc);
-
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
