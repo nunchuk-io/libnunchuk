@@ -183,14 +183,19 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
   wallet.set_gap_limit(gap_limit <= 0 ? DEFAULT_ADDRESS_LOOK_AHEAD : gap_limit);
+  if (!skip_provider) {
+    GetAllAddressData(false);  // update range to max address index
+    auto desc = GetDescriptorsImportString(wallet);
+    SigningProviderCache::getInstance().GetProvider(desc);
+    // workaround for GetTransactionFromPartiallySignedTransaction bug
+    auto txs = GetTransactions();
+    for (auto&& tx : txs) {
+      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    }
+  }
   if (!skip_balance) {
     wallet.set_balance(GetBalance(false));
     wallet.set_unconfirmed_balance(GetBalance(true));
-  }
-  if (!skip_provider) {
-    GetAllAddressData();  // update range to max address index
-    auto desc = GetDescriptorsImportString(wallet);
-    SigningProviderCache::getInstance().GetProvider(desc);
   }
   if (!txs_cache_.count(db_file_name_)) txs_cache_[db_file_name_] = {};
   return wallet;
@@ -272,7 +277,8 @@ bool NunchukWalletDb::IsMyChange(const std::string& address) {
   return all.count(address) && all.at(address).internal;
 }
 
-std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() {
+std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData(
+    bool check_used) {
   if (addr_cache_.count(db_file_name_)) {
     return addr_cache_[db_file_name_];
   }
@@ -301,9 +307,11 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData() {
     SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   }
   addr_cache_.insert({db_file_name_, std::move(addresses)});
-  auto txs = GetTransactions();
-  for (auto&& tx : txs) {
-    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+  if (check_used) {
+    auto txs = GetTransactions();
+    for (auto&& tx : txs) {
+      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    }
   }
   return addr_cache_[db_file_name_];
 }

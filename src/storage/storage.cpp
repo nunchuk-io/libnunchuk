@@ -814,7 +814,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                                  bool create_signers_if_not_exist) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
-  Wallet wallet = wallet_db.GetWallet();
+  Wallet wallet = wallet_db.GetWallet(false, true);
 
   std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {
@@ -1164,7 +1164,9 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallets = ListWallets0(chain);
   for (auto&& wallet_id : wallets) {
-    GetWalletDb(chain, wallet_id).MaybeMigrate();
+    auto wallet_db = GetWalletDb(chain, wallet_id);
+    wallet_db.MaybeMigrate();
+    wallet_db.GetWallet(true, false);
   }
   auto signers = ListMasterSigners0(chain);
   for (auto&& signer_id : signers) {
@@ -1175,11 +1177,6 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
   auto appstate = GetAppStateDb(chain);
   int64_t current_ver = appstate.GetStorageVersion();
   if (current_ver == STORAGE_VER) return;
-  if (current_ver < 3) {
-    for (auto&& wallet_id : wallets) {
-      GetWalletDb(chain, wallet_id).GetWallet(true, true);
-    }
-  }
   DLOG_F(INFO, "NunchukAppStateDb migrate to version %d", STORAGE_VER);
   appstate.SetStorageVersion(STORAGE_VER);
 }

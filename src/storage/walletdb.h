@@ -128,7 +128,7 @@ class NunchukWalletDb : public NunchukDb {
   void SetReplacedBy(const std::string &old_txid, const std::string &new_txid);
   std::string GetSingleSignerKey(const SingleSigner &signer);
   bool AddSigner(const SingleSigner &signer);
-  std::map<std::string, AddressData> GetAllAddressData();
+  std::map<std::string, AddressData> GetAllAddressData(bool check_used = true);
   std::map<int, bool> GetAutoLockData() const;
   std::map<int, bool> GetAutoAddData() const;
   void AutoAddNewCoins(const Transaction &tx);
