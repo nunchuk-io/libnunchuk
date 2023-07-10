@@ -380,6 +380,16 @@ bool NunchukSignerDb::DeleteRemoteSigner(const std::string& path) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
+  if (updated && !IsMaster()) {
+    sql = "SELECT COUNT(*) FROM REMOTE";
+    sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_step(stmt);
+    int count = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+    if (count == 0) {
+      DeleteSigner();
+    }
+  }
   return updated;
 }
 
