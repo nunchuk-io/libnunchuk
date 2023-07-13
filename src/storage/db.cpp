@@ -64,6 +64,9 @@ std::string NunchukDb::GetId() const { return GetString(DbKeys::ID); }
 void NunchukDb::DropTable() {
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS VSTR;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS VINT;", NULL, 0, NULL));
+
+  vstr_cache_[db_file_name_].clear();
+  vint_cache_[db_file_name_].clear();
 }
 
 void NunchukDb::ReKey(const std::string& new_passphrase) {
