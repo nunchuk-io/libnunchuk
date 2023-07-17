@@ -875,6 +875,8 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
   for (auto&& tx : rs) {
     if (all_memo.count(tx.get_txid())) {
       tx.set_memo(all_memo[tx.get_txid()]);
+      txs_cache_[db_file_name_][tx.get_txid()].set_memo(
+          all_memo[tx.get_txid()]);
     } else if (!tx.get_memo().empty()) {
       UpdateTransactionMemo(tx.get_txid(), tx.get_memo());
     }
