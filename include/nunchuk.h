@@ -152,6 +152,7 @@ enum class SignerTag {
   COLDCARD,
   TREZOR,
   LEDGER,
+  BITBOX,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
