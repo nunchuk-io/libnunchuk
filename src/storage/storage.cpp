@@ -655,6 +655,10 @@ void NunchukStorage::CacheMasterSignerXPub(
       if (w == WalletType::MULTI_SIG && a == AddressType::LEGACY) return 0;
       if (w == WalletType::SINGLE_SIG && a == AddressType::LEGACY) return 0;
     }
+    if (is_ledger) {
+      if (w == WalletType::ESCROW) return 0;
+      if (w == WalletType::MULTI_SIG && a == AddressType::LEGACY) return 0;
+    }
     if (first) return 1;
     if (w == WalletType::ESCROW) return ESCROW_CACHE_NUMBER;
     if (w == WalletType::MULTI_SIG) {
