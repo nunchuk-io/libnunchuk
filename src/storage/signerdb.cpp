@@ -193,6 +193,10 @@ bool NunchukSignerDb::SetTags(const std::vector<SignerTag>& value) {
   return PutString(DbKeys::SIGNER_TAGS, json_tags.dump());
 }
 
+bool NunchukSignerDb::SetVisible(bool value) {
+  return PutString(DbKeys::VISIBLE, value ? "true" : "false");
+}
+
 bool NunchukSignerDb::SetLastHealthCheck(time_t value) {
   return PutInt(DbKeys::LAST_HEALTH_CHECK, value);
 }
@@ -224,6 +228,14 @@ std::vector<SignerTag> NunchukSignerDb::GetTags() const {
     tags.emplace_back(SignerTagFromStr(tag));
   }
   return tags;
+}
+
+bool NunchukSignerDb::IsVisible() const {
+  std::string visible = GetString(DbKeys::VISIBLE);
+  if (visible.empty()) {
+    return true;
+  }
+  return visible == "true" ? true : false;
 }
 
 time_t NunchukSignerDb::GetLastHealthCheck() const {
@@ -361,7 +373,7 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     time_t last_health_check = sqlite3_column_int64(stmt, 3);
     bool used = sqlite3_column_int(stmt, 4) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
-                        used, GetSignerType(), GetTags());
+                        used, GetSignerType(), GetTags(), IsVisible());
     SQLCHECK(sqlite3_finalize(stmt));
     return signer;
   } else {
@@ -453,8 +465,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     time_t last_health_check = sqlite3_column_int64(stmt, 4);
     bool used = sqlite3_column_int(stmt, 5) == 1;
     SingleSigner signer(name, xpub, pubkey, path, id_, last_health_check, {},
-                        used, GetSignerType());
-    signer.set_tags(GetTags());
+                        used, GetSignerType(), GetTags(), IsVisible());
     if (signer.get_type() != SignerType::UNKNOWN) {
       signers.push_back(signer);
     }
@@ -482,7 +493,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
     std::string path = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
     SingleSigner signer(name, xpub, "", path, master_fingerprint,
-                        last_health_check, id_, true, signer_type, GetTags());
+                        last_health_check, id_, true, signer_type, GetTags(), IsVisible());
     signers.push_back(signer);
     sqlite3_step(stmt);
   }

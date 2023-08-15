@@ -47,6 +47,8 @@ void MasterSigner::set_tags(std::vector<SignerTag> tags) {
   std::sort(tags_.begin(), tags_.end());
   tags_.erase(std::unique(tags_.begin(), tags_.end()), tags_.end());
 }
+void MasterSigner::set_visible(bool value) { visible_ = value; }
 bool MasterSigner::is_nfc() const { return type_ == SignerType::NFC; }
+bool MasterSigner::is_visible() const { return visible_; }
 
 }  // namespace nunchuk
