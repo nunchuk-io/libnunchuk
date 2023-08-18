@@ -1800,4 +1800,36 @@ std::vector<std::vector<UnspentOutput>> NunchukStorage::GetAncestry(
   return GetWalletDb(chain, wallet_id).GetAncestry(tx_id, vout);
 }
 
+Transaction NunchukStorage::ImportDummyTx(
+    Chain chain, const std::string& wallet_id, const std::string& body,
+    const std::vector<std::string>& tokens) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).ImportDummyTx(body, tokens);
+}
+
+Transaction NunchukStorage::SaveDummyTxRequestToken(
+    Chain chain, const std::string& wallet_id, const std::string& body,
+    const std::string& token) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).SaveDummyTxRequestToken(body, token);
+}
+
+bool NunchukStorage::DeleteDummyTx(Chain chain, const std::string& wallet_id,
+                                   const std::string& tx_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).DeleteDummyTx(tx_id);
+}
+
+std::map<std::string, bool> NunchukStorage::GetDummyTxRequestToken(
+    Chain chain, const std::string& wallet_id, const std::string& tx_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetDummyTxRequestToken(tx_id);
+}
+
+std::vector<Transaction> NunchukStorage::GetDummyTxs(
+    Chain chain, const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetDummyTxs();
+}
+
 }  // namespace nunchuk

@@ -259,6 +259,19 @@ class NunchukStorage {
       Chain chain, const std::string &wallet_id, const std::string &tx_id,
       int vout);
 
+  Transaction ImportDummyTx(Chain chain, const std::string &wallet_id,
+                            const std::string &body,
+                            const std::vector<std::string> &tokens);
+  Transaction SaveDummyTxRequestToken(Chain chain, const std::string &wallet_id,
+                                      const std::string &body,
+                                      const std::string &token);
+  bool DeleteDummyTx(Chain chain, const std::string &wallet_id,
+                     const std::string &tx_id);
+  std::map<std::string, bool> GetDummyTxRequestToken(
+      Chain chain, const std::string &wallet_id, const std::string &tx_id);
+  std::vector<Transaction> GetDummyTxs(Chain chain,
+                                       const std::string &wallet_id);
+
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
   static std::shared_mutex access_;

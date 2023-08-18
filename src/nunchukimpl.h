@@ -457,6 +457,17 @@ class NunchukImpl : public Nunchuk {
   bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
               Amount& package_fee_rate) override;
 
+  // Dummy transaction
+  Transaction ImportDummyTx(const std::string& dummy_transaction) override;
+  Transaction SaveDummyTxRequestToken(const std::string& wallet_id,
+                                      const std::string& body,
+                                      const std::string& token) override;
+  bool DeleteDummyTx(const std::string& wallet_id,
+                     const std::string& tx_id) override;
+  std::map<std::string, bool> GetDummyTxRequestToken(
+      const std::string& wallet_id, const std::string& tx_id) override;
+  std::vector<Transaction> GetDummyTxs(const std::string& wallet_id) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

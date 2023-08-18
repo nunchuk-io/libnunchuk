@@ -19,7 +19,7 @@
 #define NUNCHUK_STORAGE_COMMON_H
 
 #define SQLITE_HAS_CODEC
-#define STORAGE_VER 4
+#define STORAGE_VER 5
 #define HAVE_CONFIG_H
 #ifdef NDEBUG
 #undef NDEBUG

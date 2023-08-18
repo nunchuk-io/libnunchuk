@@ -99,6 +99,7 @@ void NunchukWalletDb::InitWallet(const Wallet& wallet) {
     AddSigner(signer);
   }
   CreateCoinControlTable();
+  CreateDummyTxTable();
 }
 
 void NunchukWalletDb::MaybeMigrate() {
@@ -113,6 +114,9 @@ void NunchukWalletDb::MaybeMigrate() {
   }
   if (current_ver < 4) {
     CreateCoinControlTable();
+  }
+  if (current_ver < 5) {
+    CreateDummyTxTable();
   }
   DLOG_F(INFO, "NunchukWalletDb migrate to version %d", STORAGE_VER);
   PutInt(DbKeys::VERSION, STORAGE_VER);
@@ -729,6 +733,9 @@ std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
 Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
   if (txs_cache_[db_file_name_].count(tx_id))
     return txs_cache_[db_file_name_][tx_id];
+  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
+  int m = immutable_data["m"];
+  auto signers = GetSigners();
 
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
@@ -743,10 +750,6 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
     int change_pos = sqlite3_column_int(stmt, 5);
     time_t blocktime = sqlite3_column_int64(stmt, 6);
 
-    json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-    int m = immutable_data["m"];
-
-    auto signers = GetSigners();
     auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
     tx.set_txid(tx_id);
     tx.set_m(m);
@@ -824,6 +827,10 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) {
 }
 
 std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
+  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
+  int m = immutable_data["m"];
+  auto signers = GetSigners();
+
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -840,10 +847,6 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
       int change_pos = sqlite3_column_int(stmt, 5);
       time_t blocktime = sqlite3_column_int64(stmt, 6);
 
-      json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-      int m = immutable_data["m"];
-
-      auto signers = GetSigners();
       auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
       tx.set_txid(tx_id);
       tx.set_m(m);
@@ -1077,6 +1080,16 @@ void NunchukWalletDb::CreateCoinControlTable() {
                         "COIN TEXT PRIMARY KEY   NOT NULL,"
                         "MEMO            TEXT    NOT NULL,"
                         "LOCKED          INT     NOT NULL);",
+                        NULL, 0, NULL));
+}
+
+void NunchukWalletDb::CreateDummyTxTable() {
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS DUMMYTX("
+                        "ID TEXT PRIMARY KEY     NOT NULL,"
+                        "PSBT            TEXT    NOT NULL,"
+                        "STOKEN          TEXT    NOT NULL,"
+                        "LTOKEN          TEXT    NOT NULL);",
                         NULL, 0, NULL));
 }
 
@@ -1898,6 +1911,181 @@ time_t NunchukWalletDb::GetLastModified() const {
 
 bool NunchukWalletDb::SetLastModified(time_t value) {
   return PutInt(DbKeys::SYNC_TS, value);
+}
+
+Transaction NunchukWalletDb::ImportDummyTx(
+    const std::string& body, const std::vector<std::string>& tokens) {
+  auto wallet = GetWallet(true, true);
+  std::string psbt = Utils::GetHealthCheckDummyTx(wallet, body);
+
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "INSERT INTO DUMMYTX(ID, PSBT, STOKEN, LTOKEN)"
+      "VALUES (?1, ?2, ?3, '')"
+      "ON CONFLICT(ID) DO UPDATE SET STOKEN=excluded.STOKEN;";
+  std::string tx_id = GetTxIdFromPsbt(psbt);
+  std::string stoken = join(tokens, ',');
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 2, psbt.c_str(), psbt.size(), NULL);
+  sqlite3_bind_text(stmt, 3, stoken.c_str(), stoken.size(), NULL);
+  sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return GetDummyTx(tx_id);
+}
+
+Transaction NunchukWalletDb::SaveDummyTxRequestToken(const std::string& body,
+                                                     const std::string& token) {
+  auto wallet = GetWallet(true, true);
+  std::string psbt = Utils::GetHealthCheckDummyTx(wallet, body);
+  std::string tx_id = GetTxIdFromPsbt(psbt);
+  std::vector<std::string> local_tokens{};
+  {
+    sqlite3_stmt* stmt;
+    std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+    sqlite3_step(stmt);
+    std::map<std::string, bool> rs;
+    if (sqlite3_column_text(stmt, 0)) {
+      std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
+      local_tokens = split(ltoken, ',');
+    }
+    SQLCHECK(sqlite3_finalize(stmt));
+  }
+  local_tokens.push_back(token);
+
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "INSERT INTO DUMMYTX(ID, PSBT, STOKEN, LTOKEN)"
+      "VALUES (?1, ?2, '', ?3)"
+      "ON CONFLICT(ID) DO UPDATE SET LTOKEN=excluded.LTOKEN;";
+  std::string ltoken = join(local_tokens, ',');
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 2, psbt.c_str(), psbt.size(), NULL);
+  sqlite3_bind_text(stmt, 3, ltoken.c_str(), ltoken.size(), NULL);
+  sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return GetDummyTx(tx_id);
+}
+
+bool NunchukWalletDb::DeleteDummyTx(const std::string& tx_id) {
+  sqlite3_stmt* stmt;
+  std::string sql = "DELETE FROM DUMMYTX WHERE ID = ?;";
+  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return updated;
+}
+
+std::map<std::string, bool> NunchukWalletDb::GetDummyTxRequestToken(
+    const std::string& tx_id) {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_step(stmt);
+  std::map<std::string, bool> rs;
+  if (sqlite3_column_text(stmt, 0)) {
+    std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
+    std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
+    auto server_tokens = split(stoken, ',');
+    auto local_tokens = split(ltoken, ',');
+    for (auto&& token : local_tokens) rs[token] = false;
+    for (auto&& token : server_tokens) rs[token] = true;
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
+}
+
+std::vector<Transaction> NunchukWalletDb::GetDummyTxs() {
+  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
+  int m = immutable_data["m"];
+  auto signers = GetSigners();
+
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT * FROM DUMMYTX;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_step(stmt);
+
+  std::vector<Transaction> rs;
+  while (sqlite3_column_text(stmt, 0)) {
+    std::string tx_id = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string psbt = std::string((char*)sqlite3_column_text(stmt, 1));
+    std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
+    std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
+
+    auto tx = GetTransactionFromCMutableTransaction(DecodePsbt(psbt).tx.value(),
+                                                    signers, -1);
+    tx.set_m(m);
+    tx.set_fee(150);
+    tx.set_sub_amount(10000);
+    tx.set_change_index(-1);
+    tx.set_subtract_fee_from_amount(false);
+    tx.set_psbt(psbt);
+    tx.set_receive(false);
+    auto server_tokens = split(stoken, ',');
+    auto local_tokens = split(ltoken, ',');
+    for (auto&& token : server_tokens) {
+      auto pair = split(token, '.');
+      tx.set_signer(pair[0], true);
+    }
+    for (auto&& token : local_tokens) {
+      auto pair = split(token, '.');
+      tx.set_signer(pair[0], true);
+    }
+    rs.push_back(tx);
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
+}
+
+Transaction NunchukWalletDb::GetDummyTx(const std::string& tx_id) {
+  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
+  int m = immutable_data["m"];
+  auto signers = GetSigners();
+
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_step(stmt);
+  std::map<std::string, bool> rs;
+  if (sqlite3_column_text(stmt, 0)) {
+    std::string tx_id = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string psbt = std::string((char*)sqlite3_column_text(stmt, 1));
+    std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
+    std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
+
+    auto tx = GetTransactionFromCMutableTransaction(DecodePsbt(psbt).tx.value(),
+                                                    signers, -1);
+    tx.set_m(m);
+    tx.set_fee(150);
+    tx.set_sub_amount(10000);
+    tx.set_change_index(-1);
+    tx.set_subtract_fee_from_amount(false);
+    tx.set_psbt(psbt);
+    tx.set_receive(false);
+    auto server_tokens = split(stoken, ',');
+    auto local_tokens = split(ltoken, ',');
+    for (auto&& token : server_tokens) {
+      auto pair = split(token, '.');
+      tx.set_signer(pair[0], true);
+    }
+    for (auto&& token : local_tokens) {
+      auto pair = split(token, '.');
+      tx.set_signer(pair[0], true);
+    }
+    SQLCHECK(sqlite3_finalize(stmt));
+    return tx;
+  } else {
+    SQLCHECK(sqlite3_finalize(stmt));
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
 }
 
 }  // namespace nunchuk

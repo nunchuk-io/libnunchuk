@@ -1216,6 +1216,18 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
                       Amount& package_fee_rate) = 0;
 
+  // Dummy transaction
+  virtual Transaction ImportDummyTx(const std::string& dummy_transaction) = 0;
+  virtual Transaction SaveDummyTxRequestToken(const std::string& wallet_id,
+                                              const std::string& body,
+                                              const std::string& token) = 0;
+  virtual bool DeleteDummyTx(const std::string& wallet_id,
+                             const std::string& tx_id) = 0;
+  virtual std::map<std::string, bool> GetDummyTxRequestToken(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+  virtual std::vector<Transaction> GetDummyTxs(
+      const std::string& wallet_id) = 0;
+
   // Add listener methods
   virtual void AddBalanceListener(
       std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>
