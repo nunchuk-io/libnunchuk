@@ -543,10 +543,18 @@ bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
   if (!fs::exists(db_file)) return false;
   NunchukSignerDb signer_db{chain, id, db_file.string(), passphrase_};
   if (signer_db.IsMaster()) return true;
-  auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
-  return remote.get_type() != SignerType::UNKNOWN &&
-         remote.get_xpub() == signer.get_xpub() &&
-         remote.get_public_key() == signer.get_public_key();
+  try {
+    auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
+    return remote.get_type() != SignerType::UNKNOWN &&
+           remote.get_xpub() == signer.get_xpub() &&
+           remote.get_public_key() == signer.get_public_key();
+
+  } catch (StorageException& e) {
+    if (e.code() != StorageException::SIGNER_NOT_FOUND) {
+      throw;
+    }
+    return false;
+  }
 }
 
 SingleSigner NunchukStorage::GetSignerFromMasterSigner(
