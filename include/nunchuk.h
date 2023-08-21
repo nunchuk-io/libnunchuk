@@ -1217,15 +1217,17 @@ class NUNCHUK_EXPORT Nunchuk {
                       Amount& package_fee_rate) = 0;
 
   // Dummy transaction
-  virtual Transaction ImportDummyTx(const std::string& dummy_transaction) = 0;
-  virtual Transaction SaveDummyTxRequestToken(const std::string& wallet_id,
-                                              const std::string& body,
-                                              const std::string& token) = 0;
+  virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(
+      const std::string& dummy_transaction) = 0;
+  virtual bool SaveDummyTxRequestToken(const std::string& wallet_id,
+                                       const std::string& id,
+                                       const std::string& token) = 0;
   virtual bool DeleteDummyTx(const std::string& wallet_id,
-                             const std::string& tx_id) = 0;
-  virtual std::map<std::string, bool> GetDummyTxRequestToken(
-      const std::string& wallet_id, const std::string& tx_id) = 0;
-  virtual std::vector<Transaction> GetDummyTxs(
+                             const std::string& id) = 0;
+  virtual std::map<std::string /* token */, bool /* sent */>
+  GetDummyTxRequestToken(const std::string& wallet_id,
+                         const std::string& id) = 0;
+  virtual std::map<std::string /* id */, Transaction> GetDummyTxs(
       const std::string& wallet_id) = 0;
 
   // Add listener methods

@@ -1801,32 +1801,32 @@ std::vector<std::vector<UnspentOutput>> NunchukStorage::GetAncestry(
 }
 
 Transaction NunchukStorage::ImportDummyTx(
-    Chain chain, const std::string& wallet_id, const std::string& body,
-    const std::vector<std::string>& tokens) {
+    Chain chain, const std::string& wallet_id, const std::string& id,
+    const std::string& body, const std::vector<std::string>& tokens) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).ImportDummyTx(body, tokens);
+  return GetWalletDb(chain, wallet_id).ImportDummyTx(id, body, tokens);
 }
 
-Transaction NunchukStorage::SaveDummyTxRequestToken(
-    Chain chain, const std::string& wallet_id, const std::string& body,
+bool NunchukStorage::SaveDummyTxRequestToken(
+    Chain chain, const std::string& wallet_id, const std::string& id,
     const std::string& token) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).SaveDummyTxRequestToken(body, token);
+  return GetWalletDb(chain, wallet_id).SaveDummyTxRequestToken(id, token);
 }
 
 bool NunchukStorage::DeleteDummyTx(Chain chain, const std::string& wallet_id,
-                                   const std::string& tx_id) {
+                                   const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).DeleteDummyTx(tx_id);
+  return GetWalletDb(chain, wallet_id).DeleteDummyTx(id);
 }
 
 std::map<std::string, bool> NunchukStorage::GetDummyTxRequestToken(
-    Chain chain, const std::string& wallet_id, const std::string& tx_id) {
+    Chain chain, const std::string& wallet_id, const std::string& id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).GetDummyTxRequestToken(tx_id);
+  return GetWalletDb(chain, wallet_id).GetDummyTxRequestToken(id);
 }
 
-std::vector<Transaction> NunchukStorage::GetDummyTxs(
+std::map<std::string, Transaction> NunchukStorage::GetDummyTxs(
     Chain chain, const std::string& wallet_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetDummyTxs();

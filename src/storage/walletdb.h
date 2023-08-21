@@ -122,14 +122,14 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<std::vector<UnspentOutput>> GetAncestry(const std::string &tx_id,
                                                       int vout);
 
-  Transaction ImportDummyTx(const std::string &body,
+  Transaction ImportDummyTx(const std::string &id, const std::string &body,
                             const std::vector<std::string> &tokens);
-  Transaction SaveDummyTxRequestToken(const std::string &body,
+  bool SaveDummyTxRequestToken(const std::string &id,
                                       const std::string &token);
-  bool DeleteDummyTx(const std::string &tx_id);
-  std::map<std::string, bool> GetDummyTxRequestToken(const std::string &tx_id);
-  std::vector<Transaction> GetDummyTxs();
-  Transaction GetDummyTx(const std::string &tx_id);
+  bool DeleteDummyTx(const std::string &id);
+  std::map<std::string, bool> GetDummyTxRequestToken(const std::string &id);
+  std::map<std::string, Transaction> GetDummyTxs();
+  Transaction GetDummyTx(const std::string &id);
 
  private:
   void CreateCoinControlTable();

@@ -1914,7 +1914,8 @@ bool NunchukWalletDb::SetLastModified(time_t value) {
 }
 
 Transaction NunchukWalletDb::ImportDummyTx(
-    const std::string& body, const std::vector<std::string>& tokens) {
+    const std::string& id, const std::string& body,
+    const std::vector<std::string>& tokens) {
   auto wallet = GetWallet(true, true);
   std::string psbt = Utils::GetHealthCheckDummyTx(wallet, body);
 
@@ -1923,58 +1924,54 @@ Transaction NunchukWalletDb::ImportDummyTx(
       "INSERT INTO DUMMYTX(ID, PSBT, STOKEN, LTOKEN)"
       "VALUES (?1, ?2, ?3, '')"
       "ON CONFLICT(ID) DO UPDATE SET STOKEN=excluded.STOKEN;";
-  std::string tx_id = GetTxIdFromPsbt(psbt);
   std::string stoken = join(tokens, ',');
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, id.c_str(), id.size(), NULL);
   sqlite3_bind_text(stmt, 2, psbt.c_str(), psbt.size(), NULL);
   sqlite3_bind_text(stmt, 3, stoken.c_str(), stoken.size(), NULL);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
-  return GetDummyTx(tx_id);
+  return GetDummyTx(id);
 }
 
-Transaction NunchukWalletDb::SaveDummyTxRequestToken(const std::string& body,
-                                                     const std::string& token) {
+bool NunchukWalletDb::SaveDummyTxRequestToken(const std::string& id,
+                                              const std::string& token) {
   auto wallet = GetWallet(true, true);
-  std::string psbt = Utils::GetHealthCheckDummyTx(wallet, body);
-  std::string tx_id = GetTxIdFromPsbt(psbt);
   std::vector<std::string> local_tokens{};
   {
     sqlite3_stmt* stmt;
     std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-    sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+    sqlite3_bind_text(stmt, 1, id.c_str(), id.size(), NULL);
     sqlite3_step(stmt);
     std::map<std::string, bool> rs;
     if (sqlite3_column_text(stmt, 0)) {
       std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
       local_tokens = split(ltoken, ',');
+      SQLCHECK(sqlite3_finalize(stmt));
+    } else {
+      return false;
     }
-    SQLCHECK(sqlite3_finalize(stmt));
   }
   local_tokens.push_back(token);
 
   sqlite3_stmt* stmt;
-  std::string sql =
-      "INSERT INTO DUMMYTX(ID, PSBT, STOKEN, LTOKEN)"
-      "VALUES (?1, ?2, '', ?3)"
-      "ON CONFLICT(ID) DO UPDATE SET LTOKEN=excluded.LTOKEN;";
+  std::string sql = "UPDATE DUMMYTX SET LTOKEN=?1 WHERE ID = ?2;";
   std::string ltoken = join(local_tokens, ',');
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
-  sqlite3_bind_text(stmt, 2, psbt.c_str(), psbt.size(), NULL);
-  sqlite3_bind_text(stmt, 3, ltoken.c_str(), ltoken.size(), NULL);
+  sqlite3_bind_text(stmt, 1, ltoken.c_str(), ltoken.size(), NULL);
+  sqlite3_bind_text(stmt, 2, id.c_str(), id.size(), NULL);
   sqlite3_step(stmt);
+  bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  return GetDummyTx(tx_id);
+  return updated;
 }
 
-bool NunchukWalletDb::DeleteDummyTx(const std::string& tx_id) {
+bool NunchukWalletDb::DeleteDummyTx(const std::string& id) {
   sqlite3_stmt* stmt;
   std::string sql = "DELETE FROM DUMMYTX WHERE ID = ?;";
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, id.c_str(), id.size(), NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
@@ -1982,11 +1979,11 @@ bool NunchukWalletDb::DeleteDummyTx(const std::string& tx_id) {
 }
 
 std::map<std::string, bool> NunchukWalletDb::GetDummyTxRequestToken(
-    const std::string& tx_id) {
+    const std::string& id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, id.c_str(), id.size(), NULL);
   sqlite3_step(stmt);
   std::map<std::string, bool> rs;
   if (sqlite3_column_text(stmt, 0)) {
@@ -2001,7 +1998,7 @@ std::map<std::string, bool> NunchukWalletDb::GetDummyTxRequestToken(
   return rs;
 }
 
-std::vector<Transaction> NunchukWalletDb::GetDummyTxs() {
+std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
   json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
   int m = immutable_data["m"];
   auto signers = GetSigners();
@@ -2011,9 +2008,9 @@ std::vector<Transaction> NunchukWalletDb::GetDummyTxs() {
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
 
-  std::vector<Transaction> rs;
+  std::map<std::string, Transaction> rs;
   while (sqlite3_column_text(stmt, 0)) {
-    std::string tx_id = std::string((char*)sqlite3_column_text(stmt, 0));
+    std::string id = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string psbt = std::string((char*)sqlite3_column_text(stmt, 1));
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
@@ -2037,14 +2034,14 @@ std::vector<Transaction> NunchukWalletDb::GetDummyTxs() {
       auto pair = split(token, '.');
       tx.set_signer(pair[0], true);
     }
-    rs.push_back(tx);
+    rs.insert({id, tx});
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return rs;
 }
 
-Transaction NunchukWalletDb::GetDummyTx(const std::string& tx_id) {
+Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
   json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
   int m = immutable_data["m"];
   auto signers = GetSigners();
@@ -2052,11 +2049,10 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& tx_id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, id.c_str(), id.size(), NULL);
   sqlite3_step(stmt);
   std::map<std::string, bool> rs;
   if (sqlite3_column_text(stmt, 0)) {
-    std::string tx_id = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string psbt = std::string((char*)sqlite3_column_text(stmt, 1));
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));

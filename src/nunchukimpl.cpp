@@ -2023,9 +2023,11 @@ bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,
   return rs;
 }
 
-Transaction NunchukImpl::ImportDummyTx(const std::string& dummy_transaction) {
+std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
+    const std::string& dummy_transaction) {
   json info = json::parse(dummy_transaction);
   std::string wallet_id = info["wallet_local_id"];
+  std::string id = info["id"];
   std::string body = info["request_body"];
   std::vector<std::string> tokens{};
   if (info["signatures"] != nullptr) {
@@ -2034,26 +2036,26 @@ Transaction NunchukImpl::ImportDummyTx(const std::string& dummy_transaction) {
       tokens.push_back(item["signature"]);
     }
   }
-  return storage_->ImportDummyTx(chain_, wallet_id, body, tokens);
+  return {id, storage_->ImportDummyTx(chain_, wallet_id, id, body, tokens)};
 }
 
-Transaction NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
-                                                 const std::string& body,
-                                                 const std::string& token) {
-  return storage_->SaveDummyTxRequestToken(chain_, wallet_id, body, token);
+bool NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
+                                          const std::string& id,
+                                          const std::string& token) {
+  return storage_->SaveDummyTxRequestToken(chain_, wallet_id, id, token);
 }
 
 bool NunchukImpl::DeleteDummyTx(const std::string& wallet_id,
-                                const std::string& tx_id) {
-  return storage_->DeleteDummyTx(chain_, wallet_id, tx_id);
+                                const std::string& id) {
+  return storage_->DeleteDummyTx(chain_, wallet_id, id);
 }
 
 std::map<std::string, bool> NunchukImpl::GetDummyTxRequestToken(
-    const std::string& wallet_id, const std::string& tx_id) {
-  return storage_->GetDummyTxRequestToken(chain_, wallet_id, tx_id);
+    const std::string& wallet_id, const std::string& id) {
+  return storage_->GetDummyTxRequestToken(chain_, wallet_id, id);
 }
 
-std::vector<Transaction> NunchukImpl::GetDummyTxs(
+std::map<std::string, Transaction> NunchukImpl::GetDummyTxs(
     const std::string& wallet_id) {
   return storage_->GetDummyTxs(chain_, wallet_id);
 }
