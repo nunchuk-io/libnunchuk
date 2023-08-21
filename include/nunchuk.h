@@ -336,7 +336,7 @@ class NUNCHUK_EXPORT SingleSigner {
                const std::string& master_fingerprint, time_t last_health_check,
                const std::string& master_signer_id = {}, bool used = false,
                SignerType signer_type = SignerType::AIRGAP,
-               std::vector<SignerTag> tags = {});
+               std::vector<SignerTag> tags = {}, bool visible = true);
 
   std::string get_name() const;
   std::string get_xpub() const;
@@ -346,6 +346,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string get_master_signer_id() const;
   SignerType get_type() const;
   const std::vector<SignerTag>& get_tags() const;
+  bool is_visible() const;
   bool is_used() const;
   bool has_master_signer() const;
   time_t get_last_health_check() const;
@@ -354,6 +355,7 @@ class NUNCHUK_EXPORT SingleSigner {
   void set_used(bool value);
   void set_type(SignerType value);
   void set_tags(std::vector<SignerTag> tags);
+  void set_visible(bool value);
 
  private:
   std::string name_;
@@ -364,6 +366,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string master_signer_id_;
   time_t last_health_check_;
   bool used_;
+  bool visible_{true};
   SignerType type_;
   std::vector<SignerTag> tags_;
 };
@@ -382,9 +385,11 @@ class NUNCHUK_EXPORT MasterSigner {
   const std::vector<SignerTag>& get_tags() const;
   bool is_software() const;
   bool is_nfc() const;
+  bool is_visible() const;
   SignerType get_type() const;
   void set_name(const std::string& value);
   void set_tags(std::vector<SignerTag> tags);
+  void set_visible(bool value);
 
  private:
   std::string id_;
@@ -393,6 +398,7 @@ class NUNCHUK_EXPORT MasterSigner {
   time_t last_health_check_;
   SignerType type_;
   std::vector<SignerTag> tags_;
+  bool visible_{true};
 };
 
 class NUNCHUK_EXPORT PrimaryKey {
