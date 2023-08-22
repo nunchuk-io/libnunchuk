@@ -460,13 +460,13 @@ class NunchukImpl : public Nunchuk {
   // Dummy transaction
   std::pair<std::string, Transaction> ImportDummyTx(
       const std::string& dummy_transaction) override;
-  bool SaveDummyTxRequestToken(const std::string& wallet_id,
-                               const std::string& id,
-                               const std::string& token) override;
+  RequestTokens SaveDummyTxRequestToken(const std::string& wallet_id,
+                                        const std::string& id,
+                                        const std::string& token) override;
   bool DeleteDummyTx(const std::string& wallet_id,
                      const std::string& id) override;
-  std::map<std::string, bool> GetDummyTxRequestToken(
-      const std::string& wallet_id, const std::string& id) override;
+  RequestTokens GetDummyTxRequestToken(const std::string& wallet_id,
+                                       const std::string& id) override;
   std::map<std::string, Transaction> GetDummyTxs(
       const std::string& wallet_id) override;
 

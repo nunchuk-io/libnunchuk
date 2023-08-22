@@ -262,13 +262,15 @@ class NunchukStorage {
   Transaction ImportDummyTx(Chain chain, const std::string &wallet_id,
                             const std::string &id, const std::string &body,
                             const std::vector<std::string> &tokens);
-  bool SaveDummyTxRequestToken(Chain chain, const std::string &wallet_id,
-                                      const std::string &id,
-                                      const std::string &token);
+  RequestTokens SaveDummyTxRequestToken(Chain chain,
+                                        const std::string &wallet_id,
+                                        const std::string &id,
+                                        const std::string &token);
   bool DeleteDummyTx(Chain chain, const std::string &wallet_id,
                      const std::string &id);
-  std::map<std::string, bool> GetDummyTxRequestToken(
-      Chain chain, const std::string &wallet_id, const std::string &id);
+  RequestTokens GetDummyTxRequestToken(Chain chain,
+                                       const std::string &wallet_id,
+                                       const std::string &id);
   std::map<std::string, Transaction> GetDummyTxs(Chain chain,
                                                  const std::string &wallet_id);
 

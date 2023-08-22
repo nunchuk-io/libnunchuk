@@ -124,10 +124,10 @@ class NunchukWalletDb : public NunchukDb {
 
   Transaction ImportDummyTx(const std::string &id, const std::string &body,
                             const std::vector<std::string> &tokens);
-  bool SaveDummyTxRequestToken(const std::string &id,
+  RequestTokens SaveDummyTxRequestToken(const std::string &id,
                                       const std::string &token);
   bool DeleteDummyTx(const std::string &id);
-  std::map<std::string, bool> GetDummyTxRequestToken(const std::string &id);
+  RequestTokens GetDummyTxRequestToken(const std::string &id);
   std::map<std::string, Transaction> GetDummyTxs();
   Transaction GetDummyTx(const std::string &id);
 

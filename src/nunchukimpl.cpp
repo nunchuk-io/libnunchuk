@@ -2039,7 +2039,7 @@ std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
   return {id, storage_->ImportDummyTx(chain_, wallet_id, id, body, tokens)};
 }
 
-bool NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
+RequestTokens NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
                                           const std::string& id,
                                           const std::string& token) {
   return storage_->SaveDummyTxRequestToken(chain_, wallet_id, id, token);
@@ -2050,7 +2050,7 @@ bool NunchukImpl::DeleteDummyTx(const std::string& wallet_id,
   return storage_->DeleteDummyTx(chain_, wallet_id, id);
 }
 
-std::map<std::string, bool> NunchukImpl::GetDummyTxRequestToken(
+RequestTokens NunchukImpl::GetDummyTxRequestToken(
     const std::string& wallet_id, const std::string& id) {
   return storage_->GetDummyTxRequestToken(chain_, wallet_id, id);
 }

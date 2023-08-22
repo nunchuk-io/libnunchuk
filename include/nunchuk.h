@@ -39,8 +39,9 @@ const int CONF_TARGET_STANDARD = 6;
 const int CONF_TARGET_ECONOMICAL = 144;
 
 typedef int64_t Amount;
-typedef std::pair<std::string, int> TxInput;      // txid-vout pair
-typedef std::pair<std::string, Amount> TxOutput;  // address-amount pair
+typedef std::pair<std::string, int> TxInput;        // txid-vout pair
+typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair
+typedef std::map<std::string, bool> RequestTokens;  // token-sent map
 
 enum class AddressType {
   ANY,
@@ -1225,14 +1226,13 @@ class NUNCHUK_EXPORT Nunchuk {
   // Dummy transaction
   virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(
       const std::string& dummy_transaction) = 0;
-  virtual bool SaveDummyTxRequestToken(const std::string& wallet_id,
-                                       const std::string& id,
-                                       const std::string& token) = 0;
+  virtual RequestTokens SaveDummyTxRequestToken(const std::string& wallet_id,
+                                                const std::string& id,
+                                                const std::string& token) = 0;
   virtual bool DeleteDummyTx(const std::string& wallet_id,
                              const std::string& id) = 0;
-  virtual std::map<std::string /* token */, bool /* sent */>
-  GetDummyTxRequestToken(const std::string& wallet_id,
-                         const std::string& id) = 0;
+  virtual RequestTokens GetDummyTxRequestToken(const std::string& wallet_id,
+                                               const std::string& id) = 0;
   virtual std::map<std::string /* id */, Transaction> GetDummyTxs(
       const std::string& wallet_id) = 0;
 

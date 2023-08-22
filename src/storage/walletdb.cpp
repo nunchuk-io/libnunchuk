@@ -1934,8 +1934,8 @@ Transaction NunchukWalletDb::ImportDummyTx(
   return GetDummyTx(id);
 }
 
-bool NunchukWalletDb::SaveDummyTxRequestToken(const std::string& id,
-                                              const std::string& token) {
+RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
+    const std::string& id, const std::string& token) {
   auto wallet = GetWallet(true, true);
   std::vector<std::string> local_tokens{};
   {
@@ -1950,7 +1950,7 @@ bool NunchukWalletDb::SaveDummyTxRequestToken(const std::string& id,
       local_tokens = split(ltoken, ',');
       SQLCHECK(sqlite3_finalize(stmt));
     } else {
-      return false;
+      throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
     }
   }
   local_tokens.push_back(token);
@@ -1962,9 +1962,8 @@ bool NunchukWalletDb::SaveDummyTxRequestToken(const std::string& id,
   sqlite3_bind_text(stmt, 1, ltoken.c_str(), ltoken.size(), NULL);
   sqlite3_bind_text(stmt, 2, id.c_str(), id.size(), NULL);
   sqlite3_step(stmt);
-  bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  return updated;
+  return GetDummyTxRequestToken(id);
 }
 
 bool NunchukWalletDb::DeleteDummyTx(const std::string& id) {
@@ -1978,8 +1977,7 @@ bool NunchukWalletDb::DeleteDummyTx(const std::string& id) {
   return updated;
 }
 
-std::map<std::string, bool> NunchukWalletDb::GetDummyTxRequestToken(
-    const std::string& id) {
+RequestTokens NunchukWalletDb::GetDummyTxRequestToken(const std::string& id) {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);

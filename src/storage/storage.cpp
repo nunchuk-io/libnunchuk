@@ -1824,7 +1824,7 @@ Transaction NunchukStorage::ImportDummyTx(
   return GetWalletDb(chain, wallet_id).ImportDummyTx(id, body, tokens);
 }
 
-bool NunchukStorage::SaveDummyTxRequestToken(
+RequestTokens NunchukStorage::SaveDummyTxRequestToken(
     Chain chain, const std::string& wallet_id, const std::string& id,
     const std::string& token) {
   std::unique_lock<std::shared_mutex> lock(access_);
@@ -1837,7 +1837,7 @@ bool NunchukStorage::DeleteDummyTx(Chain chain, const std::string& wallet_id,
   return GetWalletDb(chain, wallet_id).DeleteDummyTx(id);
 }
 
-std::map<std::string, bool> NunchukStorage::GetDummyTxRequestToken(
+RequestTokens NunchukStorage::GetDummyTxRequestToken(
     Chain chain, const std::string& wallet_id, const std::string& id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetDummyTxRequestToken(id);
