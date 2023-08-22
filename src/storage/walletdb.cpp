@@ -1746,7 +1746,7 @@ std::string NunchukWalletDb::ExportBIP329() {
     std::string type = coin.find(':') != std::string::npos ? "output" : "tx";
     json line = {
         {"type", type}, {"ref", coin}, {"label", boost::trim_copy(label)}};
-    if (type == "output") line["spendable"] = spendable[coin];
+    if (type == "output") line["spendable"] = spendable[coin] ? "true" : "false";
     bip329 << line.dump() << std::endl;
   }
   return bip329.str();
@@ -1763,7 +1763,7 @@ void NunchukWalletDb::ImportBIP329(const std::string& data) {
     std::string memo = json_line["label"];
     int locked = 0;
     if (json_line["spendable"] != nullptr) {
-      bool spendable = json_line["spendable"];
+      bool spendable = json_line["spendable"] == "true";
       locked = spendable ? 0 : 1;
     }
 
