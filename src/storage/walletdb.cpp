@@ -1711,6 +1711,7 @@ bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
 
 std::string NunchukWalletDb::ExportBIP329() {
   std::map<std::string, std::string> all_label;
+  std::map<std::string, bool> spendable;
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM COININFO;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -1719,7 +1720,7 @@ std::string NunchukWalletDb::ExportBIP329() {
   while (sqlite3_column_text(stmt, 0)) {
     std::string coin = std::string((char*)sqlite3_column_text(stmt, 0));
     all_label[coin] = std::string((char*)sqlite3_column_text(stmt, 1));
-    if (sqlite3_column_int(stmt, 2) == 1) all_label[coin] += " #locked";
+    spendable[coin] = (sqlite3_column_int(stmt, 2) != 1);
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
@@ -1745,6 +1746,7 @@ std::string NunchukWalletDb::ExportBIP329() {
     std::string type = coin.find(':') != std::string::npos ? "output" : "tx";
     json line = {
         {"type", type}, {"ref", coin}, {"label", boost::trim_copy(label)}};
+    if (type == "output") line["spendable"] = spendable[coin];
     bip329 << line.dump() << std::endl;
   }
   return bip329.str();
@@ -1755,8 +1757,29 @@ void NunchukWalletDb::ImportBIP329(const std::string& data) {
   std::string line;
   while (safeGetline(content_stream, line) && !line.empty()) {
     json json_line = json::parse(line);
-    UpdateTransactionMemo(json_line["ref"], json_line["label"]);
+    std::string type = json_line["type"];
+    if (type != "output" && type != "tx") continue;
+    std::string coin = json_line["ref"];
+    std::string memo = json_line["label"];
+    int locked = 0;
+    if (json_line["spendable"] != nullptr) {
+      bool spendable = json_line["spendable"];
+      locked = spendable ? 0 : 1;
+    }
+
+    sqlite3_stmt* stmt;
+    std::string sql =
+        "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
+        "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED, "
+        "MEMO=excluded.MEMO;";
+    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+    sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
+    sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
+    sqlite3_bind_int(stmt, 3, locked);
+    sqlite3_step(stmt);
+    SQLCHECK(sqlite3_finalize(stmt));
   }
+  SetLastModified(std::time(0));
 }
 
 std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
