@@ -1235,6 +1235,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                                const std::string& id) = 0;
   virtual std::map<std::string /* id */, Transaction> GetDummyTxs(
       const std::string& wallet_id) = 0;
+  virtual Transaction GetDummyTx(const std::string& wallet_id,
+                                 const std::string& id) = 0;
 
   // Add listener methods
   virtual void AddBalanceListener(

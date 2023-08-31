@@ -273,6 +273,8 @@ class NunchukStorage {
                                        const std::string &id);
   std::map<std::string, Transaction> GetDummyTxs(Chain chain,
                                                  const std::string &wallet_id);
+  Transaction GetDummyTx(Chain chain, const std::string &wallet_id,
+                         const std::string &id);
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;

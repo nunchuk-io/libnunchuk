@@ -469,6 +469,8 @@ class NunchukImpl : public Nunchuk {
                                        const std::string& id) override;
   std::map<std::string, Transaction> GetDummyTxs(
       const std::string& wallet_id) override;
+  Transaction GetDummyTx(const std::string& wallet_id,
+                         const std::string& id) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,

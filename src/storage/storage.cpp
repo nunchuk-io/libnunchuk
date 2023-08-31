@@ -1849,4 +1849,10 @@ std::map<std::string, Transaction> NunchukStorage::GetDummyTxs(
   return GetWalletDb(chain, wallet_id).GetDummyTxs();
 }
 
+Transaction NunchukStorage::GetDummyTx(
+    Chain chain, const std::string& wallet_id, const std::string& id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetDummyTx(id);
+}
+
 }  // namespace nunchuk

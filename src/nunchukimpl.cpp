@@ -2040,8 +2040,8 @@ std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
 }
 
 RequestTokens NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
-                                          const std::string& id,
-                                          const std::string& token) {
+                                                   const std::string& id,
+                                                   const std::string& token) {
   return storage_->SaveDummyTxRequestToken(chain_, wallet_id, id, token);
 }
 
@@ -2050,14 +2050,19 @@ bool NunchukImpl::DeleteDummyTx(const std::string& wallet_id,
   return storage_->DeleteDummyTx(chain_, wallet_id, id);
 }
 
-RequestTokens NunchukImpl::GetDummyTxRequestToken(
-    const std::string& wallet_id, const std::string& id) {
+RequestTokens NunchukImpl::GetDummyTxRequestToken(const std::string& wallet_id,
+                                                  const std::string& id) {
   return storage_->GetDummyTxRequestToken(chain_, wallet_id, id);
 }
 
 std::map<std::string, Transaction> NunchukImpl::GetDummyTxs(
     const std::string& wallet_id) {
   return storage_->GetDummyTxs(chain_, wallet_id);
+}
+
+Transaction NunchukImpl::GetDummyTx(
+    const std::string& wallet_id, const std::string& id) {
+  return storage_->GetDummyTx(chain_, wallet_id, id);
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
