@@ -1127,6 +1127,7 @@ std::optional<std::string> NunchukWalletDb::GetTransactionMemo(
     SQLCHECK(sqlite3_finalize(stmt));
     return rs;
   }
+  SQLCHECK(sqlite3_finalize(stmt));
   return {};
 }
 
@@ -1247,6 +1248,7 @@ int NunchukWalletDb::CreateCoinTag(const std::string& name,
   sqlite3_bind_text(stmt, 2, color.c_str(), color.size(), NULL);
   sqlite3_step(stmt);
   if (sqlite3_changes(db_) != 1) {
+    SQLCHECK(sqlite3_finalize(stmt));
     throw StorageException(StorageException::TAG_EXISTS, "Tag exists");
   }
 
@@ -1394,6 +1396,7 @@ int NunchukWalletDb::CreateCoinCollection(const std::string& name) {
   sqlite3_bind_text(stmt, 2, settings.c_str(), settings.size(), NULL);
   sqlite3_step(stmt);
   if (sqlite3_changes(db_) != 1) {
+    SQLCHECK(sqlite3_finalize(stmt));
     throw StorageException(StorageException::COLLECTION_EXISTS,
                            "Collection exists");
   }
@@ -1746,7 +1749,8 @@ std::string NunchukWalletDb::ExportBIP329() {
     std::string type = coin.find(':') != std::string::npos ? "output" : "tx";
     json line = {
         {"type", type}, {"ref", coin}, {"label", boost::trim_copy(label)}};
-    if (type == "output") line["spendable"] = spendable[coin] ? "true" : "false";
+    if (type == "output")
+      line["spendable"] = spendable[coin] ? "true" : "false";
     bip329 << line.dump() << std::endl;
   }
   return bip329.str();
@@ -1973,6 +1977,7 @@ RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
       local_tokens = split(ltoken, ',');
       SQLCHECK(sqlite3_finalize(stmt));
     } else {
+      SQLCHECK(sqlite3_finalize(stmt));
       throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
     }
   }
@@ -2036,8 +2041,8 @@ std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
 
-    auto tx = GetTransactionFromCMutableTransaction(DecodePsbt(psbt).tx.value(),
-                                                    signers, -1);
+    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt),
+                                                           signers, -1);
     tx.set_m(m);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
@@ -2078,8 +2083,8 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
 
-    auto tx = GetTransactionFromCMutableTransaction(DecodePsbt(psbt).tx.value(),
-                                                    signers, -1);
+    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt),
+                                                           signers, -1);
     tx.set_m(m);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
