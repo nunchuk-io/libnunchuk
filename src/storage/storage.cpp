@@ -497,6 +497,7 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
   signer_db.InitSigner(name, device, mnemonic);
+  signer_db.SetVisible(true);
   GetAppStateDb(chain).RemoveDeletedSigner(id);
   return id;
 }
@@ -508,6 +509,7 @@ std::string NunchukStorage::CreateMasterSignerFromMasterXprv(
   std::string id = ba::to_lower_copy(device.get_master_fingerprint());
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
+  signer_db.SetVisible(true);
   signer_db.InitSignerMasterXprv(name, device, master_xprv);
   GetAppStateDb(chain).RemoveDeletedSigner(id);
   return id;
@@ -522,6 +524,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   std::string id = master_fingerprint;
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
+  signer_db.SetVisible(true);
   if (signer_db.IsMaster()) {
     throw StorageException(StorageException::SIGNER_EXISTS,
                            strprintf("Signer exists id = '%s'", id));
@@ -1849,8 +1852,9 @@ std::map<std::string, Transaction> NunchukStorage::GetDummyTxs(
   return GetWalletDb(chain, wallet_id).GetDummyTxs();
 }
 
-Transaction NunchukStorage::GetDummyTx(
-    Chain chain, const std::string& wallet_id, const std::string& id) {
+Transaction NunchukStorage::GetDummyTx(Chain chain,
+                                       const std::string& wallet_id,
+                                       const std::string& id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetDummyTx(id);
 }
