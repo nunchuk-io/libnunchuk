@@ -607,11 +607,14 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
       deviceType != "bitbox02" && deviceType != "ledger" &&
       deviceType != "trezor") {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
-    if (master_xpub != storage_->GetMasterSignerXPub(chain_, id, "m")) {
+    std::string stored_master_xpub =
+        storage_->GetMasterSignerXPub(chain_, id, "m");
+    if (!stored_master_xpub.empty() && master_xpub != stored_master_xpub) {
       return HealthStatus::KEY_NOT_MATCHED;
     }
 
-    if (xpub != storage_->GetMasterSignerXPub(chain_, id, path)) {
+    std::string stored_xpub = storage_->GetMasterSignerXPub(chain_, id, path);
+    if (!stored_xpub.empty() && xpub != stored_xpub) {
       return HealthStatus::KEY_NOT_MATCHED;
     }
   }
@@ -1464,7 +1467,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
+  } else {                                              // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -1542,7 +1545,7 @@ Transaction NunchukImpl::ImportPassportTransaction(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     data = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
+  } else {                                              // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -2060,8 +2063,8 @@ std::map<std::string, Transaction> NunchukImpl::GetDummyTxs(
   return storage_->GetDummyTxs(chain_, wallet_id);
 }
 
-Transaction NunchukImpl::GetDummyTx(
-    const std::string& wallet_id, const std::string& id) {
+Transaction NunchukImpl::GetDummyTx(const std::string& wallet_id,
+                                    const std::string& id) {
   return storage_->GetDummyTx(chain_, wallet_id, id);
 }
 
