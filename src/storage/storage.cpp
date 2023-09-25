@@ -406,7 +406,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
       if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
           FormalizePath(signer.get_derivation_path())) {
         signer_db.AddXPub(wt, at, index, signer.get_xpub());
-        signer_db.UseIndex(wt, at, index);
+        signer_db.UseIndex(wt, at, index, true);
       } else {
         // custom derivation path
         signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
@@ -913,7 +913,25 @@ bool NunchukStorage::UpdateMasterSigner(Chain chain,
 
 bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  GetWalletDb(chain, id).DeleteWallet();
+  auto wallet_db = GetWalletDb(chain, id);
+  auto wallet = wallet_db.GetWallet(true, true);
+  WalletType wt = wallet.get_wallet_type();
+  AddressType at = wallet.get_address_type();
+  for (auto&& signer : wallet.get_signers()) {
+    int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
+    if (FormalizePath(GetBip32Path(chain, wt, at, index)) !=
+        FormalizePath(signer.get_derivation_path())) {
+      continue;
+    }
+    try {
+      std::string master_id = signer.get_master_fingerprint();
+      std::string db_dir = GetSignerDir(chain, master_id).string();
+      NunchukSignerDb signer_db{chain, master_id, db_dir, passphrase_};
+      if (signer_db.IsMaster()) signer_db.UseIndex(wt, at, index, false);
+    } catch (...) {
+    }
+  }
+  wallet_db.DeleteWallet();
   GetAppStateDb(chain).AddDeletedWallet(id);
   return fs::remove(GetWalletDir(chain, id));
 }

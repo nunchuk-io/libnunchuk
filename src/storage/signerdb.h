@@ -45,7 +45,7 @@ class NunchukSignerDb : public NunchukDb {
   bool AddXPub(const WalletType &wallet_type, const AddressType &address_type,
                int index, const std::string &xpub);
   bool UseIndex(const WalletType &wallet_type, const AddressType &address_type,
-                int index);
+                int index, bool used = true);
   std::string GetXpub(const std::string &path);
   std::string GetXpub(const WalletType &wallet_type,
                       const AddressType &address_type, int index);
