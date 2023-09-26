@@ -1855,7 +1855,8 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
     auto ss = storage_->GetSoftwareSigner(chain_, id);
     if (isPsbt) return GetPartialSignature(ss.SignTx(message), id);
     return ss.SignMessage(message, signer.get_derivation_path());
-  } else if (signerType == SignerType::HARDWARE) {
+  } else if (signerType == SignerType::HARDWARE ||
+             signerType == SignerType::COLDCARD_NFC) {
     Device device{id};
     if (isPsbt) return GetPartialSignature(hwi_.SignTx(device, message), id);
     return hwi_.SignMessage(device, message, signer.get_derivation_path());
