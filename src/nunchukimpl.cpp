@@ -343,6 +343,19 @@ MasterSigner NunchukImpl::CreateMasterSigner(
     std::function<bool(int)> progress) {
   std::string name = trim_copy(raw_name);
   std::string id = storage_->CreateMasterSigner(chain_, name, device);
+  const std::string deviceType = device.get_type();
+  std::vector<SignerTag> tags;
+  if (deviceType == "ledger") {
+    tags.push_back(SignerTag::LEDGER);
+  } else if (deviceType == "trezor") {
+    tags.push_back(SignerTag::TREZOR);
+  } else if (deviceType == "bitbox02") {
+    tags.push_back(SignerTag::BITBOX);
+  } else if (deviceType == "coldcard") {
+    tags.push_back(SignerTag::COLDCARD);
+  } else if (deviceType == "jade") {
+    tags.push_back(SignerTag::JADE);
+  }
 
   storage_->CacheMasterSignerXPub(
       chain_, id,
@@ -352,6 +365,8 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 
   MasterSigner mastersigner{id, device, std::time(0)};
   mastersigner.set_name(name);
+  mastersigner.set_tags(tags);
+  storage_->UpdateMasterSigner(chain_, mastersigner);
   return mastersigner;
 }
 
