@@ -499,7 +499,23 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
     throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                            strprintf("Invalid derivation path [%s].", path));
   }
-  return storage_->GetSignerFromMasterSigner(chain_, mastersigner_id, path);
+  try {
+    return storage_->GetSignerFromMasterSigner(chain_, mastersigner_id, path);
+  } catch (NunchukException& ne) {
+    if (ne.code() == NunchukException::RUN_OUT_OF_CACHED_XPUB) {
+      auto master = GetMasterSigner(mastersigner_id);
+      if (master.get_type() == SignerType::HARDWARE) {
+        Device device{mastersigner_id};
+        auto xpub = hwi_.GetXpubAtPath(device, path);
+        auto signer = SingleSigner(
+            master.get_name(), xpub, "", path, mastersigner_id,
+            master.get_last_health_check(), mastersigner_id, false,
+            master.get_type(), master.get_tags(), master.is_visible());
+        return signer;
+      }
+    }
+    throw;
+  }
 }
 
 std::vector<SingleSigner> NunchukImpl::GetSignersFromMasterSigner(
@@ -1482,7 +1498,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -1560,7 +1576,7 @@ Transaction NunchukImpl::ImportPassportTransaction(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     data = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
