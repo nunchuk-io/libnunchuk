@@ -298,6 +298,25 @@ std::map<std::string, std::string> ElectrumClient::get_multi_rawtx(
   return rs;
 }
 
+std::map<std::string, json> ElectrumClient::get_multi_history(
+    const std::vector<std::string>& scripthashes) {
+  if (scripthashes.size() == 0) return {};
+  std::vector<std::string> methods(scripthashes.size(),
+                                   "blockchain.scripthash.get_history");
+  std::vector<json> params{};
+  for (auto&& scripthash : scripthashes) {
+    params.push_back({scripthash});
+  }
+  auto batchResp = call_batch(methods, params);
+  std::map<std::string, json> rs;
+  for (int i = 0; i < scripthashes.size(); i++) {
+    if (batchResp[i].contains("error")) continue;
+    if (batchResp[i]["result"] == nullptr) continue;
+    rs[scripthashes[i]] = batchResp[i]["result"];
+  }
+  return rs;
+}
+
 std::map<int, std::string> ElectrumClient::get_multi_rawheader(
     const std::vector<int>& heights) {
   if (heights.size() == 0) return {};
@@ -355,6 +374,7 @@ void ElectrumClient::start() {
   try {
     std::string version = server_version()[0].get<std::string>();
     support_batch_request_ = boost::starts_with(version, "ElectrumX");
+    support_batch_request_ |= boost::starts_with(version, "electrs/");
   } catch (...) {
     support_batch_request_ = false;
   }

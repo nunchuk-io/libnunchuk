@@ -53,6 +53,11 @@ class Synchronizer {
   virtual bool LookAhead(Chain chain, const std::string& wallet_id,
                          const std::string& address, int index,
                          bool internal) = 0;
+  virtual bool SupportBatchLookAhead() = 0;
+  virtual int BatchLookAhead(Chain chain, const std::string& wallet_id,
+                             const std::vector<std::string>& addresses,
+                             const std::vector<int>& indexes,
+                             bool internal) = 0;
   virtual void RescanBlockchain(int start_height, int stop_height) = 0;
   virtual std::vector<UnspentOutput> ListUnspent(
       const std::string& address) = 0;
