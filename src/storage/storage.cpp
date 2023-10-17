@@ -567,13 +567,19 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
   auto signer_db = GetSignerDb(chain, mastersigner_id);
   const std::string path =
       GetBip32Path(chain, wallet_type, address_type, index);
-  const std::string xpub = signer_db.GetXpub(wallet_type, address_type, index);
+  std::string xpub = signer_db.GetXpub(wallet_type, address_type, index);
 
   if (xpub.empty()) {
-    throw NunchukException(
-        NunchukException::RUN_OUT_OF_CACHED_XPUB,
-        strprintf("[%s] has run out of XPUBs. Please top up.",
-                  signer_db.GetName()));
+    if (signer_db.GetSignerType() == SignerType::SOFTWARE) {
+      auto ss = GetSoftwareSigner0(chain, mastersigner_id);
+      xpub = ss.GetXpubAtPath(path);
+      signer_db.AddXPub(wallet_type, address_type, index, xpub);
+    } else {
+      throw NunchukException(
+          NunchukException::RUN_OUT_OF_CACHED_XPUB,
+          strprintf("[%s] has run out of XPUBs. Please top up.",
+                    signer_db.GetName()));
+    }
   }
   auto signer = SingleSigner(
       signer_db.GetName(), xpub, "", path, signer_db.GetFingerprint(),
@@ -1235,6 +1241,18 @@ std::string NunchukStorage::GetSelectedWallet(Chain chain) {
 bool NunchukStorage::SetSelectedWallet(Chain chain, const std::string& value) {
   std::unique_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(chain).SetSelectedWallet(value);
+}
+
+SingleSigner NunchukStorage::GetRemoteSigner(Chain chain,
+                                             const std::string& xfp,
+                                             const std::string& path) {
+  return GetSignerDb(chain, xfp).GetRemoteSigner(path);
+}
+
+std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(
+    Chain chain, const std::string& xfp) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetSignerDb(chain, xfp).GetRemoteSigners();
 }
 
 std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {

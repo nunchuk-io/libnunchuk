@@ -876,6 +876,13 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& file_path, const std::string& description = {}) = 0;
   virtual void ForceRefreshWallet(const std::string& wallet_id) = 0;
 
+  virtual SingleSigner GetSigner(const std::string& xfp,
+                                 const WalletType& wallet_type,
+                                 const AddressType& address_type,
+                                 int index) = 0;
+  virtual int GetCurrentSignerIndex(const std::string& xfp,
+                                    const WalletType& wallet_type,
+                                    const AddressType& address_type) = 0;
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type, int index) = 0;

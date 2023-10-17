@@ -425,8 +425,25 @@ void NunchukImpl::ClearSignerPassphrase(const std::string& mastersigner_id) {
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(
     const std::string& mastersigner_id, const WalletType& wallet_type,
     const AddressType& address_type, int index) {
-  return storage_->GetSignerFromMasterSigner(chain_, mastersigner_id,
-                                             wallet_type, address_type, index);
+  try {
+    return storage_->GetSignerFromMasterSigner(
+        chain_, mastersigner_id, wallet_type, address_type, index);
+  } catch (NunchukException& ne) {
+    if (ne.code() == NunchukException::RUN_OUT_OF_CACHED_XPUB) {
+      auto master = GetMasterSigner(mastersigner_id);
+      if (master.get_type() == SignerType::HARDWARE) {
+        Device device{mastersigner_id};
+        auto path = GetBip32Path(chain_, wallet_type, address_type, index);
+        auto xpub = hwi_.GetXpubAtPath(device, path);
+        auto signer = SingleSigner(
+            master.get_name(), xpub, "", path, mastersigner_id,
+            master.get_last_health_check(), mastersigner_id, false,
+            master.get_type(), master.get_tags(), master.is_visible());
+        return signer;
+      }
+    }
+    throw;
+  }
 }
 
 SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
@@ -491,6 +508,33 @@ SingleSigner NunchukImpl::GetDefaultSignerFromMasterSigner(
     const AddressType& address_type) {
   return GetSignerFromMasterSigner(mastersigner_id, wallet_type, address_type,
                                    0);
+}
+
+SingleSigner NunchukImpl::GetSigner(const std::string& xfp,
+                                    const WalletType& wallet_type,
+                                    const AddressType& address_type,
+                                    int index) {
+  auto path = GetBip32Path(chain_, wallet_type, address_type, index);
+  try {
+    return storage_->GetSignerFromMasterSigner(chain_, xfp, path);
+  } catch (NunchukException& ne) {
+    return storage_->GetRemoteSigner(chain_, xfp, path);
+  }
+}
+
+int NunchukImpl::GetCurrentSignerIndex(const std::string& xfp,
+                                       const WalletType& wt,
+                                       const AddressType& at) {
+  int cur = storage_->GetCurrentIndexFromMasterSigner(chain_, xfp, wt, at);
+  auto remote = storage_->GetRemoteSigners(chain_, xfp);
+  for (auto&& signer : remote) {
+    int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
+    if (index > cur && FormalizePath(GetBip32Path(chain_, wt, at, index)) ==
+                           FormalizePath(signer.get_derivation_path())) {
+      cur = index;
+    }
+  }
+  return cur;
 }
 
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(

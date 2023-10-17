@@ -172,6 +172,10 @@ class NunchukStorage {
   std::string GetSelectedWallet(Chain chain);
   bool SetSelectedWallet(Chain chain, const std::string &wallet_id);
 
+  SingleSigner GetRemoteSigner(Chain chain, const std::string &xfp,
+                               const std::string &path);
+  std::vector<SingleSigner> GetRemoteSigners(Chain chain,
+                                             const std::string &xfp);
   std::vector<SingleSigner> GetRemoteSigners(Chain chain);
   bool DeleteRemoteSigner(Chain chain, const std::string &master_fingerprint,
                           const std::string &derivation_path);
