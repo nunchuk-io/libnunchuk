@@ -70,6 +70,7 @@ inline bool ParsePassportSignerConfig(
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
     signers.push_back({"Passport", xpub, {}, j["deriv"], xfp, 0});
   };
+  addSigner(data["bip86"]);
   addSigner(data["bip84"]);
   addSigner(data["bip49"]);
   addSigner(data["bip44"]);
@@ -85,6 +86,7 @@ inline bool ParsePassportSignerConfig(
   };
   addMSigner("p2wsh");
   addMSigner("p2wsh_p2sh");
+  addMSigner("p2tr");
   // addMSigner("p2sh");
   return true;
 }
