@@ -105,6 +105,10 @@ class NunchukStorage {
                                       const std::string &mastersigner_id,
                                       const WalletType &wallet_type,
                                       const AddressType &address_type);
+  int GetLastUsedIndexFromMasterSigner(Chain chain,
+                                       const std::string &mastersigner_id,
+                                       const WalletType &wallet_type,
+                                       const AddressType &address_type);
   int GetCachedIndexFromMasterSigner(Chain chain,
                                      const std::string &mastersigner_id,
                                      const WalletType &wallet_type,

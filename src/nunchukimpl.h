@@ -104,9 +104,9 @@ class NunchukImpl : public Nunchuk {
       const AddressType& address_type) override;
   SingleSigner GetSigner(const std::string& xfp, const WalletType& wallet_type,
                          const AddressType& address_type, int index) override;
-  int GetCurrentSignerIndex(const std::string& xfp,
-                            const WalletType& wallet_type,
-                            const AddressType& address_type) override;
+  int GetLastUsedSignerIndex(const std::string& xfp,
+                             const WalletType& wallet_type,
+                             const AddressType& address_type) override;
   SingleSigner GetSignerFromMasterSigner(const std::string& mastersigner_id,
                                          const std::string& path) override;
   std::vector<SingleSigner> GetSignersFromMasterSigner(

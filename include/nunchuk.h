@@ -880,9 +880,9 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const WalletType& wallet_type,
                                  const AddressType& address_type,
                                  int index) = 0;
-  virtual int GetCurrentSignerIndex(const std::string& xfp,
-                                    const WalletType& wallet_type,
-                                    const AddressType& address_type) = 0;
+  virtual int GetLastUsedSignerIndex(const std::string& xfp,
+                                     const WalletType& wallet_type,
+                                     const AddressType& address_type) = 0;
   virtual SingleSigner GetSignerFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type, int index) = 0;

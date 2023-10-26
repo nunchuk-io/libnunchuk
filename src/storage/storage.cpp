@@ -770,6 +770,14 @@ int NunchukStorage::GetCurrentIndexFromMasterSigner(
       .GetUnusedIndex(wallet_type, address_type);
 }
 
+int NunchukStorage::GetLastUsedIndexFromMasterSigner(
+    Chain chain, const std::string& mastersigner_id,
+    const WalletType& wallet_type, const AddressType& address_type) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetSignerDb(chain, mastersigner_id)
+      .GetLastUsedIndex(wallet_type, address_type);
+}
+
 int NunchukStorage::GetCachedIndexFromMasterSigner(
     Chain chain, const std::string& mastersigner_id,
     const WalletType& wallet_type, const AddressType& address_type) {

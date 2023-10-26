@@ -51,6 +51,8 @@ class NunchukSignerDb : public NunchukDb {
                       const AddressType &address_type, int index);
   int GetUnusedIndex(const WalletType &wallet_type,
                      const AddressType &address_type);
+  int GetLastUsedIndex(const WalletType &wallet_type,
+                       const AddressType &address_type);
   int GetCachedIndex(const WalletType &wallet_type,
                      const AddressType &address_type);
   std::string GetFingerprint() const;

@@ -522,12 +522,13 @@ SingleSigner NunchukImpl::GetSigner(const std::string& xfp,
   }
 }
 
-int NunchukImpl::GetCurrentSignerIndex(const std::string& xfp,
-                                       const WalletType& wt,
-                                       const AddressType& at) {
-  int cur = storage_->GetCurrentIndexFromMasterSigner(chain_, xfp, wt, at);
+int NunchukImpl::GetLastUsedSignerIndex(const std::string& xfp,
+                                        const WalletType& wt,
+                                        const AddressType& at) {
+  int cur = storage_->GetLastUsedIndexFromMasterSigner(chain_, xfp, wt, at);
   auto remote = storage_->GetRemoteSigners(chain_, xfp);
   for (auto&& signer : remote) {
+    if (!signer.is_used()) continue;
     int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
     if (index > cur && FormalizePath(GetBip32Path(chain_, wt, at, index)) ==
                            FormalizePath(signer.get_derivation_path())) {

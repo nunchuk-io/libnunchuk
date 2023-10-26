@@ -164,6 +164,25 @@ int NunchukSignerDb::GetUnusedIndex(const WalletType& wallet_type,
   return value;
 }
 
+int NunchukSignerDb::GetLastUsedIndex(const WalletType& wallet_type,
+                                      const AddressType& address_type) {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT PATH FROM BIP32 WHERE TYPE = ? AND USED = 1;";
+  std::string type = GetBip32Type(wallet_type, address_type);
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, type.c_str(), type.size(), NULL);
+  sqlite3_step(stmt);
+  int value = -1;
+  while (sqlite3_column_text(stmt, 0)) {
+    auto path = std::string((char*)sqlite3_column_text(stmt, 0));
+    int index = GetIndexFromPath(wallet_type, address_type, path);
+    if (index > value) value = index;
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return value;
+}
+
 int NunchukSignerDb::GetCachedIndex(const WalletType& wallet_type,
                                     const AddressType& address_type) {
   sqlite3_stmt* stmt;
