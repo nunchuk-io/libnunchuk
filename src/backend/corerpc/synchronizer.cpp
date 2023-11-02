@@ -85,6 +85,15 @@ bool CoreRpcSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   return false;
 }
 
+bool CoreRpcSynchronizer::SupportBatchLookAhead() { return false; }
+
+int CoreRpcSynchronizer::BatchLookAhead(
+    Chain chain, const std::string& wallet_id,
+    const std::vector<std::string>& addresses, const std::vector<int>& indexes,
+    bool internal) {
+  return -1;
+}
+
 void CoreRpcSynchronizer::RescanBlockchain(int start_height, int stop_height) {
   if (stopped) return;
   connection_listener_(ConnectionStatus::SYNCING, 0);

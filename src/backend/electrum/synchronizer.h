@@ -37,6 +37,10 @@ class ElectrumSynchronizer : public Synchronizer {
   Amount RelayFee() override;
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal) override;
+  bool SupportBatchLookAhead() override;
+  int BatchLookAhead(Chain chain, const std::string& wallet_id,
+                     const std::vector<std::string>& addresses,
+                     const std::vector<int>& indexes, bool internal) override;
   void RescanBlockchain(int start_height, int stop_height) override;
   std::vector<UnspentOutput> ListUnspent(const std::string& address) override;
   std::string GetRawTx(const std::string& tx_id) override;
@@ -58,9 +62,14 @@ class ElectrumSynchronizer : public Synchronizer {
   void UpdateScripthashStatus(Chain chain, const std::string& scripthash,
                               const std::string& status,
                               bool check_balance = true);
+  void UpdateScripthashesStatus(Chain chain,
+                                const std::vector<std::string>& scripthashes,
+                                const std::vector<std::string>& status);
   void OnScripthashStatusChange(Chain chain, const json& notification);
   std::pair<std::string, std::string> SubscribeAddress(
       const std::string& wallet_id, const std::string& address);
+  std::map<std::string, std::string> SubscribeAddresses(
+      const std::string& wallet_id, const std::vector<std::string>& addresses);
   void BlockchainSync(Chain chain);
   void WaitForReady();
 

@@ -64,6 +64,8 @@ class ElectrumClient {
                                const std::vector<json>& params);
   std::map<std::string, std::string> get_multi_rawtx(
       const std::vector<std::string>& txs_hash);
+  std::map<std::string, json> get_multi_history(
+      const std::vector<std::string>& scripthashes);
   std::map<int, std::string> get_multi_rawheader(
       const std::vector<int>& heights);
   std::map<std::string, std::string> subscribe_multi_scripthash(

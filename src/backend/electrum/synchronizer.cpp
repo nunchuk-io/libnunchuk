@@ -196,6 +196,17 @@ std::pair<std::string, std::string> ElectrumSynchronizer::SubscribeAddress(
   return {scripthash, status};
 }
 
+std::map<std::string, std::string> ElectrumSynchronizer::SubscribeAddresses(
+    const std::string& wallet_id, const std::vector<std::string>& addresses) {
+  std::vector<std::string> scripthashes{};
+  for (auto&& address : addresses) {
+    std::string scripthash = AddressToScriptHash(address);
+    scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
+    scripthashes.push_back(scripthash);
+  }
+  return client_->subscribe_multi_scripthash(scripthashes);
+}
+
 void ElectrumSynchronizer::BlockchainSync(Chain chain) {
   connection_listener_(ConnectionStatus::OFFLINE, 0);
   {
@@ -219,23 +230,22 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
   for (auto&& wallet_id : wallet_ids) {
     auto addresses = storage_->GetAllAddresses(chain, wallet_id);
     if (client_->support_batch_requests()) {
-      std::vector<std::string> scripthashes{};
-      for (auto&& address : addresses) {
-        std::string scripthash = AddressToScriptHash(address);
-        scripthash_to_wallet_address_[scripthash] = {wallet_id, address};
-        scripthashes.push_back(scripthash);
-      }
-      auto multisub = client_->subscribe_multi_scripthash(scripthashes);
+      auto multisub = SubscribeAddresses(wallet_id, addresses);
+      std::vector<std::string> scripthashes;
+      std::vector<std::string> status;
       for (auto& sub : multisub) {
         std::unique_lock<std::mutex> lock_(status_mutex_);
         if (status_ != Status::READY && status_ != Status::SYNCING) return;
         auto address = scripthash_to_wallet_address_[sub.first].second;
         auto prev_status =
             storage_->GetAddressStatus(chain, wallet_id, address);
-        if (sub.second != prev_status) {
-          UpdateScripthashStatus(chain, sub.first, sub.second, false);
+        if (sub.second.empty() && prev_status.empty()) continue;
+        if (sub.second != prev_status && !sub.second.empty()) {
+          scripthashes.push_back(sub.first);
+          status.push_back(sub.second);
         }
       }
+      UpdateScripthashesStatus(chain, scripthashes, status);
     } else {
       for (auto a = addresses.rbegin(); a != addresses.rend(); ++a) {
         std::unique_lock<std::mutex> lock_(status_mutex_);
@@ -306,6 +316,49 @@ bool ElectrumSynchronizer::LookAhead(Chain chain, const std::string& wallet_id,
   return true;
 }
 
+bool ElectrumSynchronizer::SupportBatchLookAhead() {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) return false;
+  return client_->support_batch_requests();
+}
+
+int ElectrumSynchronizer::BatchLookAhead(
+    Chain chain, const std::string& wallet_id,
+    const std::vector<std::string>& addresses, const std::vector<int>& indexes,
+    bool internal) {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) return -1;
+  if (chain != app_settings_.get_chain()) return -1;
+
+  auto multisub = SubscribeAddresses(wallet_id, addresses);
+  std::vector<std::string> scripthashes;
+  std::vector<std::string> status;
+  int lastUsedIdx = -1;
+  for (auto& sub : multisub) {
+    auto address = scripthash_to_wallet_address_[sub.first].second;
+    auto it = std::find(addresses.begin(), addresses.end(), address);
+    int i = it - addresses.begin();
+    auto prev_status = storage_->GetAddressStatus(chain, wallet_id, address);
+    if (sub.second.empty() && prev_status.empty()) continue;
+    if (sub.second != prev_status) {
+      storage_->AddAddress(chain, wallet_id, address, indexes[i], internal);
+      if (!sub.second.empty()) {
+        if (i > lastUsedIdx) lastUsedIdx = i;
+        scripthashes.push_back(sub.first);
+        status.push_back(sub.second);
+      }
+    }
+  }
+
+  UpdateScripthashesStatus(chain, scripthashes, status);
+  Amount balance = storage_->GetBalance(chain, wallet_id);
+  balance_listener_(wallet_id, balance);
+  Amount unconfirmed_balance =
+      storage_->GetUnconfirmedBalance(chain, wallet_id);
+  balances_listener_(wallet_id, balance, unconfirmed_balance);
+  return lastUsedIdx;
+}
+
 void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
                                                   const std::string& scripthash,
                                                   const std::string& status,
@@ -316,7 +369,7 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
   std::string address = scripthash_to_wallet_address_.at(scripthash).second;
   json history = client_->blockchain_scripthash_get_history(scripthash);
   if (UpdateTransactions(chain, wallet_id, history)) {
-    json utxo = client_->blockchain_scripthash_listunspent(scripthash);
+    json utxo;  // client_->blockchain_scripthash_listunspent(scripthash);
     std::string utxostatus = join(std::vector{utxo.dump(), status}, '|');
     storage_->SetUtxos(chain, wallet_id, address, utxostatus);
   }
@@ -326,6 +379,27 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
     Amount unconfirmed_balance =
         storage_->GetUnconfirmedBalance(chain, wallet_id);
     balances_listener_(wallet_id, balance, unconfirmed_balance);
+  }
+}
+
+void ElectrumSynchronizer::UpdateScripthashesStatus(
+    Chain chain, const std::vector<std::string>& scripthashes,
+    const std::vector<std::string>& status) {
+  if (scripthashes.empty()) return;
+  auto multihistory = client_->get_multi_history(scripthashes);
+  for (auto&& scripthash : scripthashes) {
+    if (scripthash_to_wallet_address_.count(scripthash) == 0) continue;
+    if (multihistory.count(scripthash) == 0) continue;
+    std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
+    std::string address = scripthash_to_wallet_address_.at(scripthash).second;
+    json history = multihistory[scripthash];
+    if (UpdateTransactions(chain, wallet_id, history)) {
+      auto it = std::find(scripthashes.begin(), scripthashes.end(), scripthash);
+      int i = it - scripthashes.begin();
+      json utxo;  // client_->blockchain_scripthash_listunspent(scripthash);
+      std::string utxostatus = join(std::vector{utxo.dump(), status[i]}, '|');
+      storage_->SetUtxos(chain, wallet_id, address, utxostatus);
+    }
   }
 }
 

@@ -296,10 +296,31 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
                                           bool internal) {
   auto descriptor = wallet.get_descriptor(
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
+  std::string wallet_id = wallet.get_id();
+  if (synchronizer_->SupportBatchLookAhead()) {
+    int lastUsedIndex = index - 1;
+    while (true) {
+      std::vector<std::string> addresses;
+      std::vector<int> indexes;
+      for (int i = index; i < index + wallet.get_gap_limit(); i++) {
+        addresses.push_back(
+            CoreUtils::getInstance().DeriveAddress(descriptor, i));
+        indexes.push_back(i);
+      }
+      int last = synchronizer_->BatchLookAhead(chain_, wallet_id, addresses,
+                                               indexes, internal);
+      if (last == -1) {
+        index = lastUsedIndex + 1;
+        return CoreUtils::getInstance().DeriveAddress(descriptor, index);
+      }
+      lastUsedIndex = index + last;
+      index = index + wallet.get_gap_limit();
+    }
+  }
+
   int consecutive_unused = 0;
   std::vector<std::string> unused_addresses;
   std::map<std::string, int> addresses_index;
-  std::string wallet_id = wallet.get_id();
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     addresses_index[address] = index;
@@ -774,6 +795,29 @@ std::string NunchukImpl::NewAddress(const std::string& wallet_id,
       wallet.is_escrow()
           ? -1
           : storage_->GetCurrentAddressIndex(chain_, wallet_id, internal) + 1;
+
+  if (synchronizer_->SupportBatchLookAhead()) {
+    while (true) {
+      std::vector<std::string> addresses;
+      std::vector<int> indexes;
+      for (int i = index; i < index + wallet.get_gap_limit(); i++) {
+        addresses.push_back(
+            CoreUtils::getInstance().DeriveAddress(descriptor, i));
+        indexes.push_back(i);
+      }
+      int last = synchronizer_->BatchLookAhead(chain_, wallet_id, addresses,
+                                               indexes, internal);
+      if (last < wallet.get_gap_limit() - 1) {
+        index = index + last + 1;
+        auto address =
+            CoreUtils::getInstance().DeriveAddress(descriptor, index);
+        storage_->AddAddress(chain_, wallet_id, address, index, internal);
+        return address;
+      }
+      index = index + wallet.get_gap_limit();
+    }
+  }
+
   while (true) {
     auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
     if (!synchronizer_->LookAhead(chain_, wallet_id, address, index,
