@@ -681,4 +681,10 @@ AnalyzeQRResult Utils::AnalyzeQR(const std::vector<std::string>& qr_data) {
   };
 }
 
+int Utils::GetIndexFromPath(const nunchuk::WalletType& wallet_type,
+                            const nunchuk::AddressType& address_type,
+                            const std::string& path) {
+  return ::GetIndexFromPath(wallet_type, address_type, path);
+}
+
 }  // namespace nunchuk
