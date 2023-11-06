@@ -346,15 +346,24 @@ std::map<int, bool> NunchukWalletDb::GetAutoAddData() const {
   return data;
 }
 
+bool compareAddressData(AddressData a, AddressData b) {
+  return a.index < b.index;
+}
+
 std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
                                                        bool internal) {
   auto all = GetAllAddressData();
   auto cur = GetCurrentAddressIndex(internal);
-  std::vector<std::string> rs;
+  std::vector<AddressData> ad;
   for (auto&& item : all) {
     auto data = item.second;
     if (data.used == used && data.internal == internal && data.index <= cur)
-      rs.push_back(data.address);
+      ad.push_back(data);
+  }
+  std::sort(ad.begin(), ad.end(), compareAddressData);
+  std::vector<std::string> rs;
+  for (auto&& a : ad) {
+    rs.push_back(a.address);
   }
   return rs;
 }
