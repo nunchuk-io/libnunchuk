@@ -154,6 +154,7 @@ void NunchukWalletDb::DeleteWallet() {
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS SIGNER;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS ADDRESS;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS VTX;", NULL, 0, NULL));
+  txs_cache_.erase(db_file_name_);
   DropTable();
 }
 
