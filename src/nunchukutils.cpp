@@ -687,4 +687,12 @@ int Utils::GetIndexFromPath(const nunchuk::WalletType& wallet_type,
   return ::GetIndexFromPath(wallet_type, address_type, path);
 }
 
+std::vector<std::string> Utils::DeriveAddresses(const Wallet& wallet,
+                                                int from_index, int to_index) {
+  std::string external_desc =
+      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+  return CoreUtils::getInstance().DeriveAddresses(external_desc, from_index,
+                                                  to_index);
+}
+
 }  // namespace nunchuk
