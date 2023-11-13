@@ -177,7 +177,7 @@ inline int GetIndexFromPath(const nunchuk::WalletType& wallet_type,
 
 inline int GetIndexFromPath(const std::string& path) {
   auto bip32type = GetBip32Type(path);
-  if ("bip45" == bip32type) return 0;
+  if ("bip45" == bip32type || "custom" == bip32type) return -1;
   if ("bip48_1" == bip32type || "bip48_2" == bip32type) {
     return std::stoi(path.substr(9, path.size() - 3));
   }
