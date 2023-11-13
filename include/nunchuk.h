@@ -1410,9 +1410,7 @@ class NUNCHUK_EXPORT Utils {
   static std::string ParsePassportTransaction(
       const std::vector<std::string>& qr_data);
   static AnalyzeQRResult AnalyzeQR(const std::vector<std::string>& qr_data);
-  static int GetIndexFromPath(const nunchuk::WalletType& wallet_type,
-                              const nunchuk::AddressType& address_type,
-                              const std::string& path);
+  static int GetIndexFromPath(const std::string& path);
   static std::vector<std::string> DeriveAddresses(const Wallet& wallet,
                                                   int from_index, int to_index);
 

@@ -175,6 +175,16 @@ inline int GetIndexFromPath(const nunchuk::WalletType& wallet_type,
   return std::stoi(path.substr(last + 1));
 }
 
+inline int GetIndexFromPath(const std::string& path) {
+  auto bip32type = GetBip32Type(path);
+  if ("bip45" == bip32type) return 0;
+  if ("bip48_1" == bip32type || "bip48_2" == bip32type) {
+    return std::stoi(path.substr(9, path.size() - 3));
+  }
+  std::size_t last = path.find_last_of("/");
+  return std::stoi(path.substr(last + 1));
+}
+
 inline nunchuk::AddressType GetAddressTypeFromStr(const std::string& str) {
   if (boost::iequals(str, "p2sh")) {
     return nunchuk::AddressType::LEGACY;
