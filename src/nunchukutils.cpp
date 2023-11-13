@@ -144,6 +144,11 @@ bool Utils::IsDustOutput(const TxOutput& txout) {
   return IsDust(ctxout, CFeeRate(DUST_RELAY_TX_FEE));
 }
 
+bool Utils::IsValidAddress(const std::string& address) {
+  CTxDestination dest = DecodeDestination(address);
+  return IsValidDestination(dest);
+}
+
 Amount Utils::AmountFromValue(const std::string& value,
                               const bool allow_negative) {
   Amount amount;
