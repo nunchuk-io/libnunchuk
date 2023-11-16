@@ -191,7 +191,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   if (!skip_provider) {
     GetAllAddressData(false);  // update range to max address index
     auto desc = GetDescriptorsImportString(wallet);
-    SigningProviderCache::getInstance().GetProvider(desc);
+    SigningProviderCache::getInstance().PreCalculate(desc);
     // workaround for GetTransactionFromPartiallySignedTransaction bug
     auto txs = GetTransactions();
     for (auto&& tx : txs) {

@@ -32,31 +32,33 @@ SigningProviderCache &SigningProviderCache::getInstance() {
 
 bool SigningProviderCache::GetKeyOrigin(const CKeyID &keyid,
                                         KeyOriginInfo &info) {
+  std::shared_lock<std::shared_mutex> lock(access_);
   for (auto &&p : providers_) {
-    if (p.second.GetKeyOrigin(keyid, info)) return true;
+    if (p.second.get().GetKeyOrigin(keyid, info)) return true;
   }
   return false;
 }
 
-FlatSigningProvider SigningProviderCache::GetProvider(const std::string &desc) {
-  if (!providers_.count(desc)) {
-    FlatSigningProvider provider;
-    UniValue uv;
-    uv.read(desc);
-    auto descs = uv.get_array();
-    for (size_t i = 0; i < descs.size(); ++i) {
-      EvalDescriptorStringOrObject(descs[i], provider);
-    }
-    providers_[desc] = provider;
+FlatSigningProvider Eval(const std::string &desc) {
+  FlatSigningProvider provider;
+  UniValue uv;
+  uv.read(desc);
+  auto descs = uv.get_array();
+  for (size_t i = 0; i < descs.size(); ++i) {
+    EvalDescriptorStringOrObject(descs[i], provider);
   }
-  return providers_[desc];
+  return provider;
+}
+
+FlatSigningProvider SigningProviderCache::GetProvider(const std::string &desc) {
+  if (!providers_.count(desc)) PreCalculate(desc);
+  return providers_[desc].get();
 }
 
 void SigningProviderCache::PreCalculate(const std::string &desc) {
-  if (marker_.count(desc) || providers_.count(desc)) return;
-  marker_[desc] = true;
-  runner_.push_back(
-      std::async(std::launch::async, [this, desc] { GetProvider(desc); }));
+  std::unique_lock<std::shared_mutex> lock(access_);
+  if (providers_.count(desc)) return;
+  providers_[desc] = std::async(std::launch::async, Eval, desc);
 }
 
 void SigningProviderCache::SetMaxIndex(const std::string &wallet_id, int idx) {

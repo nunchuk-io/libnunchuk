@@ -23,6 +23,7 @@
 #include <vector>
 #include <future>
 #include <script/signingprovider.h>
+#include <shared_mutex>
 
 class SigningProviderCache {
  public:
@@ -40,9 +41,8 @@ class SigningProviderCache {
   SigningProviderCache();
   ~SigningProviderCache();
 
-  std::map<std::string, bool> marker_;
-  std::map<std::string, FlatSigningProvider> providers_;
-  std::vector<std::future<void>> runner_;
+  std::shared_mutex access_;
+  std::map<std::string, std::shared_future<FlatSigningProvider>> providers_;
   std::map<std::string, int> max_index_;
 };
 
