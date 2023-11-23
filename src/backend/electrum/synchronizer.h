@@ -82,6 +82,7 @@ class ElectrumSynchronizer : public Synchronizer {
   // Cache
   std::map<std::string, std::pair<std::string, std::string>>
       scripthash_to_wallet_address_;
+  std::map<std::string, std::string> raw_tx_;
 };
 
 }  // namespace nunchuk

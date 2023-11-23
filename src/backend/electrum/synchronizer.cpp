@@ -434,13 +434,14 @@ std::vector<UnspentOutput> ElectrumSynchronizer::ListUnspent(
 }
 
 std::string ElectrumSynchronizer::GetRawTx(const std::string& tx_id) {
+  if (raw_tx_.count(tx_id) > 0) return raw_tx_[tx_id];
   std::unique_lock<std::mutex> lock_(status_mutex_);
   if (status_ != Status::READY && status_ != Status::SYNCING) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
   }
-  auto tx = client_->blockchain_transaction_get(tx_id);
-  return tx;
+  raw_tx_[tx_id] = client_->blockchain_transaction_get(tx_id);
+  return raw_tx_[tx_id];
 }
 
 Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
