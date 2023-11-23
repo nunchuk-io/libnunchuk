@@ -530,6 +530,15 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
 
 SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
     tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+    const std::string& master_signer_id, const WalletType& wallet_type,
+    const AddressType& address_type, int index) {
+  std::string path = GetBip32Path(chain_, wallet_type, address_type, index);
+  return GetSignerFromTapsignerMasterSigner(tapsigner, cvc, master_signer_id,
+                                            path);
+}
+
+SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
+    tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
     const std::string& master_signer_id, const std::string& path) {
   if (!Utils::IsValidDerivationPath(path)) {
     throw NunchukException(NunchukException::INVALID_BIP32_PATH,
