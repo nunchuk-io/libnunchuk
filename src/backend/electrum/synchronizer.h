@@ -60,8 +60,9 @@ class ElectrumSynchronizer : public Synchronizer {
   bool UpdateTransactions(Chain chain, const std::string& wallet_id,
                           const json& history);
   bool UpdateTransactions(Chain chain, const std::string& wallet_id,
-                          const json& history, const json& rawtx,
-                          const json& rawheader);
+                          const json& history,
+                          const std::map<std::string, std::string>& rawtx,
+                          const std::map<int, std::string>& rawheader);
   void UpdateScripthashStatus(Chain chain, const std::string& scripthash,
                               const std::string& status,
                               bool check_balance = true);

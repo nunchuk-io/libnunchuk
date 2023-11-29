@@ -182,11 +182,10 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
   return isSynced;
 }
 
-bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
-                                              const std::string& wallet_id,
-                                              const json& history,
-                                              const json& rawtx,
-                                              const json& rawheader) {
+bool ElectrumSynchronizer::UpdateTransactions(
+    Chain chain, const std::string& wallet_id, const json& history,
+    const std::map<std::string, std::string>& rawtx,
+    const std::map<int, std::string>& rawheader) {
   using TS = TransactionStatus;
   if (!history.is_array()) return false;
   bool isSynced = true;
@@ -220,9 +219,10 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
           continue;
         }
       } else {
-        raw = rawtx[tx_id];
+        raw = rawtx.find(tx_id)->second;
       }
-      time_t time = height <= 0 ? 0 : GetBlockTime(rawheader[height]);
+      time_t time =
+          height <= 0 ? 0 : GetBlockTime(rawheader.find(height)->second);
       Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
       auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
       if (height <= 0) height = 0;
