@@ -182,6 +182,64 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
   return isSynced;
 }
 
+bool ElectrumSynchronizer::UpdateTransactions(
+    Chain chain, const std::string& wallet_id, const json& history,
+    const std::map<std::string, std::string>& rawtx,
+    const std::map<int, std::string>& rawheader) {
+  using TS = TransactionStatus;
+  if (!history.is_array()) return false;
+  bool isSynced = true;
+  if (client_->support_batch_requests()) {
+    std::vector<std::string> txs_hash{};
+    std::map<std::string, bool> founds;
+    for (auto item : history) {
+      std::string tx_id = item["tx_hash"];
+      try {
+        auto stx = storage_->GetTransaction(chain, wallet_id, tx_id);
+        founds[tx_id] = true;
+        if (stx.get_status() == TS::CONFIRMED) continue;
+      } catch (StorageException& se) {
+        if (se.code() != StorageException::TX_NOT_FOUND) continue;
+        founds[tx_id] = false;
+      }
+      txs_hash.push_back(tx_id);
+    }
+    for (auto item : history) {
+      std::string tx_id = item["tx_hash"];
+      int height = item["height"];
+      std::string raw;
+      if (std::find(txs_hash.begin(), txs_hash.end(), tx_id) ==
+          txs_hash.end()) {
+        continue;
+      } else if (rawtx.count(tx_id) == 0) {
+        try {
+          raw = client_->blockchain_transaction_get(tx_id);
+        } catch (...) {
+          isSynced = false;
+          continue;
+        }
+      } else {
+        raw = rawtx.find(tx_id)->second;
+      }
+      time_t time =
+          height <= 0 ? 0 : GetBlockTime(rawheader.find(height)->second);
+      Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
+      auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
+      if (height <= 0) height = 0;
+      if (founds[tx_id]) {
+        storage_->UpdateTransaction(chain, wallet_id, raw, height, time);
+      } else {
+        storage_->InsertTransaction(chain, wallet_id, raw, height, time, fee);
+      }
+      if (status_ == Status::READY) {
+        transaction_listener_(tx_id, status, wallet_id);
+      }
+    }
+    return isSynced;
+  }
+  return UpdateTransactions(chain, wallet_id, history);
+}
+
 void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
                                                     const json& notification) {
   UpdateScripthashStatus(chain, notification[0], notification[1]);
@@ -387,13 +445,36 @@ void ElectrumSynchronizer::UpdateScripthashesStatus(
     const std::vector<std::string>& status) {
   if (scripthashes.empty()) return;
   auto multihistory = client_->get_multi_history(scripthashes);
+
+  std::vector<std::string> txs_hash{};
+  std::vector<int> heights{};
+  std::map<std::string, bool> founds;
+  for (auto [scripthash, history] : multihistory) {
+    if (multihistory.count(scripthash) == 0) continue;
+    std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
+    for (auto item : history) {
+      std::string tx_id = item["tx_hash"];
+      int height = item["height"];
+      try {
+        auto stx = storage_->GetTransaction(chain, wallet_id, tx_id);
+        if (stx.get_status() == TransactionStatus::CONFIRMED) continue;
+      } catch (StorageException& se) {
+        if (se.code() != StorageException::TX_NOT_FOUND) continue;
+      }
+      txs_hash.push_back(tx_id);
+      if (height > 0) heights.push_back(height);
+    }
+  }
+  auto rawtx = client_->get_multi_rawtx(txs_hash);
+  auto rawheader = client_->get_multi_rawheader(heights);
+
   for (auto&& scripthash : scripthashes) {
     if (scripthash_to_wallet_address_.count(scripthash) == 0) continue;
     if (multihistory.count(scripthash) == 0) continue;
     std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
     std::string address = scripthash_to_wallet_address_.at(scripthash).second;
     json history = multihistory[scripthash];
-    if (UpdateTransactions(chain, wallet_id, history)) {
+    if (UpdateTransactions(chain, wallet_id, history, rawtx, rawheader)) {
       auto it = std::find(scripthashes.begin(), scripthashes.end(), scripthash);
       int i = it - scripthashes.begin();
       json utxo;  // client_->blockchain_scripthash_listunspent(scripthash);
