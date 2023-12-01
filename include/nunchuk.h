@@ -1095,6 +1095,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual SingleSigner GetSignerFromTapsignerMasterSigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& mastersigner_id, const std::string& path) = 0;
+  virtual SingleSigner GetSignerFromTapsignerMasterSigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id, const WalletType& wallet_type,
+      const AddressType& address_type, int index) = 0;
+
   virtual std::string SignTapsignerMessage(tap_protocol::Tapsigner* tapsigner,
                                            const std::string& cvc,
                                            const SingleSigner& signer,

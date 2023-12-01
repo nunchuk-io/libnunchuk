@@ -625,7 +625,8 @@ SingleSigner NunchukStorage::AddSignerToMasterSigner(
         strprintf("Signer exists id = '%s'", mastersigner_id));
   }
 
-  signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(), "custom");
+  signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
+                    GetBip32Type(signer.get_derivation_path()));
   return SingleSigner(signer_db.GetName(), signer.get_xpub(), "",
                       signer.get_derivation_path(), signer_db.GetFingerprint(),
                       signer_db.GetLastHealthCheck(), mastersigner_id, false,

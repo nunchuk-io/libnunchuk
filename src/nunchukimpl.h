@@ -325,6 +325,10 @@ class NunchukImpl : public Nunchuk {
   SingleSigner GetSignerFromTapsignerMasterSigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& mastersigner_id, const std::string& path) override;
+  SingleSigner GetSignerFromTapsignerMasterSigner(
+      tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
+      const std::string& master_signer_id, const WalletType& wallet_type,
+      const AddressType& address_type, int index) override;
   std::string SignTapsignerMessage(tap_protocol::Tapsigner* tapsigner,
                                    const std::string& cvc,
                                    const SingleSigner& signer,
