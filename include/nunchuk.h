@@ -352,6 +352,7 @@ class NUNCHUK_EXPORT SingleSigner {
   bool has_master_signer() const;
   time_t get_last_health_check() const;
   std::string get_descriptor() const;
+  bool is_taproot() const;
   void set_name(const std::string& value);
   void set_used(bool value);
   void set_type(SignerType value);
@@ -388,6 +389,7 @@ class NUNCHUK_EXPORT MasterSigner {
   bool is_nfc() const;
   bool is_visible() const;
   SignerType get_type() const;
+  bool is_support_taproot() const;
   void set_name(const std::string& value);
   void set_tags(std::vector<SignerTag> tags);
   void set_visible(bool value);
@@ -1229,6 +1231,8 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual bool IsMyAddress(const std::string& wallet_id,
                            const std::string& address) = 0;
+  virtual std::string GetAddressPath(const std::string& wallet_id,
+                                     const std::string& address) = 0;
   virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
       const std::string& wallet_id, const std::string& tx_id, int vout) = 0;
 

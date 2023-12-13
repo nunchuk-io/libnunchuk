@@ -19,6 +19,7 @@
 #include <vector>
 #include <sstream>
 #include <descriptor.h>
+#include <utils/bip32.hpp>
 
 namespace nunchuk {
 
@@ -63,6 +64,10 @@ bool SingleSigner::is_visible() const { return visible_; }
 bool SingleSigner::has_master_signer() const {
   return !master_signer_id_.empty();
 }
+bool SingleSigner::is_taproot() const {
+  return GetBip32Type(derivation_path_) == "bip86";
+}
+
 time_t SingleSigner::get_last_health_check() const {
   return last_health_check_;
 }

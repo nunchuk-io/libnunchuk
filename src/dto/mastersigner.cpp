@@ -50,5 +50,6 @@ void MasterSigner::set_tags(std::vector<SignerTag> tags) {
 void MasterSigner::set_visible(bool value) { visible_ = value; }
 bool MasterSigner::is_nfc() const { return type_ == SignerType::NFC; }
 bool MasterSigner::is_visible() const { return visible_; }
+bool MasterSigner::is_support_taproot() const { return type_ == SignerType::SOFTWARE; }
 
 }  // namespace nunchuk

@@ -2112,6 +2112,11 @@ bool NunchukImpl::IsMyAddress(const std::string& wallet_id,
   return storage_->IsMyAddress(chain_, wallet_id, address);
 }
 
+std::string NunchukImpl::GetAddressPath(const std::string& wallet_id,
+                                        const std::string& address) {
+  return storage_->GetAddressPath(chain_, wallet_id, address);
+}
+
 bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,
                          Amount& package_fee_rate) {
   bool rs = false;

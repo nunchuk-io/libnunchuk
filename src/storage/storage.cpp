@@ -1858,6 +1858,13 @@ bool NunchukStorage::IsMyAddress(Chain chain, const std::string& wallet_id,
   return GetWalletDb(chain, wallet_id).IsMyAddress(address);
 }
 
+std::string NunchukStorage::GetAddressPath(Chain chain,
+                                           const std::string& wallet_id,
+                                           const std::string& address) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetAddressPath(address);
+}
+
 std::vector<std::vector<UnspentOutput>> NunchukStorage::GetAncestry(
     Chain chain, const std::string& wallet_id, const std::string& tx_id,
     int vout) {
