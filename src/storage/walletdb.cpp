@@ -175,7 +175,11 @@ bool NunchukWalletDb::SetGapLimit(int value) {
 }
 
 Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
-  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
+  auto data = GetString(DbKeys::IMMUTABLE_DATA);
+  if (data.empty())
+    throw StorageException(StorageException::WALLET_NOT_FOUND,
+                           strprintf("Wallet not exists! id = '%s'", id_));
+  json immutable_data = json::parse(data);
   int m = immutable_data["m"];
   int n = immutable_data["n"];
   AddressType address_type = immutable_data["address_type"];
