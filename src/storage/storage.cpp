@@ -804,9 +804,12 @@ std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
 
   std::map<std::string, time_t> last_used_map;
   for (auto&& id : ids) {
-    auto wallet_db = GetWalletDb(chain, id);
-    auto wallet = wallet_db.GetWallet(true, true);
-    last_used_map.insert({id, wallet.get_last_used()});
+    try {
+      auto wallet_db = GetWalletDb(chain, id);
+      auto wallet = wallet_db.GetWallet(true, true);
+      last_used_map.insert({id, wallet.get_last_used()});
+    } catch (...) {
+    }
   }
 
   std::sort(ids.begin(), ids.end(),
@@ -1219,7 +1222,10 @@ void NunchukStorage::MaybeMigrate(Chain chain) {
   for (auto&& wallet_id : wallets) {
     auto wallet_db = GetWalletDb(chain, wallet_id);
     wallet_db.MaybeMigrate();
-    wallet_db.GetWallet(true, false);
+    try {
+      wallet_db.GetWallet(true, false);
+    } catch (...) {
+    }
   }
   auto signers = ListMasterSigners0(chain);
   for (auto&& signer_id : signers) {
@@ -1377,38 +1383,42 @@ std::string NunchukStorage::ExportBackup() {
     rs["wallets"] = json::array();
     auto wids = ListWallets0(chain);
     for (auto&& id : wids) {
-      auto wallet_db = GetWalletDb(chain, id);
-      auto w = wallet_db.GetWallet(true, true);
-      if (is_assisted_wallet(w)) {
-        // skip sync assisted wallet
-        continue;
-      }
-
-      json wallet = {
-          {"id", w.get_id()},
-          {"name", w.get_name()},
-          {"descriptor", w.get_descriptor(DescriptorPath::ANY)},
-          {"create_date", w.get_create_date()},
-          {"description", w.get_description()},
-          {"pending_signatures", json::array()},
-      };
-      auto txs = wallet_db.GetTransactions();
-      for (auto&& tx : txs) {
-        if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) continue;
-        json outputs = json::array();
-        for (auto&& o : tx.get_user_outputs()) {
-          outputs.push_back({{"address", o.first}, {"amount", o.second}});
+      try {
+        auto wallet_db = GetWalletDb(chain, id);
+        auto w = wallet_db.GetWallet(true, true);
+        if (is_assisted_wallet(w)) {
+          // skip sync assisted wallet
+          continue;
         }
-        wallet["pending_signatures"].push_back(
-            {{"psbt", tx.get_psbt()},
-             {"fee", tx.get_fee()},
-             {"memo", tx.get_memo()},
-             {"change_pos", tx.get_change_index()},
-             {"fee_rate", tx.get_fee_rate()},
-             {"subtract_fee_from_amount", tx.subtract_fee_from_amount()},
-             {"outputs", outputs}});
+
+        json wallet = {
+            {"id", w.get_id()},
+            {"name", w.get_name()},
+            {"descriptor", w.get_descriptor(DescriptorPath::ANY)},
+            {"create_date", w.get_create_date()},
+            {"description", w.get_description()},
+            {"pending_signatures", json::array()},
+        };
+        auto txs = wallet_db.GetTransactions();
+        for (auto&& tx : txs) {
+          if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES)
+            continue;
+          json outputs = json::array();
+          for (auto&& o : tx.get_user_outputs()) {
+            outputs.push_back({{"address", o.first}, {"amount", o.second}});
+          }
+          wallet["pending_signatures"].push_back(
+              {{"psbt", tx.get_psbt()},
+               {"fee", tx.get_fee()},
+               {"memo", tx.get_memo()},
+               {"change_pos", tx.get_change_index()},
+               {"fee_rate", tx.get_fee_rate()},
+               {"subtract_fee_from_amount", tx.subtract_fee_from_amount()},
+               {"outputs", outputs}});
+        }
+        rs["wallets"].push_back(wallet);
+      } catch (...) {
       }
-      rs["wallets"].push_back(wallet);
     }
 
     rs["signers"] = json::array();
