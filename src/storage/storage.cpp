@@ -812,6 +812,13 @@ std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
     }
   }
 
+  ids.erase(std::remove_if(ids.begin(), ids.end(),
+                           [&](const std::string& id) {
+                             return last_used_map.find(id) ==
+                                    last_used_map.end();
+                           }),
+            ids.end());
+
   std::sort(ids.begin(), ids.end(),
             [&](const std::string& lhs, const std::string& rhs) {
               return last_used_map[lhs] > last_used_map[rhs];
