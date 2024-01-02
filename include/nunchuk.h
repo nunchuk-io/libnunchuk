@@ -201,6 +201,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_BIP32_PATH = -1024;
   static const int DECRYPT_FAIL = -1025;
   static const int NETWORK_REJECTED = -1026;
+  static const int INVALID_SIGNATURE = -1027;
   using BaseException::BaseException;
 };
 

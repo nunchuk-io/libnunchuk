@@ -2004,9 +2004,33 @@ RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
     sqlite3_step(stmt);
     std::map<std::string, bool> rs;
     if (sqlite3_column_text(stmt, 0)) {
+      std::string psbt = std::string((char*)sqlite3_column_text(stmt, 1));
       std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
       local_tokens = split(ltoken, ',');
       SQLCHECK(sqlite3_finalize(stmt));
+
+      // Verify token
+      if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
+        auto dummyPsbt = DecodePsbt(psbt);
+        PSBTInput& input = dummyPsbt.inputs[0];
+        auto amountIn = input.witness_utxo.nValue;
+        CScript scriptCode = input.witness_script;
+        const CMutableTransaction& tx = *dummyPsbt.tx;
+        const PrecomputedTransactionData txdata = PrecomputePSBTData(dummyPsbt);
+        MutableTransactionSignatureCreator creator(&tx, 0, amountIn, &txdata);
+
+        auto pair = split(token, '.');
+        for (const auto& key : input.hd_keypaths) {
+          if (HexStr(key.second.fingerprint) != pair[0]) continue;
+          if (!creator.Checker().CheckECDSASignature(
+                  ParseHex(pair[1]),
+                  {key.first.data(), key.first.data() + key.first.size()},
+                  scriptCode, SigVersion::WITNESS_V0)) {
+            throw NunchukException(NunchukException::INVALID_SIGNATURE,
+                                   "Invalid signature!");
+          }
+        }
+      }
     } else {
       SQLCHECK(sqlite3_finalize(stmt));
       throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
