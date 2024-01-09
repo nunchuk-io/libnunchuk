@@ -141,9 +141,12 @@ else()
     set(Bitcoin_LIBRARIES 
         bitcoin_common
         bitcoin_util
+        bitcoin_cli
+        bitcoin_node
         bitcoin_server
         bitcoin_wallet
         bitcoin_consensus
+        bitcoinconsensus
         bitcoin_crypto_base
         bitcoin_crypto_shani
         bitcoin_crypto_sse41
@@ -156,7 +159,7 @@ else()
         crc32c_sse42
     )
     set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src")
-    set(Bitcoin_PATH_SUFFIXES "univalue/.libs" "leveldb" "crc32c" "crypto" "secp256k1/.libs")
+    set(Bitcoin_PATH_SUFFIXES ".libs" "leveldb" "crc32c" "crypto" "secp256k1/.libs")
     foreach(btclib ${Bitcoin_LIBRARIES})
         find_library(${btclib}_location ${btclib} PATHS ${Bitcoin_PATHS} PATH_SUFFIXES ${Bitcoin_PATH_SUFFIXES} NO_DEFAULT_PATH)
         if (NOT ${btclib}_location)
@@ -201,4 +204,4 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
 get_target_property(SECP256K1_LIBRARY secp256k1 IMPORTED_LOCATION)
 set(EXTERNAL_SECP256K1_LIBRARY "${SECP256K1_LIBRARY}" PARENT_SCOPE)
 set(EXTERNAL_SECP256K1_INCLUDE "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include" PARENT_SCOPE)
-set(USE_EXTERNAL_SECP256K1 ON PARENT_SCOPE)
+# set(USE_EXTERNAL_SECP256K1 ON PARENT_SCOPE)

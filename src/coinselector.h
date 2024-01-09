@@ -33,6 +33,7 @@
 #include <vector>
 
 namespace nunchuk {
+using namespace wallet;
 
 struct CoinSelectionParams {
   bool use_bnb = true;
@@ -78,13 +79,13 @@ class CoinSelector {
   bool SelectCoinsMinConf(const CAmount& nTargetValue,
                           const CoinEligibilityFilter& eligibility_filter,
                           std::vector<OutputGroup> groups,
-                          std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet,
+                          std::set<COutput>& setCoinsRet, CAmount& nValueRet,
                           const CoinSelectionParams& coin_selection_params,
                           bool& bnb_used);
   bool SelectCoins(const std::vector<UnspentOutput>& vAvailableCoins,
                    const std::vector<UnspentOutput>& presetInputs,
                    const CAmount& nTargetValue,
-                   std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet,
+                   std::set<COutput>& setCoinsRet, CAmount& nValueRet,
                    CoinSelectionParams& coin_selection_params, bool& bnb_used);
   int64_t CalculateMaximumSignedTxSize(const CTransaction& tx);
 

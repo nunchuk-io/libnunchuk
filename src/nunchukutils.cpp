@@ -32,7 +32,7 @@
 #include <hwiservice.h>
 
 #include <base58.h>
-#include <amount.h>
+#include <consensus/amount.h>
 #include <stdlib.h>
 #include <util/bip32.h>
 #include <util/strencodings.h>
@@ -52,6 +52,7 @@
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
 
+#include <random.h>
 #include <ctime>
 #include <iostream>
 #include "key_io.h"
@@ -109,10 +110,10 @@ std::string Utils::GenerateRandomMessage(int message_length) {
 std::string Utils::GenerateRandomChainCode() {
   std::vector<unsigned char> buf(128);
 
-  // GetStrongRandBytes can only generate up to 32 bytes
-  for (int cur = 0; cur < buf.size(); cur += 32) {
-    GetStrongRandBytes(buf.data() + cur, 32);
-  }
+  // // GetStrongRandBytes can only generate up to 32 bytes
+  // for (int cur = 0; cur < buf.size(); cur += 32) {
+  GetStrongRandBytes(buf);
+  // }
 
   std::vector<unsigned char> chain_code(CHash256::OUTPUT_SIZE);
   CHash256 hasher;
@@ -782,12 +783,11 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
-  bool invalid;
-  auto data = DecodeBase64(psbt.c_str(), &invalid);
-  if (invalid) {
+  auto data = DecodeBase64(psbt.c_str());
+  if (!data) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  bcr2::CryptoPSBT crypto_psbt{data};
+  bcr2::CryptoPSBT crypto_psbt{*data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, crypto_psbt);
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
@@ -803,12 +803,11 @@ std::vector<std::string> Utils::ExportPassportTransaction(
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
-  bool invalid;
-  auto data = DecodeBase64(psbt.c_str(), &invalid);
-  if (invalid) {
+  auto data = DecodeBase64(psbt.c_str());
+  if (!data) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  bcr2::CryptoPSBT crypto_psbt{data};
+  bcr2::CryptoPSBT crypto_psbt{*data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, crypto_psbt);
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);

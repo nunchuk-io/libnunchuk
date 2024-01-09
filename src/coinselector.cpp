@@ -86,29 +86,29 @@ std::vector<OutputGroup> GroupOutputs(const std::vector<UnspentOutput>& outputs,
                                       const size_t max_ancestors) {
   std::vector<OutputGroup> groups;
 
-  for (const auto& output : outputs) {
-    CMutableTransaction cmt{};
-    cmt.vout.push_back(CTxOut{output.get_amount(), CScript()});
-    CTransactionRef ctr = MakeTransactionRef(cmt);
-    CInputCoin input_coin{ctr, 0};
-    input_coin.outpoint =
-        COutPoint(uint256S(output.get_txid()), output.get_vout());
+  // for (const auto& output : outputs) {
+  //   CMutableTransaction cmt{};
+  //   cmt.vout.push_back(CTxOut{output.get_amount(), CScript()});
+  //   CTransactionRef ctr = MakeTransactionRef(cmt);
+  //   COutput input_coin{ctr, 0};
+  //   input_coin.outpoint =
+  //       COutPoint(uint256S(output.get_txid()), output.get_vout());
 
-    size_t ancestors = 0, descendants = 0;
+  //   size_t ancestors = 0, descendants = 0;
 
-    // Make an OutputGroup containing just this output
-    OutputGroup group{};
-    group.Insert(input_coin, output.get_height(), true, ancestors, descendants,
-                 true);
-    groups.push_back(group);
-  }
+  //   // Make an OutputGroup containing just this output
+  //   OutputGroup group{};
+  //   group.Insert(input_coin, output.get_height(), true, ancestors, descendants,
+  //                true);
+  //   groups.push_back(group);
+  // }
   return groups;
 }
 
 bool CoinSelector::SelectCoinsMinConf(
     const CAmount& nTargetValue,
     const CoinEligibilityFilter& eligibility_filter,
-    std::vector<OutputGroup> groups, std::set<CInputCoin>& setCoinsRet,
+    std::vector<OutputGroup> groups, std::set<COutput>& setCoinsRet,
     CAmount& nValueRet, const CoinSelectionParams& coin_selection_params,
     bool& bnb_used) {
   setCoinsRet.clear();
@@ -135,41 +135,41 @@ bool CoinSelector::SelectCoinsMinConf(
       group.fee = 0;
       group.long_term_fee = 0;
       group.effective_value = 0;
-      for (auto it = group.m_outputs.begin(); it != group.m_outputs.end();) {
-        const CInputCoin& coin = *it;
-        CAmount effective_value =
-            coin.txout.nValue -
-            (coin.m_input_bytes < 0
-                 ? 0
-                 : coin_selection_params.effective_fee.GetFee(
-                       coin.m_input_bytes));
-        // Only include outputs that are positive effective value (i.e. not
-        // dust)
-        if (effective_value > 0) {
-          group.fee += coin.m_input_bytes < 0
-                           ? 0
-                           : coin_selection_params.effective_fee.GetFee(
-                                 coin.m_input_bytes);
-          group.long_term_fee +=
-              coin.m_input_bytes < 0
-                  ? 0
-                  : long_term_feerate.GetFee(coin.m_input_bytes);
-          if (coin_selection_params.m_subtract_fee_outputs) {
-            group.effective_value += coin.txout.nValue;
-          } else {
-            group.effective_value += effective_value;
-          }
-          ++it;
-        } else {
-          // Critical
-          // it = group.Discard(coin);
-        }
-      }
+      // for (auto it = group.m_outputs.begin(); it != group.m_outputs.end();) {
+      //   const COutput& coin = *it;
+      //   CAmount effective_value =
+      //       coin.txout.nValue -
+      //       (coin.m_input_bytes < 0
+      //            ? 0
+      //            : coin_selection_params.effective_fee.GetFee(
+      //                  coin.m_input_bytes));
+      //   // Only include outputs that are positive effective value (i.e. not
+      //   // dust)
+      //   if (effective_value > 0) {
+      //     group.fee += coin.m_input_bytes < 0
+      //                      ? 0
+      //                      : coin_selection_params.effective_fee.GetFee(
+      //                            coin.m_input_bytes);
+      //     group.long_term_fee +=
+      //         coin.m_input_bytes < 0
+      //             ? 0
+      //             : long_term_feerate.GetFee(coin.m_input_bytes);
+      //     if (coin_selection_params.m_subtract_fee_outputs) {
+      //       group.effective_value += coin.txout.nValue;
+      //     } else {
+      //       group.effective_value += effective_value;
+      //     }
+      //     ++it;
+      //   } else {
+      //     // Critical
+      //     // it = group.Discard(coin);
+      //   }
+      // }
       if (group.effective_value > 0) utxo_pool.push_back(group);
     }
     bnb_used = true;
-    return SelectCoinsBnB(utxo_pool, nTargetValue, cost_of_change, setCoinsRet,
-                          nValueRet);
+    // return SelectCoinsBnB(utxo_pool, nTargetValue, cost_of_change, setCoinsRet,
+    //                       nValueRet);
   } else {
     // Filter by the min conf specs and add to utxo_pool
     for (const OutputGroup& group : groups) {
@@ -177,14 +177,15 @@ bool CoinSelector::SelectCoinsMinConf(
       utxo_pool.push_back(group);
     }
     bnb_used = false;
-    return KnapsackSolver(nTargetValue, utxo_pool, setCoinsRet, nValueRet);
+    // return KnapsackSolver(nTargetValue, utxo_pool, setCoinsRet, nValueRet);
   }
+  return true;
 }
 
 bool CoinSelector::SelectCoins(
     const std::vector<UnspentOutput>& vAvailableCoins,
     const std::vector<UnspentOutput>& presetInputs, const CAmount& nTargetValue,
-    std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet,
+    std::set<COutput>& setCoinsRet, CAmount& nValueRet,
     CoinSelectionParams& coin_selection_params, bool& bnb_used) {
   std::vector<UnspentOutput> vCoins(vAvailableCoins);
   CAmount value_to_select = nTargetValue;
@@ -209,12 +210,12 @@ bool CoinSelector::SelectCoins(
       CMutableTransaction cmt{};
       cmt.vout.push_back(CTxOut{output.get_amount(), CScript()});
       CTransactionRef ctr = MakeTransactionRef(cmt);
-      CInputCoin input_coin{ctr, 0};
-      input_coin.outpoint =
-          COutPoint(uint256S(output.get_txid()), output.get_vout());
+      // COutput input_coin{ctr, 0};
+      // input_coin.outpoint =
+      //     COutPoint(uint256S(output.get_txid()), output.get_vout());
 
-      setCoinsRet.insert(input_coin);
-      nValueRet += output.get_amount();
+      // setCoinsRet.insert(input_coin);
+      // nValueRet += output.get_amount();
     }
     return (nValueRet >= nTargetValue);
   }
@@ -305,7 +306,7 @@ bool CoinSelector::Select(const std::vector<UnspentOutput>& vAvailableCoins,
 
   CMutableTransaction txNew;
   CAmount nFeeNeeded;
-  std::set<CInputCoin> setCoins;
+  std::set<COutput> setCoins;
 
   CoinSelectionParams
       coin_selection_params;  // Parameters for coin selection, init with dummy
@@ -520,7 +521,7 @@ bool CoinSelector::Select(const std::vector<UnspentOutput>& vAvailableCoins,
     continue;
   }
 
-  std::vector<CInputCoin> selected_coins(setCoins.begin(), setCoins.end());
+  std::vector<COutput> selected_coins(setCoins.begin(), setCoins.end());
   for (const auto& coin : selected_coins) {
     vecInput.push_back(TxInput(coin.outpoint.hash.GetHex(), coin.outpoint.n));
   }

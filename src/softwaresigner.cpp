@@ -39,7 +39,7 @@ extern "C" {
 void random_buffer(uint8_t* buf, size_t len) {
   // Core's GetStrongRandBytes
   // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  GetStrongRandBytes(buf, len);
+  // GetStrongRandBytes(buf);
 }
 }
 
@@ -160,9 +160,9 @@ std::string SoftwareSigner::SignTaprootTx(
 
     builder.Finalize(xpk);
     WitnessV1Taproot output = builder.GetOutput();
-    provider.tr_spenddata[output].Merge(builder.GetSpendData());
+    provider.tr_trees[output] = builder;
     unsigned char b[33] = {0x02};
-    auto internal_key = provider.tr_spenddata[output].internal_key;
+    auto internal_key = builder.GetSpendData().internal_key;
     std::copy(internal_key.begin(), internal_key.end(), b + 1);
     CPubKey fullpubkey;
     fullpubkey.Set(b, b + 33);
@@ -175,7 +175,7 @@ std::string SoftwareSigner::SignTaprootTx(
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
     SignPSBTInput(HidingSigningProvider(&provider, false, false), psbtx, i,
-                  &txdata, psbtx.inputs[i].sighash_type);
+                  &txdata, *psbtx.inputs[i].sighash_type);
   }
   return EncodePsbt(psbtx);
 }
@@ -199,8 +199,9 @@ CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
     mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
   }
 
+  // std::vector<std::byte> spanSeed((std::byte*)seed, seed + 64);
   CExtKey bip32rootkey{};
-  bip32rootkey.SetSeed(seed, 512 / 8);
+  // bip32rootkey.SetSeed({spanSeed.begin(), spanSeed.end()});
   return bip32rootkey;
 }
 

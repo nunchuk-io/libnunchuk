@@ -21,7 +21,7 @@
 #include <nunchuk.h>
 #include <util/strencodings.h>
 #include <crypto/sha256.h>
-#include <script/standard.h>
+#include <script/solver.h>
 #include <key_io.h>
 #include <core_io.h>
 

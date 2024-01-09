@@ -20,12 +20,13 @@
 #include <chainparams.h>
 #include <pubkey.h>
 #include <validation.h>
+#include <kernel/chainparams.h>  // IWYU pragma: export
 
 // required for util/translation.h
 const std::function<std::string(const char *)> G_TRANSLATION_FUN = nullptr;
 
 // required for validation.h
-static const ECCVerifyHandle verify_handle;
+// static const ECCVerifyHandle verify_handle;
 
 EmbeddedRpc::EmbeddedRpc() {}
 
@@ -36,9 +37,9 @@ void EmbeddedRpc::Init(const std::string &chain) {
   std::call_once(flag, [&] {
     ECC_Start();
     chain_ = chain;
-    SelectParams(chain);
-    RegisterMiscRPCCommands(table_);
-    RegisterRawTransactionRPCCommands(table_);
+    SelectParams(ChainType::MAIN);
+    RegisterAllCoreRPCCommands(table_);
+    // RegisterRawTransactionRPCCommands(table_);
     SetRPCWarmupFinished();
     initialized_ = true;
   });
@@ -48,7 +49,7 @@ void EmbeddedRpc::SetChain(const std::string &chain) {
   if (!initialized_) throw std::runtime_error("uninitialized");
   if (chain_ == chain) return;
   chain_ = chain;
-  SelectParams(chain_);
+  SelectParams(ChainType::MAIN);
 }
 
 const std::string &EmbeddedRpc::GetChain() const {

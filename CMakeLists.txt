@@ -118,6 +118,7 @@ target_include_directories(ur-2 PUBLIC
 
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
+    src/selector.cpp 
     src/coreutils.cpp
     src/descriptor.cpp
     src/signingprovider.cpp
@@ -180,7 +181,7 @@ endif()
 set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
 add_subdirectory(contrib/tap-protocol)
 # Pass Bitcoin random to tap-protocol
-target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
+# target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
 # Allow testnet Tapsigner
 target_compile_definitions(tap-protocol PUBLIC SKIP_BASE58_PREFIX_CHECK=1)
 

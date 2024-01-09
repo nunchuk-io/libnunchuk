@@ -1686,15 +1686,14 @@ std::vector<std::string> NunchukImpl::ExportCoboTransaction(
   if (base64_psbt.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
-  bool invalid;
-  auto psbt = DecodeBase64(base64_psbt.c_str(), &invalid);
-  if (invalid) {
+  auto psbt = DecodeBase64(base64_psbt.c_str());
+  if (!psbt) {
     throw NunchukException(
         NunchukException::INVALID_PSBT,
         strprintf("Invalid base64 wallet_id = '%s' tx_id = '%s'", wallet_id,
                   tx_id));
   }
-  return nunchuk::bcr::EncodeUniformResource(psbt);
+  return nunchuk::bcr::EncodeUniformResource(*psbt);
 }
 
 Transaction NunchukImpl::ImportCoboTransaction(
