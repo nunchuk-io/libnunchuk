@@ -135,8 +135,8 @@ class NunchukStorage {
   std::vector<Transaction> GetTransactions(Chain chain,
                                            const std::string &wallet_id,
                                            int count, int skip);
-  std::vector<UnspentOutput> GetUtxos(Chain chain,
-                                      const std::string &wallet_id);
+  std::vector<UnspentOutput> GetUtxos(Chain chain, const std::string &wallet_id,
+                                      bool include_spent = false);
   Transaction GetTransaction(Chain chain, const std::string &wallet_id,
                              const std::string &tx_id);
   bool UpdateTransaction(Chain chain, const std::string &wallet_id,
@@ -310,7 +310,8 @@ class NunchukStorage {
   std::vector<std::string> ListMasterSigners0(Chain chain);
   SoftwareSigner GetSoftwareSigner0(Chain chain, const std::string &id);
   std::vector<UnspentOutput> GetUtxos0(Chain chain,
-                                       const std::string &wallet_id);
+                                       const std::string &wallet_id,
+                                       bool include_spent = false);
 
   boost::filesystem::path basedatadir_;
   boost::filesystem::path datadir_;

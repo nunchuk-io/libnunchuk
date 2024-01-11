@@ -1095,18 +1095,18 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 }
 
 std::vector<UnspentOutput> NunchukStorage::GetUtxos(
-    Chain chain, const std::string& wallet_id) {
+    Chain chain, const std::string& wallet_id, bool include_spent) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetUtxos0(chain, wallet_id);
+  return GetUtxos0(chain, wallet_id, include_spent);
 }
 
 std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
-    Chain chain, const std::string& wallet_id) {
+    Chain chain, const std::string& wallet_id, bool include_spent) {
   auto wallet = GetWalletDb(chain, wallet_id);
   auto coins = wallet.GetCoins();
   std::vector<UnspentOutput> utxos{};
   for (auto&& coin : coins) {
-    if (coin.get_status() == CoinStatus::SPENT) continue;
+    if (!include_spent && coin.get_status() == CoinStatus::SPENT) continue;
     // coin.set_memo(wallet.GetCoinMemo(coin.get_txid(), coin.get_vout()));
     coin.set_locked(wallet.IsLock(coin.get_txid(), coin.get_vout()));
     coin.set_tags(wallet.GetAddedTags(coin.get_txid(), coin.get_vout()));

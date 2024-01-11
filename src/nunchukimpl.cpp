@@ -857,6 +857,24 @@ std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputsFromTxInputs(
   return utxos;
 }
 
+std::vector<UnspentOutput> NunchukImpl::GetCoins(const std::string& wallet_id) {
+  return storage_->GetUtxos(chain_, wallet_id, true);
+}
+
+std::vector<UnspentOutput> NunchukImpl::GetCoinsFromTxInputs(
+    const std::string& wallet_id, const std::vector<TxInput>& txInputs) {
+  auto utxos = storage_->GetUtxos(chain_, wallet_id, true);
+  auto check = [&](const UnspentOutput& coin) {
+    for (auto&& input : txInputs) {
+      if (input.first == coin.get_txid() && input.second == coin.get_vout())
+        return false;
+    }
+    return true;
+  };
+  utxos.erase(std::remove_if(utxos.begin(), utxos.end(), check), utxos.end());
+  return utxos;
+}
+
 bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
                                        const std::string& file_path,
                                        ExportFormat format) {
@@ -1591,7 +1609,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -1669,7 +1687,7 @@ Transaction NunchukImpl::ImportPassportTransaction(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     data = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
