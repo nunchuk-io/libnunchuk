@@ -167,7 +167,8 @@ class NunchukImpl : public Nunchuk {
                                 const std::string& memo = {},
                                 const std::vector<UnspentOutput>& inputs = {},
                                 Amount fee_rate = -1,
-                                bool subtract_fee_from_amount = false) override;
+                                bool subtract_fee_from_amount = false,
+                                const std::string& replace_txid = {}) override;
   bool ExportTransaction(const std::string& wallet_id, const std::string& tx_id,
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,

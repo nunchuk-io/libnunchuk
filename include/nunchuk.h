@@ -202,6 +202,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int DECRYPT_FAIL = -1025;
   static const int NETWORK_REJECTED = -1026;
   static const int INVALID_SIGNATURE = -1027;
+  static const int INVALID_RBF = -1028;
   using BaseException::BaseException;
 };
 
@@ -955,7 +956,8 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::map<std::string, Amount>& outputs,
       const std::string& memo = {},
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
-      bool subtract_fee_from_amount = false) = 0;
+      bool subtract_fee_from_amount = false,
+      const std::string& replace_txid = {}) = 0;
   virtual bool ExportTransaction(const std::string& wallet_id,
                                  const std::string& tx_id,
                                  const std::string& file_path) = 0;

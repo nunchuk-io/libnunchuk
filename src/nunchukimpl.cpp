@@ -893,7 +893,31 @@ bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
 Transaction NunchukImpl::CreateTransaction(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
     const std::string& memo, const std::vector<UnspentOutput>& inputs,
-    Amount fee_rate, bool subtract_fee_from_amount) {
+    Amount fee_rate, bool subtract_fee_from_amount,
+    const std::string& replace_txid) {
+  if (!replace_txid.empty()) {
+    auto origin_tx = storage_->GetTransaction(chain_, wallet_id, replace_txid);
+    if (origin_tx.get_status() != TransactionStatus::PENDING_CONFIRMATION) {
+      throw NunchukException(NunchukException::INVALID_RBF,
+                             "Origin tx is not pending confirmation!");
+    }
+    bool include_origin_input = false;
+    for (auto&& input : origin_tx.get_inputs()) {
+      if (std::find_if(inputs.begin(), inputs.end(),
+                       [&](const UnspentOutput& utxo) {
+                         return utxo.get_txid() == input.first &&
+                                utxo.get_vout() == input.second;
+                       }) != inputs.end()) {
+        include_origin_input = true;
+        break;
+      }
+    }
+    if (!include_origin_input) {
+      throw NunchukException(NunchukException::INVALID_RBF,
+                             "Tx not include any input of origin tx!");
+    }
+  }
+
   Amount fee = 0;
   int vsize = 0;
   int change_pos = 0;
@@ -902,7 +926,8 @@ Transaction NunchukImpl::CreateTransaction(
       CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
                  true, fee, vsize, change_pos);
   auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt, fee, memo, change_pos,
-                                 outputs, fee_rate, subtract_fee_from_amount);
+                                 outputs, fee_rate, subtract_fee_from_amount,
+                                 replace_txid);
   rs.set_vsize(vsize);
   storage_listener_();
   return rs;
