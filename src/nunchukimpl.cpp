@@ -901,6 +901,12 @@ Transaction NunchukImpl::CreateTransaction(
       throw NunchukException(NunchukException::INVALID_RBF,
                              "Origin tx is not pending confirmation!");
     }
+    if (fee_rate <= origin_tx.get_fee_rate()) {
+      throw NunchukException(
+          NunchukException::INVALID_FEE_RATE,
+          strprintf("Invalid new fee rate wallet_id = '%s' tx_id = '%s'",
+                    wallet_id, replace_txid));
+    }
     bool include_origin_input = false;
     for (auto&& input : origin_tx.get_inputs()) {
       if (std::find_if(inputs.begin(), inputs.end(),
