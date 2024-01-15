@@ -982,6 +982,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction ReplaceTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
                                          Amount new_fee_rate) = 0;
+  virtual bool ReplaceTransactionId(const std::string& wallet_id,
+                                    const std::string& txid,
+                                    const std::string& replace_txid) = 0;
   virtual Transaction UpdateTransaction(const std::string& wallet_id,
                                         const std::string& tx_id,
                                         const std::string& new_txid,

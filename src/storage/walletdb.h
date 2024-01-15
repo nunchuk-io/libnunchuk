@@ -66,6 +66,7 @@ class NunchukWalletDb : public NunchukDb {
                          const std::string &replace_tx);
   bool UpdatePsbt(const std::string &psbt);
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
+  bool ReplaceTxId(const std::string &txid, const std::string &replace_txid);
   std::string GetPsbt(const std::string &tx_id) const;
   std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
   std::vector<Transaction> GetTransactions(int count = 1000, int skip = 0);
@@ -126,7 +127,7 @@ class NunchukWalletDb : public NunchukDb {
   Transaction ImportDummyTx(const std::string &id, const std::string &body,
                             const std::vector<std::string> &tokens);
   RequestTokens SaveDummyTxRequestToken(const std::string &id,
-                                      const std::string &token);
+                                        const std::string &token);
   bool DeleteDummyTx(const std::string &id);
   RequestTokens GetDummyTxRequestToken(const std::string &id);
   std::map<std::string, Transaction> GetDummyTxs();

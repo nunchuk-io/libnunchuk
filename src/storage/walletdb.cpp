@@ -727,6 +727,39 @@ bool NunchukWalletDb::UpdatePsbtTxId(const std::string& old_id,
   return DeleteTransaction(old_id);
 }
 
+bool NunchukWalletDb::ReplaceTxId(const std::string& txid,
+                                  const std::string& replace_txid) {
+  SetReplacedBy(replace_txid, txid);
+
+  // Get tx extra
+  sqlite3_stmt* select_stmt;
+  std::string select_sql = "SELECT EXTRA FROM VTX WHERE ID = ?;";
+  sqlite3_prepare_v2(db_, select_sql.c_str(), -1, &select_stmt, NULL);
+  sqlite3_bind_text(select_stmt, 1, txid.c_str(), txid.size(), NULL);
+  sqlite3_step(select_stmt);
+  bool updated = false;
+  if (sqlite3_column_text(select_stmt, 0)) {
+    // Update tx extra
+    std::string extra = std::string((char*)sqlite3_column_text(select_stmt, 0));
+    json extra_json = json::parse(extra);
+    extra_json["replace_txid"] = replace_txid;
+    extra = extra_json.dump();
+
+    sqlite3_stmt* update_stmt;
+    std::string update_sql = "UPDATE VTX SET EXTRA = ?1 WHERE ID = ?2;";
+    sqlite3_prepare_v2(db_, update_sql.c_str(), -1, &update_stmt, NULL);
+    sqlite3_bind_text(update_stmt, 1, extra.c_str(), extra.size(), NULL);
+    sqlite3_bind_text(update_stmt, 2, txid.c_str(), txid.size(), NULL);
+    sqlite3_step(update_stmt);
+    updated = (sqlite3_changes(db_) == 1);
+    SQLCHECK(sqlite3_finalize(update_stmt));
+  }
+  SQLCHECK(sqlite3_finalize(select_stmt));
+  txs_cache_[db_file_name_].erase(txid);
+  if (updated) GetTransaction(txid);
+  return updated;
+}
+
 std::string NunchukWalletDb::GetPsbt(const std::string& tx_id) const {
   sqlite3_stmt* stmt;
   std::string sql = "SELECT VALUE FROM VTX WHERE ID = ? AND HEIGHT = -1;";
