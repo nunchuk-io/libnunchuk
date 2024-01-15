@@ -1305,8 +1305,17 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   }
 
   std::map<std::string, Amount> outputs;
-  for (auto&& output : tx.get_user_outputs()) {
-    outputs[output.first] = output.second;
+  if (tx.get_user_outputs().empty()) {
+    tx.set_subtract_fee_from_amount(false);
+    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
+      if (i == tx.get_change_index()) continue;
+      auto output = tx.get_outputs()[i];
+      outputs[output.first] = output.second;
+    }
+  } else {
+    for (auto&& output : tx.get_user_outputs()) {
+      outputs[output.first] = output.second;
+    }
   }
   auto inputs = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
 
