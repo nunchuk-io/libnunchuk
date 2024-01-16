@@ -1339,6 +1339,12 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   return rs;
 }
 
+bool NunchukImpl::ReplaceTransactionId(const std::string& wallet_id,
+                                       const std::string& txid,
+                                       const std::string& replace_txid) {
+  return storage_->ReplaceTxId(chain_, wallet_id, txid, replace_txid);
+}
+
 bool NunchukImpl::UpdateTransactionMemo(const std::string& wallet_id,
                                         const std::string& tx_id,
                                         const std::string& new_memo) {

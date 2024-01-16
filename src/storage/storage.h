@@ -159,6 +159,8 @@ class NunchukStorage {
                   const std::string &psbt);
   bool UpdatePsbtTxId(Chain chain, const std::string &wallet_id,
                       const std::string &old_id, const std::string &new_id);
+  bool ReplaceTxId(Chain chain, const std::string &wallet_id,
+                   const std::string &old_id, const std::string &new_id);
   std::string GetPsbt(Chain chain, const std::string &wallet_id,
                       const std::string &tx_id);
   std::pair<std::string, bool> GetPsbtOrRawTx(Chain chain,

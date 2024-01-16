@@ -1188,6 +1188,13 @@ bool NunchukStorage::UpdatePsbtTxId(Chain chain, const std::string& wallet_id,
   return GetWalletDb(chain, wallet_id).UpdatePsbtTxId(old_id, new_id);
 }
 
+bool NunchukStorage::ReplaceTxId(Chain chain, const std::string& wallet_id,
+                                 const std::string& txid,
+                                 const std::string& replace_txid) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).ReplaceTxId(txid, replace_txid);
+}
+
 std::string NunchukStorage::GetPsbt(Chain chain, const std::string& wallet_id,
                                     const std::string& tx_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
