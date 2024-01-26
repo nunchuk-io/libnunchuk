@@ -1884,6 +1884,9 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     bool invalid = false;
     for (auto&& input : tx.get_inputs()) {
       auto id = CoinId(input.first, input.second);
+      if (id ==
+          "0000000000000000000000000000000000000000000000000000000000000000:-1")
+        continue;  // coinbase input
       if (used_by.count(id) && used_by[id] != tx.get_txid()) invalid = true;
     }
     if (invalid) continue;
