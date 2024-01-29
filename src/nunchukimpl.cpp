@@ -1266,14 +1266,59 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
 Transaction NunchukImpl::DraftTransaction(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
     const std::vector<UnspentOutput>& inputs, Amount fee_rate,
-    bool subtract_fee_from_amount) {
+    bool subtract_fee_from_amount, const std::string& replace_txid) {
+  std::map<std::string, Amount> m_outputs(outputs);
+  if (!replace_txid.empty()) {
+    auto origin_tx = storage_->GetTransaction(chain_, wallet_id, replace_txid);
+    if (origin_tx.get_status() != TransactionStatus::PENDING_CONFIRMATION) {
+      throw NunchukException(NunchukException::INVALID_RBF,
+                             "Origin tx is not pending confirmation!");
+    }
+    if (fee_rate <= origin_tx.get_fee_rate()) {
+      throw NunchukException(
+          NunchukException::INVALID_FEE_RATE,
+          strprintf("Invalid new fee rate wallet_id = '%s' tx_id = '%s'",
+                    wallet_id, replace_txid));
+    }
+    bool include_origin_input = false;
+    for (auto&& input : origin_tx.get_inputs()) {
+      if (std::find_if(inputs.begin(), inputs.end(),
+                       [&](const UnspentOutput& utxo) {
+                         return utxo.get_txid() == input.first &&
+                                utxo.get_vout() == input.second;
+                       }) != inputs.end()) {
+        include_origin_input = true;
+        break;
+      }
+    }
+    if (!include_origin_input) {
+      throw NunchukException(NunchukException::INVALID_RBF,
+                             "Tx not include any input of origin tx!");
+    }
+
+    if (m_outputs.empty()) {
+      if (origin_tx.get_user_outputs().empty()) {
+        subtract_fee_from_amount = false;
+        for (size_t i = 0; i < origin_tx.get_outputs().size(); i++) {
+          if (i == origin_tx.get_change_index()) continue;
+          auto output = origin_tx.get_outputs()[i];
+          m_outputs[output.first] = output.second;
+        }
+      } else {
+        for (auto&& output : origin_tx.get_user_outputs()) {
+          m_outputs[output.first] = output.second;
+        }
+      }
+    }
+  }
+
   Amount fee = 0;
   int vsize = 0;
   int change_pos = 0;
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto psbt =
-      CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
-                 false, fee, vsize, change_pos);
+      CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
+                 subtract_fee_from_amount, false, fee, vsize, change_pos);
   Wallet wallet = GetWallet(wallet_id);
   int m = wallet.get_m();
   auto tx = GetTransactionFromPartiallySignedTransaction(
@@ -1284,7 +1329,7 @@ Transaction NunchukImpl::DraftTransaction(
     if (i == change_pos) continue;
     sub_amount += tx.get_outputs()[i].second;
   }
-  for (auto&& output : outputs) {
+  for (auto&& output : m_outputs) {
     tx.add_user_output({output.first, output.second});
   }
 
@@ -1297,63 +1342,6 @@ Transaction NunchukImpl::DraftTransaction(
   tx.set_subtract_fee_from_amount(subtract_fee_from_amount);
   tx.set_vsize(vsize);
   return tx;
-}
-
-Transaction NunchukImpl::DraftReplaceTransaction(const std::string& wallet_id,
-                                                 const std::string& tx_id,
-                                                 Amount new_fee_rate) {
-  auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
-  if (new_fee_rate < tx.get_fee_rate()) {
-    throw NunchukException(
-        NunchukException::INVALID_FEE_RATE,
-        strprintf("Invalid new fee rate wallet_id = '%s' tx_id = '%s'",
-                  wallet_id, tx_id));
-  }
-
-  std::map<std::string, Amount> outputs;
-  if (tx.get_user_outputs().empty()) {
-    tx.set_subtract_fee_from_amount(false);
-    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
-      if (i == tx.get_change_index()) continue;
-      auto output = tx.get_outputs()[i];
-      outputs[output.first] = output.second;
-    }
-  } else {
-    for (auto&& output : tx.get_user_outputs()) {
-      outputs[output.first] = output.second;
-    }
-  }
-  auto inputs = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
-
-  Amount fee = 0;
-  int vsize = 0;
-  int change_pos = 0;
-  auto psbt =
-      CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
-                 tx.subtract_fee_from_amount(), true, fee, vsize, change_pos);
-  Wallet wallet = GetWallet(wallet_id);
-  int m = wallet.get_m();
-  auto rtx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(psbt), wallet.get_signers(), m);
-
-  Amount sub_amount{0};
-  for (size_t i = 0; i < rtx.get_outputs().size(); i++) {
-    if (i == change_pos) continue;
-    sub_amount += rtx.get_outputs()[i].second;
-  }
-  for (auto&& output : outputs) {
-    rtx.add_user_output({output.first, output.second});
-  }
-
-  rtx.set_m(m);
-  rtx.set_fee(fee);
-  rtx.set_change_index(change_pos);
-  rtx.set_receive(false);
-  rtx.set_sub_amount(sub_amount);
-  rtx.set_fee_rate(new_fee_rate);
-  rtx.set_subtract_fee_from_amount(tx.subtract_fee_from_amount());
-  rtx.set_vsize(vsize);
-  return rtx;
 }
 
 Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
