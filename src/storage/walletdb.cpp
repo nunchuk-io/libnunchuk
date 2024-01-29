@@ -491,7 +491,7 @@ void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
   if (sqlite3_column_text(select_stmt, 0)) {
     // Update replaced tx extra
     std::string extra = std::string((char*)sqlite3_column_text(select_stmt, 0));
-    json extra_json = json::parse(extra);
+    json extra_json = extra.empty() ? json{} : json::parse(extra);
     extra_json["replaced_by_txid"] = new_txid;
     extra = extra_json.dump();
 
@@ -523,7 +523,7 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     std::string extra;
     if (sqlite3_column_text(stmt, 0)) {
       extra = std::string((char*)sqlite3_column_text(stmt, 0));
-      json extra_json = json::parse(extra);
+      json extra_json = extra.empty() ? json{} : json::parse(extra);
       extra_json["signers"] = tx.get_signers();
       extra = extra_json.dump();
 
@@ -568,7 +568,7 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
       extra = std::string((char*)sqlite3_column_text(stmt, 1));
       auto [tx, is_hex_tx] = GetTransactionFromStr(value, GetSigners(), 0, -1);
 
-      json extra_json = json::parse(extra);
+      json extra_json = extra.empty() ? json{} : json::parse(extra);
       extra_json["signers"] = tx.get_signers();
       if (!reject_msg.empty()) {
         extra_json["reject_msg"] = reject_msg;
@@ -741,7 +741,7 @@ bool NunchukWalletDb::ReplaceTxId(const std::string& txid,
   if (sqlite3_column_text(select_stmt, 0)) {
     // Update tx extra
     std::string extra = std::string((char*)sqlite3_column_text(select_stmt, 0));
-    json extra_json = json::parse(extra);
+    json extra_json = extra.empty() ? json{} : json::parse(extra);
     extra_json["replace_txid"] = replace_txid;
     extra = extra_json.dump();
 
