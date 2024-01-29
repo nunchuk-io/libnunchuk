@@ -1299,6 +1299,63 @@ Transaction NunchukImpl::DraftTransaction(
   return tx;
 }
 
+Transaction NunchukImpl::DraftReplaceTransaction(const std::string& wallet_id,
+                                                 const std::string& tx_id,
+                                                 Amount new_fee_rate) {
+  auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
+  if (new_fee_rate < tx.get_fee_rate()) {
+    throw NunchukException(
+        NunchukException::INVALID_FEE_RATE,
+        strprintf("Invalid new fee rate wallet_id = '%s' tx_id = '%s'",
+                  wallet_id, tx_id));
+  }
+
+  std::map<std::string, Amount> outputs;
+  if (tx.get_user_outputs().empty()) {
+    tx.set_subtract_fee_from_amount(false);
+    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
+      if (i == tx.get_change_index()) continue;
+      auto output = tx.get_outputs()[i];
+      outputs[output.first] = output.second;
+    }
+  } else {
+    for (auto&& output : tx.get_user_outputs()) {
+      outputs[output.first] = output.second;
+    }
+  }
+  auto inputs = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
+
+  Amount fee = 0;
+  int vsize = 0;
+  int change_pos = 0;
+  auto psbt =
+      CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
+                 tx.subtract_fee_from_amount(), true, fee, vsize, change_pos);
+  Wallet wallet = GetWallet(wallet_id);
+  int m = wallet.get_m();
+  auto rtx = GetTransactionFromPartiallySignedTransaction(
+      DecodePsbt(psbt), wallet.get_signers(), m);
+
+  Amount sub_amount{0};
+  for (size_t i = 0; i < rtx.get_outputs().size(); i++) {
+    if (i == change_pos) continue;
+    sub_amount += rtx.get_outputs()[i].second;
+  }
+  for (auto&& output : outputs) {
+    rtx.add_user_output({output.first, output.second});
+  }
+
+  rtx.set_m(m);
+  rtx.set_fee(fee);
+  rtx.set_change_index(change_pos);
+  rtx.set_receive(false);
+  rtx.set_sub_amount(sub_amount);
+  rtx.set_fee_rate(new_fee_rate);
+  rtx.set_subtract_fee_from_amount(tx.subtract_fee_from_amount());
+  rtx.set_vsize(vsize);
+  return rtx;
+}
+
 Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
                                             const std::string& tx_id,
                                             Amount new_fee_rate) {

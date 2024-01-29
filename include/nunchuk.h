@@ -979,6 +979,9 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::map<std::string, Amount>& outputs,
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false) = 0;
+  virtual Transaction DraftReplaceTransaction(const std::string& wallet_id,
+                                              const std::string& tx_id,
+                                              Amount new_fee_rate) = 0;
   virtual Transaction ReplaceTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
                                          Amount new_fee_rate) = 0;

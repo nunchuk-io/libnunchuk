@@ -194,6 +194,9 @@ class NunchukImpl : public Nunchuk {
                                const std::vector<UnspentOutput>& inputs = {},
                                Amount fee_rate = -1,
                                bool subtract_fee_from_amount = false) override;
+  Transaction DraftReplaceTransaction(const std::string& wallet_id,
+                                      const std::string& tx_id,
+                                      Amount new_fee_rate) override;
   Transaction ReplaceTransaction(const std::string& wallet_id,
                                  const std::string& tx_id,
                                  Amount new_fee_rate) override;
