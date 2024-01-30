@@ -313,7 +313,7 @@ struct CryptoOutput {
   AddressType addressType;
   WalletType walletType;
   bool isSorted;
-  uint32_t threshold;
+  uint32_t threshold = 1;
   std::vector<CryptoHDKey> outputDescriptors;
 
   static CryptoOutput from_wallet(const Wallet& wallet) {
