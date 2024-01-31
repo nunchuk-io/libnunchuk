@@ -1094,6 +1094,21 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   return vtx;
 }
 
+std::vector<Transaction> NunchukStorage::GetTransactions(
+    Chain chain, const std::string& wallet_id, TransactionStatus status,
+    bool is_receive) {
+  auto vtxs =
+      GetTransactions(chain, wallet_id, std::numeric_limits<int>::max(), 0);
+  vtxs.erase(std::remove_if(vtxs.begin(), vtxs.end(),
+                            [&](const Transaction& tx) {
+                              bool ok = tx.is_receive() == is_receive &&
+                                        tx.get_status() == status;
+                              return !ok;
+                            }),
+             vtxs.end());
+  return vtxs;
+}
+
 std::vector<UnspentOutput> NunchukStorage::GetUtxos(
     Chain chain, const std::string& wallet_id, bool include_spent) {
   std::shared_lock<std::shared_mutex> lock(access_);

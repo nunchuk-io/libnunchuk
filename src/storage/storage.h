@@ -135,6 +135,10 @@ class NunchukStorage {
   std::vector<Transaction> GetTransactions(Chain chain,
                                            const std::string &wallet_id,
                                            int count, int skip);
+  std::vector<Transaction> GetTransactions(Chain chain,
+                                           const std::string &wallet_id,
+                                           TransactionStatus status,
+                                           bool is_receive);
   std::vector<UnspentOutput> GetUtxos(Chain chain, const std::string &wallet_id,
                                       bool include_spent = false);
   Transaction GetTransaction(Chain chain, const std::string &wallet_id,
