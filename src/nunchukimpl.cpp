@@ -934,10 +934,11 @@ Transaction NunchukImpl::CreateTransaction(
       CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
                  true, fee, vsize, change_pos);
   if (fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
-    throw NunchukException(NunchukException::INSUFFICIENT_FEE,
-                           strprintf("New fee (%d sat) is lower than old fee "
-                                     "(%d sat). Please increase the fee rate.",
-                                     fee, origin_fee));
+    throw NunchukException(
+        NunchukException::INSUFFICIENT_FEE,
+        strprintf("New fee (%d sat) must be higher than old fee (%d sat) plus "
+                  "relay fee. Please increase the fee rate.",
+                  fee, origin_fee));
   }
   auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt, fee, memo, change_pos,
                                  outputs, fee_rate, subtract_fee_from_amount,
@@ -1330,10 +1331,11 @@ Transaction NunchukImpl::DraftTransaction(
       CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
                  subtract_fee_from_amount, false, fee, vsize, change_pos);
   if (fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
-    throw NunchukException(NunchukException::INSUFFICIENT_FEE,
-                           strprintf("New fee (%d sat) is lower than old fee "
-                                     "(%d sat). Please increase the fee rate.",
-                                     fee, origin_fee));
+    throw NunchukException(
+        NunchukException::INSUFFICIENT_FEE,
+        strprintf("New fee (%d sat) must be higher than old fee (%d sat) plus "
+                  "relay fee. Please increase the fee rate.",
+                  fee, origin_fee));
   }
 
   Wallet wallet = GetWallet(wallet_id);
