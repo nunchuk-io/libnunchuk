@@ -203,6 +203,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int NETWORK_REJECTED = -1026;
   static const int INVALID_SIGNATURE = -1027;
   static const int INVALID_RBF = -1028;
+  static const int INSUFFICIENT_FEE = -1029;
   using BaseException::BaseException;
 };
 

@@ -895,6 +895,7 @@ Transaction NunchukImpl::CreateTransaction(
     const std::string& memo, const std::vector<UnspentOutput>& inputs,
     Amount fee_rate, bool subtract_fee_from_amount,
     const std::string& replace_txid) {
+  Amount origin_fee{0};
   if (!replace_txid.empty()) {
     auto origin_tx = storage_->GetTransaction(chain_, wallet_id, replace_txid);
     if (origin_tx.get_status() != TransactionStatus::PENDING_CONFIRMATION) {
@@ -922,6 +923,7 @@ Transaction NunchukImpl::CreateTransaction(
       throw NunchukException(NunchukException::INVALID_RBF,
                              "Tx not include any input of origin tx!");
     }
+    origin_fee = origin_tx.get_fee();
   }
 
   Amount fee = 0;
@@ -931,6 +933,11 @@ Transaction NunchukImpl::CreateTransaction(
   auto psbt =
       CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
                  true, fee, vsize, change_pos);
+  if (fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
+    throw NunchukException(
+        NunchukException::INSUFFICIENT_FEE,
+        strprintf("Less fees than origin tx '%d' < '%d'", fee, origin_fee));
+  }
   auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt, fee, memo, change_pos,
                                  outputs, fee_rate, subtract_fee_from_amount,
                                  replace_txid);
@@ -1268,6 +1275,7 @@ Transaction NunchukImpl::DraftTransaction(
     const std::vector<UnspentOutput>& inputs, Amount fee_rate,
     bool subtract_fee_from_amount, const std::string& replace_txid) {
   std::map<std::string, Amount> m_outputs(outputs);
+  Amount origin_fee{0};
   if (!replace_txid.empty()) {
     auto origin_tx = storage_->GetTransaction(chain_, wallet_id, replace_txid);
     if (origin_tx.get_status() != TransactionStatus::PENDING_CONFIRMATION) {
@@ -1310,6 +1318,7 @@ Transaction NunchukImpl::DraftTransaction(
         }
       }
     }
+    origin_fee = origin_tx.get_fee();
   }
 
   Amount fee = 0;
@@ -1319,6 +1328,12 @@ Transaction NunchukImpl::DraftTransaction(
   auto psbt =
       CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
                  subtract_fee_from_amount, false, fee, vsize, change_pos);
+  if (fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
+    throw NunchukException(
+        NunchukException::INSUFFICIENT_FEE,
+        strprintf("Less fees than origin tx '%d' < '%d'", fee, origin_fee));
+  }
+
   Wallet wallet = GetWallet(wallet_id);
   int m = wallet.get_m();
   auto tx = GetTransactionFromPartiallySignedTransaction(
