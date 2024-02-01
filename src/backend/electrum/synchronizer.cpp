@@ -23,6 +23,7 @@
 #include <utils/stringutils.hpp>
 #include <utils/txutils.hpp>
 #include <thread>
+#include "utils/loguru.hpp"
 
 using namespace boost::asio;
 using json = nlohmann::json;
@@ -154,11 +155,18 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
 
     auto pending_receive_txs = storage_->GetTransactions(
         chain, wallet_id, TS::PENDING_CONFIRMATION, true);
-    for (auto&& tx : pending_receive_txs) {
-      auto txid = tx.get_txid();
-      if (!rawtx.count(txid)) {
-        storage_->DeleteTransaction(chain, wallet_id, txid);
-        transaction_listener_(txid, TS::REPLACED, wallet_id);
+    if (pending_receive_txs.size() > 0) {
+      std::vector<std::string> pending_receive_ids(pending_receive_txs.size());
+      std::transform(pending_receive_txs.begin(), pending_receive_txs.end(),
+                     pending_receive_ids.begin(),
+                     [](const Transaction& tx) { return tx.get_txid(); });
+
+      auto rawtxs = client_->get_multi_rawtx(pending_receive_ids);
+      for (auto&& txid : pending_receive_ids) {
+        if (!rawtxs.count(txid)) {
+          storage_->DeleteTransaction(chain, wallet_id, txid);
+          transaction_listener_(txid, TS::REPLACED, wallet_id);
+        }
       }
     }
     return isSynced;
@@ -193,16 +201,22 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
       transaction_listener_(tx_id, status, wallet_id);
     }
   }
-  std::sort(txs_hash.begin(), txs_hash.end());
   auto pending_receive_txs = storage_->GetTransactions(
       chain, wallet_id, TS::PENDING_CONFIRMATION, true);
-  for (auto&& tx : pending_receive_txs) {
-    auto txid = tx.get_txid();
-    if (!std::binary_search(txs_hash.begin(), txs_hash.end(), txid)) {
-      storage_->DeleteTransaction(chain, wallet_id, txid);
-      transaction_listener_(txid, TS::REPLACED, wallet_id);
+  if (pending_receive_txs.size() > 0) {
+    for (auto&& tx : pending_receive_txs) {
+      std::string tx_id = tx.get_txid();
+      try {
+        client_->blockchain_transaction_get(tx_id);
+      } catch (NunchukException& e) {
+        if (e.code() == NunchukException::SERVER_REQUEST_ERROR) continue;
+        storage_->DeleteTransaction(chain, wallet_id, tx_id);
+        transaction_listener_(tx_id, TS::REPLACED, wallet_id);
+      } catch (...) {
+      }
     }
   }
+
   return isSynced;
 }
 
@@ -261,13 +275,16 @@ bool ElectrumSynchronizer::UpdateTransactions(
     }
     auto pending_receive_txs = storage_->GetTransactions(
         chain, wallet_id, TS::PENDING_CONFIRMATION, true);
-    for (auto&& tx : pending_receive_txs) {
-      auto txid = tx.get_txid();
-      if (!rawtx.count(txid)) {
-        storage_->DeleteTransaction(chain, wallet_id, txid);
-        transaction_listener_(txid, TS::REPLACED, wallet_id);
+    if (pending_receive_txs.size() > 0) {
+      for (auto&& tx : pending_receive_txs) {
+        auto txid = tx.get_txid();
+        if (!rawtx.count(txid)) {
+          storage_->DeleteTransaction(chain, wallet_id, txid);
+          transaction_listener_(txid, TS::REPLACED, wallet_id);
+        }
       }
     }
+
     return isSynced;
   }
   return UpdateTransactions(chain, wallet_id, history);
@@ -275,7 +292,9 @@ bool ElectrumSynchronizer::UpdateTransactions(
 
 void ElectrumSynchronizer::OnScripthashStatusChange(Chain chain,
                                                     const json& notification) {
-  UpdateScripthashStatus(chain, notification[0], notification[1]);
+  std::string scripthash = notification[0];
+  std::string status = notification[1] == nullptr ? "" : notification[1];
+  UpdateScripthashStatus(chain, scripthash, status);
 }
 
 std::pair<std::string, std::string> ElectrumSynchronizer::SubscribeAddress(
@@ -331,7 +350,7 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
         auto prev_status =
             storage_->GetAddressStatus(chain, wallet_id, address);
         if (sub.second.empty() && prev_status.empty()) continue;
-        if (sub.second != prev_status && !sub.second.empty()) {
+        if (sub.second != prev_status) {
           scripthashes.push_back(sub.first);
           status.push_back(sub.second);
         }
@@ -454,10 +473,18 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
                                                   const std::string& scripthash,
                                                   const std::string& status,
                                                   bool check_balance) {
-  if (status.empty()) return;
   if (scripthash_to_wallet_address_.count(scripthash) == 0) return;
   std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
   std::string address = scripthash_to_wallet_address_.at(scripthash).second;
+
+  if (status.empty()) {
+    std::string prev_status =
+        storage_->GetAddressStatus(chain, wallet_id, address);
+    if (prev_status.empty()) {
+      return;
+    }
+  }
+
   json history = client_->blockchain_scripthash_get_history(scripthash);
   if (UpdateTransactions(chain, wallet_id, history)) {
     json utxo;  // client_->blockchain_scripthash_listunspent(scripthash);
