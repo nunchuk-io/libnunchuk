@@ -16,6 +16,8 @@
  */
 
 #include <backend/electrum/synchronizer.h>
+#include <algorithm>
+#include <limits>
 #include <numeric>
 #include <utils/addressutils.hpp>
 #include <utils/stringutils.hpp>
@@ -149,9 +151,20 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
         transaction_listener_(tx_id, status, wallet_id);
       }
     }
+
+    auto pending_receive_txs = storage_->GetTransactions(
+        chain, wallet_id, TS::PENDING_CONFIRMATION, true);
+    for (auto&& tx : pending_receive_txs) {
+      auto txid = tx.get_txid();
+      if (!rawtx.count(txid)) {
+        storage_->DeleteTransaction(chain, wallet_id, txid);
+        transaction_listener_(txid, TS::REPLACED, wallet_id);
+      }
+    }
     return isSynced;
   }
 
+  std::vector<std::string> txs_hash;
   for (auto item : history) {
     std::string tx_id = item["tx_hash"];
     int height = item["height"];
@@ -163,6 +176,7 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
     } catch (StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) continue;
     }
+    txs_hash.push_back(tx_id);
     std::string raw = client_->blockchain_transaction_get(tx_id);
     time_t time = height <= 0
                       ? 0
@@ -177,6 +191,16 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
     }
     if (status_ == Status::READY) {
       transaction_listener_(tx_id, status, wallet_id);
+    }
+  }
+  std::sort(txs_hash.begin(), txs_hash.end());
+  auto pending_receive_txs = storage_->GetTransactions(
+      chain, wallet_id, TS::PENDING_CONFIRMATION, true);
+  for (auto&& tx : pending_receive_txs) {
+    auto txid = tx.get_txid();
+    if (!std::binary_search(txs_hash.begin(), txs_hash.end(), txid)) {
+      storage_->DeleteTransaction(chain, wallet_id, txid);
+      transaction_listener_(txid, TS::REPLACED, wallet_id);
     }
   }
   return isSynced;
@@ -233,6 +257,15 @@ bool ElectrumSynchronizer::UpdateTransactions(
       }
       if (status_ == Status::READY) {
         transaction_listener_(tx_id, status, wallet_id);
+      }
+    }
+    auto pending_receive_txs = storage_->GetTransactions(
+        chain, wallet_id, TS::PENDING_CONFIRMATION, true);
+    for (auto&& tx : pending_receive_txs) {
+      auto txid = tx.get_txid();
+      if (!rawtx.count(txid)) {
+        storage_->DeleteTransaction(chain, wallet_id, txid);
+        transaction_listener_(txid, TS::REPLACED, wallet_id);
       }
     }
     return isSynced;
