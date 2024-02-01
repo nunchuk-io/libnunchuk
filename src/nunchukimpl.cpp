@@ -933,7 +933,8 @@ Transaction NunchukImpl::CreateTransaction(
   auto psbt =
       CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
                  true, fee, vsize, change_pos);
-  if (fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
+  if (!replace_txid.empty() &&
+      fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
     throw NunchukException(
         NunchukException::INSUFFICIENT_FEE,
         strprintf("New fee (%d sat) must be higher than old fee (%d sat) plus "
@@ -1330,7 +1331,8 @@ Transaction NunchukImpl::DraftTransaction(
   auto psbt =
       CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
                  subtract_fee_from_amount, false, fee, vsize, change_pos);
-  if (fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
+  if (!replace_txid.empty() &&
+      fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
     throw NunchukException(
         NunchukException::INSUFFICIENT_FEE,
         strprintf("New fee (%d sat) must be higher than old fee (%d sat) plus "
@@ -1719,7 +1721,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
+  } else {                                              // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -1797,7 +1799,7 @@ Transaction NunchukImpl::ImportPassportTransaction(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     data = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
+  } else {                                              // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
