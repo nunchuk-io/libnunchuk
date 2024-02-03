@@ -1687,6 +1687,18 @@ bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
   time_t ts = data["last_modified_ts"];
   if (!force && ts < GetLastModified()) return false;
 
+  auto currentData = ExportCoinControlData();
+  auto current = json::parse(currentData);
+  current.erase("last_modified_ts");
+  current.erase("export_ts");
+
+  data.erase("last_modified_ts");
+  data.erase("export_ts");
+
+  if (current == data) {
+    return false;
+  }
+
   ClearCoinControlData();
   // import tags
   json tags = data["tags"];
