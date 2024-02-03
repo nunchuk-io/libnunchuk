@@ -156,14 +156,16 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
     auto pending_receive_txs = storage_->GetTransactions(
         chain, wallet_id, TS::PENDING_CONFIRMATION, true);
     if (pending_receive_txs.size() > 0) {
-      std::vector<std::string> pending_receive_ids(pending_receive_txs.size());
-      std::transform(pending_receive_txs.begin(), pending_receive_txs.end(),
-                     pending_receive_ids.begin(),
-                     [](const Transaction& tx) { return tx.get_txid(); });
-
-      auto rawtxs = client_->get_multi_rawtx(pending_receive_ids);
+      std::vector<std::string> pending_receive_ids;
+      for (auto&& tx : pending_receive_txs) {
+        auto txid = tx.get_txid();
+        if (!rawtx.count(txid)) {
+          pending_receive_ids.emplace_back(std::move(txid));
+        }
+      }
+      auto more_txs = client_->get_multi_rawtx(pending_receive_ids);
       for (auto&& txid : pending_receive_ids) {
-        if (!rawtxs.count(txid)) {
+        if (!more_txs.count(txid)) {
           storage_->DeleteTransaction(chain, wallet_id, txid);
           transaction_listener_(txid, TS::REPLACED, wallet_id);
         }
@@ -276,9 +278,16 @@ bool ElectrumSynchronizer::UpdateTransactions(
     auto pending_receive_txs = storage_->GetTransactions(
         chain, wallet_id, TS::PENDING_CONFIRMATION, true);
     if (pending_receive_txs.size() > 0) {
+      std::vector<std::string> pending_receive_ids;
       for (auto&& tx : pending_receive_txs) {
         auto txid = tx.get_txid();
         if (!rawtx.count(txid)) {
+          pending_receive_ids.emplace_back(std::move(txid));
+        }
+      }
+      auto more_txs = client_->get_multi_rawtx(pending_receive_ids);
+      for (auto&& txid : pending_receive_ids) {
+        if (!more_txs.count(txid)) {
           storage_->DeleteTransaction(chain, wallet_id, txid);
           transaction_listener_(txid, TS::REPLACED, wallet_id);
         }
