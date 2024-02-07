@@ -1174,7 +1174,7 @@ bool NunchukWalletDb::UpdateTransactionMemo(const std::string& tx_id,
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  if (updated) SetLastModified(std::time(0));
+  // if (updated) SetLastModified(std::time(0));
   return updated;
 }
 
@@ -1209,7 +1209,8 @@ bool NunchukWalletDb::UpdateCoinMemo(const std::string& tx_id, int vout,
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  if (updated) SetLastModified(std::time(0));
+  // if (updated) SetLastModified(std::time(0));
+
   return updated;
 }
 
@@ -1249,13 +1250,14 @@ std::map<std::string, std::string> NunchukWalletDb::GetAllMemo() const {
   return rs;
 }
 
-bool NunchukWalletDb::LockCoin(const std::string& tx_id, int vout) {
+bool NunchukWalletDb::LockCoin(const std::string& tx_id, int vout,
+                               bool update_ts) {
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
       "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED;";
   std::string coin = CoinId(tx_id, vout);
-  std::string memo = "";
+  std::string memo;
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
@@ -1263,7 +1265,7 @@ bool NunchukWalletDb::LockCoin(const std::string& tx_id, int vout) {
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  if (updated) SetLastModified(std::time(0));
+  if (updated && update_ts) SetLastModified(std::time(0));
   return updated;
 }
 
@@ -1273,7 +1275,7 @@ bool NunchukWalletDb::UnlockCoin(const std::string& tx_id, int vout) {
       "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
       "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED;";
   std::string coin = CoinId(tx_id, vout);
-  std::string memo = "";
+  std::string memo;
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
   sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
@@ -1360,6 +1362,7 @@ bool NunchukWalletDb::UpdateCoinTag(const CoinTag& tag) {
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
   if (updated) SetLastModified(std::time(0));
+
   return updated;
 }
 
@@ -1546,7 +1549,8 @@ bool NunchukWalletDb::DeleteCoinCollection(int collection_id) {
 }
 
 bool NunchukWalletDb::AddToCoinCollection(int collection_id,
-                                          const std::string& tx_id, int vout) {
+                                          const std::string& tx_id, int vout,
+                                          bool update_ts) {
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT OR IGNORE INTO COINCOLLECTIONS(COIN, COLLECTIONID) "
@@ -1558,8 +1562,8 @@ bool NunchukWalletDb::AddToCoinCollection(int collection_id,
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
-  if (GetAutoLockData()[collection_id]) LockCoin(tx_id, vout);
-  if (updated) SetLastModified(std::time(0));
+  if (GetAutoLockData()[collection_id]) LockCoin(tx_id, vout, update_ts);
+  if (updated && update_ts) SetLastModified(std::time(0));
   return updated;
 }
 
@@ -2006,7 +2010,7 @@ void NunchukWalletDb::AutoAddNewCoins(const Transaction& tx) {
   for (auto&& [collection_id, is_auto_add] : auto_add) {
     if (!is_auto_add) continue;
     for (auto&& vout : my_vout) {
-      AddToCoinCollection(collection_id, tx.get_txid(), vout);
+      AddToCoinCollection(collection_id, tx.get_txid(), vout, false);
     }
   }
 }

@@ -86,7 +86,7 @@ class NunchukWalletDb : public NunchukDb {
                       const std::string &memo);
   std::string GetCoinMemo(const std::string &tx_id, int vout) const;
   std::map<std::string, std::string> GetAllMemo() const;
-  bool LockCoin(const std::string &tx_id, int vout);
+  bool LockCoin(const std::string &tx_id, int vout, bool update_ts = true);
   bool UnlockCoin(const std::string &tx_id, int vout);
   bool IsLock(const std::string &tx_id, int vout) const;
   std::vector<std::string> GetCoinLocked() const;
@@ -105,7 +105,7 @@ class NunchukWalletDb : public NunchukDb {
   bool UpdateCoinCollection(const CoinCollection &collection);
   bool DeleteCoinCollection(int collection_id);
   bool AddToCoinCollection(int collection_id, const std::string &tx_id,
-                           int vout);
+                           int vout, bool update_ts = true);
   bool RemoveFromCoinCollection(int collection_id, const std::string &tx_id,
                                 int vout);
   std::vector<std::string> GetCoinInCollection(int collection_id) const;
