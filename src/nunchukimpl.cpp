@@ -17,7 +17,7 @@
 
 #include "nunchukimpl.h"
 
-#include <coinselector.h>
+#include <spender.h>
 #include <softwaresigner.h>
 #include <key_io.h>
 #include <validation.h>
@@ -45,6 +45,7 @@
 #include <ur-decoder.hpp>
 #include <cbor-lite.hpp>
 #include <util/bip32.h>
+#include <util/result.h>
 #include <regex>
 #include <charconv>
 #include <base58.h>
@@ -2063,10 +2064,9 @@ std::string NunchukImpl::CreatePsbt(
     utxos.erase(std::remove_if(utxos.begin(), utxos.end(), check), utxos.end());
   }
 
-  std::vector<TxInput> selector_inputs;
   std::vector<TxOutput> selector_outputs;
   for (const auto& output : outputs) {
-    selector_outputs.push_back(TxOutput(output.first, output.second));
+    selector_outputs.push_back({output.first, output.second});
   }
 
   std::string change_address;
@@ -2077,18 +2077,22 @@ std::string NunchukImpl::CreatePsbt(
     auto unused = GetAddresses(wallet_id, false, true);
     change_address = unused.empty() ? NewAddress(wallet_id, true) : unused[0];
   }
-  std::string error;
-  CoinSelector selector{GetDescriptorsImportString(wallet), change_address};
-  selector.set_fee_rate(CFeeRate(fee_rate));
-  selector.set_discard_rate(CFeeRate(synchronizer_->RelayFee()));
 
-  // For escrow use all utxos as inputs
-  if (!selector.Select(utxos, wallet.is_escrow() ? utxos : inputs,
-                       change_address, subtract_fee_from_amount,
-                       selector_outputs, selector_inputs, fee, vsize, error,
-                       change_pos)) {
+  auto res = wallet::CreateTransaction(
+      utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
+      subtract_fee_from_amount, GetDescriptorsImportString(wallet),
+      change_address, fee_rate, change_pos, vsize);
+  if (!res) {
+    std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
                            error + strprintf(" wallet_id = '%s'", wallet_id));
+  }
+  const auto& txr = *res;
+  CTransactionRef tx_new = txr.tx;
+
+  std::vector<TxInput> selector_inputs;
+  for (const CTxIn& txin : tx_new->vin) {
+    selector_inputs.push_back({txin.prevout.hash.GetHex(), txin.prevout.n});
   }
 
   std::string psbt =

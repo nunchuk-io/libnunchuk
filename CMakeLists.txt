@@ -119,6 +119,7 @@ target_include_directories(ur-2 PUBLIC
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
     src/selector.cpp 
+    src/spender.cpp
     src/coreutils.cpp
     src/descriptor.cpp
     src/signingprovider.cpp

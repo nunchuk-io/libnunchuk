@@ -30,15 +30,18 @@
 
 namespace {
 
-inline std::string AddressToScriptPubKey(const std::string& address) {
+inline CScript AddressToCScriptPubKey(const std::string& address) {
   using namespace nunchuk;
   CTxDestination dest = DecodeDestination(address);
   if (!IsValidDestination(dest)) {
     throw NunchukException(NunchukException::INVALID_ADDRESS,
-                            "Invalid address");
+                           "Invalid address");
   }
-  CScript scriptPubKey = GetScriptForDestination(dest);
-  return HexStr(scriptPubKey);
+  return GetScriptForDestination(dest);
+}
+
+inline std::string AddressToScriptPubKey(const std::string& address) {
+  return HexStr(AddressToCScriptPubKey(address));
 }
 
 inline std::string ScriptPubKeyToAddress(const CScript& script) {
