@@ -453,6 +453,7 @@ class NUNCHUK_EXPORT Wallet {
   time_t get_last_used() const;
   int get_gap_limit() const;
   void check_valid() const;
+  bool need_backup() const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -466,6 +467,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_create_date(const time_t value);
   void set_last_used(const time_t value);
   void set_gap_limit(int value);
+  void set_need_backup(bool value);
 
  private:
   void post_update();
@@ -483,6 +485,7 @@ class NUNCHUK_EXPORT Wallet {
   bool strict_{true};
   time_t last_used_{0};
   int gap_limit_{20};
+  bool need_backup_{false};
 };
 
 class NUNCHUK_EXPORT CoinTag {
@@ -860,6 +863,10 @@ class NUNCHUK_EXPORT Nunchuk {
                               bool allow_used_signer = false) = 0;
   virtual Wallet CreateWallet(const Wallet& wallet,
                               bool allow_used_signer = false) = 0;
+  virtual Wallet CreateHotWallet(const std::string& mnemonic = {},
+                                 const std::string& passphrase = {}) = 0;
+  virtual std::string GetHotWalletMnemonic(
+      const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
                                   const std::vector<SingleSigner>& signers,
                                   AddressType address_type, bool is_escrow,

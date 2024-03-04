@@ -81,6 +81,7 @@ class NunchukSignerDb : public NunchukDb {
   std::vector<SingleSigner> GetRemoteSigners() const;
   SignerType GetSignerType() const;
   SoftwareSigner GetSoftwareSigner(const std::string &passphrase) const;
+  std::string GetMnemonic(const std::string &passphrase) const;
 
  private:
   bool UpdateSignerType(SignerType signer_type);

@@ -97,4 +97,12 @@ bool NunchukAppStateDb::RemoveDeletedTransaction(const std::string &id) {
   return RemoveFromListStr(DbKeys::DELETED_TRANSACTIONS, id);
 }
 
+int NunchukAppStateDb::GetHotWalletId() const {
+  return GetInt(DbKeys::HOTWALLET_ID);
+}
+
+bool NunchukAppStateDb::SetHotWalletId(int value) {
+  return PutInt(DbKeys::HOTWALLET_ID, value);
+}
+
 }  // namespace nunchuk

@@ -65,6 +65,8 @@ const int LAST_USED = 22;
 const int SIGNER_TAGS = 23;
 const int GAP_LIMIT = 24;
 const int VISIBLE = 25;
+const int NEED_BACKUP = 26;
+const int HOTWALLET_ID = 27;
 }  // namespace DbKeys
 
 }  // namespace nunchuk

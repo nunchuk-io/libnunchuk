@@ -871,6 +871,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());
   true_wallet.set_last_used(wallet.get_last_used());
   true_wallet.set_gap_limit(wallet.get_gap_limit());
+  true_wallet.set_need_backup(wallet.need_backup());
   return true_wallet;
 }
 
@@ -918,13 +919,21 @@ SoftwareSigner NunchukStorage::GetSoftwareSigner0(Chain chain,
   return signer_db.GetSoftwareSigner(signer_passphrase_.at(mid));
 }
 
+std::string NunchukStorage::GetMnemonic(Chain chain, const std::string& id,
+                                        const std::string passphrase) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto mid = ba::to_lower_copy(id);
+  return GetSignerDb(chain, mid).GetMnemonic(passphrase);
+}
+
 bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
   return wallet_db.SetName(wallet.get_name()) &&
          wallet_db.SetDescription(wallet.get_description()) &&
          wallet_db.SetLastUsed(wallet.get_last_used()) &&
-         wallet_db.SetGapLimit(wallet.get_gap_limit());
+         wallet_db.SetGapLimit(wallet.get_gap_limit()) &&
+         wallet_db.SetNeedBackup(wallet.need_backup());
 }
 
 bool NunchukStorage::UpdateMasterSigner(Chain chain,
@@ -1950,6 +1959,16 @@ Transaction NunchukStorage::GetDummyTx(Chain chain,
                                        const std::string& id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   return GetWalletDb(chain, wallet_id).GetDummyTx(id);
+}
+
+int NunchukStorage::GetHotWalletId() {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetAppStateDb(Chain::MAIN).GetHotWalletId();
+}
+
+bool NunchukStorage::SetHotWalletId(int value) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetAppStateDb(Chain::MAIN).SetHotWalletId(value);
 }
 
 }  // namespace nunchuk

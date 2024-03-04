@@ -122,6 +122,34 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
   return storage_->GetWallet(chain_, wallet.get_id(), true);
 }
 
+Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
+                                    const std::string& passphrase) {
+  std::string seed = mnemonic.empty() ? Utils::GenerateMnemonic() : mnemonic;
+  auto id = storage_->GetHotWalletId();
+  auto ss = CreateSoftwareSigner("My key #" + std::to_string(id), seed,
+                                 passphrase, [](int) { return true; });
+  WalletType wt = WalletType::SINGLE_SIG;
+  AddressType at = AddressType::NATIVE_SEGWIT;
+  auto signer = GetUnusedSignerFromMasterSigner(ss.get_id(), wt, at);
+  auto wallet = CreateWallet("My wallet #" + std::to_string(id), 1, 1, {signer},
+                             at, false);
+  wallet.set_need_backup(true);
+  storage_->UpdateWallet(chain_, wallet);
+  storage_->SetHotWalletId(id + 1);
+  return wallet;
+}
+
+std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
+                                              const std::string& passphrase) {
+  auto wallet = storage_->GetWallet(chain_, wallet_id, false);
+  if (wallet.get_wallet_type() != WalletType::SINGLE_SIG) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Invalid wallet type");
+  }
+  std::string signer_id = wallet.get_signers()[0].get_master_fingerprint();
+  return storage_->GetMnemonic(chain_, signer_id, passphrase);
+}
+
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
@@ -1721,7 +1749,7 @@ std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -1799,7 +1827,7 @@ Transaction NunchukImpl::ImportPassportTransaction(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     data = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);

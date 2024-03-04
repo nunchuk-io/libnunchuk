@@ -338,6 +338,20 @@ SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
                          "Is not software signer");
 }
 
+std::string NunchukSignerDb::GetMnemonic(const std::string& passphrase) const {
+  auto mnemonic = GetString(DbKeys::MNEMONIC);
+  if (!mnemonic.empty()) {
+    auto signer = SoftwareSigner{mnemonic, passphrase};
+    if (signer.GetMasterFingerprint() != id_) {
+      throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
+                             "Invalid passphrase");
+    }
+    return mnemonic;
+  }
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Is not software signer");
+}
+
 void NunchukSignerDb::InitRemote() {
   CreateTable();
   SQLCHECK(sqlite3_exec(db_,
