@@ -36,8 +36,9 @@ void EmbeddedRpc::Init(const std::string &chain) {
   static std::once_flag flag;
   std::call_once(flag, [&] {
     ECC_Start();
+    ECC_InitSanityCheck();
     chain_ = chain;
-    SelectParams(ChainType::MAIN);
+    SelectParams(ChainTypeFromString(chain).value());
     RegisterAllCoreRPCCommands(table_);
     // RegisterRawTransactionRPCCommands(table_);
     SetRPCWarmupFinished();
@@ -49,7 +50,7 @@ void EmbeddedRpc::SetChain(const std::string &chain) {
   if (!initialized_) throw std::runtime_error("uninitialized");
   if (chain_ == chain) return;
   chain_ = chain;
-  SelectParams(ChainType::MAIN);
+  SelectParams(ChainTypeFromString(chain).value());
 }
 
 const std::string &EmbeddedRpc::GetChain() const {

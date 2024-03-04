@@ -183,9 +183,15 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       if (pubkey.empty()) {
         auto xpub = DecodeExtPubKey(signer.get_xpub());
         CExtPubKey xpub0;
-        xpub.Derive(xpub0, 0);
+        if (!xpub.Derive(xpub0, 0)) {
+          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                 "Invalid path");
+        }
         CExtPubKey xpub01;
-        xpub0.Derive(xpub01, 1);
+        if (!xpub0.Derive(xpub01, 1)) {
+          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                 "Invalid path");
+        }
         pubkey = HexStr(xpub01.pubkey);
       }
       if (std::find(signed_pubkey.begin(), signed_pubkey.end(), pubkey) !=
@@ -259,9 +265,15 @@ inline std::string GetPartialSignature(const std::string& base64_psbt,
     if (pubkey.empty()) {
       auto xpub = DecodeExtPubKey(signer.get_xpub());
       CExtPubKey xpub0;
-      xpub.Derive(xpub0, 0);
+      if (!xpub.Derive(xpub0, 0)) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                               "Invalid path");
+      }
       CExtPubKey xpub01;
-      xpub0.Derive(xpub01, 1);
+      if (!xpub0.Derive(xpub01, 1)) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                               "Invalid path");
+      }
       pubkey = HexStr(xpub01.pubkey);
     }
     return signed_pubkey[pubkey];

@@ -147,9 +147,15 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
         std::string path = FormalizePath(p.str());
         // displayaddress only takes pubkeys as inputs, not xpubs
         auto xpub = DecodeExtPubKey(signer.get_xpub());
-        xpub.Derive(xpub,
-                    (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0));
-        xpub.Derive(xpub, index);
+        if (!xpub.Derive(xpub,
+                         (key_path == DescriptorPath::INTERNAL ? 1 : 0))) {
+          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                 "Invalid path");
+        }
+        if (!xpub.Derive(xpub, index)) {
+          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                 "Invalid path");
+        }
         std::string pubkey = HexStr(xpub.pubkey);
         desc << ",[" << signer.get_master_fingerprint() << path << "]"
              << pubkey;

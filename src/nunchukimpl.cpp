@@ -785,8 +785,14 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     path = "m/84'/0'/0'/1/0";
     xpub = hwi_.GetXpubAtPath(device, "m/84'/0'/0'");
     CExtPubKey xkey = DecodeExtPubKey(xpub);
-    xkey.Derive(xkey, 1);
-    xkey.Derive(xkey, 0);
+    if (!xkey.Derive(xkey, 1)) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid path");
+    }
+    if (!xkey.Derive(xkey, 0)) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid path");
+    }
     xpub = EncodeExtPubKey(xkey);
   }
 

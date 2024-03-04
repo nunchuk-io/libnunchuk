@@ -39,7 +39,8 @@ extern "C" {
 void random_buffer(uint8_t* buf, size_t len) {
   // Core's GetStrongRandBytes
   // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  // GetStrongRandBytes(buf);
+  Span<unsigned char> bytes(buf, len);
+  GetStrongRandBytes(bytes);
 }
 }
 
@@ -97,7 +98,10 @@ CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
   CExtKey xkey = bip32rootkey_;
   for (auto&& i : keypath) {
     CExtKey child;
-    xkey.Derive(child, i);
+    if (!xkey.Derive(child, i)) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid path");
+    }
     xkey = child;
   }
   return xkey;
@@ -115,7 +119,10 @@ std::string SoftwareSigner::GetAddressAtPath(const std::string& path) const {
 
 std::string SoftwareSigner::GetMasterFingerprint() const {
   CExtKey masterkey{};
-  bip32rootkey_.Derive(masterkey, 0);
+  if (!bip32rootkey_.Derive(masterkey, 0)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           "Invalid path");
+  }
   return hexStr(masterkey.vchFingerprint, 4);
 }
 
@@ -199,9 +206,10 @@ CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
     mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
   }
 
-  // std::vector<std::byte> spanSeed((std::byte*)seed, seed + 64);
-  CExtKey bip32rootkey{};
-  // bip32rootkey.SetSeed({spanSeed.begin(), spanSeed.end()});
+  std::vector<std::byte> spanSeed;
+  for (size_t i = 0; i < 64; i++) spanSeed.push_back(std::byte{seed[i]});
+  CExtKey bip32rootkey;
+  bip32rootkey.SetSeed(spanSeed);
   return bip32rootkey;
 }
 
