@@ -126,13 +126,14 @@ Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
                                     const std::string& passphrase) {
   std::string seed = mnemonic.empty() ? Utils::GenerateMnemonic() : mnemonic;
   auto id = storage_->GetHotWalletId();
-  auto ss = CreateSoftwareSigner("My key #" + std::to_string(id), seed,
-                                 passphrase, [](int) { return true; });
+  auto key_name = id == 0 ? "My key" : "My key #" + std::to_string(id);
+  auto ss = CreateSoftwareSigner(key_name, seed, passphrase,
+                                 [](int) { return true; });
   WalletType wt = WalletType::SINGLE_SIG;
   AddressType at = AddressType::NATIVE_SEGWIT;
-  auto signer = GetUnusedSignerFromMasterSigner(ss.get_id(), wt, at);
-  auto wallet = CreateWallet("My wallet #" + std::to_string(id), 1, 1, {signer},
-                             at, false);
+  auto signer = GetDefaultSignerFromMasterSigner(ss.get_id(), wt, at);
+  auto name = id == 0 ? "My wallet" : "My wallet #" + std::to_string(id);
+  auto wallet = CreateWallet(name, 1, 1, {signer}, at, false);
   wallet.set_need_backup(true);
   storage_->UpdateWallet(chain_, wallet);
   storage_->SetHotWalletId(id + 1);
