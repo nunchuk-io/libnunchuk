@@ -21,12 +21,11 @@
 #include <pubkey.h>
 #include <validation.h>
 #include <kernel/chainparams.h>  // IWYU pragma: export
+#include <common/url.h>
 
 // required for util/translation.h
 const std::function<std::string(const char *)> G_TRANSLATION_FUN = nullptr;
-
-// required for validation.h
-// static const ECCVerifyHandle verify_handle;
+UrlDecodeFn* const URL_DECODE = nullptr;
 
 EmbeddedRpc::EmbeddedRpc() {}
 
@@ -40,7 +39,6 @@ void EmbeddedRpc::Init(const std::string &chain) {
     chain_ = chain;
     SelectParams(ChainTypeFromString(chain).value());
     RegisterAllCoreRPCCommands(table_);
-    // RegisterRawTransactionRPCCommands(table_);
     SetRPCWarmupFinished();
     initialized_ = true;
   });
