@@ -2097,13 +2097,18 @@ std::string NunchukImpl::CreatePsbt(
   const auto& txr = *res;
   CTransactionRef tx_new = txr.tx;
 
-  std::vector<TxInput> selector_inputs;
+  std::vector<TxInput> new_inputs;
   for (const CTxIn& txin : tx_new->vin) {
-    selector_inputs.push_back({txin.prevout.hash.GetHex(), txin.prevout.n});
+    new_inputs.push_back({txin.prevout.hash.GetHex(), txin.prevout.n});
+  }
+  std::vector<TxOutput> new_outputs;
+  for (const CTxOut& txout : tx_new->vout) {
+    CTxDestination address;
+    ExtractDestination(txout.scriptPubKey, address);
+    new_outputs.push_back({EncodeDestination(address), txout.nValue});
   }
 
-  std::string psbt =
-      CoreUtils::getInstance().CreatePsbt(selector_inputs, selector_outputs);
+  auto psbt = CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs);
   if (!utxo_update_psbt) return psbt;
   return storage_->FillPsbt(chain_, wallet_id, psbt);
 }
