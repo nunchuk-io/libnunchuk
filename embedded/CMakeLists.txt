@@ -197,6 +197,7 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}"
     ${Bitcoin_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
+    "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include"
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/include"
 )
 
