@@ -25,8 +25,8 @@
 #include <tap_protocol/utils.h>
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
+#include <spender.h>
 #include <utils/chain.hpp>
-#include "coinselector.h"
 #include "key_io.h"
 #include "nunchuk.h"
 #include "nunchukimpl.h"
@@ -842,12 +842,7 @@ static std::string GetSatscardSlotsDescriptor(
       }
 
       const std::string wif = EncodeSecret(key);
-      const std::string desc_wif = AddChecksum("wpkh(" + wif + ")");
-      return json({
-          {"desc", desc_wif},
-          {"internal", false},
-          {"active", true},
-      });
+      return AddChecksum("wpkh(" + wif + ")");
     }
     if (slot.get_status() == SatscardSlot::Status::SEALED) {
       if (slot.get_pubkey().empty()) {
@@ -861,17 +856,9 @@ static std::string GetSatscardSlotsDescriptor(
                                "Invalid slot key");
       }
 
-      return json({
-          {"desc", AddChecksum("wpkh(" + HexStr(slot.get_pubkey()) + ")")},
-          {"internal", false},
-          {"active", true},
-      });
+      return AddChecksum("wpkh(" + HexStr(slot.get_pubkey()) + ")");
     }
-    return json({
-        {"desc", AddChecksum("addr(" + slot.get_address() + ")")},
-        {"internal", false},
-        {"active", true},
-    });
+    return AddChecksum("addr(" + slot.get_address() + ")");
   };
 
   std::string desc = std::accumulate(std::begin(slots), std::end(slots), json(),
@@ -907,41 +894,35 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
     total_balance += slot.get_balance();
   }
 
-  std::vector<TxInput> selector_inputs;
   std::vector<TxOutput> selector_outputs{TxOutput{address, total_balance}};
-
   std::string desc = nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
-
-  CoinSelector selector = [&]() -> CoinSelector {
-    if (use_privkey ||
-        (slots.size() == 1 &&
-         slots.front().get_status() == SatscardSlot::Status::SEALED)) {
-      auto ret = CoinSelector{desc, change_address};
-      ret.set_fee_rate(CFeeRate(fee_rate));
-      ret.set_discard_rate(CFeeRate(discard_rate));
-      return ret;
-    }
-    // No private key or pubkey for unsealed slot without cvc, only address
-    // so we use dummy script witness to estimate correct fee
-    CScriptWitness dummy_scriptwitness{};
-    dummy_scriptwitness.stack = {std::vector<unsigned char>(72),
-                                 std::vector<unsigned char>(33)};
-    auto ret = CoinSelector{CFeeRate(fee_rate), CFeeRate(discard_rate),
-                            std::move(dummy_scriptwitness)};
-    return ret;
-  }();
 
   Amount fee = 0;
   int vsize = 0;
-  std::string error;
   int change_pos = 0;
-  if (!selector.Select(utxos, utxos, change_address, true, selector_outputs,
-                       selector_inputs, fee, vsize, error, change_pos)) {
+  auto res =
+      wallet::CreateTransaction(utxos, utxos, selector_outputs, true, desc,
+                                change_address, fee_rate, change_pos, vsize);
+  if (!res) {
+    std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR, error);
+  }
+  const auto& txr = *res;
+  CTransactionRef tx_new = txr.tx;
+
+  std::vector<TxInput> new_inputs;
+  for (const CTxIn& txin : tx_new->vin) {
+    new_inputs.push_back({txin.prevout.hash.GetHex(), txin.prevout.n});
+  }
+  std::vector<TxOutput> new_outputs;
+  for (const CTxOut& txout : tx_new->vout) {
+    CTxDestination address;
+    ExtractDestination(txout.scriptPubKey, address);
+    new_outputs.push_back({EncodeDestination(address), txout.nValue});
   }
 
   std::string base64_psbt =
-      CoreUtils::getInstance().CreatePsbt(selector_inputs, selector_outputs);
+      CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs);
 
   auto tx = GetTransactionFromPartiallySignedTransaction(
       DecodePsbt(base64_psbt), {}, 1);

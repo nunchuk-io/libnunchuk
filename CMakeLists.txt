@@ -123,7 +123,6 @@ add_library("${PROJECT_NAME}" STATIC
     src/coreutils.cpp
     src/descriptor.cpp
     src/signingprovider.cpp
-    src/coinselector.cpp
     src/softwaresigner.cpp
     src/nunchukimpl.cpp
     src/nunchukutils.cpp
@@ -179,7 +178,7 @@ elseif(UNIX)
     set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} dl)
 endif()
 
-set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
+set(BUILD_SHARED_LIB_TAPPROTOCOL ON)
 add_subdirectory(contrib/tap-protocol)
 # Pass Bitcoin random to tap-protocol
 # target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
