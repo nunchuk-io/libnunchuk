@@ -864,7 +864,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet CreateWallet(const Wallet& wallet,
                               bool allow_used_signer = false) = 0;
   virtual Wallet CreateHotWallet(const std::string& mnemonic = {},
-                                 const std::string& passphrase = {}) = 0;
+                                 const std::string& passphrase = {},
+                                 bool need_backup = true) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,

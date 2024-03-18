@@ -123,7 +123,8 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
 }
 
 Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
-                                    const std::string& passphrase) {
+                                    const std::string& passphrase,
+                                    bool need_backup) {
   std::string seed = mnemonic.empty() ? Utils::GenerateMnemonic() : mnemonic;
   auto id = storage_->GetHotWalletId();
   auto key_name = id == 0 ? "My key" : "My key #" + std::to_string(id);
@@ -135,8 +136,10 @@ Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
   auto name =
       id == 0 ? "My hot wallet" : "My hot wallet #" + std::to_string(id);
   auto wallet = CreateWallet(name, 1, 1, {signer}, at, false);
-  wallet.set_need_backup(true);
-  storage_->UpdateWallet(chain_, wallet);
+  if (need_backup) {
+    wallet.set_need_backup(true);
+    storage_->UpdateWallet(chain_, wallet);
+  }
   storage_->SetHotWalletId(id + 1);
   return wallet;
 }
