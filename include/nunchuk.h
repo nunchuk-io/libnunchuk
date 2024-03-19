@@ -1382,7 +1382,7 @@ class NUNCHUK_EXPORT Utils {
   static std::string SanitizeBIP32Input(
       const std::string& slip132_input,
       const std::string& target_format = "xpub");
-  static std::string GenerateMnemonic();
+  static std::string GenerateMnemonic(int words = 24);
   static bool CheckMnemonic(const std::string& mnemonic);
   static std::vector<std::string> GetBIP39WordList();
   static std::string SHA256(const std::string& data);

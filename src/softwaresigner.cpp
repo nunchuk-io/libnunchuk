@@ -55,8 +55,8 @@ std::string hexStr(const uint8_t* data, int len) {
   return ss.str();
 }
 
-std::string SoftwareSigner::GenerateMnemonic() {
-  return std::string(mnemonic_generate(256));
+std::string SoftwareSigner::GenerateMnemonic(int words) {
+  return std::string(mnemonic_generate(words * 32 / 3));
 }
 
 bool SoftwareSigner::CheckMnemonic(const std::string& mnemonic) {

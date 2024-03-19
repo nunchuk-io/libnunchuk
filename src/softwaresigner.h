@@ -28,7 +28,7 @@ namespace nunchuk {
 
 class SoftwareSigner {
  public:
-  static std::string GenerateMnemonic();
+  static std::string GenerateMnemonic(int words);
   static bool CheckMnemonic(const std::string& mnemonic);
   static std::vector<std::string> GetBIP39WordList();
 

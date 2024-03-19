@@ -187,8 +187,8 @@ void Utils::SetChain(Chain chain) { CoreUtils::getInstance().SetChain(chain); }
 
 Chain Utils::GetChain() { return CoreUtils::getInstance().GetChain(); }
 
-std::string Utils::GenerateMnemonic() {
-  return SoftwareSigner::GenerateMnemonic();
+std::string Utils::GenerateMnemonic(int words) {
+  return SoftwareSigner::GenerateMnemonic(words);
 }
 
 bool Utils::CheckMnemonic(const std::string& mnemonic) {
