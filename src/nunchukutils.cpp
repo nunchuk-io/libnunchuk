@@ -191,6 +191,10 @@ std::string Utils::GenerateMnemonic(int words) {
   return SoftwareSigner::GenerateMnemonic(words);
 }
 
+std::string Utils::GenerateMnemonic12Words() {
+  return SoftwareSigner::GenerateMnemonic(12);
+}
+
 bool Utils::CheckMnemonic(const std::string& mnemonic) {
   return SoftwareSigner::CheckMnemonic(mnemonic);
 }
