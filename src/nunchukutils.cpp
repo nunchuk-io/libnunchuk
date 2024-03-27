@@ -45,6 +45,7 @@
 #include <ur-decoder.hpp>
 #include <cbor-lite.hpp>
 #include <utils/bcr2.hpp>
+#include <utils/passport.hpp>
 
 #include <ctime>
 #include <iostream>
@@ -52,6 +53,8 @@
 #include "tap_protocol/hwi_tapsigner.h"
 #include "tap_protocol/tap_protocol.h"
 #include "utils/httplib.h"
+
+#include <bbqr/bbqr.hpp>
 
 namespace nunchuk {
 
@@ -62,6 +65,8 @@ static const std::map<std::string, std::vector<unsigned char>>
         {"Zpub", {0x02, 0xaa, 0x7e, 0xd3}}, {"tpub", {0x04, 0x35, 0x87, 0xcf}},
         {"upub", {0x04, 0x4a, 0x52, 0x62}}, {"Upub", {0x02, 0x42, 0x89, 0xef}},
         {"vpub", {0x04, 0x5f, 0x1c, 0xf6}}, {"Vpub", {0x02, 0x57, 0x54, 0x83}}};
+
+static const std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
 
 std::string Utils::SanitizeBIP32Input(const std::string& slip132_input,
                                       const std::string& target_format) {
@@ -311,8 +316,8 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
                          "Could not parse descriptor");
 }
 
-Wallet Utils::ParseKeystoneWallet(Chain chain,
-                                  const std::vector<std::string>& qr_data) {
+static Wallet parseBCR2Wallet(Chain chain,
+                              const std::vector<std::string>& qr_data) {
   using namespace nunchuk::bcr2;
 
   auto decoder = ur::URDecoder();
@@ -368,6 +373,32 @@ Wallet Utils::ParseKeystoneWallet(Chain chain,
   Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
   wallet.set_name(name);
   return wallet;
+}
+
+static Wallet parseBBQRWallet(Chain chain,
+                              const std::vector<std::string>& qr_data) {
+  try {
+    auto join_result = bbqr::join_qrs<std::string>(qr_data);
+    return Utils::ParseWalletDescriptor(join_result.raw);
+  } catch (NunchukException& e) {
+    throw;
+  } catch (std::exception& e) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
+}
+
+Wallet Utils::ParseKeystoneWallet(Chain chain,
+                                  const std::vector<std::string>& qr_data) {
+  constexpr auto parseRawWallet = [](const std::vector<std::string>& qr_data) {
+    if (qr_data.size() == 1) {
+      return ParseWalletDescriptor(qr_data[0]);
+    }
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid QR");
+  };
+
+  return RunThrowOne(std::bind(parseBCR2Wallet, chain, qr_data),
+                     std::bind(parseBBQRWallet, chain, qr_data),
+                     std::bind(parseRawWallet, qr_data));
 }
 
 BtcUri Utils::ParseBtcUri(const std::string& value) {
@@ -443,6 +474,102 @@ Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
   Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
   wallet.set_name(name);
   return wallet;
+}
+
+std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
+                                            SignerType signer_type) {
+  static const std::array<std::tuple<std::string, std::string, AddressType>, 3>
+      FILTER_WALLETS{{
+          {"bip84", "m/84h - Native Segwit (Recommended)",
+           AddressType::NATIVE_SEGWIT},
+          {"bip49", "m/49h - Nested Segwit", AddressType::NESTED_SEGWIT},
+          {"bip44", "m/44h - Legacy", AddressType::LEGACY},
+      }};
+
+  try {
+    const nlohmann::json data = json::parse(json_str);
+    const std::string xfp = data["xfp"];
+
+    std::vector<Wallet> result;
+    for (auto&& [bip, tmp_name, address_type] : FILTER_WALLETS) {
+      auto bip_iter = data.find(bip);
+      if (bip_iter == data.end()) {
+        continue;
+      }
+
+      const std::string xpub = bip_iter.value()["xpub"];
+      const std::string derivation_path = bip_iter.value()["deriv"];
+
+      SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
+          GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
+          {}, derivation_path, xfp, std::time(nullptr), {}, false,
+          signer_type));
+
+      Wallet wallet({}, 1, 1, {std::move(signer)}, address_type, false,
+                    std::time(0));
+      wallet.set_name(tmp_name);
+      result.emplace_back(std::move(wallet));
+    }
+    return result;
+  } catch (BaseException& e) {
+    throw;
+  } catch (...) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
+}
+
+std::vector<Wallet> Utils::ParseBBQRWallets(
+    const std::vector<std::string>& qr_data) {
+  try {
+    auto join_result = bbqr::join_qrs<std::string>(qr_data);
+    if (join_result.file_type != bbqr::FileType::J) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid data");
+    }
+    return ParseJSONWallets(join_result.raw);
+  } catch (std::exception& e) {
+    throw NunchukException(NunchukException::INVALID_FORMAT, "Invalid data");
+  }
+}
+
+std::vector<SingleSigner> Utils::ParsePassportSigners(
+    Chain chain, const std::vector<std::string>& qr_data) {
+  if (qr_data.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "QR data is empty");
+  }
+  std::smatch sm;
+  std::vector<unsigned char> config;
+
+  if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
+    config = nunchuk::bcr::DecodeUniformResource(qr_data);
+  } else {                                              // BC_UR2 format
+    auto decoder = ur::URDecoder();
+    for (auto&& part : qr_data) {
+      decoder.receive_part(part);
+    }
+    if (!decoder.is_complete() || !decoder.is_success()) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid BC-UR2 input");
+    }
+    auto cbor = decoder.result_ur().cbor();
+    auto i = cbor.begin();
+    auto end = cbor.end();
+    bcr2::decodeBytes(i, end, config);
+  }
+
+  std::string config_str(config.begin(), config.end());
+  std::vector<SingleSigner> signers;
+  if (ParsePassportSignerConfig(chain, config_str, signers)) {
+    for (auto&& signer : signers) {
+      signer.set_type(SignerType::AIRGAP);
+    }
+    return signers;
+  } else {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
 }
 
 SingleSigner Utils::SanitizeSingleSigner(const SingleSigner& signer) {
@@ -603,12 +730,8 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
   std::vector<std::string> qr_data;
   do {
-    qr_data.push_back(encoder.next_part());
+    qr_data.push_back(boost::to_upper_copy(encoder.next_part()));
   } while (encoder.seq_num() <= 2 * encoder.seq_len());
-  for (std::string& s : qr_data) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](char c) { return std::toupper(c); });
-  }
   return qr_data;
 }
 
@@ -628,66 +751,183 @@ std::vector<std::string> Utils::ExportPassportTransaction(
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
   std::vector<std::string> qr_data;
   do {
-    qr_data.push_back(encoder.next_part());
+    qr_data.push_back(boost::to_upper_copy(encoder.next_part()));
   } while (encoder.seq_num() <= 2 * encoder.seq_len());
-  for (std::string& s : qr_data) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](char c) { return std::toupper(c); });
-  }
   return qr_data;
+}
+
+std::vector<std::string> Utils::ExportBBQRTransaction(const std::string& psbt,
+                                                      int min_version,
+                                                      int max_version) {
+  bool invalid;
+  auto data = DecodeBase64(psbt.c_str(), &invalid);
+  if (invalid) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
+  }
+  bbqr::SplitOption option{};
+  option.min_version = min_version;
+  option.max_version = max_version;
+  auto split_result = bbqr::split_qrs(data, bbqr::FileType::P, option);
+  return split_result.parts;
+}
+
+std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
+                                                 ExportFormat format,
+                                                 int min_version,
+                                                 int max_version) {
+  const auto get_export_data = [&](ExportFormat format) -> std::string {
+    switch (format) {
+      case ExportFormat::COLDCARD:
+        return ::GetMultisigConfig(wallet);
+      case ExportFormat::DESCRIPTOR:
+        return wallet.get_descriptor(DescriptorPath::ANY);
+      case ExportFormat::BSMS:
+        return GetDescriptorRecord(wallet);
+      case ExportFormat::DB:
+        return {};
+      case ExportFormat::COBO:
+        return {};
+      case ExportFormat::CSV:
+        return {};
+    }
+    return {};
+  };
+
+  std::string data = get_export_data(format);
+  if (data.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid format");
+  }
+  bbqr::SplitOption option{};
+  option.min_version = min_version;
+  option.max_version = max_version;
+  auto split_result = bbqr::split_qrs(data, bbqr::FileType::U, option);
+  return split_result.parts;
+}
+
+static std::string parseBCR2Transaction(
+    const std::vector<std::string>& qr_data) {
+  if (qr_data.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "QR data is empty");
+  }
+  std::smatch sm;
+  std::vector<unsigned char> data;
+  if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
+    data = nunchuk::bcr::DecodeUniformResource(qr_data);
+  } else {
+    auto decoder = ur::URDecoder();
+    for (auto&& part : qr_data) {
+      decoder.receive_part(part);
+    }
+    if (!decoder.is_complete() || !decoder.is_success()) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid BC-UR2 input");
+    }
+
+    auto decoded = decoder.result_ur();
+    auto i = decoded.cbor().begin();
+    auto end = decoded.cbor().end();
+    bcr2::CryptoPSBT psbt{};
+    decodeCryptoPSBT(i, end, psbt);
+    data = std::move(psbt.data);
+  }
+
+  return EncodeBase64(MakeUCharSpan(data));
+}
+
+static std::string parseBBQRTransaction(
+    const std::vector<std::string>& qr_data) {
+  try {
+    auto join_result = bbqr::join_qrs(qr_data);
+    if (join_result.file_type != bbqr::FileType::P) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid data");
+    }
+    return EncodeBase64(MakeUCharSpan(join_result.raw));
+  } catch (NunchukException& e) {
+    throw;
+  } catch (std::exception& e) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
+}
+
+static std::string parseRawTransaction(
+    const std::vector<std::string>& qr_data) {
+  if (qr_data.size() != 1) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
+
+  // transaction in hex format
+  if (boost::starts_with(qr_data[0], "01000000") ||
+      boost::starts_with(qr_data[0], "02000000")) {
+    return qr_data[0];
+  }
+
+  // transaction in hex psbt
+  if (boost::starts_with(qr_data[0], "70736274")) {
+    return qr_data[0];
+  }
+  throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
 }
 
 std::string Utils::ParseKeystoneTransaction(
     const std::vector<std::string>& qr_data) {
-  auto decoder = ur::URDecoder();
-  for (auto&& part : qr_data) {
-    decoder.receive_part(part);
-  }
-  if (!decoder.is_complete() || !decoder.is_success()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid BC-UR2 input");
-  }
-  auto decoded = decoder.result_ur();
-  auto i = decoded.cbor().begin();
-  auto end = decoded.cbor().end();
-  bcr2::CryptoPSBT psbt{};
-  decodeCryptoPSBT(i, end, psbt);
-  return EncodeBase64(MakeUCharSpan(psbt.data));
+  return RunThrowOne(std::bind(parseBCR2Transaction, qr_data),
+                     std::bind(parseBBQRTransaction, qr_data),
+                     std::bind(parseRawTransaction, qr_data));
 }
 
 std::string Utils::ParsePassportTransaction(
     const std::vector<std::string>& qr_data) {
-  auto decoder = ur::URDecoder();
-  for (auto&& part : qr_data) {
-    decoder.receive_part(part);
-  }
-  if (!decoder.is_complete() || !decoder.is_success()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid BC-UR2 input");
-  }
-  auto decoded = decoder.result_ur();
-  auto i = decoded.cbor().begin();
-  auto end = decoded.cbor().end();
-  bcr2::CryptoPSBT psbt{};
-  decodeCryptoPSBT(i, end, psbt);
-  return EncodeBase64(MakeUCharSpan(psbt.data));
+  return RunThrowOne(std::bind(parseBCR2Transaction, qr_data),
+                     std::bind(parseBBQRTransaction, qr_data),
+                     std::bind(parseRawTransaction, qr_data));
 }
 
 AnalyzeQRResult Utils::AnalyzeQR(const std::vector<std::string>& qr_data) {
+  if (qr_data.size() == 0) {
+    return AnalyzeQRResult{};
+  }
+
   auto decoder = ur::URDecoder();
   for (auto&& part : qr_data) {
     decoder.receive_part(part);
   }
-  return AnalyzeQRResult{
-      decoder.is_success(),
-      decoder.is_failure(),
-      decoder.is_complete(),
-      decoder.expected_part_count(),
-      decoder.received_part_indexes(),
-      decoder.last_part_indexes(),
-      decoder.processed_parts_count(),
-      decoder.estimated_percent_complete(),
-  };
+
+  if (decoder.processed_parts_count() != 0) {
+    return AnalyzeQRResult{
+        decoder.is_success(),
+        decoder.is_failure(),
+        decoder.is_complete(),
+        decoder.expected_part_count(),
+        decoder.received_part_indexes(),
+        decoder.last_part_indexes(),
+        decoder.processed_parts_count(),
+        decoder.estimated_percent_complete(),
+    };
+  }
+
+  // BBQR
+  try {
+    auto join_result = bbqr::join_qrs(qr_data);
+    if (join_result.expected_part_count != 0) {
+      return AnalyzeQRResult{
+          join_result.is_complete,
+          false,
+          join_result.is_complete,
+          join_result.expected_part_count,
+          {},
+          {},
+          join_result.processed_parts_count,
+          1.0 * join_result.processed_parts_count /
+              join_result.expected_part_count,
+      };
+    }
+  } catch (std::exception& e) {
+  }
+
+  return {};
 }
 
 int Utils::GetIndexFromPath(const std::string& path) {

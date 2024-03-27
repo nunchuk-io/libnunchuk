@@ -19,3 +19,6 @@
 [submodule "contrib/tap-protocol"]
 	path = contrib/tap-protocol
 	url = https://github.com/nunchuk-io/tap-protocol
+[submodule "contrib/bbqr-cpp"]
+	path = contrib/bbqr-cpp
+	url = https://github.com/nunchuk-io/bbqr-cpp
