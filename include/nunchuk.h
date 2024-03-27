@@ -1415,6 +1415,12 @@ class NUNCHUK_EXPORT Utils {
                                     const std::vector<std::string>& qr_data);
   static BtcUri ParseBtcUri(const std::string& value);
   static Wallet ParseWalletConfig(Chain chain, const std::string& config);
+  static std::vector<Wallet> ParseJSONWallets(
+      const std::string& json_str, SignerType signer_type = SignerType::AIRGAP);
+  static std::vector<Wallet> ParseBBQRWallets(
+      const std::vector<std::string>& qr_data);
+  static std::vector<SingleSigner> ParsePassportSigners(
+      Chain chain, const std::vector<std::string>& qr_data);
   static SingleSigner SanitizeSingleSigner(const SingleSigner& signer);
   static std::vector<SingleSigner> SanitizeSingleSigners(
       const std::vector<SingleSigner>& signers);
@@ -1439,6 +1445,12 @@ class NUNCHUK_EXPORT Utils {
       const std::vector<std::string>& qr_data);
   static std::string ParsePassportTransaction(
       const std::vector<std::string>& qr_data);
+  static std::vector<std::string> ExportBBQRTransaction(
+      const std::string& psbt, int min_version = 1 /*1-40*/,
+      int max_version = 40 /*1-40*/);
+  static std::vector<std::string> ExportBBQRWallet(
+      const Wallet& wallet, ExportFormat = ExportFormat::COLDCARD,
+      int min_version = 1 /*1-40*/, int max_version = 1 /*1-40*/);
   static AnalyzeQRResult AnalyzeQR(const std::vector<std::string>& qr_data);
   static int GetIndexFromPath(const std::string& path);
   static std::vector<std::string> DeriveAddresses(const Wallet& wallet,

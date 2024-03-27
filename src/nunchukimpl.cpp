@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include "bbqr/bbqr.hpp"
 #include "descriptor.h"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
@@ -48,14 +49,13 @@
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
-using namespace nunchuk::bcr2;
 using namespace tap_protocol;
+using namespace nunchuk::bcr2;
 
 namespace nunchuk {
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
-static std::regex BC_UR_REGEX("UR:BYTES/[0-9]+OF[0-9]+/(.+)");
 
 std::map<std::string, time_t> NunchukImpl::last_scan_;
 
@@ -994,9 +994,25 @@ bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
 
 Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
                                     const std::string& base64_psbt) {
-  std::string psbt = boost::trim_copy(base64_psbt);
-  std::string tx_id = GetTxIdFromPsbt(psbt);
+  constexpr auto is_hex_tx = [](const std::string& str) {
+    return boost::starts_with(str, "01000000") ||
+           boost::starts_with(str, "02000000");
+  };
 
+  constexpr auto is_hex_psbt_tx = [](const std::string& str) {
+    return boost::starts_with(str, "70736274");
+  };
+
+  std::string psbt = boost::trim_copy(base64_psbt);
+  if (is_hex_tx(psbt)) {
+    return ImportRawTransaction(wallet_id, psbt);
+  }
+
+  if (is_hex_psbt_tx(psbt)) {
+    psbt = EncodeBase64(ParseHex(psbt));
+  }
+
+  std::string tx_id = GetTxIdFromPsbt(psbt);
   try {
     auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
     if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) return tx;
@@ -1697,42 +1713,13 @@ std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
   if (base64_psbt.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
-  bool invalid;
-  auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
-  if (invalid) {
-    throw NunchukException(
-        NunchukException::INVALID_PSBT,
-        strprintf("Invalid base64 wallet_id = '%s' tx_id = '%s'", wallet_id,
-                  tx_id));
-  }
-  CryptoPSBT psbt{data};
-  ur::ByteVector cbor;
-  encodeCryptoPSBT(cbor, psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
-  std::vector<std::string> parts;
-  do {
-    parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() <= 2 * encoder.seq_len());
-  return parts;
+  return Utils::ExportKeystoneTransaction(base64_psbt, fragment_len);
 }
 
 Transaction NunchukImpl::ImportKeystoneTransaction(
     const std::string& wallet_id, const std::vector<std::string>& qr_data) {
-  auto decoder = ur::URDecoder();
-  for (auto&& part : qr_data) {
-    decoder.receive_part(part);
-  }
-  if (!decoder.is_complete() || !decoder.is_success()) {
-    throw NunchukException(
-        NunchukException::INVALID_PARAMETER,
-        strprintf("Invalid BC-UR2 input wallet_id = '%s'", wallet_id));
-  }
-  auto decoded = decoder.result_ur();
-  auto i = decoded.cbor().begin();
-  auto end = decoded.cbor().end();
-  CryptoPSBT psbt{};
-  decodeCryptoPSBT(i, end, psbt);
-  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(psbt.data)));
+  auto base64_psbt = Utils::ParseKeystoneTransaction(qr_data);
+  return ImportPsbt(wallet_id, base64_psbt);
 }
 
 Wallet NunchukImpl::ImportKeystoneWallet(
@@ -1745,41 +1732,7 @@ Wallet NunchukImpl::ImportKeystoneWallet(
 
 std::vector<SingleSigner> NunchukImpl::ParsePassportSigners(
     const std::vector<std::string>& qr_data) {
-  if (qr_data.empty()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "QR data is empty");
-  }
-  std::smatch sm;
-  std::vector<unsigned char> config;
-
-  if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
-    config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
-    auto decoder = ur::URDecoder();
-    for (auto&& part : qr_data) {
-      decoder.receive_part(part);
-    }
-    if (!decoder.is_complete() || !decoder.is_success()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid BC-UR2 input");
-    }
-    auto cbor = decoder.result_ur().cbor();
-    auto i = cbor.begin();
-    auto end = cbor.end();
-    decodeBytes(i, end, config);
-  }
-
-  std::string config_str(config.begin(), config.end());
-  std::vector<SingleSigner> signers;
-  if (ParsePassportSignerConfig(chain_, config_str, signers)) {
-    for (auto&& signer : signers) {
-      signer.set_type(SignerType::AIRGAP);
-    }
-    return signers;
-  } else {
-    throw NunchukException(NunchukException::INVALID_FORMAT,
-                           "Invalid data format");
-  }
+  return Utils::ParsePassportSigners(chain_, qr_data);
 }
 
 std::vector<std::string> NunchukImpl::ExportPassportWallet(
@@ -1802,54 +1755,13 @@ std::vector<std::string> NunchukImpl::ExportPassportTransaction(
   if (base64_psbt.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
-  bool invalid;
-  auto data = DecodeBase64(base64_psbt.c_str(), &invalid);
-  if (invalid) {
-    throw NunchukException(
-        NunchukException::INVALID_PSBT,
-        strprintf("Invalid base64 wallet_id = '%s' tx_id = '%s'", wallet_id,
-                  tx_id));
-  }
-  CryptoPSBT psbt{data};
-  ur::ByteVector cbor;
-  encodeCryptoPSBT(cbor, psbt);
-  auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
-  std::vector<std::string> parts;
-  do {
-    parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() <= 2 * encoder.seq_len());
-  return parts;
+  return Utils::ExportPassportTransaction(base64_psbt, fragment_len);
 }
 
 Transaction NunchukImpl::ImportPassportTransaction(
     const std::string& wallet_id, const std::vector<std::string>& qr_data) {
-  if (qr_data.empty()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "QR data is empty");
-  }
-  std::smatch sm;
-  std::vector<unsigned char> data;
-
-  if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
-    data = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
-    auto decoder = ur::URDecoder();
-    for (auto&& part : qr_data) {
-      decoder.receive_part(part);
-    }
-    if (!decoder.is_complete() || !decoder.is_success()) {
-      throw NunchukException(
-          NunchukException::INVALID_PARAMETER,
-          strprintf("Invalid BC-UR2 input wallet_id = '%s'", wallet_id));
-    }
-    auto decoded = decoder.result_ur();
-    auto i = decoded.cbor().begin();
-    auto end = decoded.cbor().end();
-    CryptoPSBT psbt{};
-    decodeCryptoPSBT(i, end, psbt);
-    data = psbt.data;
-  }
-  return ImportPsbt(wallet_id, EncodeBase64(MakeUCharSpan(data)));
+  auto base64_psbt = Utils::ParsePassportTransaction(qr_data);
+  return ImportPsbt(wallet_id, base64_psbt);
 }
 
 std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
@@ -1909,10 +1821,15 @@ std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
     return {ParseKeystoneSigner(qr_data[0])};
   };
 
-  auto ret =
-      RunThrowOne(parse_signer_string, parse_keystone_signer,
-                  std::bind(&Nunchuk::ParseSeedSigners, this, qr_data),
-                  std::bind(&Nunchuk::ParsePassportSigners, this, qr_data));
+  const auto parse_coldcard_q_signer = [&]() -> std::vector<SingleSigner> {
+    auto join_result = bbqr::join_qrs<std::string>(qr_data);
+    return ParseJSONSigners(join_result.raw, SignerType::AIRGAP);
+  };
+
+  auto ret = RunThrowOne(
+      parse_signer_string, parse_keystone_signer, parse_coldcard_q_signer,
+      std::bind(&Nunchuk::ParseSeedSigners, this, qr_data),
+      std::bind(&Nunchuk::ParsePassportSigners, this, qr_data));
   for (SingleSigner& signer : ret) {
     signer = Utils::SanitizeSingleSigner(signer);
   }
@@ -1959,45 +1876,7 @@ std::vector<SingleSigner> NunchukImpl::ParseJSONSigners(
 }
 
 std::vector<Wallet> NunchukImpl::ParseJSONWallets(const std::string& json_str) {
-  static const std::array<std::tuple<std::string, std::string, AddressType>, 3>
-      FILTER_WALLETS{{
-          {"bip84", "m/84h - Native Segwit (Recommended)",
-           AddressType::NATIVE_SEGWIT},
-          {"bip49", "m/49h - Nested Segwit", AddressType::NESTED_SEGWIT},
-          {"bip44", "m/44h - Legacy", AddressType::LEGACY},
-      }};
-
-  try {
-    const nlohmann::json data = json::parse(json_str);
-    const std::string xfp = data["xfp"];
-
-    std::vector<Wallet> result;
-    for (auto&& [bip, tmp_name, address_type] : FILTER_WALLETS) {
-      auto bip_iter = data.find(bip);
-      if (bip_iter == data.end()) {
-        continue;
-      }
-
-      const std::string xpub = bip_iter.value()["xpub"];
-      const std::string derivation_path = bip_iter.value()["deriv"];
-
-      SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
-          GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
-          {}, derivation_path, xfp, std::time(nullptr), {}, false,
-          SignerType::COLDCARD_NFC));
-
-      Wallet wallet({}, 1, 1, {std::move(signer)}, address_type, false,
-                    std::time(0));
-      wallet.set_name(tmp_name);
-      result.emplace_back(std::move(wallet));
-    }
-    return result;
-  } catch (BaseException& e) {
-    throw;
-  } catch (...) {
-    throw NunchukException(NunchukException::INVALID_FORMAT,
-                           "Invalid data format");
-  }
+  return Utils::ParseJSONWallets(json_str, SignerType::COLDCARD_NFC);
 }
 
 Transaction NunchukImpl::ImportRawTransaction(const std::string& wallet_id,
@@ -2005,6 +1884,13 @@ Transaction NunchukImpl::ImportRawTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
   CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
   std::string new_txid = mtx.GetHash().GetHex();
+
+  try {
+    auto tx = storage_->GetTransaction(chain_, wallet_id, new_txid);
+    if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) return tx;
+  } catch (StorageException& se) {
+    if (se.code() != StorageException::TX_NOT_FOUND) throw;
+  }
 
   if (!tx_id.empty() && new_txid != tx_id) {
     // finalizepsbt will change the txid for legacy and nested-segwit

@@ -183,10 +183,13 @@ target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDO
 # Allow testnet Tapsigner
 target_compile_definitions(tap-protocol PUBLIC SKIP_BASE58_PREFIX_CHECK=1)
 
+set(BBQR_BUILD_EXAMPLES OFF)
+add_subdirectory(contrib/bbqr-cpp)
+
 if(ANDROID)
-    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group tap-protocol)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group tap-protocol bbqr-cpp)
 else()
-    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol bbqr-cpp)
 endif()
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
@@ -198,6 +201,7 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/sqlite"
     "${PROJECT_BINARY_DIR}"
     "${PROJECT_SOURCE_DIR}/contrib/tap-protocol/include"
+    "${PROJECT_SOURCE_DIR}/contrib/bbqr-cpp/include"
 )
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
