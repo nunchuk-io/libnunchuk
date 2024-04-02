@@ -767,8 +767,12 @@ std::vector<std::string> Utils::ExportBBQRTransaction(const std::string& psbt,
   bbqr::SplitOption option{};
   option.min_version = min_version;
   option.max_version = max_version;
-  auto split_result = bbqr::split_qrs(data, bbqr::FileType::P, option);
-  return split_result.parts;
+  try {
+    auto split_result = bbqr::split_qrs(data, bbqr::FileType::P, option);
+    return split_result.parts;
+  } catch (std::exception& e) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, e.what());
+  }
 }
 
 std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
