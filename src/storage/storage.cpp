@@ -529,6 +529,9 @@ SingleSigner NunchukStorage::CreateSingleSigner(
     throw StorageException(StorageException::SIGNER_EXISTS,
                            strprintf("Signer exists id = '%s'", id));
   }
+  if (signer_type == SignerType::SOFTWARE) {
+    signer_type = SignerType::FOREIGN_SOFTWARE;
+  }
   if (!signer_db.AddRemote(name, xpub, public_key, derivation_path, false,
                            signer_type, tags)) {
     throw StorageException(StorageException::SIGNER_EXISTS,

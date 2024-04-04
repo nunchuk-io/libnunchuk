@@ -274,7 +274,11 @@ SignerType NunchukSignerDb::GetSignerType() const {
     if (signer_type_str.empty()) {
       return SignerType::AIRGAP;
     } else {
-      return SignerTypeFromStr(signer_type_str);
+      SignerType signer_type = SignerTypeFromStr(signer_type_str);
+      if (signer_type == SignerType::SOFTWARE) {
+        return SignerType::FOREIGN_SOFTWARE;
+      }
+      return signer_type;
     }
   }
   if (GetDeviceType() == "software") {
