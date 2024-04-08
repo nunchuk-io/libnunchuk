@@ -79,6 +79,11 @@ void NunchukSignerDb::DeleteSigner() {
   DropTable();
 }
 
+void NunchukSignerDb::DeleteSoftwareSigner() {
+  PutString(DbKeys::MNEMONIC, {});
+  SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS BIP32;", NULL, 0, NULL));
+}
+
 bool NunchukSignerDb::AddXPub(const std::string& path, const std::string& xpub,
                               const std::string& type) {
   sqlite3_stmt* stmt;

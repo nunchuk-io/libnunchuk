@@ -49,7 +49,7 @@ class NunchukImpl : public Nunchuk {
                       bool allow_used_signer = false) override;
   Wallet CreateHotWallet(const std::string& mnemonic = {},
                          const std::string& passphrase = {},
-                         bool need_backup = true) override;
+                         bool need_backup = true, bool replace = true) override;
   std::string GetHotWalletMnemonic(const std::string& wallet_id,
                                    const std::string& passphrase = {}) override;
   std::string DraftWallet(const std::string& name, int m, int n,
@@ -80,7 +80,7 @@ class NunchukImpl : public Nunchuk {
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false) override;
+      bool is_primary = false, bool replace = true) override;
   bool DeletePrimaryKey() override;
   std::string SignLoginMessage(const std::string& mastersigner_id,
                                const std::string& message) override;
@@ -96,7 +96,8 @@ class NunchukImpl : public Nunchuk {
                             const std::string& derivation_path,
                             const std::string& master_fingerprint,
                             SignerType signer_type = SignerType::AIRGAP,
-                            std::vector<SignerTag> tags = {}) override;
+                            std::vector<SignerTag> tags = {},
+                            bool replace = false) override;
   bool HasSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,

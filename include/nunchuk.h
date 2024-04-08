@@ -865,7 +865,8 @@ class NUNCHUK_EXPORT Nunchuk {
                               bool allow_used_signer = false) = 0;
   virtual Wallet CreateHotWallet(const std::string& mnemonic = {},
                                  const std::string& passphrase = {},
-                                 bool need_backup = true) = 0;
+                                 bool need_backup = true,
+                                 bool replace = true) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
@@ -905,7 +906,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                     const std::string& derivation_path,
                                     const std::string& master_fingerprint,
                                     SignerType signer_type = SignerType::AIRGAP,
-                                    std::vector<SignerTag> tags = {}) = 0;
+                                    std::vector<SignerTag> tags = {},
+                                    bool replace = false) = 0;
   virtual bool HasSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
@@ -1190,7 +1192,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false) = 0;
+      bool is_primary = false, bool replace = true) = 0;
   virtual std::string SignLoginMessage(const std::string& mastersigner_id,
                                        const std::string& message) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,

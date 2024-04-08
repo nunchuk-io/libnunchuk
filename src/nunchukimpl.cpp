@@ -124,12 +124,12 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
 
 Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
                                     const std::string& passphrase,
-                                    bool need_backup) {
+                                    bool need_backup, bool replace) {
   std::string seed = mnemonic.empty() ? Utils::GenerateMnemonic() : mnemonic;
   auto id = storage_->GetHotWalletId();
   auto key_name = id == 0 ? "My key" : "My key #" + std::to_string(id + 1);
-  auto ss = CreateSoftwareSigner(key_name, seed, passphrase,
-                                 [](int) { return true; });
+  auto ss = CreateSoftwareSigner(
+      key_name, seed, passphrase, [](int) { return true; }, false, replace);
   WalletType wt = WalletType::SINGLE_SIG;
   AddressType at = AddressType::NATIVE_SEGWIT;
   auto signer = GetDefaultSignerFromMasterSigner(ss.get_id(), wt, at);
@@ -429,7 +429,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 MasterSigner NunchukImpl::CreateSoftwareSigner(
     const std::string& raw_name, const std::string& mnemonic,
     const std::string& passphrase, std::function<bool(int)> progress,
-    bool is_primary) {
+    bool is_primary, bool replace) {
   if (!Utils::CheckMnemonic(mnemonic)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid mnemonic");
@@ -437,6 +437,10 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   SoftwareSigner signer{mnemonic, passphrase};
   std::string name = trim_copy(raw_name);
   std::string id = to_lower_copy(signer.GetMasterFingerprint());
+  if (storage_->HasSigner(chain_, id) && !replace) {
+    throw NunchukException(StorageException::SIGNER_EXISTS,
+                           "Signer already exists");
+  }
 
   if (is_primary) {
     std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
@@ -504,20 +508,18 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
   }
 }
 
-SingleSigner NunchukImpl::CreateSigner(const std::string& raw_name,
-                                       const std::string& xpub,
-                                       const std::string& public_key,
-                                       const std::string& derivation_path,
-                                       const std::string& master_fingerprint,
-                                       SignerType signer_type,
-                                       std::vector<SignerTag> tags) {
+SingleSigner NunchukImpl::CreateSigner(
+    const std::string& raw_name, const std::string& xpub,
+    const std::string& public_key, const std::string& derivation_path,
+    const std::string& master_fingerprint, SignerType signer_type,
+    std::vector<SignerTag> tags, bool replace) {
   const SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
       raw_name, xpub, public_key, derivation_path, master_fingerprint,
       std::time(nullptr), {}, false, signer_type, tags));
   auto rs = storage_->CreateSingleSigner(
       chain_, signer.get_name(), signer.get_xpub(), signer.get_public_key(),
       signer.get_derivation_path(), signer.get_master_fingerprint(),
-      signer.get_type(), signer.get_tags());
+      signer.get_type(), signer.get_tags(), replace);
   storage_listener_();
   return rs;
 }

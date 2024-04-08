@@ -61,7 +61,8 @@ class NunchukStorage {
                                   const std::string &derivation_path,
                                   const std::string &master_fingerprint,
                                   SignerType signer_type = SignerType::AIRGAP,
-                                  std::vector<SignerTag> tags = {});
+                                  std::vector<SignerTag> tags = {},
+                                  bool replace = false);
   SingleSigner GetSignerFromMasterSigner(Chain chain,
                                          const std::string &mastersigner_id,
                                          const WalletType &wallet_type,
@@ -87,6 +88,7 @@ class NunchukStorage {
                           const std::string passphrase);
   int GetHotWalletId();
   bool SetHotWalletId(int value);
+  bool HasSigner(Chain chain, const std::string &signer_id);
   bool HasSigner(Chain chain, const SingleSigner &signer);
 
   bool UpdateWallet(Chain chain, const Wallet &wallet);

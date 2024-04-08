@@ -519,15 +519,19 @@ SingleSigner NunchukStorage::CreateSingleSigner(
     Chain chain, const std::string& name, const std::string& xpub,
     const std::string& public_key, const std::string& derivation_path,
     const std::string& master_fingerprint, SignerType signer_type,
-    std::vector<SignerTag> tags) {
+    std::vector<SignerTag> tags, bool replace) {
   std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = master_fingerprint;
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
   signer_db.SetVisible(true);
   if (signer_db.IsMaster()) {
-    throw StorageException(StorageException::SIGNER_EXISTS,
-                           strprintf("Signer exists id = '%s'", id));
+    if (replace && signer_db.GetSignerType() == SignerType::SOFTWARE) {
+      signer_db.DeleteSoftwareSigner();
+    } else {
+      throw StorageException(StorageException::SIGNER_EXISTS,
+                             strprintf("Signer exists id = '%s'", id));
+    }
   }
   if (signer_type == SignerType::SOFTWARE) {
     signer_type = SignerType::FOREIGN_SOFTWARE;
@@ -540,6 +544,12 @@ SingleSigner NunchukStorage::CreateSingleSigner(
 
   GetAppStateDb(chain).RemoveDeletedSigner(id);
   return signer_db.GetRemoteSigner(derivation_path);
+}
+
+bool NunchukStorage::HasSigner(Chain chain, const std::string& signer_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  fs::path db_file = GetSignerDir(chain, signer_id);
+  return fs::exists(db_file);
 }
 
 bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
