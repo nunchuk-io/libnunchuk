@@ -438,8 +438,8 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   std::string name = trim_copy(raw_name);
   std::string id = to_lower_copy(signer.GetMasterFingerprint());
   if (storage_->HasSigner(chain_, id) && !replace) {
-    throw NunchukException(StorageException::SIGNER_EXISTS,
-                           "Signer already exists");
+    throw StorageException(StorageException::SIGNER_EXISTS,
+                           strprintf("Signer exists id = '%s'", id));
   }
 
   if (is_primary) {
