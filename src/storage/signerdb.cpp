@@ -226,6 +226,10 @@ bool NunchukSignerDb::SetLastHealthCheck(time_t value) {
   return PutInt(DbKeys::LAST_HEALTH_CHECK, value);
 }
 
+bool NunchukSignerDb::SetSignerType(SignerType value) {
+  return PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(value));
+}
+
 std::string NunchukSignerDb::GetFingerprint() const {
   return GetString(DbKeys::FINGERPRINT);
 }

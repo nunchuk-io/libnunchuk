@@ -41,6 +41,7 @@ class NunchukSignerDb : public NunchukDb {
   bool SetTags(const std::vector<SignerTag> &value);
   bool SetVisible(bool value);
   bool SetLastHealthCheck(time_t value);
+  bool SetSignerType(SignerType value);
   bool AddXPub(const std::string &path, const std::string &xpub,
                const std::string &type);
   bool AddXPub(const WalletType &wallet_type, const AddressType &address_type,
