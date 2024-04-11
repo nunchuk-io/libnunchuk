@@ -38,6 +38,11 @@ const int CONF_TARGET_PRIORITY = 2;
 const int CONF_TARGET_STANDARD = 6;
 const int CONF_TARGET_ECONOMICAL = 144;
 
+const int LOW_DENSITY = 50;
+const int MEDIUM_DENSITY = 100;
+const int HIGH_DENSITY = 200;
+const int ULTRA_HIGH_DENSITY = 500;
+
 typedef int64_t Amount;
 typedef std::pair<std::string, int> TxInput;        // txid-vout pair
 typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair
