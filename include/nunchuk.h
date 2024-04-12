@@ -1110,7 +1110,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual MasterSigner CreateTapsignerMasterSigner(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& name, std::function<bool(int)> progress,
-      bool is_primary = false) = 0;
+      bool is_primary = false, bool replace = true) = 0;
   virtual Transaction SignTapsignerTransaction(
       tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
       const std::string& wallet_id, const std::string& tx_id) = 0;

@@ -311,12 +311,17 @@ TapsignerStatus NunchukImpl::SetupTapsigner(tap_protocol::Tapsigner* tapsigner,
 MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
     tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
     const std::string& raw_name, std::function<bool(int)> progress,
-    bool is_primary) {
+    bool is_primary, bool replace) {
   std::string id;
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     std::string name = trim_copy(raw_name);
     auto master_fingerprint = hwi_tapsigner_->GetMasterFingerprint();
+
+    if (storage_->HasSigner(chain_, id) && !replace) {
+      throw StorageException(StorageException::SIGNER_EXISTS,
+                             strprintf("Signer exists id = '%s'", id));
+    }
     if (name.empty()) {
       name = master_fingerprint;
     }
