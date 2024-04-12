@@ -316,16 +316,16 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     std::string name = trim_copy(raw_name);
-    auto master_fingerprint = hwi_tapsigner_->GetMasterFingerprint();
+    id = hwi_tapsigner_->GetMasterFingerprint();
 
-    if (storage_->HasSigner(chain_, id) && !replace) {
+    if (!replace && storage_->HasSigner(chain_, id)) {
       throw StorageException(StorageException::SIGNER_EXISTS,
                              strprintf("Signer exists id = '%s'", id));
     }
     if (name.empty()) {
-      name = master_fingerprint;
+      name = id;
     }
-    Device device("nfc", "tapsigner", master_fingerprint);
+    Device device("nfc", "tapsigner", id);
 
     id = storage_->CreateMasterSigner(chain_, name, device);
 
@@ -360,7 +360,7 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   } catch (TapProtocolException& te) {
-    if (te.code() == TapProtocolException::TAG_LOST) {
+    if (te.code() == TapProtocolException::TAG_LOST && !id.empty()) {
       storage_->DeleteMasterSigner(chain_, id);
     }
     throw;
