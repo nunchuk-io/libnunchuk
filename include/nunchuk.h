@@ -43,6 +43,11 @@ const int MEDIUM_DENSITY = 100;
 const int HIGH_DENSITY = 200;
 const int ULTRA_HIGH_DENSITY = 500;
 
+const int LOW_DENSITY_BBQR = 3;
+const int MEDIUM_DENSITY_BBQR = 10;
+const int HIGH_DENSITY_BBQR = 27;
+const int ULTRA_HIGH_DENSITY_BBQR = 40;
+
 typedef int64_t Amount;
 typedef std::pair<std::string, int> TxInput;        // txid-vout pair
 typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair

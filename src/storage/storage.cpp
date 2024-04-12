@@ -496,6 +496,10 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
   std::string id = ba::to_lower_copy(device.get_master_fingerprint());
   NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
                             passphrase_};
+  if (signer_db.IsMaster() &&
+      signer_db.GetSignerType() == SignerType::SOFTWARE && mnemonic.empty()) {
+    signer_db.DeleteSoftwareSigner();
+  }
   signer_db.InitSigner(name, device, mnemonic);
   signer_db.SetVisible(true);
   GetAppStateDb(chain).RemoveDeletedSigner(id);
@@ -526,8 +530,10 @@ SingleSigner NunchukStorage::CreateSingleSigner(
                             passphrase_};
   signer_db.SetVisible(true);
   if (signer_db.IsMaster()) {
-    if (replace && signer_db.GetSignerType() == SignerType::SOFTWARE) {
-      signer_db.DeleteSoftwareSigner();
+    if (replace) {
+      if (signer_db.GetSignerType() == SignerType::SOFTWARE) {
+        signer_db.DeleteSoftwareSigner();
+      }
     } else {
       throw StorageException(StorageException::SIGNER_EXISTS,
                              strprintf("Signer exists id = '%s'", id));
@@ -540,6 +546,10 @@ SingleSigner NunchukStorage::CreateSingleSigner(
                            signer_type, tags)) {
     throw StorageException(StorageException::SIGNER_EXISTS,
                            strprintf("Signer exists id = '%s'", id));
+  }
+
+  if (replace) {
+    signer_db.SetSignerType(signer_type);
   }
 
   GetAppStateDb(chain).RemoveDeletedSigner(id);

@@ -419,7 +419,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
       progress, true);
   storage_listener_();
 
-  MasterSigner mastersigner{id, device, std::time(0)};
+  MasterSigner mastersigner{id, device, std::time(0), SignerType::HARDWARE};
   mastersigner.set_name(name);
   mastersigner.set_tags(tags);
   storage_->UpdateMasterSigner(chain_, mastersigner);
