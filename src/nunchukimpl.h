@@ -322,7 +322,8 @@ class NunchukImpl : public Nunchuk {
                                            const std::string& cvc,
                                            const std::string& name,
                                            std::function<bool(int)> progress,
-                                           bool is_primary = false) override;
+                                           bool is_primary = false,
+                                           bool replace = true) override;
   Transaction SignTapsignerTransaction(tap_protocol::Tapsigner* tapsigner,
                                        const std::string& cvc,
                                        const std::string& wallet_id,
