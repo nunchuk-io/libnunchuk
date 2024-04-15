@@ -1825,7 +1825,10 @@ std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
 
   const auto parse_coldcard_q_signer = [&]() -> std::vector<SingleSigner> {
     auto join_result = bbqr::join_qrs<std::string>(qr_data);
-    return ParseJSONSigners(join_result.raw, SignerType::AIRGAP);
+    if (join_result.is_complete) {
+      return ParseJSONSigners(join_result.raw, SignerType::AIRGAP);
+    }
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
   };
 
   auto ret = RunThrowOne(
