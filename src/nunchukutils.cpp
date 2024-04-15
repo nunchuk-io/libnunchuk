@@ -379,7 +379,10 @@ static Wallet parseBBQRWallet(Chain chain,
                               const std::vector<std::string>& qr_data) {
   try {
     auto join_result = bbqr::join_qrs<std::string>(qr_data);
-    return Utils::ParseWalletDescriptor(join_result.raw);
+    if (join_result.is_complete) {
+      return Utils::ParseWalletDescriptor(join_result.raw);
+    }
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
   } catch (NunchukException& e) {
     throw;
   } catch (std::exception& e) {
@@ -523,7 +526,7 @@ std::vector<Wallet> Utils::ParseBBQRWallets(
     const std::vector<std::string>& qr_data) {
   try {
     auto join_result = bbqr::join_qrs<std::string>(qr_data);
-    if (join_result.file_type != bbqr::FileType::J) {
+    if (join_result.file_type != bbqr::FileType::J || !join_result.is_complete) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid data");
     }
@@ -844,7 +847,7 @@ static std::string parseBBQRTransaction(
     const std::vector<std::string>& qr_data) {
   try {
     auto join_result = bbqr::join_qrs(qr_data);
-    if (join_result.file_type != bbqr::FileType::P) {
+    if (join_result.file_type != bbqr::FileType::P || !join_result.is_complete) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid data");
     }
