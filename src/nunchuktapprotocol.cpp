@@ -737,7 +737,7 @@ TapsignerStatus NunchukImpl::GetTapsignerStatusFromMasterSigner(
 void NunchukImpl::AddTapsigner(const std::string& card_ident,
                                const std::string& xfp, const std::string& name,
                                const std::string& version, int birth_height,
-                               bool is_testnet) {
+                               bool is_testnet, bool replace) {
   bool exists = false;
   try {
     if (storage_->IsMasterSigner(chain_, xfp)) {
@@ -749,7 +749,7 @@ void NunchukImpl::AddTapsigner(const std::string& card_ident,
     }
   }
 
-  if (!exists) {
+  if (!exists || replace) {
     TapsignerStatus status(card_ident, birth_height, 0, version, std::nullopt,
                            is_testnet);
     Device device("nfc", "tapsigner", xfp);

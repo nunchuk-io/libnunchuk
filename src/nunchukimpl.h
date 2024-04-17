@@ -363,7 +363,8 @@ class NunchukImpl : public Nunchuk {
       const std::string& master_signer_id) override;
   void AddTapsigner(const std::string& card_ident, const std::string& xfp,
                     const std::string& name, const std::string& version = {},
-                    int birth_height = 0, bool is_testnet = false) override;
+                    int birth_height = 0, bool is_testnet = false,
+                    bool replace = false) override;
 
   // SATSCARD
   std::unique_ptr<tap_protocol::Satscard> CreateSatscard(

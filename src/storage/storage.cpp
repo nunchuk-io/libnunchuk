@@ -533,6 +533,8 @@ SingleSigner NunchukStorage::CreateSingleSigner(
     if (replace) {
       if (signer_db.GetSignerType() == SignerType::SOFTWARE) {
         signer_db.DeleteSoftwareSigner();
+      } else if (signer_db.GetSignerType() == SignerType::NFC) {
+        GetTaprotocolDb(chain).DeleteTapsigner(id);
       }
     } else {
       throw StorageException(StorageException::SIGNER_EXISTS,
