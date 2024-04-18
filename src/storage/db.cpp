@@ -25,6 +25,7 @@ namespace nunchuk {
 
 std::map<std::string, std::map<int, std::string>> NunchukDb::vstr_cache_;
 std::map<std::string, std::map<int, int64_t>> NunchukDb::vint_cache_;
+std::shared_mutex NunchukDb::cache_access_;
 
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
@@ -65,6 +66,7 @@ void NunchukDb::DropTable() {
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS VSTR;", NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_, "DROP TABLE IF EXISTS VINT;", NULL, 0, NULL));
 
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
   vstr_cache_[db_file_name_].clear();
   vint_cache_[db_file_name_].clear();
 }
@@ -99,6 +101,7 @@ void NunchukDb::DecryptDb(const std::string& new_file_name) {
 }
 
 bool NunchukDb::PutString(int key, const std::string& value) {
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO VSTR(ID, VALUE)"
@@ -115,6 +118,7 @@ bool NunchukDb::PutString(int key, const std::string& value) {
 }
 
 bool NunchukDb::PutInt(int key, int64_t value) {
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO VINT(ID, VALUE)"
@@ -131,6 +135,7 @@ bool NunchukDb::PutInt(int key, int64_t value) {
 }
 
 std::string NunchukDb::GetString(int key) const {
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
   if (vstr_cache_[db_file_name_].count(key)) {
     return vstr_cache_[db_file_name_][key];
   }
@@ -149,6 +154,7 @@ std::string NunchukDb::GetString(int key) const {
 }
 
 int64_t NunchukDb::GetInt(int key) const {
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
   if (vint_cache_[db_file_name_].count(key)) {
     return vint_cache_[db_file_name_][key];
   }

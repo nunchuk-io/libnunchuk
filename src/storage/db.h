@@ -22,6 +22,7 @@
 #include <nunchuk.h>
 #include <string>
 #include <map>
+#include <shared_mutex>
 
 namespace nunchuk {
 
@@ -58,6 +59,7 @@ class NunchukDb {
   void close();
   static std::map<std::string, std::map<int, std::string>> vstr_cache_;
   static std::map<std::string, std::map<int, int64_t>> vint_cache_;
+  static std::shared_mutex cache_access_;
   friend class NunchukStorage;
 };
 
