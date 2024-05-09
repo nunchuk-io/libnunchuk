@@ -20,6 +20,7 @@
 #include <utils/loguru.hpp>
 #include <utils/stringutils.hpp>
 #include <cstring>
+#include <mutex>
 
 namespace nunchuk {
 
