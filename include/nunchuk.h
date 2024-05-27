@@ -128,9 +128,11 @@ enum class Unit {
 enum class DescriptorPath {
   ANY,
   INTERNAL_ALL,
-  INTERNAL,
+  INTERNAL_PUBKEY,
+  INTERNAL_XPUB,
   EXTERNAL_ALL,
-  EXTERNAL,
+  EXTERNAL_PUBKEY,
+  EXTERNAL_XPUB,
   TEMPLATE,
 };
 

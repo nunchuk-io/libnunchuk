@@ -1599,31 +1599,27 @@ void NunchukImpl::DisplayAddressOnDevice(
     const std::string& wallet_id, const std::string& address,
     const std::string& device_fingerprint) {
   Wallet wallet = GetWallet(wallet_id);
-  std::string desc = wallet.get_descriptor(
-      DescriptorPath::EXTERNAL,
-      wallet.is_escrow()
-          ? -1
-          : storage_->GetAddressIndex(chain_, wallet_id, address));
-  std::string desc2 = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-  if (device_fingerprint.empty()) {
-    auto devices = GetDevices();
-    for (auto&& device : devices) {
-      for (auto&& signer : wallet.get_signers()) {
-        if (signer.get_master_fingerprint() ==
-            device.get_master_fingerprint()) {
-          if (device.get_type() == "bitbox02") {
-            hwi_.DisplayAddress(device, desc2);
-          } else {
-            hwi_.DisplayAddress(device, desc);
-          }
-        }
-      }
+  auto devices = GetDevices();
+  std::string desc;
+  int idx = wallet.is_escrow()
+                ? -1
+                : storage_->GetAddressIndex(chain_, wallet_id, address);
+  for (auto&& device : devices) {
+    if (!device_fingerprint.empty() &&
+        device_fingerprint != device.get_master_fingerprint()) {
+      continue;
     }
-  } else {
-    try {
-      hwi_.DisplayAddress(Device{device_fingerprint}, desc);
-    } catch (NunchukException& he) {
-      hwi_.DisplayAddress(Device{device_fingerprint}, desc2);
+    for (auto&& signer : wallet.get_signers()) {
+      if (signer.get_master_fingerprint() == device.get_master_fingerprint()) {
+        if (device.get_type() == "bitbox02") {
+          desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+        } else if (device.get_type() == "ledger") {
+          desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_XPUB, idx);
+        } else {
+          desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_PUBKEY, idx);
+        }
+        hwi_.DisplayAddress(device, desc);
+      }
     }
   }
 }

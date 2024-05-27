@@ -93,13 +93,15 @@ std::string GetKeyPath(DescriptorPath path, int index) {
     case DescriptorPath::INTERNAL_ALL:
       keypath << "/1/*";
       break;
-    case DescriptorPath::INTERNAL:
+    case DescriptorPath::INTERNAL_PUBKEY:
+    case DescriptorPath::INTERNAL_XPUB:
       keypath << "/1/" << index;
       break;
     case DescriptorPath::EXTERNAL_ALL:
       keypath << "/0/*";
       break;
-    case DescriptorPath::EXTERNAL:
+    case DescriptorPath::EXTERNAL_PUBKEY:
+    case DescriptorPath::EXTERNAL_XPUB:
       keypath << "/0/" << index;
       break;
     case DescriptorPath::TEMPLATE:
@@ -120,9 +122,9 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     const SingleSigner& signer = signers[0];
     std::string path = FormalizePath(signer.get_derivation_path());
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
-    desc << (address_type == AddressType::LEGACY    ? "pkh"
-             : address_type == AddressType::TAPROOT ? "tr"
-                                                    : "wpkh");
+    desc << (address_type == AddressType::LEGACY
+                 ? "pkh"
+                 : address_type == AddressType::TAPROOT ? "tr" : "wpkh");
     desc << "([" << signer.get_master_fingerprint() << path << "]"
          << signer.get_xpub() << keypath << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
@@ -138,14 +140,15 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
         }
         desc << ",[" << signer.get_master_fingerprint()
              << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
-      } else if (key_path == DescriptorPath::EXTERNAL ||
-                 key_path == DescriptorPath::INTERNAL) {
+      } else if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
+                 key_path == DescriptorPath::INTERNAL_PUBKEY) {
         std::stringstream p;
         p << signer.get_derivation_path() << keypath;
         std::string path = FormalizePath(p.str());
         // displayaddress only takes pubkeys as inputs, not xpubs
         auto xpub = DecodeExtPubKey(signer.get_xpub());
-        xpub.Derive(xpub, (key_path == DescriptorPath::INTERNAL ? 1 : 0));
+        xpub.Derive(xpub,
+                    (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0));
         xpub.Derive(xpub, index);
         std::string pubkey = HexStr(xpub.pubkey);
         desc << ",[" << signer.get_master_fingerprint() << path << "]"
@@ -189,9 +192,9 @@ std::string GetDescriptor(const SingleSigner& signer,
   std::stringstream desc;
   std::string path = FormalizePath(signer.get_derivation_path());
   desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
-  desc << (address_type == AddressType::LEGACY    ? "pkh"
-           : address_type == AddressType::TAPROOT ? "tr"
-                                                  : "wpkh");
+  desc << (address_type == AddressType::LEGACY
+               ? "pkh"
+               : address_type == AddressType::TAPROOT ? "tr" : "wpkh");
   desc << "([" << signer.get_master_fingerprint() << path << "]"
        << signer.get_xpub() << ")";
   desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
