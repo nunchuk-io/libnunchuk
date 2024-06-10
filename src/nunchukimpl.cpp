@@ -405,6 +405,8 @@ MasterSigner NunchukImpl::CreateMasterSigner(
     tags.push_back(SignerTag::LEDGER);
   } else if (deviceType == "trezor") {
     tags.push_back(SignerTag::TREZOR);
+  } else if (deviceType == "keepkey") {
+    tags.push_back(SignerTag::KEEPKEY);
   } else if (deviceType == "bitbox02") {
     tags.push_back(SignerTag::BITBOX);
   } else if (deviceType == "coldcard") {
@@ -741,7 +743,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
 
   if (existed && signerType == SignerType::HARDWARE &&
       deviceType != "bitbox02" && deviceType != "ledger" &&
-      deviceType != "trezor") {
+      deviceType != "trezor" && deviceType != "keepkey") {
     std::string master_xpub = hwi_.GetXpubAtPath(device, "m");
     std::string stored_master_xpub =
         storage_->GetMasterSignerXPub(chain_, id, "m");

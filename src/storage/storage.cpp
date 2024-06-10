@@ -677,12 +677,13 @@ void NunchukStorage::CacheMasterSignerXPub(
   bool is_bitbox2 = signer_db.GetDeviceType() == "bitbox02";
   bool is_ledger = signer_db.GetDeviceType() == "ledger";
   bool is_trezor = signer_db.GetDeviceType() == "trezor";
+  bool is_keepkey = signer_db.GetDeviceType() == "keepkey";
   int count = 0;
   auto total = is_software ? 82 : TOTAL_CACHE_NUMBER;
   progress(count++ * 100 / total);
 
   // Retrieve standard BIP32 paths when connected to a device for the first time
-  if (first && !is_bitbox2 && !is_ledger && !is_trezor) {
+  if (first && !is_bitbox2 && !is_ledger && !is_trezor && !is_keepkey) {
     auto cachePath = [&](const std::string& path) {
       signer_db.AddXPub(path, getxpub(path), "custom");
       progress(count++ * 100 / total);

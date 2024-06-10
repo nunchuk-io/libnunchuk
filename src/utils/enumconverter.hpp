@@ -118,6 +118,8 @@ inline std::string SignerTagToStr(nunchuk::SignerTag tag) {
       return "LEDGER";
     case nunchuk::SignerTag::BITBOX:
       return "BITBOX";
+    case nunchuk::SignerTag::KEEPKEY:
+      return "KEEPKEY";
   }
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
                                   "Invalid signer tag");
@@ -133,6 +135,7 @@ inline nunchuk::SignerTag SignerTagFromStr(const std::string& tag) {
   if (tag == "TREZOR") return nunchuk::SignerTag::TREZOR;
   if (tag == "LEDGER") return nunchuk::SignerTag::LEDGER;
   if (tag == "BITBOX") return nunchuk::SignerTag::BITBOX;
+  if (tag == "KEEPKEY") return nunchuk::SignerTag::KEEPKEY;
   throw nunchuk::NunchukException(nunchuk::NunchukException::INVALID_PARAMETER,
                                   "Invalid signer tag");
 }
