@@ -128,6 +128,45 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     desc << "([" << signer.get_master_fingerprint() << path << "]"
          << signer.get_xpub() << keypath << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+  } else if (address_type == AddressType::TAPROOT) {
+    desc << "tr("
+            "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0,";
+    desc << (sorted ? "sortedmulti_a(" : "multi_a(") << m;
+    for (auto&& signer : signers) {
+      if (wallet_type == WalletType::ESCROW) {
+        std::string pubkey = signer.get_public_key();
+        if (pubkey.empty()) {
+          pubkey =
+              HexStr(XOnlyPubKey{DecodeExtPubKey(signer.get_xpub()).pubkey});
+        }
+        desc << ",[" << signer.get_master_fingerprint()
+             << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
+      } else if (key_path == DescriptorPath::EXTERNAL ||
+                 key_path == DescriptorPath::INTERNAL) {
+        std::stringstream p;
+        p << signer.get_derivation_path() << keypath;
+        std::string path = FormalizePath(p.str());
+        // displayaddress only takes pubkeys as inputs, not xpubs
+        auto xpub = DecodeExtPubKey(signer.get_xpub());
+        if (!xpub.Derive(xpub,
+                         (key_path == DescriptorPath::INTERNAL ? 1 : 0))) {
+          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                 "Invalid path");
+        }
+        if (!xpub.Derive(xpub, index)) {
+          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                 "Invalid path");
+        }
+        std::string pubkey = HexStr(XOnlyPubKey{xpub.pubkey});
+        desc << ",[" << signer.get_master_fingerprint() << path << "]"
+             << pubkey;
+      } else {
+        desc << ",[" << signer.get_master_fingerprint()
+             << FormalizePath(signer.get_derivation_path()) << "]"
+             << signer.get_xpub() << keypath;
+      }
+    }
+    desc << "))";
   } else {
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");

@@ -1096,21 +1096,17 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
       auto wallet = GetWallet(wallet_id);
       if (wallet.get_address_type() == AddressType::TAPROOT) {
-        std::vector<std::string> keypaths;
-        auto base = wallet.get_signers()[0].get_derivation_path();
-        int internal =
-            storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
-        for (int index = 0; index <= internal; index++) {
-          keypaths.push_back(
-              boost::str(boost::format{"%s/1/%d"} % base % index));
+        std::string basepath;
+        for (auto&& signer : wallet.get_signers()) {
+          if (signer.get_master_fingerprint() == mastersigner_id) {
+            basepath = signer.get_derivation_path();
+          }
         }
-        int external =
-            storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
-        for (int index = 0; index <= external; index++) {
-          keypaths.push_back(
-              boost::str(boost::format{"%s/0/%d"} % base % index));
-        }
-        signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
+        signed_psbt = software_signer.SignTaprootTx(
+            psbt, basepath, wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+            wallet.get_descriptor(DescriptorPath::INTERNAL_ALL),
+            storage_->GetCurrentAddressIndex(chain_, wallet_id, false),
+            storage_->GetCurrentAddressIndex(chain_, wallet_id, true));
       } else {
         signed_psbt = software_signer.SignTx(psbt);
       }

@@ -32,6 +32,7 @@
 #include <util/bip32.h>
 #include <script/signingprovider.h>
 #include <rpc/util.h>
+#include <descriptor.h>
 
 extern "C" {
 #include <bip39.h>
@@ -152,37 +153,44 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   return EncodePsbt(psbtx);
 }
 
-std::string SoftwareSigner::SignTaprootTx(
-    const std::string& base64_psbt,
-    const std::vector<std::string>& keypaths) const {
+std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
+                                          const std::string& basepath,
+                                          const std::string& external_desc,
+                                          const std::string& internal_desc,
+                                          int external_index,
+                                          int internal_index) const {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
-
-  for (auto&& path : keypaths) {
-    TaprootBuilder builder;
-    auto key = GetExtKeyAtPath(path);
-    CPubKey pubkey = key.Neuter().pubkey;
-    XOnlyPubKey xpk(pubkey);
-
-    builder.Finalize(xpk);
-    WitnessV1Taproot output = builder.GetOutput();
-    provider.tr_trees[output] = builder;
+  std::string error;
+  std::vector<CScript> output_scripts;
+  auto addPath = [&](const std::string& path) {
     unsigned char b[33] = {0x02};
-    auto internal_key = builder.GetSpendData().internal_key;
+    auto key = GetExtKeyAtPath(path);
+    XOnlyPubKey internal_key(key.Neuter().pubkey);
     std::copy(internal_key.begin(), internal_key.end(), b + 1);
     CPubKey fullpubkey;
     fullpubkey.Set(b, b + 33);
     CKeyID keyid = fullpubkey.GetID();
     provider.keys[keyid] = key.key;
+  };
+
+  auto desc0 = Parse(external_desc, provider, error, true);
+  for (int i = 0; i <= external_index; i++) {
+    desc0->Expand(i, provider, output_scripts, provider);
+    addPath(basepath + "/0/" + std::to_string(i));
+  }
+  auto desc1 = Parse(internal_desc, provider, error, true);
+  for (int i = 0; i <= internal_index; i++) {
+    desc1->Expand(i, provider, output_scripts, provider);
+    addPath(basepath + "/1/" + std::to_string(i));
   }
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
-    SignPSBTInput(HidingSigningProvider(&provider, false, false), psbtx, i,
-                  &txdata, *psbtx.inputs[i].sighash_type);
+    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_ALL);
   }
   return EncodePsbt(psbtx);
 }
