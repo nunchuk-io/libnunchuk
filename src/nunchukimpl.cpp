@@ -465,6 +465,38 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   return mastersigner;
 }
 
+MasterSigner NunchukImpl::CreateSoftwareSignerFromMasterXprv(
+    const std::string& raw_name, const std::string& master_xprv,
+    std::function<bool(int)> progress, bool is_primary, bool replace) {
+  SoftwareSigner signer{master_xprv};
+  std::string name = trim_copy(raw_name);
+  std::string id = to_lower_copy(signer.GetMasterFingerprint());
+  if (storage_->HasSigner(chain_, id) && !replace) {
+    throw StorageException(StorageException::SIGNER_EXISTS,
+                           strprintf("Signer exists id = '%s'", id));
+  }
+
+  if (is_primary) {
+    std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
+    PrimaryKey key{name, id, account_, address};
+    if (!storage_->AddPrimaryKey(chain_, key)) {
+      throw StorageException(StorageException::SQL_ERROR,
+                             "Create primary key failed");
+    }
+  }
+
+  Device device{"software", "nunchuk", id};
+  storage_->CreateMasterSignerFromMasterXprv(chain_, name, device, master_xprv);
+  storage_->CacheMasterSignerXPub(
+      chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
+      progress, true);
+  storage_listener_();
+
+  MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
+  mastersigner.set_name(name);
+  return mastersigner;
+}
+
 bool NunchukImpl::DeletePrimaryKey() {
   return storage_->RemovePrimaryKey(chain_, account_);
 }

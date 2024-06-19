@@ -1207,6 +1207,10 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
       bool is_primary = false, bool replace = true) = 0;
+  virtual MasterSigner CreateSoftwareSignerFromMasterXprv(
+      const std::string& name, const std::string& master_xprv,
+      std::function<bool /* stop */ (int /* percent */)> progress,
+      bool is_primary = false, bool replace = true) = 0;
   virtual std::string SignLoginMessage(const std::string& mastersigner_id,
                                        const std::string& message) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,
