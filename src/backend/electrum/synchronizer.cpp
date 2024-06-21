@@ -32,6 +32,7 @@ namespace nunchuk {
 
 static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 50;
+static int MAX_BATCH_SIZE_GETRAWTX = 100;
 
 ElectrumSynchronizer::~ElectrumSynchronizer() {
   {
@@ -592,6 +593,54 @@ std::string ElectrumSynchronizer::GetRawTx(const std::string& tx_id) {
   }
   raw_tx_[tx_id] = client_->blockchain_transaction_get(tx_id);
   return raw_tx_[tx_id];
+}
+
+std::map<std::string, std::string> ElectrumSynchronizer::GetRawTxs(
+    const std::vector<std::string> tx_ids) {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  }
+
+  std::map<std::string, std::string> ret;
+  std::vector<std::string> missing_txids;
+  for (auto&& tx_id : tx_ids) {
+    if (auto it = raw_tx_.find(tx_id); it != raw_tx_.end()) {
+      ret[tx_id] = it->second;
+    } else {
+      missing_txids.push_back(tx_id);
+    }
+  }
+
+  std::sort(missing_txids.begin(), missing_txids.end());
+  missing_txids.erase(std::unique(missing_txids.begin(), missing_txids.end()),
+                      missing_txids.end());
+
+  if (client_->support_batch_requests()) {
+    for (size_t start = 0; start < missing_txids.size();
+         start += MAX_BATCH_SIZE_GETRAWTX) {
+      size_t end =
+          std::min(start + MAX_BATCH_SIZE_GETRAWTX, missing_txids.size());
+
+      auto missings = client_->get_multi_rawtx(
+          {missing_txids.begin() + start, missing_txids.begin() + end});
+      for (auto&& [tx_id, raw] : missings) {
+        ret[tx_id] = raw_tx_[tx_id] = raw;
+      }
+
+      if (end == missing_txids.size()) {
+        break;
+      }
+    }
+    return ret;
+  }
+
+  for (auto&& tx_id : missing_txids) {
+    ret[tx_id] = raw_tx_[tx_id] = client_->blockchain_transaction_get(tx_id);
+  }
+
+  return ret;
 }
 
 Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
