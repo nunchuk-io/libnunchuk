@@ -29,6 +29,7 @@
 #include <utils/unchained.hpp>
 #include <utils/txutils.hpp>
 #include <storage/storage.h>
+#include <hwiservice.h>
 
 #include <base58.h>
 #include <amount.h>
@@ -286,6 +287,44 @@ std::string Utils::SignLoginMessage(tap_protocol::Tapsigner* tapsigner,
   }
 }
 
+std::vector<Device> Utils::GetDevices(const std::string& hwi_path) {
+  auto hwi = HWIService(hwi_path, Utils::GetChain());
+  return hwi.Enumerate();
+}
+
+std::string Utils::SignPsbt(const std::string& mnemonic,
+                            const std::string& passphrase,
+                            const std::string& psbt) {
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
+  }
+  SoftwareSigner signer{mnemonic, passphrase};
+  return signer.SignTx(psbt);
+}
+
+std::string Utils::SignPsbt(tap_protocol::Tapsigner* tapsigner,
+                            const std::string& cvc, const std::string& psbt) {
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
+  }
+
+  try {
+    auto hwi_tapsigner = tap_protocol::MakeHWITapsigner(tapsigner, cvc);
+    return hwi_tapsigner->SignTx(psbt);
+  } catch (tap_protocol::TapProtoException& te) {
+    throw TapProtocolException(te);
+  }
+}
+
+std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
+                            const std::string& psbt) {
+  auto hwi = HWIService(hwi_path, Utils::GetChain());
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
+  }
+  return hwi.SignTx(device, psbt);
+}
+
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
   AddressType address_type;
   WalletType wallet_type;
@@ -526,7 +565,8 @@ std::vector<Wallet> Utils::ParseBBQRWallets(
     const std::vector<std::string>& qr_data) {
   try {
     auto join_result = bbqr::join_qrs<std::string>(qr_data);
-    if (join_result.file_type != bbqr::FileType::J || !join_result.is_complete) {
+    if (join_result.file_type != bbqr::FileType::J ||
+        !join_result.is_complete) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid data");
     }
@@ -847,7 +887,8 @@ static std::string parseBBQRTransaction(
     const std::vector<std::string>& qr_data) {
   try {
     auto join_result = bbqr::join_qrs(qr_data);
-    if (join_result.file_type != bbqr::FileType::P || !join_result.is_complete) {
+    if (join_result.file_type != bbqr::FileType::P ||
+        !join_result.is_complete) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid data");
     }

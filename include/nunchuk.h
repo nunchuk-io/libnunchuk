@@ -1430,6 +1430,16 @@ class NUNCHUK_EXPORT Utils {
                                       const std::string& cvc,
                                       const std::string& message);
 
+  static std::vector<Device> GetDevices(const std::string& hwi_path);
+
+  static std::string SignPsbt(const std::string& mnemonic,
+                              const std::string& passphrase,
+                              const std::string& psbt);
+  static std::string SignPsbt(tap_protocol::Tapsigner* tapsigner,
+                              const std::string& cvc, const std::string& psbt);
+  static std::string SignPsbt(const std::string& hwi_path, const Device& device,
+                              const std::string& psbt);
+
   static Wallet ParseWalletDescriptor(const std::string& descs);
   static Wallet ParseKeystoneWallet(Chain chain,
                                     const std::vector<std::string>& qr_data);
