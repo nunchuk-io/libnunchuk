@@ -180,8 +180,11 @@ json ElectrumClient::call_method(const std::string& method,
   enqueue_message(req.dump());
   json resp = callback_[id].get_future().get();
   callback_.erase(id);
-  if (resp.contains("error")) {
-    throw MakeElectrumException(resp["error"]["message"]);
+  if (auto error = resp.find("error"); error != resp.end()) {
+    if (error->is_string()) {
+      throw MakeElectrumException(*error);
+    }
+    throw MakeElectrumException((*error)["message"]);
   }
   return resp["result"];
 }

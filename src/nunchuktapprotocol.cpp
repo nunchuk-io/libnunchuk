@@ -1079,12 +1079,24 @@ Transaction NunchukImpl::SweepSatscardSlots(
   auto provider = SigningProviderCache::getInstance().GetProvider(desc);
   int nin = psbt.tx.value().vin.size();
 
+  std::vector<std::string> tx_ids;
+  for (int i = 0; i < nin; ++i) {
+    tx_ids.push_back(psbt.tx.value().vin[i].prevout.hash.GetHex());
+  }
+
+  auto tx_map = synchronizer_->GetRawTxs(tx_ids);
+
   for (int i = 0; i < nin; ++i) {
     std::string tx_id = psbt.tx.value().vin[i].prevout.hash.GetHex();
-    std::string raw_tx = synchronizer_->GetRawTx(tx_id);
-    psbt.inputs[i].non_witness_utxo =
-        MakeTransactionRef(DecodeRawTransaction(raw_tx));
-    psbt.inputs[i].witness_utxo.SetNull();
+    if (auto it = tx_map.find(tx_id); it != tx_map.end()) {
+      psbt.inputs[i].non_witness_utxo =
+          MakeTransactionRef(DecodeRawTransaction(it->second));
+      psbt.inputs[i].witness_utxo.SetNull();
+    } else {
+      throw NunchukException(
+          NunchukException::SERVER_REQUEST_ERROR,
+          "Could not retrieve transaction. Please try again. txid = " + tx_id);
+    }
   }
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);

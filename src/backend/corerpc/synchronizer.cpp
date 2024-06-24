@@ -262,6 +262,19 @@ std::string CoreRpcSynchronizer::GetRawTx(const std::string& tx_id) {
   return tx["hex"];
 }
 
+std::map<std::string, std::string> CoreRpcSynchronizer::GetRawTxs(
+    const std::vector<std::string> tx_ids) {
+  if (stopped)
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  std::map<std::string, std::string> ret;
+  for (auto&& tx_id : tx_ids) {
+    auto tx = client_->GetTransaction(tx_id);
+    ret[tx_id] = tx["hex"];
+  }
+  return ret;
+}
+
 Transaction CoreRpcSynchronizer::GetTransaction(const std::string& tx_id) {
   throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
                          "Not support for core rpc");

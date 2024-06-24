@@ -62,6 +62,8 @@ class Synchronizer {
   virtual std::vector<UnspentOutput> ListUnspent(
       const std::string& address) = 0;
   virtual std::string GetRawTx(const std::string& tx_id) = 0;
+  virtual std::map<std::string, std::string> GetRawTxs(
+      const std::vector<std::string> tx_ids) = 0;
   virtual Transaction GetTransaction(const std::string& tx_id) = 0;
 
   virtual void Run(){};
