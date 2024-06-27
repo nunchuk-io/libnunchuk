@@ -59,8 +59,8 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(
   PreSelectedInputs result;
   const bool can_grind_r = false;
   for (const UnspentOutput& coin : listSelected) {
-    COutPoint outpoint{uint256S(coin.get_txid()),
-                       static_cast<uint32_t>(coin.get_vout())};
+    COutPoint outpoint(Txid::FromUint256(uint256S(coin.get_txid())),
+                       coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
     auto input_weight = MaxInputWeight(desc, true, can_grind_r);
     int input_bytes =
@@ -83,8 +83,8 @@ CoinsResult AvailableCoins(const Descriptor& desc,
   CoinsResult result;
   const bool can_grind_r = false;
   for (const UnspentOutput& coin : coins) {
-    COutPoint outpoint{uint256S(coin.get_txid()),
-                       static_cast<uint32_t>(coin.get_vout())};
+    COutPoint outpoint(Txid::FromUint256(uint256S(coin.get_txid())),
+                       coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
     auto input_weight = MaxInputWeight(desc, true, can_grind_r);
     int input_bytes =
@@ -227,8 +227,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     CTxOut txout(recipient.nAmount, GetScriptForDestination(recipient.dest));
 
     // Include the fee cost for outputs.
-    coin_selection_params.tx_noinputs_size +=
-        ::GetSerializeSize(txout, PROTOCOL_VERSION);
+    coin_selection_params.tx_noinputs_size += ::GetSerializeSize(txout);
 
     if (IsDust(txout, coin_selection_params.m_discard_feerate)) {
       return util::Error{_("Transaction amount too small")};

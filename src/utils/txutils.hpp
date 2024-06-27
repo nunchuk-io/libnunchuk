@@ -56,7 +56,7 @@ inline PartiallySignedTransaction DecodePsbt(const std::string& base64_psbt) {
 }
 
 inline std::string EncodePsbt(const PartiallySignedTransaction& psbtx) {
-  CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+  DataStream ssTx{};
   ssTx << psbtx;
   return EncodeBase64(MakeUCharSpan(ssTx));
 }

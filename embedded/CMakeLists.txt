@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.1)
 project(embedded VERSION 0.1.0)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(Boost_USE_STATIC_LIBS ON)
 set(BITCOIN_FOLDER "contrib/bitcoin")
@@ -143,12 +144,10 @@ else()
         bitcoin_util
         bitcoin_cli
         bitcoin_node
-        bitcoin_server
         bitcoin_wallet
         bitcoin_consensus
         bitcoinconsensus
-        bitcoin_crypto_base
-        bitcoin_crypto_shani
+        bitcoin_crypto_x86_shani
         bitcoin_crypto_sse41
         bitcoin_crypto_avx2
         secp256k1
@@ -159,7 +158,7 @@ else()
         crc32c_sse42
     )
     set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src")
-    set(Bitcoin_PATH_SUFFIXES ".libs" "leveldb" "crc32c" "crypto" "secp256k1/.libs")
+    set(Bitcoin_PATH_SUFFIXES ".libs" "leveldb/.libs" "crc32c/.libs" "crypto/.libs" "secp256k1/.libs")
     foreach(btclib ${Bitcoin_LIBRARIES})
         find_library(${btclib}_location ${btclib} PATHS ${Bitcoin_PATHS} PATH_SUFFIXES ${Bitcoin_PATH_SUFFIXES} NO_DEFAULT_PATH)
         if (NOT ${btclib}_location)
