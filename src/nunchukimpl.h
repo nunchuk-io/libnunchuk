@@ -505,6 +505,24 @@ class NunchukImpl : public Nunchuk {
   Transaction GetDummyTx(const std::string& wallet_id,
                          const std::string& id) override;
 
+  int EstimateRollOverTransactionCount(
+      const std::string& wallet_id, const std::set<int>& tags,
+      const std::set<int>& collections) override;
+  std::pair<Amount, Amount> EstimateRollOverAmount(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
+      const std::set<int>& tags, const std::set<int>& collections,
+      Amount fee_rate = -1) override;
+  std::map<std::pair<std::set<int>, std::set<int>>, Transaction>
+  DraftRollOverTransactions(const std::string& old_wallet_id,
+                            const std::string& new_wallet_id,
+                            const std::set<int>& tags,
+                            const std::set<int>& collections,
+                            Amount fee_rate = -1) override;
+  std::vector<Transaction> CreateRollOverTransactions(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
+      const std::set<int>& tags, const std::set<int>& collections,
+      Amount fee_rate = -1) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,

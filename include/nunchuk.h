@@ -1278,6 +1278,28 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
                       Amount& package_fee_rate) = 0;
 
+  virtual int EstimateRollOverTransactionCount(
+      const std::string& wallet_id, const std::set<int>& tags,
+      const std::set<int>& collections) = 0;
+  virtual std::pair<Amount /* sub total */, Amount /* fee */>
+  EstimateRollOverAmount(const std::string& old_wallet_id,
+                         const std::string& new_wallet_id,
+                         const std::set<int>& tags,
+                         const std::set<int>& collections,
+                         Amount fee_rate = -1) = 0;
+  virtual std::map<
+      std::pair<std::set<int> /* tags */, std::set<int> /* collections */>,
+      Transaction>
+  DraftRollOverTransactions(const std::string& old_wallet_id,
+                            const std::string& new_wallet_id,
+                            const std::set<int>& tags,
+                            const std::set<int>& collections,
+                            Amount fee_rate = -1) = 0;
+  virtual std::vector<Transaction> CreateRollOverTransactions(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
+      const std::set<int>& tags, const std::set<int>& collections,
+      Amount fee_rate = -1) = 0;
+
   // Dummy transaction
   virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(
       const std::string& dummy_transaction) = 0;
