@@ -2342,8 +2342,11 @@ NunchukImpl::DraftRollOverTransactions(const std::string& old_wallet_id,
     Amount amount{0};
     for (auto&& utxo : groups.second) amount += utxo.get_amount();
     std::string address = CoreUtils::getInstance().DeriveAddress(desc, index++);
-    rs[groups.first] = DraftTransaction(old_wallet_id, {{address, amount}},
-                                        groups.second, fee_rate, true);
+    try {
+      rs[groups.first] = DraftTransaction(old_wallet_id, {{address, amount}},
+                                          groups.second, fee_rate, true);
+    } catch (...) {
+    }
   }
   return rs;
 }
@@ -2366,12 +2369,15 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
     Amount amount{0};
     for (auto&& utxo : groups.second) amount += utxo.get_amount();
     std::string address = CoreUtils::getInstance().DeriveAddress(desc, index++);
-    auto tx = CreateTransaction(old_wallet_id, {{address, amount}}, {},
-                                groups.second, fee_rate, true);
-    rs.push_back(tx);
-    std::string coin = strprintf("%s:%d", tx.get_txid(), 0);
-    for (auto tag : groups.first.first) coinTags[tag].push_back(coin);
-    for (auto col : groups.first.second) coinCollections[col].push_back(coin);
+    try {
+      auto tx = CreateTransaction(old_wallet_id, {{address, amount}}, {},
+                                  groups.second, fee_rate, true);
+      rs.push_back(tx);
+      std::string coin = strprintf("%s:%d", tx.get_txid(), 0);
+      for (auto tag : groups.first.first) coinTags[tag].push_back(coin);
+      for (auto col : groups.first.second) coinCollections[col].push_back(coin);
+    } catch (...) {
+    }
   }
 
   // create export data
