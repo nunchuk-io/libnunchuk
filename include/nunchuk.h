@@ -1411,6 +1411,7 @@ class NUNCHUK_EXPORT Utils {
   static std::string GenerateRandomChainCode();
   static std::string GenerateHealthCheckMessage();
   static bool IsValidXPub(const std::string& value);
+  static bool IsValidXPrv(const std::string& value);
   static bool IsValidPublicKey(const std::string& value);
   static bool IsValidDerivationPath(const std::string& value);
   static bool IsValidFingerPrint(const std::string& value);

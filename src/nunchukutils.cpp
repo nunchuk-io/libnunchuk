@@ -128,6 +128,11 @@ bool Utils::IsValidXPub(const std::string& value) {
   return xpub.pubkey.IsFullyValid();
 }
 
+bool Utils::IsValidXPrv(const std::string& value) {
+  auto xprv = DecodeExtKey(value);
+  return xprv.key.IsValid();
+}
+
 bool Utils::IsValidPublicKey(const std::string& value) {
   CPubKey pubkey(ParseHex(value));
   return pubkey.IsFullyValid();
@@ -587,7 +592,7 @@ std::vector<SingleSigner> Utils::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
