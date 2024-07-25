@@ -482,6 +482,8 @@ class NunchukImpl : public Nunchuk {
                    const std::string& address) override;
   std::string GetAddressPath(const std::string& wallet_id,
                              const std::string& address) override;
+  int GetAddressIndex(const std::string& wallet_id,
+                      const std::string& address) override;
 
   std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
       const std::string& wallet_id, const std::string& tx_id,

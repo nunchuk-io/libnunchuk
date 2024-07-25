@@ -421,9 +421,10 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
     } catch (StorageException& se) {
       if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
       // Import/Recover wallet, signers may not exist => we create as UNKNOWN
-      // signers to hide on Key Manager, except for COLDCARD_NFC signers, make
-      // them visible to able to sign transaction
-      if (signer.get_type() != SignerType::COLDCARD_NFC) {
+      // signers to hide on Key Manager, except for COLDCARD_NFC and PORTAL_NFC
+      // signers, make them visible to able to sign transaction
+      if (signer.get_type() != SignerType::COLDCARD_NFC &&
+          signer.get_type() != SignerType::PORTAL_NFC) {
         signer.set_name("import");
         signer.set_type(SignerType::UNKNOWN);
       }

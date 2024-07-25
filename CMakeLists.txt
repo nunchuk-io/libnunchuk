@@ -31,7 +31,7 @@ if(ANDROID)
         set(ANDROID_ABI_ARM_64 OFF)
     endif()
 
-    set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/lib/cmake")
+    set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/lib/cmake")
     add_library(OpenSSL::SSL STATIC IMPORTED)
     set_target_properties(OpenSSL::SSL PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/${OPENSSL_FOLDER}/libssl.a")
     add_library(OpenSSL::Crypto STATIC IMPORTED)
