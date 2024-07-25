@@ -1151,6 +1151,12 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                              strprintf("Can not sign with server key "
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
+    case SignerType::PORTAL_NFC:
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          strprintf("Transaction must be sign with NFC "
+                    "wallet_id = '%s' tx_id = '%s' mastersigner_id = '%s'",
+                    wallet_id, tx_id, mastersigner_id));
   }
 
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
@@ -1224,6 +1230,11 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
                              strprintf("Can not sign with server key "
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
+    case SignerType::PORTAL_NFC:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             strprintf("Transaction must be sign with NFC "
+                                       "mastersigner_id = '%s'",
+                                       mastersigner_id));
   }
 
   DLOG_F(INFO, "NunchukImpl::SignTransaction(), signed_psbt='%s'",
@@ -1250,6 +1261,7 @@ std::string NunchukImpl::SignMessage(const SingleSigner& signer,
     case SignerType::FOREIGN_SOFTWARE:
     case SignerType::NFC:
     case SignerType::COLDCARD_NFC:
+    case SignerType::PORTAL_NFC:
     case SignerType::SERVER:
       break;
   }
@@ -1544,6 +1556,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
     case SignerType::NFC:
     case SignerType::AIRGAP:
     case SignerType::COLDCARD_NFC:
+    case SignerType::PORTAL_NFC:
     case SignerType::UNKNOWN:
     case SignerType::SERVER:
       throw NunchukException(
@@ -2072,7 +2085,8 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
     throw NunchukException(
         NunchukException::INVALID_SIGNER_TYPE,
         strprintf("Can not sign with foreign software id = '%s'", id));
-  } else if (signerType == SignerType::NFC) {
+  } else if (signerType == SignerType::NFC ||
+             signerType == SignerType::PORTAL_NFC) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            strprintf("Must be sign with NFC id = '%s'", id));
   } else if (signerType == SignerType::AIRGAP) {
@@ -2203,6 +2217,11 @@ bool NunchukImpl::IsMyAddress(const std::string& wallet_id,
 std::string NunchukImpl::GetAddressPath(const std::string& wallet_id,
                                         const std::string& address) {
   return storage_->GetAddressPath(chain_, wallet_id, address);
+}
+
+int NunchukImpl::GetAddressIndex(const std::string& wallet_id,
+                                 const std::string& address) {
+  return storage_->GetAddressIndex(chain_, wallet_id, address);
 }
 
 bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,

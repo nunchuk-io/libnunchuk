@@ -523,6 +523,14 @@ Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
   return wallet;
 }
 
+BSMSData Utils::ParseBSMSData(const std::string& bsms) {
+  return ::ParseBSMSData(bsms);
+}
+
+SingleSigner Utils::ParseSignerString(const std::string& signer_str) {
+  return nunchuk::ParseSignerString(signer_str);
+}
+
 std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
                                             SignerType signer_type) {
   static const std::array<std::tuple<std::string, std::string, AddressType>, 3>
@@ -985,6 +993,11 @@ AnalyzeQRResult Utils::AnalyzeQR(const std::vector<std::string>& qr_data) {
 
 int Utils::GetIndexFromPath(const std::string& path) {
   return ::GetIndexFromPath(path);
+}
+
+std::string Utils::GetBip32Path(WalletType wallet_type,
+                                AddressType address_type, int index) {
+  return ::GetBip32Path(Utils::GetChain(), wallet_type, address_type, index);
 }
 
 std::vector<std::string> Utils::DeriveAddresses(const Wallet& wallet,

@@ -47,7 +47,7 @@ inline std::string GetDescriptorRecord(const nunchuk::Wallet& wallet) {
   return record.str();
 }
 
-inline bool ParseDescriptorRecord(const std::string bsms,
+inline bool ParseDescriptorRecord(const std::string& bsms,
                                   nunchuk::AddressType& a,
                                   nunchuk::WalletType& w, int& m, int& n,
                                   std::vector<nunchuk::SingleSigner>& signers) {
@@ -78,6 +78,55 @@ inline bool ParseDescriptorRecord(const std::string bsms,
     return false;  // Invalid address
   }
   return true;
+}
+
+inline nunchuk::BSMSData ParseBSMSData(const std::string& bsms) {
+  using namespace nunchuk;
+  std::istringstream content_stream(bsms);
+
+  BSMSData result;
+  if (!safeGetline(content_stream, result.version) ||
+      result.version != "BSMS 1.0") {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BSMS version");
+  }
+  result.version = "1.0";
+
+  if (!safeGetline(content_stream, result.descriptor)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid Descriptor template");
+  }
+
+  if (!safeGetline(content_stream, result.path_restrictions) ||
+      (result.path_restrictions != "/0/*,/1/*" &&
+       result.path_restrictions != "No path restrictions")) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid path restrictions");
+  }
+
+  AddressType a;
+  WalletType w;
+  int m;
+  int n;
+  std::vector<SingleSigner> signers;
+
+  if (!safeGetline(content_stream, result.first_address) ||
+      !ParseDescriptorRecord(bsms, a, w, m, n, signers)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid address");
+  }
+
+  std::string first_address = CoreUtils::getInstance().DeriveAddress(
+      GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w,
+                              w == WalletType::ESCROW ? -1 : 0, true),
+      w == WalletType::ESCROW ? -1 : 0);
+
+  if (result.first_address != first_address) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid address");
+  }
+
+  return result;
 }
 
 }  // namespace

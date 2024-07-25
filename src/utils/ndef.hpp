@@ -46,6 +46,7 @@ enum class NDEFMessageType {
   MULTIPLE_ADDRESSES,
   TEXT,
   WALLET,
+  PORTAL,
 };
 
 struct NDEFRecord {
@@ -222,6 +223,10 @@ inline NDEFMessageType DetectNDEFMessageType(
       if (uri.find("getsatscard.com") != std::string::npos ||
           uri.find("satscard.com") != std::string::npos) {
         return NDEFMessageType::SATSCARD;
+      }
+
+      if (uri.find("twenty-two.xyz") != std::string::npos) {
+        return NDEFMessageType::PORTAL;
       }
       return NDEFMessageType::UNKNOWN;
     }

@@ -145,6 +145,7 @@ enum class SignerType {
   NFC,
   COLDCARD_NFC,
   SERVER,
+  PORTAL_NFC,
 };
 
 enum class OrderBy {
@@ -1272,6 +1273,8 @@ class NUNCHUK_EXPORT Nunchuk {
                            const std::string& address) = 0;
   virtual std::string GetAddressPath(const std::string& wallet_id,
                                      const std::string& address) = 0;
+  virtual int GetAddressIndex(const std::string& wallet_id,
+                              const std::string& address) = 0;
   virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
       const std::string& wallet_id, const std::string& tx_id, int vout) = 0;
 
@@ -1403,6 +1406,13 @@ struct AnalyzeQRResult {
   double estimated_percent_complete;
 };
 
+struct BSMSData {
+  std::string version;
+  std::string descriptor;
+  std::string path_restrictions;
+  std::string first_address;
+};
+
 class NUNCHUK_EXPORT Utils {
  public:
   static void SetChain(Chain chain);
@@ -1468,6 +1478,8 @@ class NUNCHUK_EXPORT Utils {
                                     const std::vector<std::string>& qr_data);
   static BtcUri ParseBtcUri(const std::string& value);
   static Wallet ParseWalletConfig(Chain chain, const std::string& config);
+  static BSMSData ParseBSMSData(const std::string& bsms);
+  static SingleSigner ParseSignerString(const std::string& signer_str);
   static std::vector<Wallet> ParseJSONWallets(
       const std::string& json_str, SignerType signer_type = SignerType::AIRGAP);
   static std::vector<Wallet> ParseBBQRWallets(
@@ -1506,6 +1518,8 @@ class NUNCHUK_EXPORT Utils {
       int min_version = 1 /*1-40*/, int max_version = 1 /*1-40*/);
   static AnalyzeQRResult AnalyzeQR(const std::vector<std::string>& qr_data);
   static int GetIndexFromPath(const std::string& path);
+  static std::string GetBip32Path(WalletType wallet_type,
+                                  AddressType address_type, int index);
   static std::vector<std::string> DeriveAddresses(const Wallet& wallet,
                                                   int from_index, int to_index);
 
