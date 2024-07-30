@@ -821,16 +821,15 @@ std::vector<std::string> Utils::ExportPassportTransaction(
 std::vector<std::string> Utils::ExportBBQRTransaction(const std::string& psbt,
                                                       int min_version,
                                                       int max_version) {
-  bool invalid;
-  auto data = DecodeBase64(psbt.c_str(), &invalid);
-  if (invalid) {
+  auto data = DecodeBase64(psbt.c_str());
+  if (!data) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
   bbqr::SplitOption option{};
   option.min_version = min_version;
   option.max_version = max_version;
   try {
-    auto split_result = bbqr::split_qrs(data, bbqr::FileType::P, option);
+    auto split_result = bbqr::split_qrs(*data, bbqr::FileType::P, option);
     return split_result.parts;
   } catch (std::exception& e) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, e.what());
