@@ -141,15 +141,15 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
         }
         desc << ",[" << signer.get_master_fingerprint()
              << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
-      } else if (key_path == DescriptorPath::EXTERNAL ||
-                 key_path == DescriptorPath::INTERNAL) {
+      } else if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
+                 key_path == DescriptorPath::INTERNAL_PUBKEY) {
         std::stringstream p;
         p << signer.get_derivation_path() << keypath;
         std::string path = FormalizePath(p.str());
         // displayaddress only takes pubkeys as inputs, not xpubs
         auto xpub = DecodeExtPubKey(signer.get_xpub());
-        if (!xpub.Derive(xpub,
-                         (key_path == DescriptorPath::INTERNAL ? 1 : 0))) {
+        if (!xpub.Derive(
+                xpub, (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
           throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                                  "Invalid path");
         }
@@ -186,8 +186,8 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
         std::string path = FormalizePath(p.str());
         // displayaddress only takes pubkeys as inputs, not xpubs
         auto xpub = DecodeExtPubKey(signer.get_xpub());
-        if (!xpub.Derive(xpub,
-                         (key_path == DescriptorPath::INTERNAL ? 1 : 0))) {
+        if (!xpub.Derive(
+                xpub, (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
           throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                                  "Invalid path");
         }
