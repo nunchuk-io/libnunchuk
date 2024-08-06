@@ -17,6 +17,7 @@
 
 #include <backend/electrum/synchronizer.h>
 #include <backend/corerpc/synchronizer.h>
+#include <coreutils.h>
 
 using namespace boost::asio;
 
@@ -119,6 +120,47 @@ int Synchronizer::GetChainTip() {
   int rs = chain_tip_;
   if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain());
   return rs;
+}
+
+std::string Synchronizer::NewAddress(Chain chain, const std::string& wallet_id,
+                                     bool internal) {
+  auto wallet = storage_->GetWallet(chain, wallet_id);
+  std::string descriptor = wallet.get_descriptor(
+      internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
+  int index =
+      wallet.is_escrow()
+          ? -1
+          : storage_->GetCurrentAddressIndex(chain, wallet_id, internal) + 1;
+
+  if (SupportBatchLookAhead()) {
+    while (true) {
+      std::vector<std::string> addresses;
+      std::vector<int> indexes;
+      for (int i = index; i < index + wallet.get_gap_limit(); i++) {
+        addresses.push_back(
+            CoreUtils::getInstance().DeriveAddress(descriptor, i));
+        indexes.push_back(i);
+      }
+      int last = BatchLookAhead(chain, wallet_id, addresses, indexes, internal);
+      if (last < wallet.get_gap_limit() - 1) {
+        index = index + last + 1;
+        auto address =
+            CoreUtils::getInstance().DeriveAddress(descriptor, index);
+        storage_->AddAddress(chain, wallet_id, address, index, internal);
+        return address;
+      }
+      index = index + wallet.get_gap_limit();
+    }
+  }
+
+  while (true) {
+    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
+    if (!LookAhead(chain, wallet_id, address, index, internal)) {
+      storage_->AddAddress(chain, wallet_id, address, index, internal);
+      return address;
+    }
+    index++;
+  }
 }
 
 }  // namespace nunchuk

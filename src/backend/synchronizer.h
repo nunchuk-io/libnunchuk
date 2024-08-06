@@ -36,6 +36,8 @@ class Synchronizer {
 
   bool NeedRecreate(const AppSettings& appsettings);
   int GetChainTip();
+  std::string NewAddress(Chain chain, const std::string& wallet_id,
+                         bool internal);
 
   void AddBalanceListener(std::function<void(std::string, Amount)> listener);
   void AddBalancesListener(
