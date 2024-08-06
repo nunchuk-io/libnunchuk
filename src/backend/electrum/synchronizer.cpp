@@ -226,7 +226,8 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
 bool ElectrumSynchronizer::UpdateTransactions(
     Chain chain, const std::string& wallet_id, const json& history,
     const std::map<std::string, std::string>& rawtx,
-    const std::map<int, std::string>& rawheader) {
+    const std::map<int, std::string>& rawheader,
+    const std::vector<Transaction>& pending_receive_txs) {
   using TS = TransactionStatus;
   if (!history.is_array()) return false;
   bool isSynced = true;
@@ -276,8 +277,6 @@ bool ElectrumSynchronizer::UpdateTransactions(
         transaction_listener_(tx_id, status, wallet_id);
       }
     }
-    auto pending_receive_txs = storage_->GetTransactions(
-        chain, wallet_id, TS::PENDING_CONFIRMATION, true);
     if (pending_receive_txs.size() > 0) {
       std::vector<std::string> pending_receive_ids;
       for (auto&& tx : pending_receive_txs) {
@@ -365,7 +364,7 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
           status.push_back(sub.second);
         }
       }
-      UpdateScripthashesStatus(chain, scripthashes, status);
+      UpdateScripthashesStatus(chain, wallet_id, scripthashes, status);
     } else {
       for (auto a = addresses.rbegin(); a != addresses.rend(); ++a) {
         std::unique_lock<std::mutex> lock_(status_mutex_);
@@ -470,7 +469,7 @@ int ElectrumSynchronizer::BatchLookAhead(
     }
   }
 
-  UpdateScripthashesStatus(chain, scripthashes, status);
+  UpdateScripthashesStatus(chain, wallet_id, scripthashes, status);
   Amount balance = storage_->GetBalance(chain, wallet_id);
   balance_listener_(wallet_id, balance);
   Amount unconfirmed_balance =
@@ -511,7 +510,8 @@ void ElectrumSynchronizer::UpdateScripthashStatus(Chain chain,
 }
 
 void ElectrumSynchronizer::UpdateScripthashesStatus(
-    Chain chain, const std::vector<std::string>& scripthashes,
+    Chain chain, const std::string& wallet_id,
+    const std::vector<std::string>& scripthashes,
     const std::vector<std::string>& status) {
   if (scripthashes.empty()) return;
   auto multihistory = client_->get_multi_history(scripthashes);
@@ -521,7 +521,6 @@ void ElectrumSynchronizer::UpdateScripthashesStatus(
   std::map<std::string, bool> founds;
   for (auto [scripthash, history] : multihistory) {
     if (multihistory.count(scripthash) == 0) continue;
-    std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
     for (auto item : history) {
       std::string tx_id = item["tx_hash"];
       int height = item["height"];
@@ -537,14 +536,16 @@ void ElectrumSynchronizer::UpdateScripthashesStatus(
   }
   auto rawtx = client_->get_multi_rawtx(txs_hash);
   auto rawheader = client_->get_multi_rawheader(heights);
+  auto pending_receive_txs = storage_->GetTransactions(
+      chain, wallet_id, TransactionStatus::PENDING_CONFIRMATION, true);
 
   for (auto&& scripthash : scripthashes) {
     if (scripthash_to_wallet_address_.count(scripthash) == 0) continue;
     if (multihistory.count(scripthash) == 0) continue;
-    std::string wallet_id = scripthash_to_wallet_address_.at(scripthash).first;
     std::string address = scripthash_to_wallet_address_.at(scripthash).second;
     json history = multihistory[scripthash];
-    if (UpdateTransactions(chain, wallet_id, history, rawtx, rawheader)) {
+    if (UpdateTransactions(chain, wallet_id, history, rawtx, rawheader,
+                           pending_receive_txs)) {
       auto it = std::find(scripthashes.begin(), scripthashes.end(), scripthash);
       int i = it - scripthashes.begin();
       json utxo;  // client_->blockchain_scripthash_listunspent(scripthash);
