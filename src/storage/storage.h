@@ -254,7 +254,8 @@ class NunchukStorage {
   std::vector<CoinCollection> GetCoinCollections(Chain chain,
                                                  const std::string &wallet_id);
   bool UpdateCoinCollection(Chain chain, const std::string &wallet_id,
-                            const CoinCollection &collection);
+                            const CoinCollection &collection,
+                            bool apply_to_existing_coins);
   bool DeleteCoinCollection(Chain chain, const std::string &wallet_id,
                             int collection_id);
   bool AddToCoinCollection(Chain chain, const std::string &wallet_id,

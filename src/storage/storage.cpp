@@ -268,7 +268,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     } else {
       return db.ReKey(value);
     }
-    fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
+    fs::copy_file(new_file, old_file, fs::copy_options::overwrite_existing);
     fs::remove(new_file);
   };
 
@@ -1858,9 +1858,11 @@ std::vector<CoinCollection> NunchukStorage::GetCoinCollections(
 
 bool NunchukStorage::UpdateCoinCollection(Chain chain,
                                           const std::string& wallet_id,
-                                          const CoinCollection& collection) {
+                                          const CoinCollection& collection,
+                                          bool apply_to_existing_coins) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).UpdateCoinCollection(collection);
+  return GetWalletDb(chain, wallet_id)
+      .UpdateCoinCollection(collection, apply_to_existing_coins);
 }
 
 bool NunchukStorage::DeleteCoinCollection(Chain chain,

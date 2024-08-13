@@ -461,7 +461,8 @@ class NunchukImpl : public Nunchuk {
   std::vector<CoinCollection> GetCoinCollections(
       const std::string& wallet_id) override;
   bool UpdateCoinCollection(const std::string& wallet_id,
-                            const CoinCollection& collection) override;
+                            const CoinCollection& collection,
+                            bool apply_to_existing_coins = false) override;
   bool DeleteCoinCollection(const std::string& wallet_id,
                             int collection_id) override;
   bool AddToCoinCollection(const std::string& wallet_id, int collection_id,

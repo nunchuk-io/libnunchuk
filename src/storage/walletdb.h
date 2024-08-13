@@ -87,6 +87,7 @@ class NunchukWalletDb : public NunchukDb {
                       const std::string &memo);
   std::string GetCoinMemo(const std::string &tx_id, int vout) const;
   std::map<std::string, std::string> GetAllMemo() const;
+  bool LockCoin(const std::string &coin, bool update_ts = true);
   bool LockCoin(const std::string &tx_id, int vout, bool update_ts = true);
   bool UnlockCoin(const std::string &tx_id, int vout);
   bool IsLock(const std::string &tx_id, int vout) const;
@@ -103,8 +104,11 @@ class NunchukWalletDb : public NunchukDb {
 
   int CreateCoinCollection(const std::string &name);
   std::vector<CoinCollection> GetCoinCollections() const;
-  bool UpdateCoinCollection(const CoinCollection &collection);
+  bool UpdateCoinCollection(const CoinCollection &collection,
+                            bool apply_to_existing_coins);
   bool DeleteCoinCollection(int collection_id);
+  bool AddToCoinCollection(int collection_id, const std::string &coin,
+                           bool update_ts = true);
   bool AddToCoinCollection(int collection_id, const std::string &tx_id,
                            int vout, bool update_ts = true);
   bool RemoveFromCoinCollection(int collection_id, const std::string &tx_id,
@@ -143,7 +147,7 @@ class NunchukWalletDb : public NunchukDb {
   bool AddSigner(const SingleSigner &signer);
   std::map<std::string, AddressData> GetAllAddressData(bool check_used = true);
   std::map<int, bool> GetAutoLockData() const;
-  std::map<int, bool> GetAutoAddData() const;
+  std::map<std::pair<int, int>, bool> GetAutoAddData() const;
   void AutoAddNewCoins(const Transaction &tx);
   void SetAddress(const std::string &address, int index, bool internal,
                   const std::string &utxos = {});
@@ -155,7 +159,8 @@ class NunchukWalletDb : public NunchukDb {
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   static std::map<std::string, std::map<int, bool>> collection_auto_lock_;
-  static std::map<std::string, std::map<int, bool>> collection_auto_add_;
+  static std::map<std::string, std::map<std::pair<int, int>, bool>>
+      collection_auto_add_;
   static std::map<std::string, std::map<std::string, Transaction>> txs_cache_;
   friend class NunchukStorage;
 };

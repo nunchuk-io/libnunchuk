@@ -27,8 +27,14 @@ int CoinCollection::get_id() const { return id_; }
 std::string CoinCollection::get_name() const { return name_; }
 bool CoinCollection::is_add_new_coin() const { return add_new_coin_; }
 bool CoinCollection::is_auto_lock() const { return auto_lock_; }
+std::vector<int> const& CoinCollection::get_add_coins_with_tag() const {
+  return add_tags_;
+}
 
 void CoinCollection::set_add_new_coin(bool value) { add_new_coin_ = value; }
 void CoinCollection::set_auto_lock(bool value) { auto_lock_ = value; }
+void CoinCollection::set_add_coins_with_tag(std::vector<int> value) {
+  add_tags_ = std::move(value);
+}
 
 }  // namespace nunchuk

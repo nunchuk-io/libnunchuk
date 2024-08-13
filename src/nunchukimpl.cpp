@@ -2120,8 +2120,10 @@ std::vector<CoinCollection> NunchukImpl::GetCoinCollections(
 }
 
 bool NunchukImpl::UpdateCoinCollection(const std::string& wallet_id,
-                                       const CoinCollection& collection) {
-  return storage_->UpdateCoinCollection(chain_, wallet_id, collection);
+                                       const CoinCollection& collection,
+                                       bool apply_to_existing_coins) {
+  return storage_->UpdateCoinCollection(chain_, wallet_id, collection,
+                                        apply_to_existing_coins);
 }
 
 bool NunchukImpl::DeleteCoinCollection(const std::string& wallet_id,

@@ -518,21 +518,25 @@ class NUNCHUK_EXPORT CoinTag {
 
 class NUNCHUK_EXPORT CoinCollection {
  public:
+  static const int COINS_WITHOUT_TAGS = -1;
   CoinCollection(int id, const std::string& name);
 
   int get_id() const;
   std::string get_name() const;
   bool is_add_new_coin() const;
   bool is_auto_lock() const;
+  std::vector<int> const& get_add_coins_with_tag() const;
 
   void set_add_new_coin(bool value);
   void set_auto_lock(bool value);
+  void set_add_coins_with_tag(std::vector<int> value);
 
  private:
   int id_;
   std::string name_;
   bool add_new_coin_;
   bool auto_lock_;
+  std::vector<int> add_tags_;
 };
 
 // Class that represents an Unspent Transaction Output (UTXO)
@@ -1250,7 +1254,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<CoinCollection> GetCoinCollections(
       const std::string& wallet_id) = 0;
   virtual bool UpdateCoinCollection(const std::string& wallet_id,
-                                    const CoinCollection& collection) = 0;
+                                    const CoinCollection& collection,
+                                    bool apply_to_existing_coins = false) = 0;
   virtual bool DeleteCoinCollection(const std::string& wallet_id,
                                     int collection_id) = 0;
   virtual bool AddToCoinCollection(const std::string& wallet_id,
