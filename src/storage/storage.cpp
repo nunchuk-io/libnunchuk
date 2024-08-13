@@ -268,7 +268,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     } else {
       return db.ReKey(value);
     }
-    fs::copy_file(new_file, old_file, fs::copy_options::overwrite_existing);
+    fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
     fs::remove(new_file);
   };
 
