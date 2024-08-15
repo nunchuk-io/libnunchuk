@@ -269,7 +269,7 @@ class NunchukStorage {
                                                  int collection_id);
   std::string ExportCoinControlData(Chain chain, const std::string &wallet_id);
   bool ImportCoinControlData(Chain chain, const std::string &wallet_id,
-                             const std::string &data, bool force);
+                             const std::string &data, bool force, bool merge);
   std::string ExportBIP329(Chain chain, const std::string &wallet_id);
   void ImportBIP329(Chain chain, const std::string &wallet_id,
                     const std::string &data);

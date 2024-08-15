@@ -1913,10 +1913,11 @@ std::string NunchukStorage::ExportCoinControlData(
 
 bool NunchukStorage::ImportCoinControlData(Chain chain,
                                            const std::string& wallet_id,
-                                           const std::string& data,
-                                           bool force) {
+                                           const std::string& data, bool force,
+                                           bool merge) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetWalletDb(chain, wallet_id).ImportCoinControlData(data, force);
+  return GetWalletDb(chain, wallet_id)
+      .ImportCoinControlData(data, force, merge);
 }
 
 std::string NunchukStorage::ExportBIP329(Chain chain,

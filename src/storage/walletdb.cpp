@@ -1721,7 +1721,7 @@ void NunchukWalletDb::ClearCoinControlData() {
 }
 
 bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
-                                            bool force) {
+                                            bool force, bool merge) {
   if (dataStr.empty()) return false;
   json data = json::parse(dataStr);
   if (data["last_modified_ts"] == nullptr) return false;
@@ -1740,25 +1740,40 @@ bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
     return false;
   }
 
-  ClearCoinControlData();
+  if (!merge) ClearCoinControlData();
+  auto oldTags = GetCoinTags();
+  std::map<std::string, int> tagMap{};
+  for (auto&& i : oldTags) tagMap[i.get_name()] = i.get_id();
+  auto oldCollections = GetCoinCollections();
+  std::map<std::string, int> collectionMap{};
+  for (auto&& i : oldCollections) collectionMap[i.get_name()] = i.get_id();
+
   // import tags
   json tags = data["tags"];
   for (auto&& tag : tags) {
-    int id = tag["id"];
     std::string name = tag["name"];
     std::string color = tag["color"];
-
-    sqlite3_stmt* stmt;
-    std::string sql =
-        "INSERT INTO TAGS(ID, NAME, COLOR) VALUES (?1, ?2, ?3) "
-        "ON CONFLICT(ID) DO UPDATE SET NAME=excluded.NAME, "
-        "COLOR=excluded.COLOR;";
-    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-    sqlite3_bind_int(stmt, 1, id);
-    sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
-    sqlite3_bind_text(stmt, 3, color.c_str(), color.size(), NULL);
-    sqlite3_step(stmt);
-    SQLCHECK(sqlite3_finalize(stmt));
+    int id = -1;
+    if (tagMap.count(name)) {
+      id = tagMap[name];
+      UpdateCoinTag({id, name, color});
+    } else if (tag["id"] != nullptr) {
+      id = tag["id"];
+      sqlite3_stmt* stmt;
+      std::string sql =
+          "INSERT INTO TAGS(ID, NAME, COLOR) VALUES (?1, ?2, ?3) "
+          "ON CONFLICT(ID) DO UPDATE SET NAME=excluded.NAME, "
+          "COLOR=excluded.COLOR;";
+      sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+      sqlite3_bind_int(stmt, 1, id);
+      sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
+      sqlite3_bind_text(stmt, 3, color.c_str(), color.size(), NULL);
+      sqlite3_step(stmt);
+      SQLCHECK(sqlite3_finalize(stmt));
+    } else {
+      id = CreateCoinTag(name, color);
+      tagMap[name] = id;
+    }
 
     for (auto&& i : tag["coins"]) {
       sqlite3_stmt* stmt;
@@ -1775,25 +1790,51 @@ bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
   // import collections
   json collections = data["collections"];
   for (auto&& collection : collections) {
-    int id = collection["id"];
     std::string name = collection["name"];
+    int id = -1;
+    std::vector<int> add_tagged_coins{};
+    if (collection["add_tagged"] != nullptr) {
+      std::vector<std::string> tag_names = collection["add_tagged"];
+      for (auto&& tag_name : tag_names) {
+        add_tagged_coins.push_back(tagMap[tag_name]);
+      }
+    }
+    if (collection["add_tagged_coins"] != nullptr) {
+      std::vector<int> tag_ids = collection["add_tagged_coins"];
+      for (auto&& tag_id : tag_ids) {
+        add_tagged_coins.push_back(tag_id);
+      }
+    }
 
-    sqlite3_stmt* stmt;
-    std::string sql =
-        "INSERT INTO COLLECTIONS(ID, NAME, SETTINGS) VALUES (?1, ?2, ?3) "
-        "ON CONFLICT(ID) DO UPDATE SET NAME=excluded.NAME, "
-        "SETTINGS=excluded.SETTINGS;";
-    json collection_settings = {
-        {"add_new_coin", collection["add_new_coin"]},
-        {"auto_lock", collection["auto_lock"]},
-        {"add_tagged_coins", collection["add_tagged_coins"]}};
-    std::string settings = collection_settings.dump();
-    sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-    sqlite3_bind_int(stmt, 1, id);
-    sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
-    sqlite3_bind_text(stmt, 3, settings.c_str(), settings.size(), NULL);
-    sqlite3_step(stmt);
-    SQLCHECK(sqlite3_finalize(stmt));
+    if (collectionMap.count(name) == 0 && collection["id"] != nullptr) {
+      id = collection["id"];
+      sqlite3_stmt* stmt;
+      std::string sql =
+          "INSERT INTO COLLECTIONS(ID, NAME, SETTINGS) VALUES (?1, ?2, ?3) "
+          "ON CONFLICT(ID) DO UPDATE SET NAME=excluded.NAME, "
+          "SETTINGS=excluded.SETTINGS;";
+      json jsettings = {{"add_new_coin", collection["add_new_coin"]},
+                        {"auto_lock", collection["auto_lock"]},
+                        {"add_tagged_coins", add_tagged_coins}};
+      std::string settings = jsettings.dump();
+      sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+      sqlite3_bind_int(stmt, 1, id);
+      sqlite3_bind_text(stmt, 2, name.c_str(), name.size(), NULL);
+      sqlite3_bind_text(stmt, 3, settings.c_str(), settings.size(), NULL);
+      sqlite3_step(stmt);
+      SQLCHECK(sqlite3_finalize(stmt));
+    } else {
+      if (collectionMap.count(name)) {
+        id = collectionMap[name];
+      } else {
+        id = CreateCoinCollection(name);
+      }
+      CoinCollection c{id, name};
+      c.set_add_new_coin(collection["add_new_coin"]);
+      c.set_auto_lock(collection["auto_lock"]);
+      c.set_add_coins_with_tag(add_tagged_coins);
+      UpdateCoinCollection(c, false);
+    }
 
     for (auto&& i : collection["coins"]) {
       sqlite3_stmt* stmt;

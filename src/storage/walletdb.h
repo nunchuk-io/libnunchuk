@@ -117,7 +117,7 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<int> GetAddedCollections(const std::string &tx_id,
                                        int vout) const;
   std::string ExportCoinControlData();
-  bool ImportCoinControlData(const std::string &data, bool force);
+  bool ImportCoinControlData(const std::string &data, bool force, bool merge);
   std::string ExportBIP329();
   void ImportBIP329(const std::string &data);
   time_t GetLastModified() const;

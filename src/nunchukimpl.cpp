@@ -2156,7 +2156,7 @@ std::string NunchukImpl::ExportCoinControlData(const std::string& wallet_id) {
 
 bool NunchukImpl::ImportCoinControlData(const std::string& wallet_id,
                                         const std::string& data, bool force) {
-  return storage_->ImportCoinControlData(chain_, wallet_id, data, force);
+  return storage_->ImportCoinControlData(chain_, wallet_id, data, force, false);
 }
 
 std::string NunchukImpl::ExportBIP329(const std::string& wallet_id) {
@@ -2369,10 +2369,11 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
   data["last_modified_ts"] = std::time(0);
   data["tags"] = json::array();
   auto oldTags = storage_->GetCoinTags(chain_, old_wallet_id);
+  std::map<int, std::string> tagName{};
   for (auto&& i : oldTags) {
     if (!tags.count(i.get_id())) continue;
-    json tag = {
-        {"id", i.get_id()}, {"name", i.get_name()}, {"color", i.get_color()}};
+    tagName[i.get_id()] = i.get_name();
+    json tag = {{"name", i.get_name()}, {"color", i.get_color()}};
     tag["coins"] = json::array();
     for (auto&& coin : coinTags[i.get_id()]) {
       tag["coins"].push_back(coin);
@@ -2383,17 +2384,21 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
   auto oldCollections = storage_->GetCoinCollections(chain_, old_wallet_id);
   for (auto&& i : oldCollections) {
     if (!collections.count(i.get_id())) continue;
-    json collection = {{"id", i.get_id()},
-                       {"name", i.get_name()},
+    std::vector<std::string> add_tagged;
+    for (auto&& t : i.get_add_coins_with_tag()) {
+      if (tagName.count(t)) add_tagged.push_back(tagName[t]);
+    }
+    json collection = {{"name", i.get_name()},
                        {"add_new_coin", i.is_add_new_coin()},
-                       {"auto_lock", i.is_auto_lock()}};
+                       {"auto_lock", i.is_auto_lock()},
+                       {"add_tagged", add_tagged}};
     collection["coins"] = json::array();
     for (auto&& coin : coinCollections[i.get_id()]) {
       collection["coins"].push_back(coin);
     }
     data["collections"].push_back(collection);
   }
-  storage_->ImportCoinControlData(chain_, new_wallet_id, data.dump(), true);
+  storage_->ImportCoinControlData(chain_, new_wallet_id, data.dump(), true, true);
 
   return rs;
 }
