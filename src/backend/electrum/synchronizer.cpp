@@ -380,7 +380,11 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
             std::chrono::milliseconds(SUBCRIBE_DELAY_MS));
       }
     }
-    try { NewAddress(chain, wallet_id, false); } catch (...) {}
+    try {
+      auto unused = storage_->GetAddresses(chain, wallet_id, false, false);
+      if (unused.empty()) NewAddress(chain, wallet_id, false);
+    } catch (...) {
+    }
     Amount balance = storage_->GetBalance(chain, wallet_id);
     balance_listener_(wallet_id, balance);
     Amount unconfirmed_balance =
