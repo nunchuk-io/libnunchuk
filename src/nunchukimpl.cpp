@@ -1015,11 +1015,13 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
     auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
     if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES) return tx;
     std::string existed_psbt = tx.get_psbt();
-    if (existed_psbt == psbt) {
-      return tx;
-    }
     std::string combined_psbt =
         CoreUtils::getInstance().CombinePsbt({psbt, existed_psbt});
+    if (existed_psbt == psbt || existed_psbt == combined_psbt) {
+      throw NunchukException(
+          NunchukException::INVALID_PSBT,
+          "The imported file does not contain any new signature.");
+    }
     storage_->UpdatePsbt(chain_, wallet_id, combined_psbt);
     storage_listener_();
     return GetTransaction(wallet_id, tx_id);
@@ -2398,7 +2400,8 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
     }
     data["collections"].push_back(collection);
   }
-  storage_->ImportCoinControlData(chain_, new_wallet_id, data.dump(), true, true);
+  storage_->ImportCoinControlData(chain_, new_wallet_id, data.dump(), true,
+                                  true);
 
   return rs;
 }
