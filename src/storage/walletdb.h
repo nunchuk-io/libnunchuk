@@ -99,7 +99,8 @@ class NunchukWalletDb : public NunchukDb {
   bool DeleteCoinTag(int tag_id);
   bool AddToCoinTag(int tag_id, const std::string &tx_id, int vout);
   bool RemoveFromCoinTag(int tag_id, const std::string &tx_id, int vout);
-  std::vector<std::string> GetCoinByTag(int tag_id) const;
+  std::vector<std::string> GetCoinByTag(int tag_id);
+  std::vector<std::string> GetCoinWithoutTag();
   std::vector<int> GetAddedTags(const std::string &tx_id, int vout) const;
 
   int CreateCoinCollection(const std::string &name);

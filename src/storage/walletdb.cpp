@@ -1435,7 +1435,10 @@ bool NunchukWalletDb::RemoveFromCoinTag(int tag_id, const std::string& tx_id,
   return updated;
 }
 
-std::vector<std::string> NunchukWalletDb::GetCoinByTag(int tag_id) const {
+std::vector<std::string> NunchukWalletDb::GetCoinByTag(int tag_id) {
+  if (tag_id == CoinCollection::COINS_WITHOUT_TAGS) {
+    return GetCoinWithoutTag();
+  }
   sqlite3_stmt* stmt;
   std::string sql = "SELECT COIN FROM COINTAGS WHERE TAGID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -1449,6 +1452,30 @@ std::vector<std::string> NunchukWalletDb::GetCoinByTag(int tag_id) const {
     sqlite3_step(stmt);
   }
   SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
+}
+
+std::vector<std::string> NunchukWalletDb::GetCoinWithoutTag() {
+  sqlite3_stmt* stmt;
+  std::string sql = "SELECT COIN FROM COINTAGS;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_step(stmt);
+
+  std::set<std::string> coinswithtag;
+  while (sqlite3_column_text(stmt, 0)) {
+    std::string coin = std::string((char*)sqlite3_column_text(stmt, 0));
+    coinswithtag.insert(coin);
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+
+  auto transactions = GetTransactions();
+  auto allcoins = GetCoinsFromTransactions(transactions);
+  std::vector<std::string> rs;
+  for (auto&& coin : allcoins) {
+    if (coinswithtag.find(coin.first) != coinswithtag.end()) continue;
+    rs.push_back(coin.first);
+  }
   return rs;
 }
 
