@@ -44,9 +44,10 @@ class NunchukImpl : public Nunchuk {
                       const std::vector<SingleSigner>& signers,
                       AddressType address_type, bool is_escrow,
                       const std::string& description = {},
-                      bool allow_used_signer = false) override;
-  Wallet CreateWallet(const Wallet& wallet,
-                      bool allow_used_signer = false) override;
+                      bool allow_used_signer = false,
+                      const std::string& decoy_pin = {}) override;
+  Wallet CreateWallet(const Wallet& wallet, bool allow_used_signer = false,
+                      const std::string& decoy_pin = {}) override;
   Wallet CreateHotWallet(const std::string& mnemonic = {},
                          const std::string& passphrase = {},
                          bool need_backup = true, bool replace = true) override;

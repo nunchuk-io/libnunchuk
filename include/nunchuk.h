@@ -878,9 +878,11 @@ class NUNCHUK_EXPORT Nunchuk {
                               const std::vector<SingleSigner>& signers,
                               AddressType address_type, bool is_escrow,
                               const std::string& description = {},
-                              bool allow_used_signer = false) = 0;
+                              bool allow_used_signer = false,
+                              const std::string& decoy_pin = {}) = 0;
   virtual Wallet CreateWallet(const Wallet& wallet,
-                              bool allow_used_signer = false) = 0;
+                              bool allow_used_signer = false,
+                              const std::string& decoy_pin = {}) = 0;
   virtual Wallet CreateHotWallet(const std::string& mnemonic = {},
                                  const std::string& passphrase = {},
                                  bool need_backup = true,
@@ -1527,6 +1529,13 @@ class NUNCHUK_EXPORT Utils {
                                   AddressType address_type, int index);
   static std::vector<std::string> DeriveAddresses(const Wallet& wallet,
                                                   int from_index, int to_index);
+  static bool NewDecoyPin(const std::string& storage_path,
+                          const std::string& pin);
+  static bool IsExistingDecoyPin(const std::string& storage_path,
+                                 const std::string& pin);
+  static bool ChangeDecoyPin(const std::string& storage_path,
+                             const std::string& old_pin,
+                             const std::string& new_pin);
 
  private:
   Utils() {}
@@ -1538,6 +1547,9 @@ std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
 std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
                                                const std::string& passphrase,
                                                const std::string& account);
+
+std::unique_ptr<Nunchuk> MakeNunchukForDecoyPin(const AppSettings& appsettings,
+                                                const std::string& pin);
 
 }  // namespace nunchuk
 

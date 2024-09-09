@@ -299,6 +299,12 @@ class NunchukStorage {
   Transaction GetDummyTx(Chain chain, const std::string &wallet_id,
                          const std::string &id);
 
+  bool NewDecoyPin(const std::string &pin);
+  bool IsExistingDecoyPin(const std::string &pin);
+  bool ChangeDecoyPin(const std::string &old_pin, const std::string &new_pin);
+  Wallet CreateDecoyWallet(Chain chain, const Wallet &wallet,
+                           const std::string &pin);
+
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
   static std::shared_mutex access_;
@@ -325,6 +331,12 @@ class NunchukStorage {
   std::vector<UnspentOutput> GetUtxos0(Chain chain,
                                        const std::string &wallet_id,
                                        bool include_spent = false);
+  void InitDataDir(const boost::filesystem::path &dir);
+  boost::filesystem::path GetDecoyPath(const std::string &pin) const;
+  boost::filesystem::path GetWalletDir0(const boost::filesystem::path &dir,
+                                        Chain chain, std::string id) const;
+  boost::filesystem::path GetSignerDir0(const boost::filesystem::path &dir,
+                                        Chain chain, std::string id) const;
 
   boost::filesystem::path basedatadir_;
   boost::filesystem::path datadir_;

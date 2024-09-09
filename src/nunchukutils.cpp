@@ -1008,4 +1008,26 @@ std::vector<std::string> Utils::DeriveAddresses(const Wallet& wallet,
                                                   to_index);
 }
 
+bool Utils::NewDecoyPin(const std::string& storage_path,
+                        const std::string& pin) {
+  NunchukStorage storage{""};
+  storage.Init(storage_path);
+  return storage.NewDecoyPin(pin);
+}
+
+bool Utils::IsExistingDecoyPin(const std::string& storage_path,
+                               const std::string& pin) {
+  NunchukStorage storage{""};
+  storage.Init(storage_path);
+  return storage.IsExistingDecoyPin(pin);
+}
+
+bool Utils::ChangeDecoyPin(const std::string& storage_path,
+                           const std::string& old_pin,
+                           const std::string& new_pin) {
+  NunchukStorage storage{""};
+  storage.Init(storage_path);
+  return storage.ChangeDecoyPin(old_pin, new_pin);
+}
+
 }  // namespace nunchuk

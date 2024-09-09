@@ -102,24 +102,30 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
                                  AddressType address_type, bool is_escrow,
                                  const std::string& description,
-                                 bool allow_used_signer) {
+                                 bool allow_used_signer,
+                                 const std::string& decoy_pin) {
   Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
   wallet.set_name(name);
   wallet.set_description(description);
   wallet.set_create_date(std::time(0));
-  return CreateWallet(wallet, allow_used_signer);
+  return CreateWallet(wallet, allow_used_signer, decoy_pin);
 }
 
-Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer) {
+Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer,
+                                 const std::string& decoy_pin) {
   Wallet sanitized_wallet = w;
   sanitized_wallet.set_signers(
       Utils::SanitizeSingleSigners(sanitized_wallet.get_signers()));
   sanitized_wallet.check_valid();
 
-  Wallet wallet = storage_->CreateWallet(chain_, sanitized_wallet);
-  ScanWalletAddress(wallet.get_id(), true);
-  storage_listener_();
-  return storage_->GetWallet(chain_, wallet.get_id(), true);
+  if (decoy_pin.empty()) {
+    Wallet wallet = storage_->CreateWallet(chain_, sanitized_wallet);
+    ScanWalletAddress(wallet.get_id(), true);
+    storage_listener_();
+    return storage_->GetWallet(chain_, wallet.get_id(), true);
+  } else {
+    return storage_->CreateDecoyWallet(chain_, sanitized_wallet, decoy_pin);
+  }
 }
 
 Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
@@ -2417,6 +2423,16 @@ std::unique_ptr<Nunchuk> MakeNunchukForAccount(const AppSettings& appsettings,
                                                const std::string& account) {
   return std::unique_ptr<NunchukImpl>(
       new NunchukImpl(appsettings, passphrase, account));
+}
+
+std::unique_ptr<Nunchuk> MakeNunchukForDecoyPin(const AppSettings& appsettings,
+                                                const std::string& pin) {
+  if (!Utils::IsExistingDecoyPin(appsettings.get_storage_path(), pin)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Decoy pin not found");
+  }
+  return std::unique_ptr<NunchukImpl>(
+      new NunchukImpl(appsettings, "", "decoy-" + pin));
 }
 
 }  // namespace nunchuk

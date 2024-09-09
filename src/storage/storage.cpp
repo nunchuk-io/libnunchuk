@@ -237,19 +237,7 @@ void NunchukStorage::Init(const std::string& datadir,
     hasher.Finalize(hash.begin());
     datadir_ = datadir_ / hash.GetHex();
   }
-  if (fs::create_directories(datadir_ / "testnet")) {
-    fs::create_directories(datadir_ / "testnet" / "wallets");
-    fs::create_directories(datadir_ / "testnet" / "signers");
-  }
-  if (fs::create_directories(datadir_ / "mainnet")) {
-    fs::create_directories(datadir_ / "mainnet" / "wallets");
-    fs::create_directories(datadir_ / "mainnet" / "signers");
-  }
-  if (fs::create_directories(datadir_ / "signet")) {
-    fs::create_directories(datadir_ / "signet" / "wallets");
-    fs::create_directories(datadir_ / "signet" / "signers");
-  }
-  fs::create_directories(datadir_ / "tmp");
+  InitDataDir(datadir_);
 }
 
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
@@ -299,20 +287,30 @@ fs::path NunchukStorage::ChainStr(Chain chain) const {
 }
 
 fs::path NunchukStorage::GetWalletDir(Chain chain, std::string id) const {
+  return GetWalletDir0(datadir_, chain, id);
+}
+
+fs::path NunchukStorage::GetWalletDir0(const fs::path& dir, Chain chain,
+                                       std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            "Wallet id can not empty!");
   }
-  return datadir_ / ChainStr(chain) / "wallets" / id;
+  return dir / ChainStr(chain) / "wallets" / id;
 }
 
 fs::path NunchukStorage::GetSignerDir(Chain chain, std::string id) const {
+  return GetSignerDir0(datadir_, chain, id);
+}
+
+fs::path NunchukStorage::GetSignerDir0(const fs::path& dir, Chain chain,
+                                       std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
                            "Signer id can not empty!");
   }
   std::string lowercase_id = ba::to_lower_copy(id);
-  fs::path path = datadir_;
+  fs::path path = dir;
   path /= ChainStr(chain);
   path /= "signers";
   path /= lowercase_id;
@@ -1999,6 +1997,140 @@ int NunchukStorage::GetHotWalletId() {
 bool NunchukStorage::SetHotWalletId(int value) {
   std::unique_lock<std::shared_mutex> lock(access_);
   return GetAppStateDb(Chain::MAIN).SetHotWalletId(value);
+}
+
+void NunchukStorage::InitDataDir(const fs::path& dir) {
+  if (fs::create_directories(dir / "testnet")) {
+    fs::create_directories(dir / "testnet" / "wallets");
+    fs::create_directories(dir / "testnet" / "signers");
+  }
+  if (fs::create_directories(dir / "mainnet")) {
+    fs::create_directories(dir / "mainnet" / "wallets");
+    fs::create_directories(dir / "mainnet" / "signers");
+  }
+  if (fs::create_directories(dir / "signet")) {
+    fs::create_directories(dir / "signet" / "wallets");
+    fs::create_directories(dir / "signet" / "signers");
+  }
+  fs::create_directories(dir / "tmp");
+}
+
+fs::path NunchukStorage::GetDecoyPath(const std::string& pin) const {
+  if (pin.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Pin is empty");
+  }
+  std::string aid = "decoy-" + pin;
+  CSHA256 hasher;
+  std::vector<unsigned char> stream(aid.begin(), aid.end());
+  hasher.Write((unsigned char*)&(*stream.begin()),
+               stream.end() - stream.begin());
+  uint256 hash;
+  hasher.Finalize(hash.begin());
+  return basedatadir_ / hash.GetHex();
+}
+
+bool NunchukStorage::NewDecoyPin(const std::string& pin) {
+  fs::path db_folder = GetDecoyPath(pin);
+  InitDataDir(db_folder);
+  return true;
+}
+
+bool NunchukStorage::IsExistingDecoyPin(const std::string& pin) {
+  fs::path db_folder = GetDecoyPath(pin);
+  return fs::is_directory(db_folder);
+}
+
+bool NunchukStorage::ChangeDecoyPin(const std::string& old_pin,
+                                    const std::string& new_pin) {
+  fs::path old_db_folder = GetDecoyPath(old_pin);
+  fs::path new_db_folder = GetDecoyPath(new_pin);
+  if (!fs::is_directory(old_db_folder)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Old pin does not exist");
+  }
+  if (fs::is_directory(new_db_folder)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "New pin already exists");
+  }
+  fs::rename(old_db_folder, new_db_folder);
+  return fs::is_directory(new_db_folder);
+}
+
+Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
+                                         const std::string& pin) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  fs::path db_folder = GetDecoyPath(pin);
+
+  const AddressType at = wallet.get_address_type();
+  const WalletType wt = wallet.get_wallet_type();
+
+  const auto save_true_signer = [&](SingleSigner signer) {
+    const std::string master_id = signer.get_master_fingerprint();
+    NunchukSignerDb signer_db{
+        chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+
+    if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
+      int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
+      if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
+          FormalizePath(signer.get_derivation_path())) {
+        signer_db.AddXPub(wt, at, index, signer.get_xpub());
+        signer_db.UseIndex(wt, at, index, true);
+      } else {
+        // custom derivation path
+        signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
+                          "custom");
+      }
+      return signer;
+    }
+
+    try {
+      signer_db.GetRemoteSigner(signer.get_derivation_path());
+      signer_db.UseRemote(signer.get_derivation_path());
+    } catch (StorageException& se) {
+      if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
+      // Import/Recover wallet, signers may not exist => we create as UNKNOWN
+      // signers to hide on Key Manager, except for COLDCARD_NFC and PORTAL_NFC
+      // signers, make them visible to able to sign transaction
+      if (signer.get_type() != SignerType::COLDCARD_NFC &&
+          signer.get_type() != SignerType::PORTAL_NFC) {
+        signer.set_name("import");
+        signer.set_type(SignerType::UNKNOWN);
+      }
+      signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                          signer.get_public_key(), signer.get_derivation_path(),
+                          true, signer.get_type());
+      return signer;
+    }
+    return signer;
+  };
+
+  auto id = wallet.get_id();
+  fs::path wallet_file = GetWalletDir0(db_folder, chain, id);
+  if (fs::exists(wallet_file)) {
+    throw StorageException(StorageException::WALLET_EXISTED,
+                           strprintf("Wallet existed! id = '%s'", id));
+  }
+  std::vector<SingleSigner> true_signers;
+  for (auto&& signer : wallet.get_signers()) {
+    auto true_signer = save_true_signer(signer);
+    auto signer_id = true_signer.get_master_fingerprint();
+    fs::path decoy_signer_file = GetSignerDir0(db_folder, chain, signer_id);
+    if (!fs::exists(decoy_signer_file)) {
+      if (passphrase_.empty()) {
+        fs::copy_file(GetSignerDir(chain, signer_id), decoy_signer_file);
+      } else {
+        auto signer_db = GetSignerDb(chain, signer_id);
+        signer_db.DecryptDb(decoy_signer_file.string());
+      }
+    }
+    true_signers.emplace_back(true_signer);
+  }
+  NunchukWalletDb wallet_db{chain, id, wallet_file.string(), ""};
+  wallet_db.InitWallet(wallet);
+
+  Wallet true_wallet = wallet;
+  true_wallet.set_signers(true_signers);
+  return true_wallet;
 }
 
 }  // namespace nunchuk
