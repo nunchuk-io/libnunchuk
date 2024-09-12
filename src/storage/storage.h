@@ -201,6 +201,8 @@ class NunchukStorage {
                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);
+  bool MarkAddressAsUsed(Chain chain, const std::string &wallet_id,
+                         const std::string &address);
   std::string GetAddressStatus(Chain chain, const std::string &wallet_id,
                                const std::string &address);
   std::string GetMultisigConfig(Chain chain, const std::string &wallet_id);

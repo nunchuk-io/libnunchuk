@@ -875,6 +875,11 @@ Amount NunchukImpl::GetAddressBalance(const std::string& wallet_id,
   return storage_->GetAddressBalance(chain_, wallet_id, address);
 }
 
+bool NunchukImpl::MarkAddressAsUsed(const std::string& wallet_id,
+                                    const std::string& address) {
+  return storage_->MarkAddressAsUsed(chain_, wallet_id, address);
+}
+
 std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputs(
     const std::string& wallet_id) {
   return storage_->GetUtxos(chain_, wallet_id);

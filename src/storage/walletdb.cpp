@@ -268,8 +268,10 @@ void NunchukWalletDb::SetAddress(const std::string& address, int index,
 
 bool NunchukWalletDb::AddAddress(const std::string& address, int index,
                                  bool internal) {
+  auto all = GetAllAddressData();
+  if (all.count(address) && all[address].used) return true;
   SetAddress(address, index, internal);
-  if (!IsMyAddress(address)) {
+  if (!all.count(address)) {
     addr_cache_[db_file_name_][address] = {address, index, internal, false};
     SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   }
@@ -344,6 +346,19 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData(
     for (auto&& tx : txs) {
       for (auto&& output : tx.get_outputs()) UseAddress(output.first);
     }
+    try {
+      sqlite3_stmt* stmt;
+      std::string sql = "SELECT ADDR FROM ADDRESS WHERE USED = 1;";
+      sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+      sqlite3_step(stmt);
+      while (sqlite3_column_text(stmt, 0)) {
+        std::string addr = std::string((char*)sqlite3_column_text(stmt, 0));
+        UseAddress(addr);
+        sqlite3_step(stmt);
+      }
+      SQLCHECK(sqlite3_finalize(stmt));
+    } catch (...) {
+    }
   }
   return addr_cache_[db_file_name_];
 }
@@ -417,6 +432,16 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) {
     balance += coin.get_amount();
   }
   return balance;
+}
+
+bool NunchukWalletDb::MarkAddressAsUsed(const std::string& address) {
+  auto all = GetAllAddressData();
+  if (!all.count(address)) return false;
+  if (all[address].used) return true;
+  SetAddress(address, all[address].index, all[address].internal,
+             "null|manually");
+  addr_cache_[db_file_name_][address].used = true;
+  return true;
 }
 
 std::string NunchukWalletDb::GetAddressStatus(

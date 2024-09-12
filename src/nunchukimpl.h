@@ -161,6 +161,8 @@ class NunchukImpl : public Nunchuk {
                          bool internal = false) override;
   Amount GetAddressBalance(const std::string& wallet_id,
                            const std::string& address) override;
+  bool MarkAddressAsUsed(const std::string& wallet_id,
+                         const std::string& address) override;
   std::vector<UnspentOutput> GetUnspentOutputs(
       const std::string& wallet_id) override;
   std::vector<UnspentOutput> GetUnspentOutputsFromTxInputs(
