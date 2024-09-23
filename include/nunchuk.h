@@ -1538,6 +1538,7 @@ class NUNCHUK_EXPORT Utils {
   static bool ChangeDecoyPin(const std::string& storage_path,
                              const std::string& old_pin,
                              const std::string& new_pin);
+  static std::vector<std::string> ListDecoyPin(const std::string& storage_path);
 
  private:
   Utils() {}

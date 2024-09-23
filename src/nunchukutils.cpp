@@ -1030,4 +1030,10 @@ bool Utils::ChangeDecoyPin(const std::string& storage_path,
   return storage.ChangeDecoyPin(old_pin, new_pin);
 }
 
+std::vector<std::string> Utils::ListDecoyPin(const std::string& storage_path) {
+  NunchukStorage storage{""};
+  storage.Init(storage_path);
+  return storage.ListDecoyPin();
+}
+
 }  // namespace nunchuk

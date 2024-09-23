@@ -2039,12 +2039,29 @@ fs::path NunchukStorage::GetDecoyPath(const std::string& pin) const {
 bool NunchukStorage::NewDecoyPin(const std::string& pin) {
   fs::path db_folder = GetDecoyPath(pin);
   InitDataDir(db_folder);
+  WriteFile((db_folder / "decoy").string(), pin);
   return true;
 }
 
 bool NunchukStorage::IsExistingDecoyPin(const std::string& pin) {
   fs::path db_folder = GetDecoyPath(pin);
   return fs::is_directory(db_folder);
+}
+
+std::vector<std::string> NunchukStorage::ListDecoyPin() {
+  std::vector<std::string> rs;
+  for (auto&& entry : fs::directory_iterator(basedatadir_)) {
+    if (fs::is_directory(entry)) {
+      fs::path decoyfile = entry / "decoy";
+      try {
+        if (fs::exists(decoyfile)) {
+          rs.push_back(LoadFile(decoyfile.string()));
+        }
+      } catch (...) {
+      }
+    }
+  }
+  return rs;
 }
 
 bool NunchukStorage::ChangeDecoyPin(const std::string& old_pin,
@@ -2060,7 +2077,9 @@ bool NunchukStorage::ChangeDecoyPin(const std::string& old_pin,
                            "New pin already exists");
   }
   fs::rename(old_db_folder, new_db_folder);
-  return fs::is_directory(new_db_folder);
+  if (!fs::is_directory(new_db_folder)) return false;
+  WriteFile((new_db_folder / "decoy").string(), new_pin);
+  return true;
 }
 
 Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,

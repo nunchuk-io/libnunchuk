@@ -304,6 +304,7 @@ class NunchukStorage {
   bool NewDecoyPin(const std::string &pin);
   bool IsExistingDecoyPin(const std::string &pin);
   bool ChangeDecoyPin(const std::string &old_pin, const std::string &new_pin);
+  std::vector<std::string> ListDecoyPin();
   Wallet CreateDecoyWallet(Chain chain, const Wallet &wallet,
                            const std::string &pin);
 
