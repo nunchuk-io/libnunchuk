@@ -207,6 +207,19 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
     for (auto&& tx : txs) {
       for (auto&& output : tx.get_outputs()) UseAddress(output.first);
     }
+    try {
+      sqlite3_stmt* stmt;
+      std::string sql = "SELECT ADDR FROM ADDRESS WHERE USED = 1;";
+      sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+      sqlite3_step(stmt);
+      while (sqlite3_column_text(stmt, 0)) {
+        std::string addr = std::string((char*)sqlite3_column_text(stmt, 0));
+        UseAddress(addr);
+        sqlite3_step(stmt);
+      }
+      SQLCHECK(sqlite3_finalize(stmt));
+    } catch (...) {
+    }
   }
   if (!skip_balance) {
     wallet.set_balance(GetBalance(false));
