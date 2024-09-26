@@ -1715,16 +1715,7 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
 
 std::vector<std::string> NunchukImpl::ExportKeystoneWallet(
     const std::string& wallet_id, int fragment_len) {
-  auto content = storage_->GetMultisigConfig(chain_, wallet_id);
-  std::vector<uint8_t> data(content.begin(), content.end());
-  ur::ByteVector cbor;
-  encodeBytes(cbor, data);
-  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), fragment_len);
-  std::vector<std::string> parts;
-  do {
-    parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() <= 2 * encoder.seq_len());
-  return parts;
+  return Utils::ExportKeystoneWallet(GetWallet(wallet_id), fragment_len);
 }
 
 std::vector<std::string> NunchukImpl::ExportKeystoneTransaction(
@@ -1861,16 +1852,7 @@ std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
 
 std::vector<std::string> NunchukImpl::ExportBCR2020010Wallet(
     const std::string& wallet_id, int fragment_len) {
-  Wallet wallet = GetWallet(wallet_id);
-  CryptoOutput co = CryptoOutput::from_wallet(wallet);
-  ur::ByteVector cbor;
-  encodeCryptoOutput(cbor, co);
-  auto encoder = ur::UREncoder(ur::UR("crypto-output", cbor), fragment_len);
-  std::vector<std::string> parts;
-  do {
-    parts.push_back(to_upper_copy(encoder.next_part()));
-  } while (encoder.seq_num() <= 2 * encoder.seq_len());
-  return parts;
+  return Utils::ExportBCR2020010Wallet(GetWallet(wallet_id), fragment_len);
 }
 
 std::string NunchukImpl::ExportBackup() { return storage_->ExportBackup(); }

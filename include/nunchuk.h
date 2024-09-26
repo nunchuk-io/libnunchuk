@@ -1525,6 +1525,10 @@ class NUNCHUK_EXPORT Utils {
   static std::vector<std::string> ExportBBQRWallet(
       const Wallet& wallet, ExportFormat = ExportFormat::COLDCARD,
       int min_version = 1 /*1-40*/, int max_version = 1 /*1-40*/);
+  static std::vector<std::string> ExportKeystoneWallet(const Wallet& wallet,
+                                                       int fragment_len = 200);
+  static std::vector<std::string> ExportBCR2020010Wallet(
+      const Wallet& wallet, int fragment_len = 200);
   static AnalyzeQRResult AnalyzeQR(const std::vector<std::string>& qr_data);
   static int GetIndexFromPath(const std::string& path);
   static std::string GetBip32Path(WalletType wallet_type,

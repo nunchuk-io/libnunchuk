@@ -57,6 +57,9 @@
 
 #include <bbqr/bbqr.hpp>
 
+using namespace boost::algorithm;
+using namespace nunchuk::bcr2;
+
 namespace nunchuk {
 
 static const std::map<std::string, std::vector<unsigned char>>
@@ -863,6 +866,33 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
   option.max_version = max_version;
   auto split_result = bbqr::split_qrs(data, bbqr::FileType::U, option);
   return split_result.parts;
+}
+
+std::vector<std::string> Utils::ExportKeystoneWallet(const Wallet& wallet,
+                                                           int fragment_len) {
+  auto content = ::GetMultisigConfig(wallet);
+  std::vector<uint8_t> data(content.begin(), content.end());
+  ur::ByteVector cbor;
+  encodeBytes(cbor, data);
+  auto encoder = ur::UREncoder(ur::UR("bytes", cbor), fragment_len);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(to_upper_copy(encoder.next_part()));
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
+  return parts;
+}
+
+std::vector<std::string> Utils::ExportBCR2020010Wallet(
+    const Wallet& wallet, int fragment_len) {
+  CryptoOutput co = CryptoOutput::from_wallet(wallet);
+  ur::ByteVector cbor;
+  encodeCryptoOutput(cbor, co);
+  auto encoder = ur::UREncoder(ur::UR("crypto-output", cbor), fragment_len);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(to_upper_copy(encoder.next_part()));
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
+  return parts;
 }
 
 static std::string parseBCR2Transaction(
