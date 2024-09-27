@@ -329,8 +329,13 @@ fs::path NunchukStorage::GetRoomDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "room";
 }
 
-fs::path NunchukStorage::GetTapprotocolDir(Chain chain) const {
-  return datadir_ / ChainStr(chain) / "tap-protocol";
+fs::path NunchukStorage::GetTapprotocolDir(Chain chain,
+                                           const fs::path& dir) const {
+  if (dir.empty()) {
+    return datadir_ / ChainStr(chain) / "tap-protocol";
+  } else {
+    return dir / ChainStr(chain) / "tap-protocol";
+  }
 }
 
 NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
@@ -369,8 +374,9 @@ NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
   return db;
 }
 
-NunchukTapprotocolDb NunchukStorage::GetTaprotocolDb(Chain chain) {
-  fs::path db_file = GetTapprotocolDir(chain);
+NunchukTapprotocolDb NunchukStorage::GetTaprotocolDb(Chain chain,
+                                                     const fs::path& dir) {
+  fs::path db_file = GetTapprotocolDir(chain, dir);
   bool is_new = !fs::exists(db_file);
   auto db = NunchukTapprotocolDb{chain, "", db_file.string(), ""};
   if (is_new) db.Init();
@@ -2136,6 +2142,8 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
     throw StorageException(StorageException::WALLET_EXISTED,
                            strprintf("Wallet existed! id = '%s'", id));
   }
+  auto taprotocol_db = GetTaprotocolDb(chain, db_folder);
+  auto true_taprotocol_db = GetTaprotocolDb(chain);
   std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {
     auto true_signer = save_true_signer(signer);
@@ -2150,6 +2158,12 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
       }
     }
     true_signers.emplace_back(true_signer);
+    try {
+      auto tapsigner_status =
+          true_taprotocol_db.GetTapsignerStatusFromMasterSigner(signer_id);
+      taprotocol_db.AddTapsigner(tapsigner_status);
+    } catch (...) {
+    }
   }
   NunchukWalletDb wallet_db{chain, id, wallet_file.string(), ""};
   wallet_db.InitWallet(wallet);
