@@ -603,7 +603,7 @@ std::vector<SingleSigner> Utils::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {  // BC_UR2 format
+  } else {                                              // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -869,7 +869,7 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
 }
 
 std::vector<std::string> Utils::ExportKeystoneWallet(const Wallet& wallet,
-                                                           int fragment_len) {
+                                                     int fragment_len) {
   auto content = ::GetMultisigConfig(wallet);
   std::vector<uint8_t> data(content.begin(), content.end());
   ur::ByteVector cbor;
@@ -882,8 +882,8 @@ std::vector<std::string> Utils::ExportKeystoneWallet(const Wallet& wallet,
   return parts;
 }
 
-std::vector<std::string> Utils::ExportBCR2020010Wallet(
-    const Wallet& wallet, int fragment_len) {
+std::vector<std::string> Utils::ExportBCR2020010Wallet(const Wallet& wallet,
+                                                       int fragment_len) {
   CryptoOutput co = CryptoOutput::from_wallet(wallet);
   ur::ByteVector cbor;
   encodeCryptoOutput(cbor, co);
@@ -930,12 +930,19 @@ static std::string parseBBQRTransaction(
     const std::vector<std::string>& qr_data) {
   try {
     auto join_result = bbqr::join_qrs(qr_data);
-    if (join_result.file_type != bbqr::FileType::P ||
-        !join_result.is_complete) {
+    if (!join_result.is_complete) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid data");
     }
-    return EncodeBase64(MakeUCharSpan(join_result.raw));
+    switch (join_result.file_type) {
+      case bbqr::FileType::P:
+        return EncodeBase64(MakeUCharSpan(join_result.raw));
+      case bbqr::FileType::T:
+        return HexStr(join_result.raw);
+      default:
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid data");
+    }
   } catch (NunchukException& e) {
     throw;
   } catch (std::exception& e) {
