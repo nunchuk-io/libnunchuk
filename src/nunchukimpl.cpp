@@ -321,11 +321,13 @@ void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
     synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
   } else {
     // scan internal address
-    index = storage_->GetCurrentAddressIndex(chain_, wallet_id, true) + 1;
+    index = storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
+    if (index < 0) index = 0;
     address = GetUnusedAddress(wallet, index, true);
     storage_->AddAddress(chain_, wallet_id, address, index, true);
     // scan external address
-    index = storage_->GetCurrentAddressIndex(chain_, wallet_id, false) + 1;
+    index = storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
+    if (index < 0) index = 0;
     address = GetUnusedAddress(wallet, index, false);
   }
 
