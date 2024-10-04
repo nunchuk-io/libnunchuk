@@ -48,6 +48,8 @@ class NunchukImpl : public Nunchuk {
                       const std::string& decoy_pin = {}) override;
   Wallet CreateWallet(const Wallet& wallet, bool allow_used_signer = false,
                       const std::string& decoy_pin = {}) override;
+  Wallet CloneWallet(const std::string& wallet_id,
+                     const std::string& decoy_pin) override;
   Wallet CreateHotWallet(const std::string& mnemonic = {},
                          const std::string& passphrase = {},
                          bool need_backup = true, bool replace = true) override;

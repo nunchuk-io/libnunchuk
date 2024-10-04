@@ -2165,8 +2165,18 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
     } catch (...) {
     }
   }
-  NunchukWalletDb wallet_db{chain, id, wallet_file.string(), ""};
-  wallet_db.InitWallet(wallet);
+  fs::path real_wallet_file = GetWalletDir(chain, id);
+  if (fs::exists(real_wallet_file)) {
+    if (passphrase_.empty()) {
+      fs::copy_file(real_wallet_file, wallet_file);
+    } else {
+      auto wallet_db = GetWalletDb(chain, id);
+      wallet_db.DecryptDb(wallet_file.string());
+    }
+  } else {
+    NunchukWalletDb wallet_db{chain, id, wallet_file.string(), ""};
+    wallet_db.InitWallet(wallet);
+  }
 
   Wallet true_wallet = wallet;
   true_wallet.set_signers(true_signers);

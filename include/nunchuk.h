@@ -883,6 +883,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Wallet CreateWallet(const Wallet& wallet,
                               bool allow_used_signer = false,
                               const std::string& decoy_pin = {}) = 0;
+  virtual Wallet CloneWallet(const std::string& wallet_id,
+                             const std::string& decoy_pin) = 0;
   virtual Wallet CreateHotWallet(const std::string& mnemonic = {},
                                  const std::string& passphrase = {},
                                  bool need_backup = true,

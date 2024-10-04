@@ -128,6 +128,12 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer,
   }
 }
 
+Wallet NunchukImpl::CloneWallet(const std::string& wallet_id,
+                                const std::string& decoy_pin) {
+  Wallet wallet = storage_->GetWallet(chain_, wallet_id);
+  return storage_->CreateDecoyWallet(chain_, wallet, decoy_pin);
+}
+
 Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
                                     const std::string& passphrase,
                                     bool need_backup, bool replace) {
