@@ -303,19 +303,46 @@ bool NunchukWalletDb::IsMyAddress(const std::string& address) {
 }
 
 std::string NunchukWalletDb::GetAddressPath(const std::string& address) {
-  auto signers = GetSigners();
-  if (signers.size() > 1) {
-    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
-                           "Singlesig wallet only!");
-  }
   if (!IsMyAddress(address)) {
     throw StorageException(StorageException::ADDRESS_NOT_FOUND,
                            "Address not found!");
   }
+  bool internal = GetAllAddressData()[address].internal;
+  int index = GetAllAddressData()[address].index;
+
+  auto signers = GetSigners();
+  std::vector<std::string> paths{};
+  for (auto&& signer : signers) {
+    std::stringstream path;
+    path << "m" << FormalizePath(signer.get_derivation_path())
+         << (internal ? "/1/" : "/0/") << index;
+    paths.push_back(path.str());
+  }
+  if (paths.size() == 1) return paths[0];
+
+  std::string suffix{};
+  for (int i = 1; i <= paths[0].size(); i++) {
+    std::string tem = paths[0].substr(paths[0].size() - i, i);
+    int j = 1;
+    for (j = 1; j < paths.size(); j++) {
+      if (!ba::ends_with(paths[j], tem)) break;
+    }
+    if (j == paths.size()) suffix = tem;
+  }
+  if (suffix[0] == 'm') return suffix;
+
+  std::string prefix{};
+  for (int i = 1; i <= paths[0].size(); i++) {
+    std::string tem = paths[0].substr(0, i);
+    int j = 1;
+    for (j = 1; j < paths.size(); j++) {
+      if (!ba::starts_with(paths[j], tem)) break;
+    }
+    if (j == paths.size()) prefix = tem;
+  }
+
   std::stringstream path;
-  path << "m" << FormalizePath(signers[0].get_derivation_path());
-  path << (GetAllAddressData()[address].internal ? "/1/" : "/0/");
-  path << GetAllAddressData()[address].index;
+  path << prefix << "..." << suffix;
   return path.str();
 }
 
