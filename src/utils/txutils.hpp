@@ -131,12 +131,15 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
 
     auto txCredit = psbt.tx.value();
     auto input = psbt.inputs[0];
-    auto txIn = input.non_witness_utxo.get();
-    auto txSpend = CMutableTransaction(*txIn);
+    auto ctxout = input.witness_utxo;
+    if (input.non_witness_utxo) {
+      auto txIn = input.non_witness_utxo.get();
+      auto txSpend = CMutableTransaction(*txIn);
+      ctxout = txSpend.vout[txCredit.vin[0].prevout.n];
+    }
     txCredit.vin[0].scriptSig = input.final_script_sig;
     txCredit.vin[0].scriptWitness = input.final_script_witness;
-    auto extract = DataFromTransaction(txCredit, 0,
-                                       txSpend.vout[txCredit.vin[0].prevout.n]);
+    auto extract = DataFromTransaction(txCredit, 0, ctxout);
     for (auto&& sig : extract.signatures) {
       KeyOriginInfo info;
       if (SigningProviderCache::getInstance().GetKeyOrigin(sig.first, info)) {
