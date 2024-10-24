@@ -47,6 +47,8 @@ void random_buffer(uint8_t* buf, size_t len) {
 
 namespace nunchuk {
 
+std::map<uint256, MuSig2SecNonce> m_musig2_secnonces{};
+
 std::string hexStr(const uint8_t* data, int len) {
   std::stringstream ss;
   ss << std::hex;
@@ -162,17 +164,17 @@ std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
+  provider.musig2_secnonces = &m_musig2_secnonces;
+
   std::string error;
   std::vector<CScript> output_scripts;
   auto addPath = [&](const std::string& path) {
-    unsigned char b[33] = {0x02};
     auto key = GetExtKeyAtPath(path);
     XOnlyPubKey internal_key(key.Neuter().pubkey);
-    std::copy(internal_key.begin(), internal_key.end(), b + 1);
-    CPubKey fullpubkey;
-    fullpubkey.Set(b, b + 33);
-    CKeyID keyid = fullpubkey.GetID();
-    provider.keys[keyid] = key.key;
+    auto cpubkeys = internal_key.GetCPubKeys();
+    for (auto && fullpubkey: cpubkeys) {
+        provider.keys[fullpubkey.GetID()] = key.key;
+    }
   };
 
   auto desc0 = Parse(external_desc, provider, error, true);
@@ -190,7 +192,7 @@ std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
-    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_ALL);
+    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
   }
   return EncodePsbt(psbtx);
 }

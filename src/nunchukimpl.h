@@ -42,7 +42,7 @@ class NunchukImpl : public Nunchuk {
   void SetPassphrase(const std::string& passphrase) override;
   Wallet CreateWallet(const std::string& name, int m, int n,
                       const std::vector<SingleSigner>& signers,
-                      AddressType address_type, bool is_escrow,
+                      AddressType address_type, WalletType wallet_type,
                       const std::string& description = {},
                       bool allow_used_signer = false,
                       const std::string& decoy_pin = {}) override;
@@ -57,7 +57,7 @@ class NunchukImpl : public Nunchuk {
                                    const std::string& passphrase = {}) override;
   std::string DraftWallet(const std::string& name, int m, int n,
                           const std::vector<SingleSigner>& signers,
-                          AddressType address_type, bool is_escrow,
+                          AddressType address_type, WalletType wallet_type,
                           const std::string& desc = {}) override;
   std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
                                      OrderBy::OLDEST_FIRST}) override;

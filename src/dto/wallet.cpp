@@ -22,29 +22,20 @@
 namespace nunchuk {
 
 Wallet::Wallet(bool strict) noexcept : strict_(strict) {}
-Wallet::Wallet(const std::string& id, int m, int n,
-               const std::vector<SingleSigner>& signers,
-               AddressType address_type, bool is_escrow, time_t create_date,
-               bool strict)
+Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
+         const std::vector<SingleSigner>& signers, AddressType address_type,
+         WalletType wallet_type, time_t create_date, bool strict) 
     : id_(id),
       m_(m),
       n_(n),
       signers_(signers),
       address_type_(address_type),
-      escrow_(is_escrow),
+      wallet_type_(wallet_type),
       create_date_(create_date),
       strict_(strict) {
   if (strict_) check_valid();
-  if (id_.empty())
-    id_ = GetWalletId(signers_, m_, address_type, get_wallet_type());
-}
-
-Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
-               const std::vector<SingleSigner>& signers,
-               AddressType address_type, bool is_escrow, time_t create_date,
-               bool strict)
-    : Wallet(id, m, n, signers, address_type, is_escrow, create_date, strict) {
-  name_ = name;
+  if (id_.empty()) id_ = GetWalletId(signers_, m_, address_type, wallet_type);
+  name_ = name; 
 };
 
 std::string Wallet::get_id() const { return id_; }
@@ -55,12 +46,8 @@ const std::vector<SingleSigner>& Wallet::get_signers() const {
   return signers_;
 }
 AddressType Wallet::get_address_type() const { return address_type_; }
-WalletType Wallet::get_wallet_type() const {
-  return is_escrow()
-             ? WalletType::ESCROW
-             : get_n() == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG;
-}
-bool Wallet::is_escrow() const { return escrow_; }
+WalletType Wallet::get_wallet_type() const { return wallet_type_; }
+bool Wallet::is_escrow() const { return wallet_type_ == WalletType::ESCROW; }
 Amount Wallet::get_balance() const { return balance_; }
 Amount Wallet::get_unconfirmed_balance() const { return unconfirmed_balance_; }
 time_t Wallet::get_create_date() const { return create_date_; }
@@ -86,6 +73,11 @@ void Wallet::check_valid() const {
         NunchukException::INVALID_PARAMETER,
         "Invalid parameter: can not create single sig escrow wallet");
   }
+  if (wallet_type_ == WalletType::MUSIG && n_ != m_) {
+    throw NunchukException(
+        NunchukException::INVALID_PARAMETER,
+        "Invalid parameter: n and m are not equal");
+  }
   // TODO: need to call get_descriptor() for bitcoin core validation?
 }
 void Wallet::set_name(const std::string& value) { name_ = value; }
@@ -101,12 +93,12 @@ void Wallet::set_signers(std::vector<SingleSigner> signers) {
   signers_ = std::move(signers);
   post_update();
 }
-void Wallet::set_address_type(AddressType address_type) {
-  address_type_ = address_type;
+void Wallet::set_address_type(AddressType value) {
+  address_type_ = value;
   post_update();
 }
-void Wallet::set_escrow(bool escrow) {
-  escrow_ = escrow;
+void Wallet::set_wallet_type(WalletType value) {
+  wallet_type_ = value;
   post_update();
 };
 void Wallet::set_balance(const Amount& value) { balance_ = value; }

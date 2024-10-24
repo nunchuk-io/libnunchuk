@@ -103,12 +103,11 @@ void NunchukImpl::SetPassphrase(const std::string& passphrase) {
 
 Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
-                                 AddressType address_type, bool is_escrow,
+                                 AddressType address_type, WalletType wallet_type,
                                  const std::string& description,
                                  bool allow_used_signer,
                                  const std::string& decoy_pin) {
-  Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
-  wallet.set_name(name);
+  Wallet wallet("", name, m, n, signers, address_type, wallet_type, 0);
   wallet.set_description(description);
   wallet.set_create_date(std::time(0));
   return CreateWallet(wallet, allow_used_signer, decoy_pin);
@@ -150,7 +149,7 @@ Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
   auto signer = GetDefaultSignerFromMasterSigner(ss.get_id(), wt, at);
   auto name =
       id == 0 ? "My hot wallet" : "My hot wallet #" + std::to_string(id + 1);
-  auto wallet = CreateWallet(name, 1, 1, {signer}, at, false);
+  auto wallet = CreateWallet(name, 1, 1, {signer}, at, wt);
   if (need_backup) {
     wallet.set_need_backup(true);
     storage_->UpdateWallet(chain_, wallet);
@@ -172,10 +171,9 @@ std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
 
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
-                                     AddressType address_type, bool is_escrow,
+                                     AddressType address_type, WalletType wallet_type,
                                      const std::string& description) {
-  Wallet wallet("", m, n, Utils::SanitizeSingleSigners(signers), address_type,
-                is_escrow, 0);
+  Wallet wallet("", name, m, n, Utils::SanitizeSingleSigners(signers), address_type, wallet_type, 0);
   return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
@@ -301,8 +299,7 @@ Wallet NunchukImpl::ImportWalletFromConfig(const std::string& config,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Could not parse multisig config");
   }
-  return CreateWallet(name, m, n, signers, address_type, false, description,
-                      true);
+  return CreateWallet(name, m, n, signers, address_type, wallet_type, description, true);
 }
 
 void NunchukImpl::ForceRefreshWallet(const std::string& wallet_id) {
@@ -1170,21 +1167,21 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
     case SignerType::SOFTWARE: {
       auto software_signer =
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
-      // if (wallet.get_address_type() == AddressType::TAPROOT) {
-      //   std::vector<std::string> keypaths;
-      //   auto base = wallet.get_signers()[0].get_derivation_path();
-      //   for (int index = 0; index <= 1000; index++) {
-      //     keypaths.push_back(boost::str(boost::format{"%s/1/%d"} % base %
-      //     index));
-      //   }
-      //   for (int index = 0; index <= 1000; index++) {
-      //     keypaths.push_back(boost::str(boost::format{"%s/0/%d"} % base %
-      //     index));
-      //   }
-      //   signed_psbt = software_signer.SignTaprootTx(psbt, keypaths);
-      // } else {
-      signed_psbt = software_signer.SignTx(psbt);
-      //}
+      if (wallet.get_address_type() == AddressType::TAPROOT) {
+        std::string basepath;
+        for (auto&& signer : wallet.get_signers()) {
+          if (signer.get_master_fingerprint() == mastersigner_id) {
+            basepath = signer.get_derivation_path();
+          }
+        }
+        signed_psbt = software_signer.SignTaprootTx(
+            psbt, basepath, wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
+            wallet.get_descriptor(DescriptorPath::INTERNAL_ALL),
+            10, //storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), false),
+            10);//storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), true));
+      } else {
+        signed_psbt = software_signer.SignTx(psbt);
+      }
       storage_->ClearSignerPassphrase(chain_, mastersigner_id);
       break;
     }
@@ -1427,9 +1424,7 @@ Transaction NunchukImpl::DraftTransaction(
   }
 
   Wallet wallet = GetWallet(wallet_id);
-  int m = wallet.get_m();
-  auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(psbt), wallet.get_signers(), m);
+  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
 
   Amount sub_amount{0};
   for (size_t i = 0; i < tx.get_outputs().size(); i++) {
@@ -1440,7 +1435,7 @@ Transaction NunchukImpl::DraftTransaction(
     tx.add_user_output({output.first, output.second});
   }
 
-  tx.set_m(m);
+  tx.set_m(wallet.get_m());
   tx.set_fee(fee);
   tx.set_change_index(change_pos);
   tx.set_receive(false);

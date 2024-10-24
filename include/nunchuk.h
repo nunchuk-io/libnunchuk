@@ -77,6 +77,7 @@ enum class WalletType {
   SINGLE_SIG,
   MULTI_SIG,
   ESCROW,
+  MUSIG,
 };
 
 enum class HealthStatus {
@@ -94,6 +95,7 @@ enum class TransactionStatus {
   PENDING_CONFIRMATION,
   REPLACED,
   CONFIRMED,
+  PENDING_NONCE, // Musig wallet only
 };
 
 enum class CoinStatus {
@@ -443,12 +445,9 @@ class NUNCHUK_EXPORT PrimaryKey {
 class NUNCHUK_EXPORT Wallet {
  public:
   Wallet(bool strict = true) noexcept;
-  Wallet(const std::string& id, int m, int n,
-         const std::vector<SingleSigner>& signers, AddressType address_type,
-         bool is_escrow, time_t create_date, bool strict = true);
   Wallet(const std::string& id, const std::string& name, int m, int n,
          const std::vector<SingleSigner>& signers, AddressType address_type,
-         bool is_escrow, time_t create_date, bool strict = true);
+         WalletType wallet_type, time_t create_date, bool strict = true);
 
   std::string get_id() const;
   std::string get_name() const;
@@ -473,8 +472,8 @@ class NUNCHUK_EXPORT Wallet {
   void set_n(int n);
   void set_m(int m);
   void set_signers(std::vector<SingleSigner> signers);
-  void set_address_type(AddressType address_type);
-  void set_escrow(bool escrow);
+  void set_address_type(AddressType value);
+  void set_wallet_type(WalletType value);
   void set_balance(const Amount& value);
   void set_unconfirmed_balance(const Amount& value);
   void set_description(const std::string& value);
@@ -491,7 +490,7 @@ class NUNCHUK_EXPORT Wallet {
   int n_{0};
   std::vector<SingleSigner> signers_;
   AddressType address_type_;
-  bool escrow_{false};
+  WalletType wallet_type_;
   Amount balance_{0};
   Amount unconfirmed_balance_{0};
   time_t create_date_{std::time(0)};
@@ -876,7 +875,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void SetPassphrase(const std::string& passphrase) = 0;
   virtual Wallet CreateWallet(const std::string& name, int m, int n,
                               const std::vector<SingleSigner>& signers,
-                              AddressType address_type, bool is_escrow,
+                              AddressType address_type, WalletType wallet_type,
                               const std::string& description = {},
                               bool allow_used_signer = false,
                               const std::string& decoy_pin = {}) = 0;
@@ -893,7 +892,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string DraftWallet(const std::string& name, int m, int n,
                                   const std::vector<SingleSigner>& signers,
-                                  AddressType address_type, bool is_escrow,
+                                  AddressType address_type, WalletType wallet_type,
                                   const std::string& description = {}) = 0;
   virtual std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
                                              OrderBy::OLDEST_FIRST}) = 0;

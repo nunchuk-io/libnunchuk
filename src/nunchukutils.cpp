@@ -357,11 +357,7 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
       ParseConfig(Utils::GetChain(), descs, name, address_type, wallet_type, m,
                   n, signers)) {
     std::string id = GetWalletId(signers, m, address_type, wallet_type);
-    bool is_escrow = wallet_type == WalletType::ESCROW;
-    auto wallet =
-        Wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-    wallet.set_name(name);
-    return wallet;
+    return Wallet{id, name, m, n, signers, address_type, wallet_type, std::time(0)};
   }
 
   throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -420,11 +416,7 @@ static Wallet parseBCR2Wallet(Chain chain,
     }
   }
   std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  bool is_escrow = wallet_type == WalletType::ESCROW;
-
-  Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-  wallet.set_name(name);
-  return wallet;
+  return {id, name, m, n, signers, address_type, wallet_type, std::time(0)};
 }
 
 static Wallet parseBBQRWallet(Chain chain,
@@ -525,10 +517,7 @@ Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
                            "Could not parse multisig config");
   }
   std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  bool is_escrow = wallet_type == WalletType::ESCROW;
-  Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-  wallet.set_name(name);
-  return wallet;
+  return {id, name, m, n, signers, address_type, wallet_type, std::time(0)};
 }
 
 BSMSData Utils::ParseBSMSData(const std::string& bsms) {
@@ -568,9 +557,8 @@ std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
           {}, derivation_path, xfp, std::time(nullptr), {}, false,
           signer_type));
 
-      Wallet wallet({}, 1, 1, {std::move(signer)}, address_type, false,
+      Wallet wallet({}, tmp_name, 1, 1, {std::move(signer)}, address_type, WalletType::SINGLE_SIG,
                     std::time(0));
-      wallet.set_name(tmp_name);
       result.emplace_back(std::move(wallet));
     }
     return result;
@@ -743,8 +731,7 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
       boost::starts_with(psbt, "psbt")
           ? EncodeBase64(MakeUCharSpan(boost::trim_copy(psbt)))
           : boost::trim_copy(psbt);
-  auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(base64_psbt), wallet.get_signers(), wallet.get_m());
+  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(base64_psbt), wallet);
   tx.set_fee(150);
   tx.set_sub_amount(10000);
   tx.set_change_index(-1);
@@ -757,8 +744,7 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
 Transaction Utils::DecodeTx(const Wallet& wallet, const std::string& psbt,
                             const Amount& sub_amount, const Amount& fee,
                             const Amount& fee_rate) {
-  auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
+  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
   tx.set_sub_amount(sub_amount);
   tx.set_fee(fee);
   tx.set_fee_rate(fee_rate);

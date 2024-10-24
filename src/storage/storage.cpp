@@ -749,7 +749,10 @@ void NunchukStorage::CacheMasterSignerXPub(
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT);
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
-  if (!is_nfc) cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
+  if (!is_nfc) {
+    cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
+    cacheIndex(WalletType::MUSIG, AddressType::TAPROOT);
+  }
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
   progress(100);
 }
@@ -893,10 +896,9 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     true_signers.push_back(
         GetTrueSigner0(chain, signer, create_signers_if_not_exist));
   }
-  Wallet true_wallet(id, wallet.get_m(), wallet.get_n(), true_signers,
-                     wallet.get_address_type(), wallet.is_escrow(),
+  Wallet true_wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(), true_signers,
+                     wallet.get_address_type(), wallet.get_wallet_type(),
                      wallet.get_create_date());
-  true_wallet.set_name(wallet.get_name());
   true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
   true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());

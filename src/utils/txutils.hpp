@@ -107,11 +107,11 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
 
 inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const PartiallySignedTransaction& psbtx,
-    const std::vector<nunchuk::SingleSigner>& signers, int m) {
+    const nunchuk::Wallet& wallet = {}) {
   using namespace nunchuk;
-  Transaction tx =
-      GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
-  tx.set_m(m);
+  auto signers = wallet.get_signers();
+  auto tx = GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
+  tx.set_m(wallet.get_m());
 
   for (auto&& signer : signers) {
     tx.set_signer(signer.get_master_fingerprint(), false);
@@ -164,6 +164,44 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     return tx;
   }
 
+  if (wallet.get_wallet_type() == WalletType::MUSIG) {
+    std::vector<std::string> parts;
+    if (!input.m_musig2_partial_sigs.empty()) {
+      for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
+        for (const auto& [part, psig] : part_psig) {
+          parts.push_back(HexStr(XOnlyPubKey(part)));
+        }
+      }
+      tx.set_status(parts.size() == wallet.get_m()
+                    ? TransactionStatus::READY_TO_BROADCAST
+                    : TransactionStatus::PENDING_SIGNATURES);
+    } else {
+      for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
+        for (const auto& [part, pubnonce] : part_pubnonce) {
+          parts.push_back(HexStr(XOnlyPubKey(part)));
+        }
+      }
+      tx.set_status(TransactionStatus::PENDING_NONCE);
+      if (parts.size() == wallet.get_m()) {
+        parts.clear();
+        tx.set_status(TransactionStatus::PENDING_SIGNATURES);
+      }
+    }
+
+    if (!input.m_tap_bip32_paths.empty()) {
+      for (const auto& [xonly, leaf_origin] : input.m_tap_bip32_paths) {
+        const auto& [leaf_hashes, origin] = leaf_origin;
+        std::string master_fingerprint =
+          strprintf("%08x", ReadBE32(origin.fingerprint));
+        std::string pubkey = HexStr(xonly);
+        if (std::find(parts.begin(), parts.end(), pubkey) != parts.end()) {
+          tx.set_signer(master_fingerprint, true);
+        }
+      }
+    }
+    return tx;
+  }
+
   std::vector<std::string> signed_pubkey;
   if (!input.partial_sigs.empty()) {
     for (const auto& sig : input.partial_sigs) {
@@ -210,36 +248,36 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     }
   }
 
-  tx.set_status(signed_pubkey.size() == m
+  tx.set_status(signed_pubkey.size() == wallet.get_m()
                     ? TransactionStatus::READY_TO_BROADCAST
                     : TransactionStatus::PENDING_SIGNATURES);
   return tx;
 }
 inline std::pair<nunchuk::Transaction, bool /* is hex_tx */>
-GetTransactionFromStr(const std::string& str,
-                      const std::vector<nunchuk::SingleSigner>& signers, int m,
-                      int height) {
+GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
   if (height == -1) {
     PartiallySignedTransaction psbtx;
     std::string error;
     if (DecodeBase64PSBT(psbtx, str, error)) {
-      return {GetTransactionFromPartiallySignedTransaction(psbtx, signers, m),
-              false};
+      auto tx = GetTransactionFromPartiallySignedTransaction(psbtx, wallet);
+      tx.set_psbt(str);
+      return {tx, false};
     }
 
     CMutableTransaction mtx;
     if (DecodeHexTx(mtx, str, true, true)) {
-      return {GetTransactionFromCMutableTransaction(mtx, signers, height),
-              true};
+      auto tx = GetTransactionFromCMutableTransaction(mtx, wallet.get_signers(), height);
+      tx.set_raw(str);
+      return {tx, true};
     }
 
     throw NunchukException(NunchukException::INVALID_PSBT,
                            NormalizeErrorMessage(std::move(error)));
   }
-  return {GetTransactionFromCMutableTransaction(DecodeRawTransaction(str),
-                                                signers, height),
-          true};
+  auto tx = GetTransactionFromCMutableTransaction(DecodeRawTransaction(str), wallet.get_signers(), height);
+  tx.set_raw(str);
+  return {tx, true};
 }
 
 inline std::string GetPartialSignature(const std::string& base64_psbt,

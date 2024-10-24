@@ -924,8 +924,9 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   std::string base64_psbt =
       CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs);
 
-  auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(base64_psbt), {}, 1);
+  Wallet wallet{false};
+  wallet.set_m(1);
+  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(base64_psbt), wallet);
 
   tx.set_fee(fee);
   tx.set_change_index(change_pos);
