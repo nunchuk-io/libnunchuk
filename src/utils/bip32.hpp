@@ -97,23 +97,12 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
           return boost::str(boost::format{"m/48h/%dh/%dh/2h"} % coin_type %
                             index);
         case AddressType::TAPROOT:
-          // Taproot Multi-sig BIP48 Wallets: m/48h/ch/zh/2h
-          return boost::str(boost::format{"m/48h/%dh/%dh/2h"} % coin_type %
-                            index);
-        default:
-          throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
-                                 "Invalid address type");
-      }
-    case WalletType::MUSIG:
-      switch (address_type) {
-        case AddressType::TAPROOT:
           // Taproot Musig BIP87 Wallets: m/87h/ch/zh
           return boost::str(boost::format{"m/87h/%dh/%dh"} % coin_type %
                             index);
         default:
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
                                  "Invalid address type");
-
       }
     case WalletType::ESCROW:
       // Multi-sig Escrow Wallets: m/48h/ch/9999h/qh, c = coin, q = index
@@ -170,14 +159,6 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
           return "bip48_1";
         case AddressType::NATIVE_SEGWIT:
           return "bip48_2";
-        case AddressType::TAPROOT:
-          return "bip48_2";
-        default:
-          throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
-                                 "Invalid address type");
-      }
-    case WalletType::MUSIG:
-      switch (address_type) {
         case AddressType::TAPROOT:
           return "bip87";
         default:

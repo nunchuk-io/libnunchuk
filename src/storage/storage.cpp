@@ -751,7 +751,7 @@ void NunchukStorage::CacheMasterSignerXPub(
   cacheIndex(WalletType::SINGLE_SIG, AddressType::LEGACY);
   if (!is_nfc) {
     cacheIndex(WalletType::SINGLE_SIG, AddressType::TAPROOT);
-    cacheIndex(WalletType::MUSIG, AddressType::TAPROOT);
+    cacheIndex(WalletType::MULTI_SIG, AddressType::TAPROOT);
   }
   cacheIndex(WalletType::ESCROW, AddressType::ANY);
   progress(100);

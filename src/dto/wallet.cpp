@@ -73,11 +73,6 @@ void Wallet::check_valid() const {
         NunchukException::INVALID_PARAMETER,
         "Invalid parameter: can not create single sig escrow wallet");
   }
-  if (wallet_type_ == WalletType::MUSIG && n_ != m_) {
-    throw NunchukException(
-        NunchukException::INVALID_PARAMETER,
-        "Invalid parameter: n and m are not equal");
-  }
   // TODO: need to call get_descriptor() for bitcoin core validation?
 }
 void Wallet::set_name(const std::string& value) { name_ = value; }

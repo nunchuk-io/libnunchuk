@@ -77,7 +77,6 @@ enum class WalletType {
   SINGLE_SIG,
   MULTI_SIG,
   ESCROW,
-  MUSIG,
 };
 
 enum class HealthStatus {

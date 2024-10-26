@@ -128,20 +128,16 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     desc << "([" << signer.get_master_fingerprint() << path << "]"
          << signer.get_xpub() << keypath << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
-  } else if (wallet_type == WalletType::MUSIG) {
+  } else if (address_type == AddressType::TAPROOT) {
     desc << "tr(musig(";
-    bool first = true;
-    for (auto&& signer : signers) {
-      if (!first) desc << ",";
+    for (int i = 0; i < m; i++) {
+      if (i > 0) desc << ",";
+      auto signer = signers[i];
       desc << "[" << signer.get_master_fingerprint()
             << FormalizePath(signer.get_derivation_path()) << "]"
             << signer.get_xpub() << keypath;
-      first = false;
     }
-    desc << "))";
-  } else if (address_type == AddressType::TAPROOT) {
-    desc << "tr("
-            "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0,";
+    desc << "),";
     desc << (sorted ? "sortedmulti_a(" : "multi_a(") << m;
     for (auto&& signer : signers) {
       if (wallet_type == WalletType::ESCROW) {
@@ -272,7 +268,7 @@ static std::map<std::string, std::pair<AddressType, WalletType>>
         {"sh(wpkh(", {AddressType::NESTED_SEGWIT, WalletType::SINGLE_SIG}},
         {"pkh(", {AddressType::LEGACY, WalletType::SINGLE_SIG}},
         {"tr(50929b", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
-        {"tr(musig", {AddressType::TAPROOT, WalletType::MUSIG}},
+        {"tr(musig", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
         {"tr([", {AddressType::TAPROOT, WalletType::SINGLE_SIG}}};
 
 SingleSigner ParseSignerString(const std::string& signer_str) {

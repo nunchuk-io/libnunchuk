@@ -1177,8 +1177,8 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
         signed_psbt = software_signer.SignTaprootTx(
             psbt, basepath, wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
             wallet.get_descriptor(DescriptorPath::INTERNAL_ALL),
-            10, //storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), false),
-            10);//storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), true));
+            storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), false),
+            storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), true));
       } else {
         signed_psbt = software_signer.SignTx(psbt);
       }
