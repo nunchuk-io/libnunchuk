@@ -42,7 +42,6 @@ else()
 endif()
 
 find_package(Threads REQUIRED)
-find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 
 if(WIN32)
     string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus")
@@ -58,6 +57,7 @@ else()
     set_target_properties(sqlcipher PROPERTIES IMPORTED_LOCATION ${sqlcipher_lib})
 endif()
 
+add_subdirectory(contrib/bitcoin)
 add_subdirectory(embedded)
 
 set(UR__DISABLE_TESTS ON)
@@ -110,6 +110,8 @@ add_library(ur-2 STATIC
     "contrib/bc-ur-2/src/utils.cpp"
     "contrib/bc-ur-2/src/xoshiro256.cpp"
 )
+
+find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 
 target_include_directories(ur-2 PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"

@@ -28,11 +28,13 @@
 
 #include <key_io.h>
 #include <random.h>
-#include <util/message.h>
+#include <common/signmessage.h>
 #include <util/bip32.h>
 #include <script/signingprovider.h>
 #include <rpc/util.h>
 #include <descriptor.h>
+
+#include <secp256k1_musig.h>
 
 extern "C" {
 #include <bip39.h>
@@ -179,12 +181,12 @@ std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
 
   auto desc0 = Parse(external_desc, provider, error, true);
   for (int i = 0; i <= external_index; i++) {
-    desc0->Expand(i, provider, output_scripts, provider);
+    desc0.front()->Expand(i, provider, output_scripts, provider);
     addPath(basepath + "/0/" + std::to_string(i));
   }
   auto desc1 = Parse(internal_desc, provider, error, true);
   for (int i = 0; i <= internal_index; i++) {
-    desc1->Expand(i, provider, output_scripts, provider);
+    desc1.front()->Expand(i, provider, output_scripts, provider);
     addPath(basepath + "/1/" + std::to_string(i));
   }
 
@@ -193,7 +195,19 @@ std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
     SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
+    psbtx.inputs[i].m_tap_script_sigs.clear();
+    psbtx.inputs[i].m_tap_scripts.clear();
+    // psbtx.inputs[i].m_musig2_partial_sigs.clear();
+    // psbtx.inputs[i].m_musig2_pubnonces.clear();
   }
+  for (auto&& [key, value] : m_musig2_secnonces) {
+    std::cout << "Key: " << HexStr(key) << std::endl;
+    auto t = ((secp256k1_musig_secnonce*) value.Get())->data;
+    for(int i=0; i<132; ++i)
+    std::cout << std::hex << (int)t[i];
+    std::cout << std::endl << std::endl;
+  }
+  // m_musig2_secnonces.clear();
   return EncodePsbt(psbtx);
 }
 

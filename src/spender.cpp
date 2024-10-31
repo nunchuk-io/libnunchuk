@@ -54,15 +54,15 @@ static std::optional<int64_t> MaxInputWeight(const Descriptor& desc,
 }
 
 util::Result<PreSelectedInputs> FetchSelectedInputs(
-    const Descriptor& desc, const std::vector<UnspentOutput>& listSelected,
+    const std::vector<std::unique_ptr<Descriptor>>& desc, const std::vector<UnspentOutput>& listSelected,
     bool substract_fee_from_amount, CFeeRate feerate) {
   PreSelectedInputs result;
   const bool can_grind_r = false;
   for (const UnspentOutput& coin : listSelected) {
-    COutPoint outpoint(Txid::FromUint256(uint256S(coin.get_txid())),
+    COutPoint outpoint(Txid::FromUint256(*uint256::FromHex(coin.get_txid())),
                        coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
-    auto input_weight = MaxInputWeight(desc, true, can_grind_r);
+    auto input_weight = MaxInputWeight(*desc.front(), true, can_grind_r);
     int input_bytes =
         static_cast<int>(GetVirtualTransactionSize(*input_weight, 0, 0));
 
@@ -77,16 +77,16 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(
   return result;
 }
 
-CoinsResult AvailableCoins(const Descriptor& desc,
+CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
                            const std::vector<UnspentOutput>& coins,
                            CFeeRate feerate) {
   CoinsResult result;
   const bool can_grind_r = false;
   for (const UnspentOutput& coin : coins) {
-    COutPoint outpoint(Txid::FromUint256(uint256S(coin.get_txid())),
+    COutPoint outpoint(Txid::FromUint256(*uint256::FromHex(coin.get_txid())),
                        coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
-    auto input_weight = MaxInputWeight(desc, true, can_grind_r);
+    auto input_weight = MaxInputWeight(*desc.front(), true, can_grind_r);
     int input_bytes =
         static_cast<int>(GetVirtualTransactionSize(*input_weight, 0, 0));
 
@@ -152,7 +152,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
 
   FlatSigningProvider provider;
   std::string error;
-  std::unique_ptr<Descriptor> desc = Parse(descriptor, provider, error, true);
+  auto desc = Parse(descriptor, provider, error, true);
 
   // out variables, to be packed into returned result structure
   int nChangePosInOut = change_pos;
@@ -255,7 +255,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // Fetch manually selected coins
   PreSelectedInputs preset_inputs;  // TODO: preset_inputs
   auto res_fetch_inputs =
-      FetchSelectedInputs(*desc, listSelected, substract_fee_from_amount,
+      FetchSelectedInputs(desc, listSelected, substract_fee_from_amount,
                           coin_selection_params.m_effective_feerate);
   if (!res_fetch_inputs)
     return util::Error{util::ErrorString(res_fetch_inputs)};
@@ -266,7 +266,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   CoinsResult available_coins;  // TODO: available_coins
   if (coin_control.m_allow_other_inputs) {
     available_coins =
-        AvailableCoins(*desc, coins, coin_selection_params.m_effective_feerate);
+        AvailableCoins(desc, coins, coin_selection_params.m_effective_feerate);
   }
 
   // Choose coins to use
@@ -317,7 +317,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // Calculate the transaction fee
   // TODO: CalculateMaximumSignedTxSize(CTransaction(txNew), &wallet,
   // &coin_control);
-  TxSize tx_sizes = CalculateMaximumSignedTxSize(CTransaction(txNew), *desc);
+  TxSize tx_sizes = CalculateMaximumSignedTxSize(CTransaction(txNew), *desc.front());
   signedVSize = tx_sizes.vsize;
 
   int nBytes = tx_sizes.vsize;

@@ -25,16 +25,15 @@
 
 // required for util/translation.h
 const std::function<std::string(const char *)> G_TRANSLATION_FUN = nullptr;
-UrlDecodeFn* const URL_DECODE = nullptr;
 
 EmbeddedRpc::EmbeddedRpc() {}
 
-EmbeddedRpc::~EmbeddedRpc() { ECC_Stop(); }
+EmbeddedRpc::~EmbeddedRpc() {}
 
 void EmbeddedRpc::Init(const std::string &chain) {
   static std::once_flag flag;
+  static ECC_Context ecc_context{};
   std::call_once(flag, [&] {
-    ECC_Start();
     ECC_InitSanityCheck();
     chain_ = chain;
     SelectParams(ChainTypeFromString(chain).value());
@@ -64,9 +63,9 @@ std::string EmbeddedRpc::SendRequest(const std::string &body) const {
   req.parse(val_request);
   try {
     auto resp = table_.execute(req);
-    return JSONRPCReply(resp, NullUniValue, req.id);
+    return JSONRPCReplyObj(std::move(resp), NullUniValue, req.id, JSONRPCVersion::V2).write();
   } catch (const UniValue &err) {
-    return JSONRPCReply(NullUniValue, err, req.id);
+    return JSONRPCReplyObj(NullUniValue, std::move(err), req.id, JSONRPCVersion::V2).write();
   }
 }
 

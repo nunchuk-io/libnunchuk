@@ -14,7 +14,7 @@
 #include <script/signingprovider.h>
 #include <script/solver.h>
 #include <util/check.h>
-#include <util/fees.h>
+#include <policy/fees.h>
 #include <util/moneystr.h>
 #include <util/rbf.h>
 #include <util/trace.h>
@@ -42,12 +42,11 @@ util::Result<SelectionResult> ChooseSelectionResult(
   // Vector of results. We will choose the best one based on waste.
   std::vector<SelectionResult> results;
   std::vector<util::Result<SelectionResult>> errors;
-  auto append_error = [&](const util::Result<SelectionResult>& result) {
-    // If any specific error message appears here, then something different from
-    // a simple "no selection found" happened. Let's save it, so it can be
-    // retrieved to the user if no other selection algorithm succeeded.
+  auto append_error = [&] (util::Result<SelectionResult>&& result) {
+    // If any specific error message appears here, then something different from a simple "no selection found" happened.
+    // Let's save it, so it can be retrieved to the user if no other selection algorithm succeeded.
     if (HasErrorMsg(result)) {
-      errors.emplace_back(result);
+        errors.emplace_back(std::move(result));
     }
   };
 
@@ -61,7 +60,7 @@ util::Result<SelectionResult> ChooseSelectionResult(
                                      max_inputs_weight)}) {
     results.push_back(*bnb_result);
   } else
-    append_error(bnb_result);
+  append_error(std::move(bnb_result));
 
   // As Knapsack and SRD can create change, also deduce change weight.
   max_inputs_weight -=
@@ -75,7 +74,7 @@ util::Result<SelectionResult> ChooseSelectionResult(
                          coin_selection_params.rng_fast, max_inputs_weight)}) {
     results.push_back(*knapsack_result);
   } else
-    append_error(knapsack_result);
+    append_error(std::move(knapsack_result));
 
   if (auto srd_result{SelectCoinsSRD(groups.positive_group, nTargetValue,
                                      coin_selection_params.m_change_fee,
@@ -83,13 +82,13 @@ util::Result<SelectionResult> ChooseSelectionResult(
                                      max_inputs_weight)}) {
     results.push_back(*srd_result);
   } else
-    append_error(srd_result);
+    append_error(std::move(srd_result));
 
   if (results.empty()) {
     // No solution found, retrieve the first explicit error (if any).
     // future: add 'severity level' to errors so the worst one can be retrieved
     // instead of the first one.
-    return errors.empty() ? util::Error() : errors.front();
+    return errors.empty() ? util::Error() : std::move(errors.front());
   }
 
   // If the chosen input set has unconfirmed inputs, check for synergies from
@@ -118,7 +117,7 @@ util::Result<SelectionResult> ChooseSelectionResult(
     if (bump_fee_overestimate) {
       result.SetBumpFeeDiscount(bump_fee_overestimate);
     }
-    result.ComputeAndSetWaste(coin_selection_params.min_viable_change,
+    result.RecalculateWaste(coin_selection_params.min_viable_change,
                               coin_selection_params.m_cost_of_change,
                               coin_selection_params.m_change_fee);
   }
@@ -414,12 +413,12 @@ util::Result<SelectionResult> AutomaticCoinSelection(
         // particularly wrong might have happened. Save the error and continue
         // the selection process. So if no solutions gets found, we can return
         // the detailed error to the upper layers.
-        if (HasErrorMsg(res)) res_detailed_errors.emplace_back(res);
+        if (HasErrorMsg(res)) res_detailed_errors.emplace_back(std::move(res));
       }
     }
 
     // Return right away if we have a detailed error
-    if (!res_detailed_errors.empty()) return res_detailed_errors.front();
+    if (!res_detailed_errors.empty()) return std::move(res_detailed_errors.front());
 
     // General "Insufficient Funds"
     return util::Result<SelectionResult>(util::Error());
@@ -450,7 +449,7 @@ util::Result<SelectionResult> SelectCoins(
     SelectionResult result(nTargetValue, SelectionAlgorithm::MANUAL);
     result.AddInputs(pre_set_inputs.coins,
                      coin_selection_params.m_subtract_fee_outputs);
-    result.ComputeAndSetWaste(coin_selection_params.min_viable_change,
+    result.RecalculateWaste(coin_selection_params.min_viable_change,
                               coin_selection_params.m_cost_of_change,
                               coin_selection_params.m_change_fee);
     return result;
@@ -481,7 +480,7 @@ util::Result<SelectionResult> SelectCoins(
     preselected.AddInputs(pre_set_inputs.coins,
                           coin_selection_params.m_subtract_fee_outputs);
     op_selection_result->Merge(preselected);
-    op_selection_result->ComputeAndSetWaste(
+    op_selection_result->RecalculateWaste(
         coin_selection_params.min_viable_change,
         coin_selection_params.m_cost_of_change,
         coin_selection_params.m_change_fee);

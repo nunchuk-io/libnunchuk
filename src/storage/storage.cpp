@@ -46,7 +46,7 @@
 #endif
 
 using json = nlohmann::json;
-namespace fs = boost::filesystem;
+namespace bfs = boost::filesystem;
 namespace ba = boost::algorithm;
 
 namespace nunchuk {
@@ -62,7 +62,7 @@ std::shared_ptr<NunchukStorage> NunchukStorage::get(const std::string& acc) {
   return instances_[acc] = std::make_shared<NunchukStorage>(acc);
 }
 
-fs::path NunchukStorage::GetDefaultDataDir() const {
+bfs::path NunchukStorage::GetDefaultDataDir() const {
   // Windows: C:\Users\Username\AppData\Roaming\Nunchuk
   // Mac: ~/Library/Application Support/Nunchuk
   // Unix: ~/.nunchuk
@@ -70,16 +70,16 @@ fs::path NunchukStorage::GetDefaultDataDir() const {
   // Windows
   WCHAR pszPath[MAX_PATH] = L"";
   if (SHGetSpecialFolderPathW(nullptr, pszPath, CSIDL_APPDATA, true)) {
-    return fs::path(pszPath) / "Nunchuk";
+    return bfs::path(pszPath) / "Nunchuk";
   }
-  return fs::path("Nunchuk");
+  return bfs::path("Nunchuk");
 #else
-  fs::path pathRet;
+  bfs::path pathRet;
   char* pszHome = getenv("HOME");
   if (pszHome == nullptr || std::strlen(pszHome) == 0)
-    pathRet = fs::path("/");
+    pathRet = bfs::path("/");
   else
-    pathRet = fs::path(pszHome);
+    pathRet = bfs::path(pszHome);
 #ifdef __APPLE__
   // Mac
   return pathRet / "Library/Application Support/Nunchuk";
@@ -92,8 +92,8 @@ fs::path NunchukStorage::GetDefaultDataDir() const {
 
 bool NunchukStorage::WriteFile(const std::string& file_path,
                                const std::string& value) {
-  const auto path = fs::system_complete(file_path);
-  fs::ofstream file(path, std::ios_base::binary);
+  const auto path = bfs::system_complete(file_path);
+  bfs::ofstream file(path, std::ios_base::binary);
 
   if (!file.is_open()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -121,8 +121,8 @@ bool NunchukStorage::WriteFile(const std::string& file_path,
 }
 
 std::string NunchukStorage::LoadFile(const std::string& file_path) {
-  const auto path = fs::system_complete(file_path);
-  fs::ifstream file(path, std::ios_base::binary);
+  const auto path = bfs::system_complete(file_path);
+  bfs::ifstream file(path, std::ios_base::binary);
   if (!file.is_open()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Can not open file");
@@ -164,7 +164,7 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
       return WriteFile(file_path, GetDescriptorRecord(wallet));
     case ExportFormat::DB:
       if (passphrase_.empty()) {
-        fs::copy_file(GetWalletDir(chain, wallet_id), file_path);
+        bfs::copy_file(GetWalletDir(chain, wallet_id), file_path);
       } else {
         wallet_db.DecryptDb(file_path);
       }
@@ -203,7 +203,7 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
   auto wallet_db = NunchukWalletDb{chain, "", file_path, ""};
   std::string id = wallet_db.GetId();
   auto wallet_file = GetWalletDir(chain, id);
-  if (fs::exists(wallet_file)) {
+  if (bfs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
                            strprintf("Wallet existed! id = '%s'", id));
   }
@@ -217,8 +217,8 @@ void NunchukStorage::Init(const std::string& datadir,
                           const std::string& passphrase) {
   passphrase_ = passphrase;
   if (!datadir.empty()) {
-    datadir_ = fs::system_complete(datadir);
-    if (!fs::is_directory(datadir_)) {
+    datadir_ = bfs::system_complete(datadir);
+    if (!bfs::is_directory(datadir_)) {
       throw StorageException(StorageException::INVALID_DATADIR,
                              "Datadir is not directory!");
     }
@@ -246,7 +246,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     throw NunchukException(NunchukException::PASSPHRASE_ALREADY_USED,
                            "Passphrase used");
   }
-  auto rekey = [&](const fs::path& old_file, const std::string& id) {
+  auto rekey = [&](const bfs::path& old_file, const std::string& id) {
     auto new_file = datadir_ / "tmp" / id;
     NunchukDb db{chain, id, old_file.string(), passphrase_};
     if (value.empty()) {
@@ -256,8 +256,8 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     } else {
       return db.ReKey(value);
     }
-    fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
-    fs::remove(new_file);
+    bfs::copy_file(new_file, old_file, bfs::copy_option::overwrite_if_exists);
+    bfs::remove(new_file);
   };
 
   auto wallets = ListWallets0(chain);
@@ -272,7 +272,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   passphrase_ = value;
 }
 
-fs::path NunchukStorage::ChainStr(Chain chain) const {
+bfs::path NunchukStorage::ChainStr(Chain chain) const {
   switch (chain) {
     case Chain::MAIN:
       return "mainnet";
@@ -286,11 +286,11 @@ fs::path NunchukStorage::ChainStr(Chain chain) const {
   throw NunchukException(NunchukException::INVALID_CHAIN, "Invalid chain");
 }
 
-fs::path NunchukStorage::GetWalletDir(Chain chain, std::string id) const {
+bfs::path NunchukStorage::GetWalletDir(Chain chain, std::string id) const {
   return GetWalletDir0(datadir_, chain, id);
 }
 
-fs::path NunchukStorage::GetWalletDir0(const fs::path& dir, Chain chain,
+bfs::path NunchukStorage::GetWalletDir0(const bfs::path& dir, Chain chain,
                                        std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
@@ -299,7 +299,7 @@ fs::path NunchukStorage::GetWalletDir0(const fs::path& dir, Chain chain,
   return dir / ChainStr(chain) / "wallets" / id;
 }
 
-fs::path NunchukStorage::GetSignerDir(Chain chain, std::string id) const {
+bfs::path NunchukStorage::GetSignerDir(Chain chain, std::string id) const {
   return GetSignerDir0(datadir_, chain, id);
 }
 
@@ -310,27 +310,27 @@ fs::path NunchukStorage::GetSignerDir0(const fs::path& dir, Chain chain,
                            "Signer id can not empty!");
   }
   std::string lowercase_id = ba::to_lower_copy(id);
-  fs::path path = dir;
+  bfs::path path = dir;
   path /= ChainStr(chain);
   path /= "signers";
   path /= lowercase_id;
   return path;
 }
 
-fs::path NunchukStorage::GetAppStateDir(Chain chain) const {
+bfs::path NunchukStorage::GetAppStateDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "state";
 }
 
-fs::path NunchukStorage::GetPrimaryDir(Chain chain) const {
+bfs::path NunchukStorage::GetPrimaryDir(Chain chain) const {
   return basedatadir_ / ChainStr(chain) / "primary";
 }
 
-fs::path NunchukStorage::GetRoomDir(Chain chain) const {
+bfs::path NunchukStorage::GetRoomDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "room";
 }
 
-fs::path NunchukStorage::GetTapprotocolDir(Chain chain,
-                                           const fs::path& dir) const {
+bfs::path NunchukStorage::GetTapprotocolDir(Chain chain,
+                                           const bfs::path& dir) const {
   if (dir.empty()) {
     return datadir_ / ChainStr(chain) / "tap-protocol";
   } else {
@@ -340,8 +340,8 @@ fs::path NunchukStorage::GetTapprotocolDir(Chain chain,
 
 NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
                                             const std::string& id) {
-  fs::path db_file = GetWalletDir(chain, id);
-  if (!fs::exists(db_file)) {
+  bfs::path db_file = GetWalletDir(chain, id);
+  if (!bfs::exists(db_file)) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            strprintf("Wallet not exists! id = '%s'", id));
   }
@@ -350,8 +350,8 @@ NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
 
 NunchukSignerDb NunchukStorage::GetSignerDb(Chain chain,
                                             const std::string& id) {
-  fs::path db_file = GetSignerDir(chain, id);
-  if (!fs::exists(db_file)) {
+  bfs::path db_file = GetSignerDir(chain, id);
+  if (!bfs::exists(db_file)) {
     throw StorageException(StorageException::MASTERSIGNER_NOT_FOUND,
                            strprintf("Signer not exists! id = '%s'", id));
   }
@@ -359,33 +359,33 @@ NunchukSignerDb NunchukStorage::GetSignerDb(Chain chain,
 }
 
 NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
-  fs::path db_file = GetAppStateDir(chain);
-  bool is_new = !fs::exists(db_file);
+  bfs::path db_file = GetAppStateDir(chain);
+  bool is_new = !bfs::exists(db_file);
   auto db = NunchukAppStateDb{chain, "", db_file.string(), ""};
   if (is_new) db.Init();
   return db;
 }
 
 NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
-  fs::path db_file = GetPrimaryDir(chain);
-  bool is_new = !fs::exists(db_file);
+  bfs::path db_file = GetPrimaryDir(chain);
+  bool is_new = !bfs::exists(db_file);
   auto db = NunchukPrimaryDb{chain, "", db_file.string(), ""};
   db.Init();
   return db;
 }
 
 NunchukTapprotocolDb NunchukStorage::GetTaprotocolDb(Chain chain,
-                                                     const fs::path& dir) {
-  fs::path db_file = GetTapprotocolDir(chain, dir);
-  bool is_new = !fs::exists(db_file);
+                                                     const bfs::path& dir) {
+  bfs::path db_file = GetTapprotocolDir(chain, dir);
+  bool is_new = !bfs::exists(db_file);
   auto db = NunchukTapprotocolDb{chain, "", db_file.string(), ""};
   if (is_new) db.Init();
   return db;
 }
 
 NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
-  fs::path db_file = GetRoomDir(chain);
-  bool is_new = !fs::exists(db_file);
+  bfs::path db_file = GetRoomDir(chain);
+  bool is_new = !bfs::exists(db_file);
   auto db = NunchukRoomDb{chain, "", db_file.string(), passphrase_};
   if (is_new) db.Init();
   return db;
@@ -441,8 +441,8 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
   };
 
   auto id = wallet.get_id();
-  fs::path wallet_file = GetWalletDir(chain, id);
-  if (fs::exists(wallet_file)) {
+  bfs::path wallet_file = GetWalletDir(chain, id);
+  if (bfs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
                            strprintf("Wallet existed! id = '%s'", id));
   }
@@ -565,15 +565,15 @@ SingleSigner NunchukStorage::CreateSingleSigner(
 
 bool NunchukStorage::HasSigner(Chain chain, const std::string& signer_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  fs::path db_file = GetSignerDir(chain, signer_id);
-  return fs::exists(db_file);
+  bfs::path db_file = GetSignerDir(chain, signer_id);
+  return bfs::exists(db_file);
 }
 
 bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
   std::shared_lock<std::shared_mutex> lock(access_);
   std::string id = signer.get_master_fingerprint();
-  fs::path db_file = GetSignerDir(chain, id);
-  if (!fs::exists(db_file)) return false;
+  bfs::path db_file = GetSignerDir(chain, id);
+  if (!bfs::exists(db_file)) return false;
   NunchukSignerDb signer_db{chain, id, db_file.string(), passphrase_};
   if (signer_db.IsMaster()) return true;
   try {
@@ -861,9 +861,9 @@ std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
 }
 
 std::vector<std::string> NunchukStorage::ListWallets0(Chain chain) {
-  fs::path directory = (datadir_ / ChainStr(chain) / "wallets");
+  bfs::path directory = (datadir_ / ChainStr(chain) / "wallets");
   std::vector<std::string> ids;
-  for (auto&& f : fs::directory_iterator(directory)) {
+  for (auto&& f : bfs::directory_iterator(directory)) {
     auto id = f.path().filename().string();
     if (id.size() == 8) ids.push_back(id);
   }
@@ -876,9 +876,9 @@ std::vector<std::string> NunchukStorage::ListMasterSigners(Chain chain) {
 }
 
 std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
-  fs::path directory = (datadir_ / ChainStr(chain) / "signers");
+  bfs::path directory = (datadir_ / ChainStr(chain) / "signers");
   std::vector<std::string> ids;
-  for (auto&& f : fs::directory_iterator(directory)) {
+  for (auto&& f : bfs::directory_iterator(directory)) {
     auto id = f.path().filename().string();
     if (id.size() == 8) ids.push_back(id);
   }
@@ -909,8 +909,8 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
 }
 
 bool NunchukStorage::HasWallet(Chain chain, const std::string& wallet_id) {
-  fs::path wallet_file = GetWalletDir(chain, wallet_id);
-  return fs::exists(wallet_file);
+  bfs::path wallet_file = GetWalletDir(chain, wallet_id);
+  return bfs::exists(wallet_file);
 }
 
 MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
@@ -1002,7 +1002,7 @@ bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
     wallet_db.DeleteWallet();
   }
   GetAppStateDb(chain).AddDeletedWallet(id);
-  return fs::remove(GetWalletDir(chain, id));
+  return bfs::remove(GetWalletDir(chain, id));
 }
 
 bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
@@ -1013,7 +1013,7 @@ bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
 
   signer_db.DeleteSigner();
   GetAppStateDb(chain).AddDeletedSigner(id);
-  return fs::remove(GetSignerDir(chain, id));
+  return bfs::remove(GetSignerDir(chain, id));
 }
 
 bool NunchukStorage::SetHealthCheckSuccess(Chain chain,
@@ -1599,7 +1599,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       std::string id = signer["id"];
       if (id.empty()) continue;
       if (std::find(dsids.begin(), dsids.end(), id) != dsids.end()) continue;
-      fs::path db_file = GetSignerDir(chain, id);
+      bfs::path db_file = GetSignerDir(chain, id);
       NunchukSignerDb db{chain, id, db_file.string(), passphrase_};
       if (!signer["name"].get<std::string>().empty()) {
         db.InitSigner(signer["name"],
@@ -1635,7 +1635,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       std::vector<std::string> deleted_signers = d["deleted_signers"];
       for (auto&& id : deleted_signers) {
         appstate.AddDeletedSigner(id);
-        fs::remove(GetSignerDir(chain, id));
+        bfs::remove(GetSignerDir(chain, id));
       }
     }
 
@@ -1711,7 +1711,7 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       std::vector<std::string> deleted_wallets = d["deleted_wallets"];
       for (auto&& id : deleted_wallets) {
         appstate.AddDeletedWallet(id);
-        fs::remove(GetWalletDir(chain, id));
+        bfs::remove(GetWalletDir(chain, id));
       }
     }
     percent += 25;

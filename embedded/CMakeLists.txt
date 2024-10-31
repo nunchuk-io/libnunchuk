@@ -13,7 +13,6 @@ if(ANDROID)
     endif ()
 elseif(NOT ANDROID)
     find_package(Threads REQUIRED)
-    find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
 endif()
 
 set(UR__DISABLE_TESTS ON)
@@ -146,38 +145,28 @@ else()
         bitcoin_node
         bitcoin_wallet
         bitcoin_consensus
-        bitcoinconsensus
+        bitcoin_crypto
         bitcoin_crypto_x86_shani
         bitcoin_crypto_sse41
         bitcoin_crypto_avx2
         secp256k1
-        leveldb
         univalue
-        memenv
-        crc32c
-        crc32c_sse42
     )
-    set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src")
-    set(Bitcoin_PATH_SUFFIXES ".libs" "leveldb/.libs" "crc32c/.libs" "crypto/.libs" "secp256k1/.libs")
-    foreach(btclib ${Bitcoin_LIBRARIES})
-        find_library(${btclib}_location ${btclib} PATHS ${Bitcoin_PATHS} PATH_SUFFIXES ${Bitcoin_PATH_SUFFIXES} NO_DEFAULT_PATH)
-        if (NOT ${btclib}_location)
-            message(FATAL_ERROR "${btclib} not found")
-        endif()
-        add_library(${btclib} STATIC IMPORTED)
-        set_target_properties(${btclib} PROPERTIES IMPORTED_LOCATION ${${btclib}_location})
-    endforeach()
+    
 endif()
 
 set(Bitcoin_INCLUDE_DIRS
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/build/src
     ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src
     ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/univalue/include
     ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb/include
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb
 )
 
-add_library("${PROJECT_NAME}" embeddedrpc.cpp)
+add_library("${PROJECT_NAME}" STATIC embeddedrpc.cpp)
 
 set(PROJECT_LIBRARIES
+    leveldb
     ${Bitcoin_LIBRARIES}
     ${Boost_LIBRARIES}
 )
@@ -196,6 +185,8 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}"
     ${Bitcoin_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb/include
+    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include"
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/include"
 )
