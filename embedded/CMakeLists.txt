@@ -160,13 +160,11 @@ set(Bitcoin_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src
     ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/univalue/include
     ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb/include
-    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb
 )
 
 add_library("${PROJECT_NAME}" STATIC embeddedrpc.cpp)
 
 set(PROJECT_LIBRARIES
-    leveldb
     ${Bitcoin_LIBRARIES}
     ${Boost_LIBRARIES}
 )
@@ -185,8 +183,6 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}"
     ${Bitcoin_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb/include
-    ${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/leveldb
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include"
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/include"
 )

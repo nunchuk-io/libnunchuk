@@ -153,6 +153,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/satscardstatus.cpp
     src/storage/appstatedb.cpp
     src/storage/db.cpp
+    src/storage/localdb.cpp
     src/storage/primarydb.cpp
     src/storage/signerdb.cpp
     src/storage/storage.cpp

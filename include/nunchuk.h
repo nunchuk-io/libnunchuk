@@ -236,6 +236,7 @@ class NUNCHUK_EXPORT StorageException : public BaseException {
   static const int ADDRESS_NOT_FOUND = -2011;
   static const int TAG_EXISTS = -2012;
   static const int COLLECTION_EXISTS = -2013;
+  static const int NONCE_NOT_FOUND = -2014;
   using BaseException::BaseException;
 };
 

@@ -49,8 +49,6 @@ void random_buffer(uint8_t* buf, size_t len) {
 
 namespace nunchuk {
 
-std::map<uint256, MuSig2SecNonce> m_musig2_secnonces{};
-
 std::string hexStr(const uint8_t* data, int len) {
   std::stringstream ss;
   ss << std::hex;
@@ -157,15 +155,17 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   return EncodePsbt(psbtx);
 }
 
-std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
+std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
+                                          const std::string& base64_psbt,
                                           const std::string& basepath,
                                           const std::string& external_desc,
                                           const std::string& internal_desc,
                                           int external_index,
-                                          int internal_index) const {
+                                          int internal_index) {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
+  std::map<uint256, MuSig2SecNonce> m_musig2_secnonces = db.GetAll();
   provider.musig2_secnonces = &m_musig2_secnonces;
 
   std::string error;
@@ -201,13 +201,9 @@ std::string SoftwareSigner::SignTaprootTx(const std::string& base64_psbt,
     // psbtx.inputs[i].m_musig2_pubnonces.clear();
   }
   for (auto&& [key, value] : m_musig2_secnonces) {
-    std::cout << "Key: " << HexStr(key) << std::endl;
-    auto t = ((secp256k1_musig_secnonce*) value.Get())->data;
-    for(int i=0; i<132; ++i)
-    std::cout << std::hex << (int)t[i];
-    std::cout << std::endl << std::endl;
+    db.SetMuSig2SecNonce(key, std::move(value));
   }
-  // m_musig2_secnonces.clear();
+  m_musig2_secnonces.clear();
   return EncodePsbt(psbtx);
 }
 
