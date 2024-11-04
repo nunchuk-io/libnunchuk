@@ -24,6 +24,7 @@
 #include "appstatedb.h"
 #include "roomdb.h"
 #include "tapprotocoldb.h"
+#include "localdb.h"
 
 #include <boost/filesystem.hpp>
 #include <shared_mutex>
@@ -300,6 +301,7 @@ class NunchukStorage {
                                                  const std::string &wallet_id);
   Transaction GetDummyTx(Chain chain, const std::string &wallet_id,
                          const std::string &id);
+  NunchukLocalDb GetLocalDb(Chain chain);
 
   bool NewDecoyPin(const std::string &pin);
   bool IsExistingDecoyPin(const std::string &pin);
@@ -323,6 +325,7 @@ class NunchukStorage {
   boost::filesystem::path GetSignerDir(Chain chain, std::string id) const;
   boost::filesystem::path GetAppStateDir(Chain chain) const;
   boost::filesystem::path GetPrimaryDir(Chain chain) const;
+  boost::filesystem::path GetLocalDir(Chain chain) const;
   boost::filesystem::path GetRoomDir(Chain chain) const;
   boost::filesystem::path GetTapprotocolDir(
       Chain chain, const boost::filesystem::path &dir = {}) const;

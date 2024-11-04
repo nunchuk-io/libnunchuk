@@ -28,6 +28,12 @@ void NunchukLocalDb::Init() {
                         "SESSION TEXT PRIMARY KEY NOT NULL,"
                         "NONCE   TEXT             NOT NULL);",
                         NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS SIGNPATH("
+                        "TXID    TEXT PRIMARY KEY NOT NULL,"
+                        "VALUE   INT              NOT NULL);",
+                        NULL, 0, NULL));
+
 }
 
 void NunchukLocalDb::SetMuSig2SecNonce(const uint256& session_id, MuSig2SecNonce&& nonce) const {
@@ -37,10 +43,8 @@ void NunchukLocalDb::SetMuSig2SecNonce(const uint256& session_id, MuSig2SecNonce
   nonce.Invalidate();
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO SECNONCES(SESSION, NONCE)"
-      "VALUES (?1, ?2)"
-      "ON CONFLICT(SESSION) DO UPDATE SET "
-      "NONCE=excluded.NONCE;";
+      "INSERT INTO SECNONCES(SESSION, NONCE) VALUES (?1, ?2)"
+      "ON CONFLICT(SESSION) DO UPDATE SET NONCE=excluded.NONCE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, key.c_str(), key.size(), NULL);
   sqlite3_bind_text(stmt, 2, value.c_str(), value.size(), NULL);
@@ -90,58 +94,28 @@ MuSig2SecNonce NunchukLocalDb::GetMuSig2SecNonce(const uint256& session_id) cons
   return std::move(nonce);
 }
 
-
-std::map<uint256, MuSig2SecNonce> NunchukLocalDb::GetAll() const{
-  std::map<uint256, MuSig2SecNonce> rs;
-
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM SECNONCES;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_step(stmt);
-  while (sqlite3_column_text(stmt, 0)) {
-    std::string key = std::string((char*)sqlite3_column_text(stmt, 0));
-    std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
-    
-    auto rv = hexStringToByteArray(value);
-    MuSig2SecNonce nonce{};
-    memcpy(static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data, rv.data(), 132);
-    rs.emplace(*uint256::FromHex(key), std::move(nonce));
-    sqlite3_step(stmt);
-  } 
-  SQLCHECK(sqlite3_finalize(stmt));  
-  return rs;
-}
-
-void NunchukLocalDb::TestSet(const std::string& session_id, const std::string& nonce){
+void NunchukLocalDb::SetPreferScriptPath(const std::string& tx_id, bool value) const {
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO SECNONCES(SESSION, NONCE)"
-      "VALUES (?1, ?2);";
+      "INSERT INTO SIGNPATH(TXID, VALUE) VALUES (?1, ?2)"
+      "ON CONFLICT(TXID) DO UPDATE SET VALUE=excluded.VALUE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, session_id.c_str(), session_id.size(), NULL);
-  sqlite3_bind_text(stmt, 2, nonce.c_str(), nonce.size(), NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
+  sqlite3_bind_int(stmt, 2, value ? 1 : 0);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
 }
 
-std::string NunchukLocalDb::TestGet(const std::string& session_id){
-  std::string value;
-  sqlite3_exec(db_, "BEGIN TRANSACTION;", NULL, NULL, NULL);
+bool NunchukLocalDb::IsPreferScriptPath(const std::string& tx_id) const {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM SECNONCES WHERE SESSION = ?;";
+  std::string sql = "SELECT * FROM SIGNPATH WHERE TXID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, session_id.c_str(), session_id.size(), NULL);
+  sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
+  bool value = false;
   if (sqlite3_column_text(stmt, 0)) {
-    value = std::string((char*)sqlite3_column_text(stmt, 1));
-    SQLCHECK(sqlite3_finalize(stmt));
+    value = sqlite3_column_int(stmt, 1) == 1;
   }
-
-  sql = "DELETE FROM SECNONCES WHERE SESSION = ?;";
-  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, session_id.c_str(), session_id.size(), NULL);
-  sqlite3_step(stmt);
-  sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
   SQLCHECK(sqlite3_finalize(stmt));
   return value;
 }

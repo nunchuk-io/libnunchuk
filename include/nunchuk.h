@@ -1386,6 +1386,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction SignTransaction(const Wallet& wallet,
                                       const Transaction& tx,
                                       const Device& device) = 0;
+  virtual void SetPreferScriptPath(const Wallet& wallet, const std::string& tx_id, bool value) = 0;
+  virtual bool IsPreferScriptPath(const Wallet& wallet, const std::string& tx_id) = 0;
   virtual void CacheMasterSignerXPub(
       const std::string& mastersigner_id,
       std::function<bool /* stop */ (int /* percent */)> progress) = 0;

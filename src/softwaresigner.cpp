@@ -165,8 +165,6 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
-  std::map<uint256, MuSig2SecNonce> m_musig2_secnonces = db.GetAll();
-  provider.musig2_secnonces = &m_musig2_secnonces;
 
   std::string error;
   std::vector<CScript> output_scripts;
@@ -189,21 +187,61 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
     desc1.front()->Expand(i, provider, output_scripts, provider);
     addPath(basepath + "/1/" + std::to_string(i));
   }
+  
+  std::map<uint256, MuSig2SecNonce> musig2_secnonces{};
+  provider.musig2_secnonces = &musig2_secnonces;
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
+  const CMutableTransaction& tx = *psbtx.tx;
+  bool preferScriptPath = db.IsPreferScriptPath(tx.GetHash().GetHex());
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
-    SignatureData sigdata;
-    psbtx.inputs[i].FillSignatureData(sigdata);
-    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
-    psbtx.inputs[i].m_tap_script_sigs.clear();
-    psbtx.inputs[i].m_tap_scripts.clear();
-    // psbtx.inputs[i].m_musig2_partial_sigs.clear();
-    // psbtx.inputs[i].m_musig2_pubnonces.clear();
+    const PSBTInput& input = psbtx.inputs[i];
+
+    if (preferScriptPath) {
+      SignatureData sigdata;
+      psbtx.inputs[i].FillSignatureData(sigdata);
+      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
+      psbtx.inputs[i].m_musig2_partial_sigs.clear();
+      psbtx.inputs[i].m_musig2_pubnonces.clear();
+    } else {
+      for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
+        const auto& [agg, lh] = agg_lh;
+        for (const auto& [part, pubnonce] : part_pubnonce) {
+          
+          ScriptExecutionData execdata;
+          execdata.m_annex_init = true;
+          execdata.m_annex_present = false; // Only support annex-less signing for now.
+          uint256 hash;
+          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, SigVersion::TAPROOT, txdata, MissingDataBehavior::FAIL);
+      
+          HashWriter hasher;
+          hasher << agg << part << hash;
+          uint256 session_id = hasher.GetSHA256();
+
+          XOnlyPubKey xpart(part);
+          std::string pubkey = HexStr(xpart);
+          for (const auto& [xonly, leaf_origin] : input.m_tap_bip32_paths) {
+            const auto& [leaf_hashes, origin] = leaf_origin;
+            std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
+            if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
+              musig2_secnonces.emplace(session_id, db.GetMuSig2SecNonce(session_id));
+            }
+          }
+        }
+      }
+
+      SignatureData sigdata;
+      psbtx.inputs[i].FillSignatureData(sigdata);
+      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
+      psbtx.inputs[i].m_tap_script_sigs.clear();
+      psbtx.inputs[i].m_tap_scripts.clear();
+
+      for (auto&& [session_id, secnonce] : musig2_secnonces) {
+        db.SetMuSig2SecNonce(session_id, std::move(secnonce));
+      }
+    }
+    musig2_secnonces.clear();
   }
-  for (auto&& [key, value] : m_musig2_secnonces) {
-    db.SetMuSig2SecNonce(key, std::move(value));
-  }
-  m_musig2_secnonces.clear();
   return EncodePsbt(psbtx);
 }
 

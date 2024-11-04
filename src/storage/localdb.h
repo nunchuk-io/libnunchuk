@@ -34,10 +34,9 @@ class NunchukLocalDb : public NunchukDb {
   void Init();
   void SetMuSig2SecNonce(const uint256& session_id, MuSig2SecNonce&& nonce) const;
   MuSig2SecNonce GetMuSig2SecNonce(const uint256& session_id) const;
-  std::map<uint256, MuSig2SecNonce> GetAll() const;
 
-  void TestSet(const std::string& session_id, const std::string& nonce);
-  std::string TestGet(const std::string& session_id);
+  void SetPreferScriptPath(const std::string& tx_id, bool value) const;
+  bool IsPreferScriptPath(const std::string& tx_id) const;
 
  private:
   friend class NunchukStorage;

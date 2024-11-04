@@ -196,6 +196,8 @@ class NunchukImpl : public Nunchuk {
                               const Device& device) override;
   Transaction SignTransaction(const Wallet& wallet, const Transaction& tx,
                               const Device& device) override;
+  void SetPreferScriptPath(const Wallet& wallet, const std::string& tx_id, bool value) override;
+  bool IsPreferScriptPath(const Wallet& wallet, const std::string& tx_id) override;
   Transaction BroadcastTransaction(const std::string& wallet_id,
                                    const std::string& tx_id) override;
   Transaction GetTransaction(const std::string& wallet_id,
