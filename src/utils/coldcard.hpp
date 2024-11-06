@@ -18,14 +18,15 @@
 #ifndef NUNCHUK_COLDCARD_H
 #define NUNCHUK_COLDCARD_H
 
+#include <algorithm>
 #include "nunchuk.h"
 #include "utils/rfc2440.hpp"
 
 namespace nunchuk {
 
 inline std::string GenerateColdCardHealthCheckMessage(
-    const std::string &derivation_path,
-    const std::string &message = Utils::GenerateHealthCheckMessage(),
+    const std::string& derivation_path,
+    const std::string& message = Utils::GenerateHealthCheckMessage(),
     AddressType address_type = AddressType::LEGACY) {
   constexpr auto address_type_to_str = [](AddressType address_type) {
     switch (address_type) {
@@ -45,6 +46,14 @@ inline std::string GenerateColdCardHealthCheckMessage(
   return message + "\n" + derivation_path + "\n" +
          address_type_to_str(address_type);
 }
+
+struct ColdcardBackupData {
+  std::string mnemonic;
+  std::string xprv;
+};
+
+ColdcardBackupData ExtractColdcardBackup(const std::vector<unsigned char>& data,
+                                         const std::string& password);
 
 }  // namespace nunchuk
 

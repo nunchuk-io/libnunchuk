@@ -156,6 +156,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/storage/roomdb.cpp
     src/storage/tapprotocoldb.cpp
     src/utils/loguru.cpp
+    src/utils/coldcard.cpp
 )
 
 set(PROJECT_LIBRARIES
