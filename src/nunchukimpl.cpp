@@ -26,6 +26,7 @@
 #include <sstream>
 #include "bbqr/bbqr.hpp"
 #include "descriptor.h"
+#include "utils/chain.hpp"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -38,6 +39,7 @@
 #include <utils/bsms.hpp>
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
+#include <utils/coldcard.hpp>
 #include <ur.h>
 #include <ur-encoder.hpp>
 #include <ur-decoder.hpp>
@@ -1938,6 +1940,70 @@ std::string NunchukImpl::GetWalletExportData(const Wallet& wallet,
       return {};
   }
   return {};
+}
+
+void NunchukImpl::VerifyColdcardBackup(const std::vector<unsigned char>& data,
+                                       const std::string& backup_key,
+                                       const std::string& xfp) {
+  auto decrypted = ExtractColdcardBackup(data, backup_key);
+  const std::string master_xprv = ConvertXprvChain(decrypted.xprv, chain_);
+  SoftwareSigner signer{master_xprv};
+  const std::string id = to_lower_copy(signer.GetMasterFingerprint());
+  if (!xfp.empty() && id != to_lower_copy(xfp)) {
+    throw NunchukException(TapProtocolException::INVALID_DEVICE,
+                           strprintf("Invalid device: key fingerprint "
+                                     "does not match. Expected '%s'",
+                                     id));
+  }
+}
+
+MasterSigner NunchukImpl::ImportColdcardBackup(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& raw_name, std::function<bool(int)> progress,
+    bool is_primary) {
+  auto decrypted = ExtractColdcardBackup(data, backup_key);
+  const std::string& master_xprv = ConvertXprvChain(decrypted.xprv, chain_);
+  SoftwareSigner signer{master_xprv};
+  const std::string name = trim_copy(raw_name);
+  const std::string id = to_lower_copy(signer.GetMasterFingerprint());
+
+  if (is_primary) {
+    const std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
+    PrimaryKey key{name, id, account_, address};
+    if (!storage_->AddPrimaryKey(chain_, key)) {
+      throw StorageException(StorageException::SQL_ERROR,
+                             "Create primary key failed");
+    }
+  }
+
+  Device device{"software", "nunchuk", id};
+  storage_->CreateMasterSignerFromMasterXprv(chain_, name, device, master_xprv);
+  storage_->CacheMasterSignerXPub(
+      chain_, id, [&](std::string path) { return signer.GetXpubAtPath(path); },
+      progress, true);
+  storage_listener_();
+  MasterSigner mastersigner{id, device, std::time(0), SignerType::SOFTWARE};
+  mastersigner.set_name(name);
+  return mastersigner;
+}
+
+MasterSigner NunchukImpl::ImportBackupKey(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& name, std::function<bool(int)> progress,
+    bool is_primary) {
+  const auto import_tapsigner = [&]() {
+    return ImportTapsignerMasterSigner(data, backup_key, name, progress,
+                                       is_primary);
+  };
+
+  const auto import_coldcard = [&]() {
+    return ImportColdcardBackup(data, backup_key, name, progress, is_primary);
+  };
+
+  if (data.size() < 200) {
+    return RunThrowOne(import_tapsigner, import_coldcard);
+  }
+  return RunThrowOne(import_coldcard, import_tapsigner);
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {

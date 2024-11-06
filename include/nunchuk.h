@@ -1209,6 +1209,18 @@ class NUNCHUK_EXPORT Nunchuk {
                                           ExportFormat format) = 0;
   virtual std::string GetWalletExportData(const Wallet& wallet,
                                           ExportFormat format) = 0;
+  virtual void VerifyColdcardBackup(const std::vector<unsigned char>& data,
+                                    const std::string& backup_key,
+                                    const std::string& xfp = {}) = 0;
+  virtual MasterSigner ImportColdcardBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false) = 0;
+  virtual MasterSigner ImportBackupKey(const std::vector<unsigned char>& data,
+                                       const std::string& backup_key,
+                                       const std::string& name,
+                                       std::function<bool(int)> progress,
+                                       bool is_primary = false) = 0;
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id,

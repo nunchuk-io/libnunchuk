@@ -414,6 +414,19 @@ class NunchukImpl : public Nunchuk {
                                   ExportFormat format) override;
   std::string GetWalletExportData(const Wallet& wallet,
                                   ExportFormat format) override;
+  void VerifyColdcardBackup(const std::vector<unsigned char>& data,
+                            const std::string& backup_key,
+                            const std::string& master_signer_id = {}) override;
+  MasterSigner ImportColdcardBackup(const std::vector<unsigned char>& data,
+                                    const std::string& backup_key,
+                                    const std::string& name,
+                                    std::function<bool(int)> progress,
+                                    bool is_primary = false) override;
+  MasterSigner ImportBackupKey(const std::vector<unsigned char>& data,
+                               const std::string& backup_key,
+                               const std::string& name,
+                               std::function<bool(int)> progress,
+                               bool is_primary = false) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
   void ScanWalletAddress(const std::string& wallet_id,
