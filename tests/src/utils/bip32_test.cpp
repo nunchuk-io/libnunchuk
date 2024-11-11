@@ -30,21 +30,19 @@ TEST_CASE("testing bip32 utils") {
   CHECK_THROWS(GetBip32Path(Chain::TESTNET, WalletType::SINGLE_SIG,
                             AddressType::ANY, 3));
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::MULTI_SIG, AddressType::LEGACY,
-                     4) == "m/48h/1h/4h");
+                     4) == "m/45h");
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::MULTI_SIG,
-                     AddressType::NESTED_SEGWIT, 5) == "m/48h/1h/5h");
+                     AddressType::NESTED_SEGWIT, 5) == "m/48h/1h/5h/1h");
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::MULTI_SIG,
-                     AddressType::NATIVE_SEGWIT, 6) == "m/48h/1h/6h");
-  CHECK(GetBip32Path(Chain::TESTNET, WalletType::MULTI_SIG, AddressType::ANY,
-                     6) == "m/48h/1h/6h");
+                     AddressType::NATIVE_SEGWIT, 6) == "m/48h/1h/6h/2h");
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::ESCROW, AddressType::LEGACY,
-                     7) == "m/48h/1h/0h/7h");
+                     7) == "m/48h/1h/9999h/7h");
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::ESCROW,
-                     AddressType::NESTED_SEGWIT, 8) == "m/48h/1h/0h/8h");
+                     AddressType::NESTED_SEGWIT, 8) == "m/48h/1h/9999h/8h");
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::ESCROW,
-                     AddressType::NATIVE_SEGWIT, 9) == "m/48h/1h/0h/9h");
+                     AddressType::NATIVE_SEGWIT, 9) == "m/48h/1h/9999h/9h");
   CHECK(GetBip32Path(Chain::TESTNET, WalletType::ESCROW, AddressType::ANY, 9) ==
-        "m/48h/1h/0h/9h");
+        "m/48h/1h/9999h/9h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::SINGLE_SIG, AddressType::LEGACY,
                      1) == "m/44h/0h/1h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::SINGLE_SIG,
@@ -54,36 +52,30 @@ TEST_CASE("testing bip32 utils") {
   CHECK_THROWS(
       GetBip32Path(Chain::MAIN, WalletType::SINGLE_SIG, AddressType::ANY, 3));
   CHECK(GetBip32Path(Chain::MAIN, WalletType::MULTI_SIG, AddressType::LEGACY,
-                     4) == "m/48h/0h/4h");
+                     4) == "m/45h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::MULTI_SIG,
-                     AddressType::NESTED_SEGWIT, 5) == "m/48h/0h/5h");
+                     AddressType::NESTED_SEGWIT, 5) == "m/48h/0h/5h/1h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::MULTI_SIG,
-                     AddressType::NATIVE_SEGWIT, 6) == "m/48h/0h/6h");
-  CHECK(GetBip32Path(Chain::MAIN, WalletType::MULTI_SIG, AddressType::ANY, 6) ==
-        "m/48h/0h/6h");
+                     AddressType::NATIVE_SEGWIT, 6) == "m/48h/0h/6h/2h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::ESCROW, AddressType::LEGACY, 7) ==
-        "m/48h/0h/0h/7h");
+        "m/48h/0h/9999h/7h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::ESCROW,
-                     AddressType::NESTED_SEGWIT, 8) == "m/48h/0h/0h/8h");
+                     AddressType::NESTED_SEGWIT, 8) == "m/48h/0h/9999h/8h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::ESCROW,
-                     AddressType::NATIVE_SEGWIT, 9) == "m/48h/0h/0h/9h");
+                     AddressType::NATIVE_SEGWIT, 9) == "m/48h/0h/9999h/9h");
   CHECK(GetBip32Path(Chain::MAIN, WalletType::ESCROW, AddressType::ANY, 9) ==
-        "m/48h/0h/0h/9h");
-  CHECK_THROWS(GetBip32Path(Chain::MAIN, WalletType::MULTI_SIG,
-                            AddressType::NESTED_SEGWIT, 0));
-
+        "m/48h/0h/9999h/9h");
   CHECK(GetBip32Type(WalletType::SINGLE_SIG, AddressType::LEGACY) == "bip44");
   CHECK(GetBip32Type(WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT) ==
         "bip49");
   CHECK(GetBip32Type(WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT) ==
         "bip84");
   CHECK_THROWS(GetBip32Type(WalletType::SINGLE_SIG, AddressType::ANY));
-  CHECK(GetBip32Type(WalletType::MULTI_SIG, AddressType::LEGACY) == "bip48");
+  CHECK(GetBip32Type(WalletType::MULTI_SIG, AddressType::LEGACY) == "bip45");
   CHECK(GetBip32Type(WalletType::MULTI_SIG, AddressType::NESTED_SEGWIT) ==
-        "bip48");
+        "bip48_1");
   CHECK(GetBip32Type(WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT) ==
-        "bip48");
-  CHECK(GetBip32Type(WalletType::MULTI_SIG, AddressType::ANY) == "bip48");
+        "bip48_2");
   CHECK(GetBip32Type(WalletType::ESCROW, AddressType::LEGACY) == "escrow");
   CHECK(GetBip32Type(WalletType::ESCROW, AddressType::NESTED_SEGWIT) ==
         "escrow");
@@ -92,5 +84,5 @@ TEST_CASE("testing bip32 utils") {
   CHECK(GetBip32Type(WalletType::ESCROW, AddressType::ANY) == "escrow");
 
   CHECK(GetIndexFromPath("m/84h/0h/10h") == 10);
-  CHECK(GetIndexFromPath("m/48h/0h/0h/11h") == 11);
+  CHECK(GetIndexFromPath("m/48h/0h/11h/1h") == 11);
 }

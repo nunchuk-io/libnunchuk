@@ -126,16 +126,8 @@ std::string GetScriptpathDescriptor(const std::vector<std::string>& nodes) {
   return GetScriptpathDescriptor(rs);
 };
 
-std::string GetMusigDescriptor(const std::vector<SingleSigner>& signers, const std::string& keypath, int m) {
-  int n = signers.size();
-  std::vector<std::string> keys{};
-  for (int i = 0; i < n; i++) {
-    std::stringstream xpub;
-    xpub << "[" << signers[i].get_master_fingerprint()
-      << FormalizePath(signers[i].get_derivation_path()) << "]"
-      << signers[i].get_xpub() << keypath;
-    keys.push_back(xpub.str());
-  }
+std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m) {
+  int n = keys.size();
 
   std::vector<bool> v(n);
   std::fill(v.begin(), v.begin() + m, true);
@@ -177,65 +169,59 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
                                     AddressType address_type,
                                     WalletType wallet_type, int index,
                                     bool sorted) {
-  std::stringstream desc;
   std::string keypath = GetKeyPath(key_path, index);
+  std::vector<std::string> keys{};
+  for (auto&& signer : signers) {
+    std::stringstream key;
+    key << "[" << signer.get_master_fingerprint();
+    if (wallet_type == WalletType::ESCROW) {
+      std::string pubkey = signer.get_public_key();
+      if (pubkey.empty()) {
+        pubkey = HexStr(DecodeExtPubKey(signer.get_xpub()).pubkey);
+      }
+      key << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
+    } else if (wallet_type == WalletType::MULTI_SIG && 
+              (key_path == DescriptorPath::EXTERNAL_PUBKEY || key_path == DescriptorPath::INTERNAL_PUBKEY)) {
+      std::stringstream p;
+      p << signer.get_derivation_path() << keypath;
+      std::string path = FormalizePath(p.str());
+      // displayaddress only takes pubkeys as inputs, not xpubs
+      auto xpub = DecodeExtPubKey(signer.get_xpub());
+      if (!xpub.Derive(xpub, (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH, "Invalid path");
+      }
+      if (!xpub.Derive(xpub, index)) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH, "Invalid path");
+      }
+      std::string pubkey = HexStr(xpub.pubkey);
+      key << path << "]" << pubkey;
+    } else {
+      key << FormalizePath(signer.get_derivation_path()) << "]" << signer.get_xpub() << keypath;
+    }
+    keys.push_back(key.str());
+  }
+
+  std::stringstream desc;
   if (wallet_type == WalletType::SINGLE_SIG) {
-    const SingleSigner& signer = signers[0];
-    std::string path = FormalizePath(signer.get_derivation_path());
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY
                  ? "pkh"
                  : address_type == AddressType::TAPROOT ? "tr" : "wpkh");
-    desc << "([" << signer.get_master_fingerprint() << path << "]"
-         << signer.get_xpub() << keypath << ")";
+    desc << "(" << keys[0] << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
   } else if (address_type == AddressType::TAPROOT) {
-    if (signers.size() <= 5 || signers.size() == m) {
-      desc << GetMusigDescriptor(signers, keypath, m);
+    if (keys.size() <= 5 || keys.size() == m) {
+      desc << GetMusigDescriptor(keys, m);
     } else {
       desc << "tr(musig(";
       for (int i = 0; i < m; i++) {
         if (i > 0) desc << ",";
-        auto signer = signers[i];
-        desc << "[" << signer.get_master_fingerprint()
-              << FormalizePath(signer.get_derivation_path()) << "]"
-              << signer.get_xpub() << keypath;
+        desc << keys[i];
       }
       desc << "),";
       desc << (sorted ? "sortedmulti_a(" : "multi_a(") << m;
-      for (auto&& signer : signers) {
-        if (wallet_type == WalletType::ESCROW) {
-          std::string pubkey = signer.get_public_key();
-          if (pubkey.empty()) {
-            pubkey =
-                HexStr(XOnlyPubKey{DecodeExtPubKey(signer.get_xpub()).pubkey});
-          }
-          desc << ",[" << signer.get_master_fingerprint()
-              << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
-        } else if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
-                  key_path == DescriptorPath::INTERNAL_PUBKEY) {
-          std::stringstream p;
-          p << signer.get_derivation_path() << keypath;
-          std::string path = FormalizePath(p.str());
-          // displayaddress only takes pubkeys as inputs, not xpubs
-          auto xpub = DecodeExtPubKey(signer.get_xpub());
-          if (!xpub.Derive(
-                  xpub, (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
-            throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                  "Invalid path");
-          }
-          if (!xpub.Derive(xpub, index)) {
-            throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                  "Invalid path");
-          }
-          std::string pubkey = HexStr(XOnlyPubKey{xpub.pubkey});
-          desc << ",[" << signer.get_master_fingerprint() << path << "]"
-              << pubkey;
-        } else {
-          desc << ",[" << signer.get_master_fingerprint()
-              << FormalizePath(signer.get_derivation_path()) << "]"
-              << signer.get_xpub() << keypath;
-        }
+      for (auto&& key : keys) {
+        desc << "," << key;
       }
       desc << "))";
     }
@@ -243,38 +229,8 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");
     desc << (sorted ? "(sortedmulti(" : "(multi(") << m;
-    for (auto&& signer : signers) {
-      if (wallet_type == WalletType::ESCROW) {
-        std::string pubkey = signer.get_public_key();
-        if (pubkey.empty()) {
-          pubkey = HexStr(DecodeExtPubKey(signer.get_xpub()).pubkey);
-        }
-        desc << ",[" << signer.get_master_fingerprint()
-             << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
-      } else if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
-                 key_path == DescriptorPath::INTERNAL_PUBKEY) {
-        std::stringstream p;
-        p << signer.get_derivation_path() << keypath;
-        std::string path = FormalizePath(p.str());
-        // displayaddress only takes pubkeys as inputs, not xpubs
-        auto xpub = DecodeExtPubKey(signer.get_xpub());
-        if (!xpub.Derive(
-                xpub, (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
-          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                 "Invalid path");
-        }
-        if (!xpub.Derive(xpub, index)) {
-          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                 "Invalid path");
-        }
-        std::string pubkey = HexStr(xpub.pubkey);
-        desc << ",[" << signer.get_master_fingerprint() << path << "]"
-             << pubkey;
-      } else {
-        desc << ",[" << signer.get_master_fingerprint()
-             << FormalizePath(signer.get_derivation_path()) << "]"
-             << signer.get_xpub() << keypath;
-      }
+    for (auto&& key : keys) {
+      desc << "," << key;
     }
     desc << "))";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
