@@ -208,11 +208,18 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
         const auto& [agg, lh] = agg_lh;
         for (const auto& [part, pubnonce] : part_pubnonce) {
           
+          SigVersion sigversion = lh.IsNull() ? SigVersion::TAPROOT :  SigVersion::TAPSCRIPT;
           ScriptExecutionData execdata;
           execdata.m_annex_init = true;
           execdata.m_annex_present = false; // Only support annex-less signing for now.
+          if (sigversion == SigVersion::TAPSCRIPT) {
+              execdata.m_codeseparator_pos_init = true;
+              execdata.m_codeseparator_pos = 0xFFFFFFFF; // Only support non-OP_CODESEPARATOR BIP342 signing for now.
+              execdata.m_tapleaf_hash_init = true;
+              execdata.m_tapleaf_hash = lh;
+          }
           uint256 hash;
-          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, SigVersion::TAPROOT, txdata, MissingDataBehavior::FAIL);
+          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, sigversion, txdata, MissingDataBehavior::FAIL);
       
           HashWriter hasher;
           hasher << agg << part << hash;
@@ -233,8 +240,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
       SignatureData sigdata;
       psbtx.inputs[i].FillSignatureData(sigdata);
       SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
-      psbtx.inputs[i].m_tap_script_sigs.clear();
-      psbtx.inputs[i].m_tap_scripts.clear();
+      // psbtx.inputs[i].m_tap_script_sigs.clear();
+      // psbtx.inputs[i].m_tap_scripts.clear();
 
       for (auto&& [session_id, secnonce] : musig2_secnonces) {
         db.SetMuSig2SecNonce(session_id, std::move(secnonce));
