@@ -21,6 +21,7 @@
 #include <optional>
 #include <regex>
 #include <sstream>
+#include <bitset>
 #include "coldcard.hpp"
 #include "crypto/common.h"
 #include <crypto/aes.h>
