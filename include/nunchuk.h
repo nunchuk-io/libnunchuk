@@ -999,7 +999,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction ImportTransaction(const std::string& wallet_id,
                                         const std::string& file_path) = 0;
   virtual Transaction ImportPsbt(const std::string& wallet_id,
-                                 const std::string& psbt) = 0;
+                                 const std::string& psbt,
+                                 bool throw_if_unchanged = true) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,

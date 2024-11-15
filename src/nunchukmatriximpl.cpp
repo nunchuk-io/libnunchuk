@@ -739,14 +739,14 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     tx.set_wallet_id(init_body["wallet_id"]);
     nu->ScanWalletAddress(tx.get_wallet_id());
     if (tx.get_broadcast_event_id().empty()) {
-      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"]);
+      auto ntx = nu->ImportPsbt(tx.get_wallet_id(), init_body["psbt"], false);
       tx.set_tx_id(ntx.get_txid());
     }
 
     if (msgtype == "io.nunchuk.transaction.sign") {
       tx.add_sign_event_id(event.get_event_id());
       if (tx.get_broadcast_event_id().empty()) {
-        nu->ImportPsbt(tx.get_wallet_id(), body["psbt"]);
+        nu->ImportPsbt(tx.get_wallet_id(), body["psbt"], false);
       }
     } else if (msgtype == "io.nunchuk.transaction.reject") {
       tx.add_reject_event_id(event.get_event_id());

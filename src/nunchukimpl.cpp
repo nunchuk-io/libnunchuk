@@ -1012,7 +1012,8 @@ bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
 }
 
 Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
-                                    const std::string& base64_psbt) {
+                                    const std::string& base64_psbt,
+                                    bool throw_if_unchanged) {
   constexpr auto is_hex_tx = [](const std::string& str) {
     return boost::starts_with(str, "01000000") ||
            boost::starts_with(str, "02000000");
@@ -1038,7 +1039,7 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
     std::string existed_psbt = tx.get_psbt();
     std::string combined_psbt =
         CoreUtils::getInstance().CombinePsbt({psbt, existed_psbt});
-    if (existed_psbt == psbt || existed_psbt == combined_psbt) {
+    if (throw_if_unchanged && (existed_psbt == psbt || existed_psbt == combined_psbt)) {
       throw NunchukException(
           NunchukException::INVALID_PSBT,
           "The imported file does not contain any new signature.");

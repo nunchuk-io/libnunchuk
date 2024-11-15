@@ -189,7 +189,8 @@ class NunchukImpl : public Nunchuk {
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
   Transaction ImportPsbt(const std::string& wallet_id,
-                         const std::string& psbt) override;
+                         const std::string& psbt,
+                         bool throw_if_unchanged = true) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
