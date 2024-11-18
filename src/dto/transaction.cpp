@@ -40,6 +40,9 @@ std::map<std::string, bool> const& Transaction::get_signers() const {
 }
 std::string Transaction::get_memo() const { return memo_; }
 TransactionStatus Transaction::get_status() const { return status_; }
+std::vector<KeysetStatus> const& Transaction::get_keyset_status() const {
+  return keyset_status_;
+}
 std::string Transaction::get_replaced_by_txid() const {
   return replaced_by_txid_;
 }
@@ -77,6 +80,9 @@ void Transaction::set_signer(const std::string& signer_id, bool has_signature) {
 }
 void Transaction::set_memo(const std::string& value) { memo_ = value; }
 void Transaction::set_status(TransactionStatus value) { status_ = value; }
+void Transaction::set_keyset_status(const std::vector<KeysetStatus>& value) {
+  keyset_status_ = value;
+}
 void Transaction::set_replaced_by_txid(const std::string& value) {
   replaced_by_txid_ = value;
 }

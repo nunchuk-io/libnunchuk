@@ -105,6 +105,68 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   return tx;
 }
 
+inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
+    const PartiallySignedTransaction& psbtx,
+    const nunchuk::Wallet& wallet
+) {
+  using namespace nunchuk;
+  const PSBTInput& input = psbtx.inputs[0];
+  auto getXfp = [&input](const CPubKey &pub) -> std::string {
+    auto leaf_origin = input.m_tap_bip32_paths.at(XOnlyPubKey(pub));
+    const auto& [leaf_hashes, origin] = leaf_origin;
+    return strprintf("%08x", ReadBE32(origin.fingerprint));
+  };
+
+  std::map<CPubKey, KeysetStatus> keysets{};
+
+  // init keyset status
+  for (const auto& [agg, parts] : input.m_musig2_participants) {
+    KeyStatus status{};
+    for (const auto& pub : parts) {
+      status[getXfp(pub)] = false;
+    }
+    keysets.insert({agg, {TransactionStatus::PENDING_NONCE, std::move(status)}});
+  }
+
+  // check pubnonces
+  for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
+    if (part_pubnonce.size() == wallet.get_m()) {
+      keysets[agg_lh.first].first = TransactionStatus::PENDING_SIGNATURES;
+    } else {
+      for (const auto& [part, pubnonce] : part_pubnonce) {
+        keysets[agg_lh.first].second[getXfp(part)] = true;
+      }
+    }
+  }
+
+  // check partial sigs
+  for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
+    if (part_psig.size() == wallet.get_m()) {
+      keysets[agg_lh.first].first = TransactionStatus::READY_TO_BROADCAST;
+    } else {
+      for (const auto& [part, psig] : part_psig) {
+        keysets[agg_lh.first].second[getXfp(part)] = true;
+      }
+    }
+  }
+
+  std::vector<nunchuk::KeysetStatus> rs{};
+  for (const auto& [agg, keyset] : keysets) {
+    bool is_value_keyset = false;
+    if (input.m_tap_bip32_paths.count(XOnlyPubKey(agg)) > 0) {
+      auto leaf_origin = input.m_tap_bip32_paths.at(XOnlyPubKey(agg));
+      const auto& [leaf_hashes, origin] = leaf_origin;
+      is_value_keyset = leaf_hashes.empty();
+    }
+    if (is_value_keyset) {
+      rs.insert(rs.begin(), keyset);
+    } else {
+      rs.push_back(keyset);
+    }
+  }
+  return rs;
+}
+
 inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const PartiallySignedTransaction& psbtx,
     const nunchuk::Wallet& wallet = {}) {
@@ -165,48 +227,7 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
   }
 
   if (wallet.get_wallet_type() == WalletType::MULTI_SIG && wallet.get_address_type() == AddressType::TAPROOT) {
-    std::vector<std::string> parts;
-    if (!input.m_musig2_partial_sigs.empty()) {
-      for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
-        for (const auto& [part, psig] : part_psig) {
-          parts.push_back(HexStr(XOnlyPubKey(part)));
-        }
-      }
-      tx.set_status(parts.size() == wallet.get_m()
-                    ? TransactionStatus::READY_TO_BROADCAST
-                    : TransactionStatus::PENDING_SIGNATURES);
-    } else if (!input.m_tap_script_sigs.empty()) {
-      for (const auto& [pubkey_leaf, sig] : input.m_tap_script_sigs) {
-        const auto& [xonly, leaf_hash] = pubkey_leaf;
-        parts.push_back(HexStr(xonly));
-      }
-      tx.set_status(parts.size() == wallet.get_m()
-                    ? TransactionStatus::READY_TO_BROADCAST
-                    : TransactionStatus::PENDING_SIGNATURES);
-    } else if (!input.m_musig2_pubnonces.empty()) {
-      for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-        for (const auto& [part, pubnonce] : part_pubnonce) {
-          parts.push_back(HexStr(XOnlyPubKey(part)));
-        }
-      }
-      tx.set_status(TransactionStatus::PENDING_NONCE);
-      if (parts.size() == wallet.get_m()) {
-        parts.clear();
-        tx.set_status(TransactionStatus::PENDING_SIGNATURES);
-      }
-    }
-
-    if (!input.m_tap_bip32_paths.empty()) {
-      for (const auto& [xonly, leaf_origin] : input.m_tap_bip32_paths) {
-        const auto& [leaf_hashes, origin] = leaf_origin;
-        std::string master_fingerprint =
-          strprintf("%08x", ReadBE32(origin.fingerprint));
-        std::string pubkey = HexStr(xonly);
-        if (std::find(parts.begin(), parts.end(), pubkey) != parts.end()) {
-          tx.set_signer(master_fingerprint, true);
-        }
-      }
-    }
+    tx.set_keyset_status(GetKeysetStatus(psbtx, wallet));
     return tx;
   }
 
