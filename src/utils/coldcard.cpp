@@ -220,8 +220,7 @@ static ParseSectionHeaderResult ParseSectionHeader(
   std::string fname(fname_span.begin(), fname_span.end());
   rv = rv.subspan(fname_len);
 
-  if (rv.size() < 2 ||
-      rv.first(2) != std::array<unsigned char, 2>{'\0', '\0'}) {
+  if (rv.size() < 2 || rv[0] != '\0' || rv[1] != '\0') {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Corrupt file?");
   }
@@ -284,7 +283,7 @@ ColdcardBackupData ExtractColdcardBackup(const std::vector<unsigned char>& data,
 
   const uint8_t major = data[6];
   const uint8_t minor = data[7];
-  if (magic != GOOD_MAGIC || major != 0 || minor < 3) {
+  if (!std::equal(GOOD_MAGIC.begin(), GOOD_MAGIC.end(), magic.begin()) || major != 0 || minor < 3) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Bad magic bytes");
   }
