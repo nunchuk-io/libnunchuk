@@ -208,7 +208,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
         const auto& [agg, lh] = agg_lh;
         for (const auto& [part, pubnonce] : part_pubnonce) {
           
-          SigVersion sigversion = lh.IsNull() ? SigVersion::TAPROOT :  SigVersion::TAPSCRIPT;
+          SigVersion sigversion = lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
           ScriptExecutionData execdata;
           execdata.m_annex_init = true;
           execdata.m_annex_present = false; // Only support annex-less signing for now.

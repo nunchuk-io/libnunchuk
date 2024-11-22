@@ -29,7 +29,8 @@
 #include <utils/enumconverter.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
-#include <boost/filesystem/fstream.hpp>
+#include <fstream>
+#include <filesystem>
 #include <mutex>
 #include <set>
 #include <sstream>
@@ -46,7 +47,7 @@
 #endif
 
 using json = nlohmann::json;
-namespace bfs = boost::filesystem;
+namespace bfs = std::filesystem;
 namespace ba = boost::algorithm;
 
 namespace nunchuk {
@@ -92,8 +93,8 @@ bfs::path NunchukStorage::GetDefaultDataDir() const {
 
 bool NunchukStorage::WriteFile(const std::string& file_path,
                                const std::string& value) {
-  const auto path = bfs::system_complete(file_path);
-  bfs::ofstream file(path, std::ios_base::binary);
+  const auto path = bfs::absolute(file_path);
+  std::ofstream file(path, std::ios_base::binary);
 
   if (!file.is_open()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -121,14 +122,14 @@ bool NunchukStorage::WriteFile(const std::string& file_path,
 }
 
 std::string NunchukStorage::LoadFile(const std::string& file_path) {
-  const auto path = bfs::system_complete(file_path);
-  bfs::ifstream file(path, std::ios_base::binary);
+  const auto path = bfs::absolute(file_path);
+  std::ifstream file(path, std::ios_base::binary);
   if (!file.is_open()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Can not open file");
   }
 
-  const boost::uintmax_t sz = boost::filesystem::file_size(path);
+  const boost::uintmax_t sz = bfs::file_size(path);
   if (BOOST_UNLIKELY(sz > static_cast<boost::uintmax_t>(
                               (std::numeric_limits<std::streamsize>::max)()))) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -217,7 +218,7 @@ void NunchukStorage::Init(const std::string& datadir,
                           const std::string& passphrase) {
   passphrase_ = passphrase;
   if (!datadir.empty()) {
-    datadir_ = bfs::system_complete(datadir);
+    datadir_ = bfs::absolute(datadir);
     if (!bfs::is_directory(datadir_)) {
       throw StorageException(StorageException::INVALID_DATADIR,
                              "Datadir is not directory!");
@@ -256,7 +257,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     } else {
       return db.ReKey(value);
     }
-    bfs::copy_file(new_file, old_file, bfs::copy_option::overwrite_if_exists);
+    bfs::copy_file(new_file, old_file, bfs::copy_options::overwrite_existing);
     bfs::remove(new_file);
   };
 
@@ -2072,7 +2073,7 @@ std::vector<std::string> NunchukStorage::ListDecoyPin() {
   std::vector<std::string> rs;
   for (auto&& entry : bfs::directory_iterator(basedatadir_)) {
     if (bfs::is_directory(entry)) {
-      bfs::path decoyfile = entry / "decoy";
+      bfs::path decoyfile = entry.path() / "decoy";
       try {
         if (bfs::exists(decoyfile)) {
           rs.push_back(LoadFile(decoyfile.string()));

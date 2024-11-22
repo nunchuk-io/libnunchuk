@@ -111,7 +111,7 @@ add_library(ur-2 STATIC
     "contrib/bc-ur-2/src/xoshiro256.cpp"
 )
 
-find_package(Boost 1.47.0 REQUIRED COMPONENTS filesystem)
+find_package(Boost 1.47.0 REQUIRED)
 
 target_include_directories(ur-2 PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"
@@ -169,7 +169,6 @@ set(PROJECT_LIBRARIES
     ur-2
     OpenSSL::SSL OpenSSL::Crypto
     Threads::Threads
-    Boost::filesystem
 )
 
 if(WIN32)
