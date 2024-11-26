@@ -7,15 +7,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(Boost_USE_STATIC_LIBS ON)
 set(BITCOIN_FOLDER "contrib/bitcoin")
-if(ANDROID)
-    if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
-        set(BITCOIN_FOLDER "contrib/bitcoin-arm8")
-    endif ()
-elseif(NOT ANDROID)
-    find_package(Threads REQUIRED)
-endif()
-
-set(UR__DISABLE_TESTS ON)
+   
+find_package(Threads REQUIRED)
 
 if(WIN32)
     find_package(Libevent CONFIG REQUIRED)
@@ -36,93 +29,15 @@ if(WIN32)
         set_target_properties(${btclib} PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/build_msvc/x64/Release/lib${btclib}/lib${btclib}.lib")
     endforeach()
 elseif(ANDROID)
-    add_library(event STATIC IMPORTED)
-    set_target_properties(event PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/lib/libevent.a")
-    add_library(event_pthreads STATIC IMPORTED)
-    set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/lib/libevent_pthreads.a")
-
-    if(ANDROID_ABI_ARM_64)
-        set(Bitcoin_LIBRARIES
+    set(Bitcoin_LIBRARIES
             bitcoin_common
             bitcoin_util
-            bitcoin_server
+            bitcoin_node
             bitcoin_wallet
-            bitcoin_consensus
-            bitcoin_crypto_base
             secp256k1
             leveldb
             univalue
-            memenv
-            crc32c
-            crc32c_arm_crc
-        )
-    elseif(ANDROID_ABI_ARM)
-        set(Bitcoin_LIBRARIES
-            bitcoin_common
-            bitcoin_util
-            bitcoin_server
-            bitcoin_wallet
-            bitcoin_consensus
-            bitcoin_crypto_base
-            secp256k1
-            leveldb
-            univalue
-            memenv
-            crc32c
-        )
-    else()
-        set(Bitcoin_LIBRARIES
-            bitcoin_common
-            bitcoin_util
-            bitcoin_server
-            bitcoin_wallet
-            bitcoin_consensus
-            bitcoin_crypto_base
-            bitcoin_crypto_shani
-            bitcoin_crypto_sse41
-            bitcoin_crypto_avx2
-            secp256k1
-            leveldb
-            univalue
-            memenv
-            crc32c
-            crc32c_sse42
-        )
-    endif()
-
-    set(Bitcoin_PATHS "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src")
-    foreach(btclib common util server wallet consensus)
-        add_library(bitcoin_${btclib} STATIC IMPORTED)
-        set_target_properties(bitcoin_${btclib} PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/libbitcoin_${btclib}.a)
-    endforeach()
-    if(ANDROID_ABI_ARM)
-        add_library(bitcoin_crypto_base STATIC IMPORTED)
-        set_target_properties(bitcoin_crypto_base PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/crypto/libbitcoin_crypto_base.a)
-    else()
-        foreach(cryptolib base shani sse41 avx2)
-            add_library(bitcoin_crypto_${cryptolib} STATIC IMPORTED)
-            set_target_properties(bitcoin_crypto_${cryptolib} PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/crypto/libbitcoin_crypto_${cryptolib}.a)
-        endforeach()
-    endif()
-
-    add_library(secp256k1 STATIC IMPORTED)
-    set_target_properties(secp256k1 PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/secp256k1/.libs/libsecp256k1.a)
-    add_library(leveldb STATIC IMPORTED)
-    set_target_properties(leveldb PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/leveldb/libleveldb.a)
-    add_library(memenv STATIC IMPORTED)
-    set_target_properties(memenv PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/leveldb/libmemenv.a)
-    add_library(univalue STATIC IMPORTED)
-    set_target_properties(univalue PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/univalue/.libs/libunivalue.a)
-    add_library(crc32c STATIC IMPORTED)
-    set_target_properties(crc32c PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/crc32c/libcrc32c.a)
-    if(NOT ANDROID_ABI_ARM)
-        add_library(crc32c_sse42 STATIC IMPORTED)
-        set_target_properties(crc32c_sse42 PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/crc32c/libcrc32c_sse42.a)
-    elseif(ANDROID_ABI_ARM_64)
-        add_library(crc32c_arm_crc STATIC IMPORTED)
-        set_target_properties(crc32c_arm_crc PROPERTIES IMPORTED_LOCATION ${Bitcoin_PATHS}/crc32c/libcrc32c_arm_crc.a)
-    endif()
-
+    )
 else()
     find_library(event_lib NAMES libevent.a event)
     if (NOT event_lib)
@@ -152,7 +67,6 @@ else()
         secp256k1
         univalue
     )
-    
 endif()
 
 set(Bitcoin_INCLUDE_DIRS
@@ -173,6 +87,8 @@ if(WIN32)
     target_compile_options("${PROJECT_NAME}" PUBLIC /MT)
     target_link_options("${PROJECT_NAME}" PUBLIC /INCREMENTAL:NO /NODEFAULTLIB:MSVCRT)
     set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} libevent::core libevent::extra)
+elseif(ANDROID)
+    #set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} libevent::core libevent::extra)
 else()
     set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} event event_pthreads)
 endif()
@@ -184,11 +100,6 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     ${Bitcoin_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include"
+    "${PROJECT_BINARY_DIR}/../${BITCOIN_FOLDER}/src"
     "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/include"
 )
-
-# Pass secp256k1 for tap-protocol
-get_target_property(SECP256K1_LIBRARY secp256k1 IMPORTED_LOCATION)
-set(EXTERNAL_SECP256K1_LIBRARY "${SECP256K1_LIBRARY}" PARENT_SCOPE)
-set(EXTERNAL_SECP256K1_INCLUDE "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/src/secp256k1/include" PARENT_SCOPE)
-# set(USE_EXTERNAL_SECP256K1 ON PARENT_SCOPE)

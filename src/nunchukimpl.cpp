@@ -103,6 +103,19 @@ void NunchukImpl::SetPassphrase(const std::string& passphrase) {
 
 Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
+                                 AddressType address_type, bool is_escrow,
+                                 const std::string& description,
+                                 bool allow_used_signer,
+                                 const std::string& decoy_pin) {
+  Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
+  wallet.set_name(name);
+  wallet.set_description(description);
+  wallet.set_create_date(std::time(0));
+  return CreateWallet(wallet, allow_used_signer, decoy_pin);
+}
+
+Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
+                                 const std::vector<SingleSigner>& signers,
                                  AddressType address_type, WalletType wallet_type,
                                  const std::string& description,
                                  bool allow_used_signer,
@@ -167,6 +180,15 @@ std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
   }
   std::string signer_id = wallet.get_signers()[0].get_master_fingerprint();
   return storage_->GetMnemonic(chain_, signer_id, passphrase);
+}
+
+std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
+                                     const std::vector<SingleSigner>& signers,
+                                     AddressType address_type, bool is_escrow,
+                                     const std::string& description) {
+  Wallet wallet("", m, n, Utils::SanitizeSingleSigners(signers), address_type,
+                is_escrow, 0);
+  return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,

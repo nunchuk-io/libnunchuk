@@ -21,10 +21,32 @@
 
 namespace nunchuk {
 
+static WalletType get_default_wallet_type(bool is_escrow, int n) {
+  return is_escrow ? WalletType::ESCROW
+         : n == 1  ? WalletType::SINGLE_SIG
+                   : WalletType::MULTI_SIG;
+}
+
 Wallet::Wallet(bool strict) noexcept : strict_(strict) {}
+
+Wallet::Wallet(const std::string& id, int m, int n,
+               const std::vector<SingleSigner>& signers,
+               AddressType address_type, bool is_escrow, time_t create_date,
+               bool strict)
+    : Wallet(id, {}, m, n, signers, address_type,
+             get_default_wallet_type(is_escrow, n), create_date, strict) {}
+
 Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
-         const std::vector<SingleSigner>& signers, AddressType address_type,
-         WalletType wallet_type, time_t create_date, bool strict) 
+               const std::vector<SingleSigner>& signers,
+               AddressType address_type, bool is_escrow, time_t create_date,
+               bool strict)
+    : Wallet(id, name, m, n, signers, address_type,
+             get_default_wallet_type(is_escrow, n), create_date, strict) {}
+
+Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
+               const std::vector<SingleSigner>& signers,
+               AddressType address_type, WalletType wallet_type,
+               time_t create_date, bool strict)
     : id_(id),
       m_(m),
       n_(n),
@@ -35,7 +57,7 @@ Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
       strict_(strict) {
   if (strict_) check_valid();
   if (id_.empty()) id_ = GetWalletId(signers_, m_, address_type, wallet_type);
-  name_ = name; 
+  name_ = name;
 };
 
 std::string Wallet::get_id() const { return id_; }

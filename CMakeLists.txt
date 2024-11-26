@@ -6,7 +6,7 @@ configure_file(src/config.h.in nunchuk-config.h)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(Boost_USE_STATIC_LIBS ON)
@@ -14,33 +14,30 @@ set(OPENSSL_USE_STATIC_LIBS ON)
 set(UR__DISABLE_TESTS ON)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
-set(BITCOIN_FOLDER "contrib/bitcoin")
-set(OPENSSL_FOLDER "contrib/openssl")
 if(ANDROID)
     if(${ANDROID_ABI} STREQUAL "arm64-v8a")
         set(ANDROID_TARGET "aarch64-linux-android")
-        set(ANDROID_ABI_ARM ON)
-        set(ANDROID_ABI_ARM_64 ON)
     elseif(${ANDROID_ABI} STREQUAL "armeabi-v7a")
         set(ANDROID_TARGET "armv7a-linux-androideabi")
-        set(BITCOIN_FOLDER "contrib/bitcoin-arm8")
-        set(OPENSSL_FOLDER "contrib/openssl-arm8")
-        set(ANDROID_ABI_ARM ON)
-        set(ANDROID_ABI_ARM_64 OFF)
-    else()
-        set(ANDROID_ABI_ARM OFF)
-        set(ANDROID_ABI_ARM_64 OFF)
     endif()
 
-    set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/${BITCOIN_FOLDER}/depends/${ANDROID_TARGET}/lib/cmake")
-    add_library(OpenSSL::SSL STATIC IMPORTED)
-    set_target_properties(OpenSSL::SSL PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/${OPENSSL_FOLDER}/libssl.a")
-    add_library(OpenSSL::Crypto STATIC IMPORTED)
-    set_target_properties(OpenSSL::Crypto PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/${OPENSSL_FOLDER}/libcrypto.a")
-else()
-    find_package(OpenSSL REQUIRED)
+    set(CMAKE_FIND_ROOT_PATH 
+        "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}"
+        "${PROJECT_SOURCE_DIR}/contrib/openssl/${ANDROID_TARGET}"
+    )
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    set(EVENT__DISABLE_OPENSSL ON)
+    set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Override library type for libevent")
+    set(EVENT__DISABLE_TESTS ON)
+    set(EVENT__DISABLE_BENCHMARK ON)
+    set(EVENT__DISABLE_REGRESS ON)
+    set(EVENT__DISABLE_SAMPLES ON)
+    # Fix rebuild error pipe2
+    add_definitions(-D_GNU_SOURCE)
+    add_subdirectory("contrib/bitcoin/depends/${ANDROID_TARGET}/libevent")
 endif()
 
+find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
 if(WIN32)
@@ -48,6 +45,9 @@ if(WIN32)
     find_package(sqlcipher CONFIG REQUIRED)
 elseif(ANDROID)
     add_subdirectory(contrib/sqlite)
+    add_library(SQLite::SQLite3 ALIAS sqlcipher)
+    set(SQLite3_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/contrib/sqlite/sqlcipher)
+    set(SQLite3_LIBRARY sqlcipher)
 else()
     find_library(sqlcipher_lib NAMES libsqlcipher.a PATHS "${PROJECT_SOURCE_DIR}/contrib/sqlcipher/.libs" NO_DEFAULT_PATH)
     if (NOT sqlcipher_lib)
@@ -57,7 +57,13 @@ else()
     set_target_properties(sqlcipher PROPERTIES IMPORTED_LOCATION ${sqlcipher_lib})
 endif()
 
+set(BUILD_DAEMON OFF)
+set(BUILD_TESTS OFF)
+set(HAVE_IFADDRS_H FALSE)
+cmake_policy(SET CMP0077 NEW)
+set(SECP256K1_ENABLE_MODULE_ECDH ON)
 add_subdirectory(contrib/bitcoin)
+
 add_subdirectory(embedded)
 
 set(UR__DISABLE_TESTS ON)
@@ -181,14 +187,16 @@ elseif(UNIX)
     set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} dl)
 endif()
 
-set(BUILD_SHARED_LIB_TAPPROTOCOL ON)
+set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
+set(BUILD_TESTING OFF)
 add_subdirectory(contrib/tap-protocol)
 # Pass Bitcoin random to tap-protocol
-# target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
+target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
 # Allow testnet Tapsigner
 target_compile_definitions(tap-protocol PUBLIC SKIP_BASE58_PREFIX_CHECK=1)
 
 set(BBQR_BUILD_EXAMPLES OFF)
+set(BUILD_SHARED_LIBS OFF)
 add_subdirectory(contrib/bbqr-cpp)
 
 if(ANDROID)
@@ -205,6 +213,7 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib"
     "${PROJECT_SOURCE_DIR}/contrib/sqlite"
     "${PROJECT_BINARY_DIR}"
+    "${PROJECT_BINARY_DIR}/contrib/bitcoin/src"
     "${PROJECT_SOURCE_DIR}/contrib/tap-protocol/include"
     "${PROJECT_SOURCE_DIR}/contrib/bbqr-cpp/include"
 )

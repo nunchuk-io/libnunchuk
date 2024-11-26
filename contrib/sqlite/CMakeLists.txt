@@ -11,6 +11,7 @@ set(SQLITE_SOURCE
 add_library("${PROJECT_NAME}" STATIC ${SQLITE_SOURCE})
 target_include_directories("${PROJECT_NAME}" PUBLIC
         "${PROJECT_SOURCE_DIR}"
+        "${PROJECT_SOURCE_DIR}/sqlcipher"
         "${PROJECT_SOURCE_DIR}/../openssl/include"
         )
 target_link_libraries("${PROJECT_NAME}" PRIVATE OpenSSL::SSL OpenSSL::Crypto dl)
