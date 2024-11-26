@@ -180,7 +180,7 @@ class NUNCHUK_EXPORT BaseException : public std::exception {
   explicit BaseException(int code, std::string&& message)
       : code_(code), message_(std::move(message)) {}
   int code() const noexcept { return code_; }
-  const char* what() const noexcept { return message_.c_str(); }
+  const char* what() const noexcept override { return message_.c_str(); }
 
  private:
   int code_;

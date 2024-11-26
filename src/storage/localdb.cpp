@@ -91,7 +91,7 @@ MuSig2SecNonce NunchukLocalDb::GetMuSig2SecNonce(const uint256& session_id) cons
   auto rv = hexStringToByteArray(value);
   MuSig2SecNonce nonce{};
   memcpy(static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data, rv.data(), 132);
-  return std::move(nonce);
+  return nonce;
 }
 
 void NunchukLocalDb::SetPreferScriptPath(const std::string& tx_id, bool value) const {

@@ -323,6 +323,7 @@ void init() {
   settings.set_hwi_path("lib/bin/hwi");
   settings.enable_proxy(false);
   settings.set_testnet_servers({"127.0.0.1:50001"});
+  nu = MakeNunchuk(settings);
 }
 
 void interactive() {

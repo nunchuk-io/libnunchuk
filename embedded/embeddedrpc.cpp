@@ -65,7 +65,7 @@ std::string EmbeddedRpc::SendRequest(const std::string &body) const {
     auto resp = table_.execute(req);
     return JSONRPCReplyObj(std::move(resp), NullUniValue, req.id, JSONRPCVersion::V2).write();
   } catch (const UniValue &err) {
-    return JSONRPCReplyObj(NullUniValue, std::move(err), req.id, JSONRPCVersion::V2).write();
+    return JSONRPCReplyObj(NullUniValue, err, req.id, JSONRPCVersion::V2).write();
   }
 }
 
