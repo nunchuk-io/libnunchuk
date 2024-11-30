@@ -9,6 +9,7 @@ set(Boost_USE_STATIC_LIBS ON)
 set(BITCOIN_FOLDER "contrib/bitcoin")
    
 find_package(Threads REQUIRED)
+find_package(Boost 1.47.0 REQUIRED)
 
 if(WIN32)
     find_package(Libevent CONFIG REQUIRED)
@@ -28,7 +29,7 @@ if(WIN32)
         add_library(${btclib} STATIC IMPORTED)
         set_target_properties(${btclib} PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/build_msvc/x64/Release/lib${btclib}/lib${btclib}.lib")
     endforeach()
-elseif(ANDROID)
+elseif(ANDROID OR IOS)
     set(Bitcoin_LIBRARIES
             bitcoin_common
             bitcoin_util
@@ -87,7 +88,7 @@ if(WIN32)
     target_compile_options("${PROJECT_NAME}" PUBLIC /MT)
     target_link_options("${PROJECT_NAME}" PUBLIC /INCREMENTAL:NO /NODEFAULTLIB:MSVCRT)
     set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} libevent::core libevent::extra)
-elseif(ANDROID)
+elseif(ANDROID OR IOS)
     #set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} libevent::core libevent::extra)
 else()
     set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} event event_pthreads)

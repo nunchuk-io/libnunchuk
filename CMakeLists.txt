@@ -35,6 +35,20 @@ if(ANDROID)
     # Fix rebuild error pipe2
     add_definitions(-D_GNU_SOURCE)
     add_subdirectory("contrib/bitcoin/depends/${ANDROID_TARGET}/libevent")
+elseif(IOS)
+    set(CMAKE_FIND_ROOT_PATH 
+        "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios"
+        "${PROJECT_SOURCE_DIR}/contrib/openssl/${PLATFORM}")
+    set(EVENT__DISABLE_OPENSSL ON)
+    set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Override library type for libevent")
+    set(EVENT__DISABLE_TESTS ON)
+    set(EVENT__DISABLE_BENCHMARK ON)
+    set(EVENT__DISABLE_REGRESS ON)
+    set(EVENT__DISABLE_SAMPLES ON)
+    add_subdirectory("contrib/bitcoin/depends/ios/libevent")
+    include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios/include")
+    include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios/libevent/include")
+    include_directories("${PROJECT_BINARY_DIR}/contrib/bitcoin/depends/ios/libevent/include")
 endif()
 
 find_package(OpenSSL REQUIRED)
@@ -43,7 +57,7 @@ find_package(Threads REQUIRED)
 if(WIN32)
     string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus")
     find_package(sqlcipher CONFIG REQUIRED)
-elseif(ANDROID)
+elseif(ANDROID OR IOS)
     add_subdirectory(contrib/sqlite)
     add_library(SQLite::SQLite3 ALIAS sqlcipher)
     set(SQLite3_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/contrib/sqlite/sqlcipher)
@@ -59,6 +73,7 @@ endif()
 
 set(BUILD_DAEMON OFF)
 set(BUILD_TESTS OFF)
+set(BUILD_CLI OFF)
 set(HAVE_IFADDRS_H FALSE)
 cmake_policy(SET CMP0077 NEW)
 set(SECP256K1_ENABLE_MODULE_ECDH ON)
@@ -167,6 +182,9 @@ add_library("${PROJECT_NAME}" STATIC
     src/storage/roomdb.cpp
     src/storage/tapprotocoldb.cpp
     src/utils/loguru.cpp
+    src/utils/ndef.hpp
+    src/utils/enumconverter.hpp
+    src/utils/rfc2440.hpp
     src/utils/coldcard.cpp
 )
 
