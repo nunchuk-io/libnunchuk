@@ -90,7 +90,7 @@ else()
     set(PROJECT_LIBRARIES ${PROJECT_LIBRARIES} event event_pthreads)
 endif()
 
-target_link_libraries("${PROJECT_NAME}" PUBLIC ${PROJECT_LIBRARIES})
+target_link_libraries("${PROJECT_NAME}" PRIVATE ${PROJECT_LIBRARIES})
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
     "${PROJECT_SOURCE_DIR}"
