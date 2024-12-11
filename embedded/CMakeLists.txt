@@ -25,10 +25,6 @@ if(WIN32)
         secp256k1
         univalue
     )
-    foreach(btclib ${Bitcoin_LIBRARIES})
-        add_library(${btclib} STATIC IMPORTED)
-        set_target_properties(${btclib} PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/../${BITCOIN_FOLDER}/build_msvc/x64/Release/lib${btclib}/lib${btclib}.lib")
-    endforeach()
 elseif(ANDROID OR IOS)
     set(Bitcoin_LIBRARIES
             bitcoin_common
