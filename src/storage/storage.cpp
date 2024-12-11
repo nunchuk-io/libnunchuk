@@ -292,7 +292,7 @@ bfs::path NunchukStorage::GetWalletDir(Chain chain, std::string id) const {
 }
 
 bfs::path NunchukStorage::GetWalletDir0(const bfs::path& dir, Chain chain,
-                                       std::string id) const {
+                                        std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            "Wallet id can not empty!");
@@ -305,7 +305,7 @@ bfs::path NunchukStorage::GetSignerDir(Chain chain, std::string id) const {
 }
 
 bfs::path NunchukStorage::GetSignerDir0(const bfs::path& dir, Chain chain,
-                                       std::string id) const {
+                                        std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
                            "Signer id can not empty!");
@@ -335,7 +335,7 @@ bfs::path NunchukStorage::GetRoomDir(Chain chain) const {
 }
 
 bfs::path NunchukStorage::GetTapprotocolDir(Chain chain,
-                                           const bfs::path& dir) const {
+                                            const bfs::path& dir) const {
   if (dir.empty()) {
     return datadir_ / ChainStr(chain) / "tap-protocol";
   } else {
@@ -909,9 +909,9 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     true_signers.push_back(
         GetTrueSigner0(chain, signer, create_signers_if_not_exist));
   }
-  Wallet true_wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(), true_signers,
-                     wallet.get_address_type(), wallet.get_wallet_type(),
-                     wallet.get_create_date());
+  Wallet true_wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(),
+                     true_signers, wallet.get_address_type(),
+                     wallet.get_wallet_type(), wallet.get_create_date());
   true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
   true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());
@@ -1152,8 +1152,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 std::vector<Transaction> NunchukStorage::GetTransactions(
     Chain chain, const std::string& wallet_id, TransactionStatus status,
     bool is_receive) {
-  auto vtxs =
-      GetTransactions(chain, wallet_id, std::numeric_limits<int>::max(), 0);
+  auto vtxs = GetTransactions(chain, wallet_id, 656565, 0);
   vtxs.erase(std::remove_if(vtxs.begin(), vtxs.end(),
                             [&](const Transaction& tx) {
                               bool ok = tx.is_receive() == is_receive &&

@@ -17,12 +17,12 @@ if(WIN32)
     set(Bitcoin_LIBRARIES 
         bitcoin_common
         bitcoin_util
-        bitcoin_server
+        bitcoin_cli
+        bitcoin_node
         bitcoin_wallet
-        bitcoinconsensus
+        bitcoin_consensus
         bitcoin_crypto
         secp256k1
-        leveldb
         univalue
     )
     foreach(btclib ${Bitcoin_LIBRARIES})
