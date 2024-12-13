@@ -38,6 +38,10 @@
 #include <util/strencodings.h>
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
+#include <boost/bind.hpp>
+#include <boost/signals2.hpp>
 #include <hash.h>
 #include <policy/policy.h>
 
@@ -603,7 +607,7 @@ std::vector<SingleSigner> Utils::ParsePassportSigners(
 
   if (std::regex_match(qr_data[0], sm, BC_UR_REGEX)) {  // BC_UR format
     config = nunchuk::bcr::DecodeUniformResource(qr_data);
-  } else {                                              // BC_UR2 format
+  } else {  // BC_UR2 format
     auto decoder = ur::URDecoder();
     for (auto&& part : qr_data) {
       decoder.receive_part(part);
@@ -1071,6 +1075,49 @@ std::vector<std::string> Utils::ListDecoyPin(const std::string& storage_path) {
   NunchukStorage storage{""};
   storage.Init(storage_path);
   return storage.ListDecoyPin();
+}
+
+bool Utils::CheckElectrumServer(const std::string& server, int timeout) {
+  using namespace boost::asio;
+  using ip::tcp;
+  using ec = boost::system::error_code;
+
+  std::string server_url = server;
+  std::string protocol;
+  std::string host;
+  unsigned short port = 50001;
+
+  size_t colonDoubleSlash = server_url.find("://");
+  if (colonDoubleSlash != std::string::npos) {
+    protocol = server_url.substr(0, colonDoubleSlash);
+    if (protocol != "tcp" && protocol != "ssl") return false;
+    server_url = server_url.substr(colonDoubleSlash + 3);
+  }
+  size_t colon = server_url.find(":");
+  if (colon != std::string::npos) {
+    host = server_url.substr(0, colon);
+    std::string portStr = server_url.substr(colon + 1);
+    port = portStr.empty() ? 50001 : std::stoi(portStr);
+    if (port < 0 || port > 65353) return false;
+  } else {
+    host = server_url;
+  }
+
+  bool result = false;
+  try {
+    io_service svc;
+    tcp::socket s(svc);
+    deadline_timer tim(svc, boost::posix_time::seconds(timeout));
+
+    tim.async_wait([&](ec) { s.cancel(); });
+    s.async_connect({ip::address::from_string(host), port},
+                    [&](ec ec) { result = !ec; });
+
+    svc.run();
+  } catch (...) {
+  }
+
+  return result;
 }
 
 }  // namespace nunchuk

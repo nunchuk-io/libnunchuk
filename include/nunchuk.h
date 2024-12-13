@@ -1558,6 +1558,7 @@ class NUNCHUK_EXPORT Utils {
                              const std::string& old_pin,
                              const std::string& new_pin);
   static std::vector<std::string> ListDecoyPin(const std::string& storage_path);
+  static bool CheckElectrumServer(const std::string& server, int timeout = 1);
 
  private:
   Utils() {}
