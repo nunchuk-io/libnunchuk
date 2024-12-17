@@ -23,6 +23,7 @@
 #include <util/strencodings.h>
 #include <utils/addressutils.hpp>
 #include <utils/errorutils.hpp>
+#include <utils/stringutils.hpp>
 #include <string>
 #include <vector>
 #include <psbt.h>
@@ -116,25 +117,48 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
     const auto& [leaf_hashes, origin] = leaf_origin;
     return strprintf("%08x", ReadBE32(origin.fingerprint));
   };
-
-  std::map<CPubKey, KeysetStatus> keysets{};
+  auto getName = [](std::vector<std::string>& xfps) -> std::string {
+    std::sort(xfps.begin(), xfps.end());
+    return join(xfps, ',');
+  };
 
   // init keyset status
-  for (const auto& [agg, parts] : input.m_musig2_participants) {
+  std::map<std::string, KeysetStatus> keysets{};
+  int n = wallet.get_n();
+  auto signers = wallet.get_signers();
+  std::vector<bool> v(n);
+  std::fill(v.begin(), v.begin() + wallet.get_m(), true);
+  std::string valuekeyset{};
+  do {
     KeyStatus status{};
-    for (const auto& pub : parts) {
-      status[getXfp(pub)] = false;
+    std::vector<std::string> xfps{};
+    for (int i = 0; i < n; i++) {
+      if (v[i]) {
+        status[signers[i].get_master_fingerprint()] = false;
+        xfps.push_back(signers[i].get_master_fingerprint());
+      }
     }
-    keysets.insert({agg, {TransactionStatus::PENDING_NONCE, std::move(status)}});
+    if (valuekeyset.empty()) valuekeyset = getName(xfps);
+    keysets.insert({getName(xfps),{TransactionStatus::PENDING_NONCE, std::move(status)}});
+  } while (std::prev_permutation(v.begin(), v.end()));
+
+  // mapping aggkey to name
+  std::map<CPubKey, std::string> keysetname{};
+  for (const auto& [agg, parts] : input.m_musig2_participants) {
+    std::vector<std::string> xfps{};
+    for (const auto& pub : parts) {
+      xfps.push_back(getXfp(pub));
+    }
+    keysetname.insert({agg, getName(xfps)});
   }
 
   // check pubnonces
   for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
     if (part_pubnonce.size() == wallet.get_m()) {
-      keysets[agg_lh.first].first = TransactionStatus::PENDING_SIGNATURES;
+      keysets[keysetname[agg_lh.first]].first = TransactionStatus::PENDING_SIGNATURES;
     } else {
       for (const auto& [part, pubnonce] : part_pubnonce) {
-        keysets[agg_lh.first].second[getXfp(part)] = true;
+        keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
       }
     }
   }
@@ -142,23 +166,17 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
   // check partial sigs
   for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
     if (part_psig.size() == wallet.get_m()) {
-      keysets[agg_lh.first].first = TransactionStatus::READY_TO_BROADCAST;
+      keysets[keysetname[agg_lh.first]].first = TransactionStatus::READY_TO_BROADCAST;
     } else {
       for (const auto& [part, psig] : part_psig) {
-        keysets[agg_lh.first].second[getXfp(part)] = true;
+        keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
       }
     }
   }
 
   std::vector<nunchuk::KeysetStatus> rs{};
   for (const auto& [agg, keyset] : keysets) {
-    bool is_value_keyset = false;
-    if (input.m_tap_bip32_paths.count(XOnlyPubKey(agg)) > 0) {
-      auto leaf_origin = input.m_tap_bip32_paths.at(XOnlyPubKey(agg));
-      const auto& [leaf_hashes, origin] = leaf_origin;
-      is_value_keyset = leaf_hashes.empty();
-    }
-    if (is_value_keyset) {
+    if (valuekeyset == agg) {
       rs.insert(rs.begin(), keyset);
     } else {
       rs.push_back(keyset);

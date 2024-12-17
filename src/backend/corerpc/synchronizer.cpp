@@ -15,6 +15,7 @@
  * along with libnunchuk. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <utility>
 #include <backend/corerpc/synchronizer.h>
 
 using namespace boost::asio;
