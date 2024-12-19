@@ -1006,7 +1006,7 @@ Transaction NunchukImpl::CreateTransaction(
 
   Amount fee = 0;
   int vsize = 0;
-  int change_pos = 0;
+  int change_pos = -1;
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto psbt =
       CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
@@ -1441,7 +1441,7 @@ Transaction NunchukImpl::DraftTransaction(
 
   Amount fee = 0;
   int vsize = 0;
-  int change_pos = 0;
+  int change_pos = -1;
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto psbt =
       CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
@@ -1506,7 +1506,7 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
 
   Amount fee = 0;
   int vsize = 0;
-  int change_pos = 0;
+  int change_pos = -1;
   auto psbt =
       CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
                  tx.subtract_fee_from_amount(), true, fee, vsize, change_pos);
