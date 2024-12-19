@@ -28,6 +28,7 @@
 #include <vector>
 #include <psbt.h>
 #include <core_io.h>
+#include <descriptor.h>
 
 #include <signingprovider.h>
 #include <script/sign.h>
@@ -94,6 +95,78 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   for (auto&& signer : signers) {
     tx.set_signer(signer.get_master_fingerprint(), true);
   }
+  if (height == 0) {
+    tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
+  } else if (height == -2) {
+    tx.set_status(TransactionStatus::NETWORK_REJECTED);
+  } else if (height == -1) {
+    tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+  } else if (height > 0) {
+    tx.set_status(TransactionStatus::CONFIRMED);
+  }
+  return tx;
+}
+
+inline nunchuk::Transaction ParseCMutableTransaction(
+    const CMutableTransaction& mtx,
+    const nunchuk::Wallet& wallet, int height) {
+  using namespace nunchuk;
+
+  Transaction tx{};
+  tx.set_txid(mtx.GetHash().GetHex());
+  tx.set_height(height);
+  for (auto& input : mtx.vin) {
+    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n});
+  }
+  for (auto& output : mtx.vout) {
+    std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
+    tx.add_output({address, output.nValue});
+  }
+  auto signers = wallet.get_signers();
+  if (wallet.get_wallet_type() == WalletType::MULTI_SIG && wallet.get_address_type() == AddressType::TAPROOT) {
+    if (mtx.vin[0].scriptWitness.stack.size() < 2) { // value keyset
+      for (int i = 0; i < wallet.get_n(); i++) {
+        tx.set_signer(signers[i].get_master_fingerprint(), i < wallet.get_m());
+      }
+    } else {
+      for (auto&& signer : signers) {
+        tx.set_signer(signer.get_master_fingerprint(), false);
+      }
+      auto agg = mtx.vin[0].scriptWitness.stack[1];
+      agg.erase(agg.begin());
+      agg.pop_back();
+
+      auto maxIdx = SigningProviderCache::getInstance().GetMaxIndex(wallet.get_id());
+      FlatSigningProvider provider;
+      std::string error;
+      std::vector<CScript> output_scripts;
+      auto external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+      auto desc0 = Parse(external_desc, provider, error, true);
+      for (int i = 0; i <= maxIdx; i++) {
+        desc0.front()->Expand(i, provider, output_scripts, provider);
+      }
+      auto internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
+      auto desc1 = Parse(internal_desc, provider, error, true);
+      for (int i = 0; i <= maxIdx; i++) {
+        desc1.front()->Expand(i, provider, output_scripts, provider);
+      }
+      for (auto&& agg_pubkeys : provider.aggregate_pubkeys) {
+        if (HexStr(agg_pubkeys.first).substr(2) == HexStr(agg)) {
+          for (auto&& pubkey : agg_pubkeys.second) {
+            auto s = provider.origins[pubkey.GetID()];
+            tx.set_signer(strprintf("%08x", ReadBE32(s.second.fingerprint)), true);
+          }
+          break;
+        }
+      }
+    }
+
+  } else {  
+    for (auto&& signer : signers) {
+      tx.set_signer(signer.get_master_fingerprint(), true);
+    }
+  }
+
   if (height == 0) {
     tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
   } else if (height == -2) {
@@ -246,6 +319,13 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
 
   if (wallet.get_wallet_type() == WalletType::MULTI_SIG && wallet.get_address_type() == AddressType::TAPROOT) {
     tx.set_keyset_status(GetKeysetStatus(psbtx, wallet));
+    tx.set_status(TransactionStatus::PENDING_SIGNATURES);
+    for (const auto& keyset : tx.get_keyset_status()) {
+      if (keyset.first == TransactionStatus::READY_TO_BROADCAST) {
+        tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+        break;
+      }
+    }
     return tx;
   }
 
@@ -314,7 +394,7 @@ GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet, int
 
     CMutableTransaction mtx;
     if (DecodeHexTx(mtx, str, true, true)) {
-      auto tx = GetTransactionFromCMutableTransaction(mtx, wallet.get_signers(), height);
+      auto tx = ParseCMutableTransaction(mtx, wallet, height);
       tx.set_raw(str);
       return {tx, true};
     }
@@ -322,7 +402,7 @@ GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet, int
     throw NunchukException(NunchukException::INVALID_PSBT,
                            NormalizeErrorMessage(std::move(error)));
   }
-  auto tx = GetTransactionFromCMutableTransaction(DecodeRawTransaction(str), wallet.get_signers(), height);
+  auto tx = ParseCMutableTransaction(DecodeRawTransaction(str), wallet, height);
   tx.set_raw(str);
   return {tx, true};
 }
