@@ -404,6 +404,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // Return the constructed transaction data.
   CTransactionRef tx = MakeTransactionRef(std::move(txNew));
   FeeCalculation feeCalc;
+  change_pos = nChangePosInOut;
   return CreatedTransactionResult(tx, current_fee, nChangePosInOut, feeCalc);
 }  // namespace wallet
 
