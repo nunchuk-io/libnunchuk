@@ -1093,7 +1093,7 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
     if (extra_json["signers"] != nullptr &&
         (tx.get_height() >= 0 || !tx.get_raw().empty())) {
       for (auto&& signer : tx.get_signers()) {
-        tx.set_signer(signer.first, extra_json["signers"][signer.first]);
+        if (!signer.second) tx.set_signer(signer.first, extra_json["signers"][signer.first]);
       }
     }
     if (extra_json["outputs"] != nullptr) {
