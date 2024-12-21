@@ -21,6 +21,7 @@
 
 #include <array>
 #include <boost/process.hpp>
+#include <charconv>
 #ifdef _WIN32
 #include <boost/process/windows.hpp>
 #endif
@@ -75,11 +76,10 @@ void HWIService::SetChain(Chain chain) { chain_ = chain; }
 void HWIService::CheckVersion() {
   try {
     auto version = RunCmd({"--version"});
-    if (version.rfind("hwi 1", 0) == 0) {
-      version_ = 1;
-    } else if (version.rfind("hwi 2", 0) == 0) {
-      version_ = 2;
-    }
+    if (std::string_view hwi = "hwi "; version.size() > hwi.size())
+      version = version.substr(hwi.size());
+    if (auto dot = version.find_first_of("."); dot != std::string::npos)
+      std::from_chars(version.data(), version.data() + dot, version_);
   } catch (...) {
   }
 }
@@ -88,11 +88,15 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   std::vector<std::string> args(cmd_args);
 
   if (chain_ == Chain::TESTNET) {
-    if (version_ == 1) args.insert(args.begin(), "--testnet");
-    if (version_ == 2) args.insert(args.begin(), "--chain test");
+    if (version_ == 1)
+      args.insert(args.begin(), "--testnet");
+    else
+      args.insert(args.begin(), "--chain test");
   } else if (chain_ == Chain::SIGNET) {
-    if (version_ == 1) args.insert(args.begin(), "--signet");
-    if (version_ == 2) args.insert(args.begin(), "--chain signet");
+    if (version_ == 1)
+      args.insert(args.begin(), "--signet");
+    else
+      args.insert(args.begin(), "--chain signet");
   }
 
   // build command string
