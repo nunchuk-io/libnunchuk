@@ -79,10 +79,19 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(
 
 CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
                            const std::vector<UnspentOutput>& coins,
+                           const std::vector<UnspentOutput>& listSelected,
                            CFeeRate feerate) {
   CoinsResult result;
   const bool can_grind_r = false;
+  auto isSelected = [&](const UnspentOutput& coin) {
+    for (auto&& input : listSelected) {
+      if (input.get_txid() == coin.get_txid() && input.get_vout() == coin.get_vout())
+        return true;
+    }
+    return false;
+  };
   for (const UnspentOutput& coin : coins) {
+    if (isSelected(coin)) continue;
     COutPoint outpoint(Txid::FromUint256(*uint256::FromHex(coin.get_txid())),
                        coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
@@ -92,7 +101,7 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
 
     COutput output(outpoint, txout, coin.get_height(), input_bytes, true, true,
                    true, coin.get_blocktime(), coin.is_change(), feerate);
-    result.Add(OutputType::BECH32, output);  // TODO: get outputtype
+    result.Add(OutputType::UNKNOWN, output);  // TODO: get outputtype
   }
   return result;
 }
@@ -266,7 +275,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   CoinsResult available_coins;  // TODO: available_coins
   if (coin_control.m_allow_other_inputs) {
     available_coins =
-        AvailableCoins(desc, coins, coin_selection_params.m_effective_feerate);
+        AvailableCoins(desc, coins, listSelected, coin_selection_params.m_effective_feerate);
   }
 
   // Choose coins to use
