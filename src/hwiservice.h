@@ -53,7 +53,7 @@ class HWIService {
   std::string RunCmd(const std::vector<std::string> &) const;
   std::string hwi_;
   Chain chain_;
-  int version_;
+  int version_{};
 };
 
 }  // namespace nunchuk
