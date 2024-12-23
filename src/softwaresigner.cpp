@@ -239,7 +239,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
 
       SignatureData sigdata;
       psbtx.inputs[i].FillSignatureData(sigdata);
-      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
+      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr, false);
       // psbtx.inputs[i].m_tap_script_sigs.clear();
       // psbtx.inputs[i].m_tap_scripts.clear();
 
