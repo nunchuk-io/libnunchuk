@@ -2117,6 +2117,7 @@ std::string NunchukImpl::CreatePsbt(
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
                            error + strprintf(" wallet_id = '%s'", wallet_id));
   }
+  fee = res->fee;
   const auto& txr = *res;
   CTransactionRef tx_new = txr.tx;
 
