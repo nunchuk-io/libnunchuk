@@ -196,7 +196,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
     wallet_type = immutable_data["wallet_type"];
   } else { // backward compatible
     bool is_escrow = immutable_data["is_escrow"];
-    wallet_type = is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG;
+    wallet_type = is_escrow ? WalletType::ESCROW : (n == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG);
   }
 
   Wallet wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(), address_type, wallet_type, create_date);
