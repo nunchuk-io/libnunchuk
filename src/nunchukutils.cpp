@@ -108,12 +108,14 @@ std::string Utils::GenerateRandomMessage(int message_length) {
 }
 
 std::string Utils::GenerateRandomChainCode() {
-  std::vector<unsigned char> buf(128);
+  std::vector<unsigned char> buf{};
 
-  // // GetStrongRandBytes can only generate up to 32 bytes
-  // for (int cur = 0; cur < buf.size(); cur += 32) {
-  GetStrongRandBytes(buf);
-  // }
+  // GetStrongRandBytes can only generate up to 32 bytes
+  for (int i = 0; i < 4; i++) {
+    std::vector<unsigned char> tmp(32);
+    GetStrongRandBytes(tmp);
+    buf.insert(buf.end(), tmp.begin(), tmp.end());
+  }
 
   std::vector<unsigned char> chain_code(CHash256::OUTPUT_SIZE);
   CHash256 hasher;
