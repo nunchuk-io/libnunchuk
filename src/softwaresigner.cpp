@@ -205,10 +205,12 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
       psbtx.inputs[i].m_musig2_pubnonces.clear();
     } else {
       for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-        if (input.m_musig2_partial_sigs.count(agg_lh)) continue;
         const auto& [agg, lh] = agg_lh;
         for (const auto& [part, pubnonce] : part_pubnonce) {
-          
+          if (input.m_musig2_partial_sigs.count(agg_lh)) {
+            auto partial_sigs = input.m_musig2_partial_sigs.at(agg_lh);
+            if (partial_sigs.count(part)) continue;
+          }
           SigVersion sigversion = lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
           ScriptExecutionData execdata;
           execdata.m_annex_init = true;
