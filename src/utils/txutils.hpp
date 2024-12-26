@@ -386,11 +386,13 @@ GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet, int
   if (height == -1) {
     PartiallySignedTransaction psbtx;
     std::string error;
-    if (DecodeBase64PSBT(psbtx, str, error)) {
-      auto tx = GetTransactionFromPartiallySignedTransaction(psbtx, wallet);
-      tx.set_psbt(str);
-      return {tx, false};
-    }
+    try {
+      if (DecodeBase64PSBT(psbtx, str, error)) {
+        auto tx = GetTransactionFromPartiallySignedTransaction(psbtx, wallet);
+        tx.set_psbt(str);
+        return {tx, false};
+      }
+    } catch(...) {}
 
     CMutableTransaction mtx;
     if (DecodeHexTx(mtx, str, true, true)) {
