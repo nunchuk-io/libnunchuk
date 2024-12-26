@@ -585,6 +585,7 @@ std::vector<UnspentOutput> ElectrumSynchronizer::ListUnspent(
     u.set_vout(item["tx_pos"]);
     u.set_amount(Amount(item["value"]));
     u.set_height(item["height"]);
+    u.set_address(address);
     ret.emplace_back(std::move(u));
   }
   return ret;

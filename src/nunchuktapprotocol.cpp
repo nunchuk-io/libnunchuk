@@ -825,7 +825,7 @@ static SatscardStatus GetSatscardstatus(tap_protocol::Satscard* satscard) {
       satscard->GetNumSlots(),      std::move(slots)};
 }
 
-static std::string GetSatscardSlotsDescriptor(
+static std::vector<std::string> GetSatscardSlotsDescriptor(
     const std::vector<SatscardSlot>& slots, bool use_privkey) {
   const auto get_slot_desc = [&](const SatscardSlot& slot) {
     if (use_privkey) {
@@ -844,12 +844,7 @@ static std::string GetSatscardSlotsDescriptor(
       const std::string wif = EncodeSecret(key);
       return AddChecksum("wpkh(" + wif + ")");
     }
-    if (slot.get_status() == SatscardSlot::Status::SEALED) {
-      if (slot.get_pubkey().empty()) {
-        throw NunchukException(NunchukException::INVALID_PARAMETER,
-                               "Invalid slot pubkey");
-      }
-
+    if (!slot.get_pubkey().empty()) {
       CPubKey pub(MakeUCharSpan(slot.get_pubkey()));
       if (!pub.IsValid()) {
         throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -861,18 +856,17 @@ static std::string GetSatscardSlotsDescriptor(
     return AddChecksum("addr(" + slot.get_address() + ")");
   };
 
-  std::string desc = std::accumulate(std::begin(slots), std::end(slots), json(),
-                                     [&](json desc, const SatscardSlot& slot) {
-                                       desc.push_back(get_slot_desc(slot));
-                                       return desc;
-                                     })
-                         .dump();
-  return desc;
+  std::vector<std::string> ret(slots.size());
+  std::transform(slots.begin(), slots.end(), ret.begin(), get_slot_desc);
+
+  return ret;
 }
 
-static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
-    const std::vector<SatscardSlot>& slots, const std::string& address,
-    const Amount& fee_rate, const Amount& discard_rate, bool use_privkey) {
+static std::pair<Transaction, std::vector<std::string>>
+CreateSatscardSlotsTransaction(const std::vector<SatscardSlot>& slots,
+                               const std::string& address,
+                               const Amount& fee_rate,
+                               const Amount& discard_rate, bool use_privkey) {
   std::vector<UnspentOutput> utxos;
   std::string change_address;
   Amount total_balance = 0;
@@ -895,13 +889,14 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   }
 
   std::vector<TxOutput> selector_outputs{TxOutput{address, total_balance}};
-  std::string desc = nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
+  std::vector<std::string> descs =
+      nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
 
   Amount fee = 0;
   int vsize = 0;
   int change_pos = 0;
   auto res =
-      wallet::CreateTransaction(utxos, utxos, selector_outputs, true, desc,
+      wallet::CreateTransaction(utxos, utxos, selector_outputs, true, descs,
                                 change_address, fee_rate, change_pos, vsize);
   if (!res) {
     std::string error = util::ErrorString(res).original;
@@ -926,7 +921,8 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
 
   Wallet wallet{false};
   wallet.set_m(1);
-  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(base64_psbt), wallet);
+  auto tx = GetTransactionFromPartiallySignedTransaction(
+      DecodePsbt(base64_psbt), wallet);
 
   tx.set_fee(fee);
   tx.set_change_index(change_pos);
@@ -936,7 +932,7 @@ static std::pair<Transaction, std::string> CreateSatscardSlotsTransaction(
   tx.set_subtract_fee_from_amount(true);
   tx.set_psbt(base64_psbt);
   tx.set_vsize(vsize);
-  return {std::move(tx), std::move(desc)};
+  return {std::move(tx), std::move(descs)};
 }
 
 SatscardStatus NunchukImpl::GetSatscardStatus(
@@ -1034,11 +1030,16 @@ Transaction NunchukImpl::SweepSatscardSlots(
     Amount fee_rate) {
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto discard_rate = synchronizer_->RelayFee();
-  auto [tx, desc] = nunchuk::CreateSatscardSlotsTransaction(
+  auto [tx, descs] = nunchuk::CreateSatscardSlotsTransaction(
       slots, address, fee_rate, discard_rate, true);
 
   auto psbt = DecodePsbt(tx.get_psbt());
-  auto provider = SigningProviderCache::getInstance().GetProvider(desc);
+  auto json_descs = json::array();
+  for (auto&& desc : descs) {
+    json_descs.push_back(desc);
+  }
+  auto provider =
+      SigningProviderCache::getInstance().GetProvider(json_descs.dump());
   int nin = psbt.tx.value().vin.size();
 
   std::vector<std::string> tx_ids;
