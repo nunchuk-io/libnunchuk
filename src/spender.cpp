@@ -176,7 +176,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
 
   CoinSelectionParams coin_selection_params{rng_fast};
   coin_selection_params.m_avoid_partial_spends = false;
-  coin_selection_params.m_include_unsafe_inputs = false;
+  coin_selection_params.m_include_unsafe_inputs = true;
   coin_selection_params.m_long_term_feerate = CFeeRate(10000);
 
   CAmount recipients_sum = 0;

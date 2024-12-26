@@ -304,8 +304,8 @@ FilteredOutputGroups GroupOutputs(const CoinsResult& coins,
 util::Result<SelectionResult> AutomaticCoinSelection(
     CoinsResult& available_coins, const CAmount& value_to_select,
     const CoinSelectionParams& coin_selection_params) {
-  unsigned int limit_ancestor_count = 0;
-  unsigned int limit_descendant_count = 0;
+  unsigned int limit_ancestor_count = 25;
+  unsigned int limit_descendant_count = 25;
   const size_t max_ancestors =
       (size_t)std::max<int64_t>(1, limit_ancestor_count);
   const size_t max_descendants =
@@ -337,9 +337,9 @@ util::Result<SelectionResult> AutomaticCoinSelection(
     // the mempool as possible) if we cannot fund the transaction otherwise.
     // if (wallet.m_spend_zero_conf_change) {
     ordered_filters.push_back({CoinEligibilityFilter(0, 1, 2)});
-    // ordered_filters.push_back(
-    //     {CoinEligibilityFilter(0, 1, std::min(size_t{4}, max_ancestors / 3),
-    //                            std::min(size_t{4}, max_descendants / 3))});
+    ordered_filters.push_back(
+        {CoinEligibilityFilter(0, 1, std::min(size_t{4}, max_ancestors / 3),
+                               std::min(size_t{4}, max_descendants / 3))});
     ordered_filters.push_back(
         {CoinEligibilityFilter(0, 1, max_ancestors / 2, max_descendants / 2)});
     // If partial groups are allowed, relax the requirement of spending
