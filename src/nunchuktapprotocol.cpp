@@ -892,7 +892,6 @@ CreateSatscardSlotsTransaction(const std::vector<SatscardSlot>& slots,
   std::vector<std::string> descs =
       nunchuk::GetSatscardSlotsDescriptor(slots, use_privkey);
 
-  Amount fee = 0;
   int vsize = 0;
   int change_pos = 0;
   auto res =
@@ -924,10 +923,10 @@ CreateSatscardSlotsTransaction(const std::vector<SatscardSlot>& slots,
   auto tx = GetTransactionFromPartiallySignedTransaction(
       DecodePsbt(base64_psbt), wallet);
 
-  tx.set_fee(fee);
+  tx.set_fee(res->fee);
   tx.set_change_index(change_pos);
   tx.set_receive(false);
-  tx.set_sub_amount(total_balance - fee);
+  tx.set_sub_amount(total_balance - res->fee);
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(true);
   tx.set_psbt(base64_psbt);
