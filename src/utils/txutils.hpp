@@ -32,6 +32,7 @@
 
 #include <signingprovider.h>
 #include <script/sign.h>
+#include <boost/algorithm/string.hpp>
 
 namespace {
 
@@ -383,16 +384,22 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
 inline std::pair<nunchuk::Transaction, bool /* is hex_tx */>
 GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
+  using namespace boost::algorithm;
+
   if (height == -1) {
+    constexpr auto is_hex_tx = [](const std::string& str) {
+      return boost::starts_with(str, "01000000") ||
+            boost::starts_with(str, "02000000");
+    };
     PartiallySignedTransaction psbtx;
     std::string error;
-    try {
+    if (!is_hex_tx(boost::trim_copy(str))) {
       if (DecodeBase64PSBT(psbtx, str, error)) {
         auto tx = GetTransactionFromPartiallySignedTransaction(psbtx, wallet);
         tx.set_psbt(str);
         return {tx, false};
       }
-    } catch(...) {}
+    }
 
     CMutableTransaction mtx;
     if (DecodeHexTx(mtx, str, true, true)) {
