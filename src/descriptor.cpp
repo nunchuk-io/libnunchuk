@@ -289,7 +289,7 @@ static std::map<std::string, std::pair<AddressType, WalletType>>
         {"sh(wpkh(", {AddressType::NESTED_SEGWIT, WalletType::SINGLE_SIG}},
         {"pkh(", {AddressType::LEGACY, WalletType::SINGLE_SIG}},
         {"tr(50929b", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
-        {"tr(musig", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
+        {"tr(musig(", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
         {"tr([", {AddressType::TAPROOT, WalletType::SINGLE_SIG}}};
 
 SingleSigner ParseSignerString(const std::string& signer_str) {
@@ -325,6 +325,22 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
         if (w == WalletType::SINGLE_SIG) {
           m = n = 1;
           signers.push_back(ParseSignerString(signer_info));
+        } else if (a == AddressType::TAPROOT) {
+          std::vector<std::string> parts;
+          boost::split(parts, signer_info, boost::is_any_of(","),
+                       boost::token_compress_off);
+          m = parts.size();
+          boost::split(parts, external, boost::is_any_of(",{}()"),
+                       boost::token_compress_off);
+          std::set<std::string> signerStr{};
+          for (unsigned i = 0; i < parts.size(); ++i) {
+            if (parts[i].size() < 20) continue;
+            if (signerStr.count(parts[i])) continue;
+            auto signer = ParseSignerString(parts[i]);
+            signers.push_back(signer);
+            signerStr.insert(parts[i]);
+          }
+          n = signers.size();
         } else {
           std::vector<std::string> parts;
           boost::split(parts, signer_info, boost::is_any_of(","),
