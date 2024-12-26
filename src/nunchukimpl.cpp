@@ -2110,7 +2110,7 @@ std::string NunchukImpl::CreatePsbt(
   auto res = wallet::CreateTransaction(
       utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
       subtract_fee_from_amount,
-      wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL), change_address,
+      {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)}, change_address,
       fee_rate, change_pos, vsize);
   if (!res) {
     std::string error = util::ErrorString(res).original;
