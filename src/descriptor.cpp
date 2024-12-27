@@ -324,6 +324,7 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
             prefix.first.size(), external.find(")", 0) - prefix.first.size());
         if (w == WalletType::SINGLE_SIG) {
           m = n = 1;
+          if (a == AddressType::TAPROOT) signer_info = "[" + signer_info;
           signers.push_back(ParseSignerString(signer_info));
         } else if (a == AddressType::TAPROOT) {
           std::vector<std::string> parts;
