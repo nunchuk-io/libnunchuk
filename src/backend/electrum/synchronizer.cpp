@@ -691,6 +691,7 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
   tx.set_raw(raw);
   tx.set_receive(false);
   tx.set_blocktime(time);
+  tx.set_change_index(-1);
 
   return tx;
 }
