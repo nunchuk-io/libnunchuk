@@ -158,7 +158,12 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     int& signedVSize) {
   std::vector<CRecipient> vecSend;
   for (const auto& recipient : recipients) {
-    vecSend.push_back({DecodeDestination(recipient.first), recipient.second,
+    std::string error;
+    auto dest = DecodeDestination(recipient.first, error);
+    if (!error.empty()) {
+      throw NunchukException(NunchukException::INVALID_ADDRESS, error);
+    }
+    vecSend.push_back({std::move(dest), recipient.second,
                        substract_fee_from_amount});
   }
 
