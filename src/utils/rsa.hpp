@@ -110,6 +110,43 @@ inline std::string EnvelopeSeal(const std::string& pub_key, const std::string& p
     return rs;
 }
 
+inline std::string Encrypt(const std::string& pub_key, const std::string &input) {
+  BIO *pbkeybio = NULL;
+  pbkeybio=BIO_new_mem_buf((void*) pub_key.c_str(), pub_key.size());
+  RSA *pb_rsa = NULL;
+  pb_rsa = PEM_read_bio_RSAPublicKey(pbkeybio, &pb_rsa, NULL, NULL);
+
+  int cipherTextSize = RSA_size(pb_rsa);
+  void *plaintext = malloc(cipherTextSize);
+  if (plaintext == NULL) {
+    throw std::runtime_error(std::string(strerror(errno)));
+  }
+  memset(plaintext, 0, cipherTextSize);
+  void *ciphertext = malloc(cipherTextSize);
+  if (ciphertext == NULL) {
+    throw std::runtime_error(std::string(strerror(errno)));
+  }
+  memset(ciphertext, 0, cipherTextSize);
+
+  if (input.size() > (size_t)cipherTextSize) {
+    throw std::runtime_error("Data size exceeds the limit");
+  }
+  memcpy(plaintext, input.data(), input.size());
+  if (RSA_public_encrypt(input.size(), (unsigned char *)plaintext,
+                         (unsigned char *)ciphertext, pb_rsa,
+                         RSA_PKCS1_PADDING) < 0) {
+    throw std::runtime_error("Encrypt " + std::string(strerror(errno)));
+  }
+  Span<unsigned char> cipher{(unsigned char *)ciphertext,
+                             (size_t)cipherTextSize};
+  std::string output = EncodeBase64(cipher);
+  free(ciphertext);
+  free(plaintext);
+
+  BIO_free(pbkeybio);
+  return output;
+}
+
 inline std::string EnvelopeOpen(const std::string& pub_key, const std::string& priv_key, const std::string& cyphered) {
     BIO *pbkeybio = NULL;
     pbkeybio=BIO_new_mem_buf((void*) pub_key.c_str(), pub_key.size());
@@ -149,6 +186,42 @@ inline std::string EnvelopeOpen(const std::string& pub_key, const std::string& p
     BIO_free(pbkeybio);BIO_free(prkeybio);
     EVP_PKEY_free(evp_pbkey);EVP_PKEY_free(evp_prkey);
     return {plaintext.begin(), plaintext.end()};
+}
+
+inline std::string Decrypt(const std::string& priv_key, const std::string &base64cipherText) {
+  BIO *prkeybio = NULL;
+  prkeybio=BIO_new_mem_buf((void*) priv_key.c_str(), priv_key.size());
+  RSA *p_rsa = NULL;
+  p_rsa = PEM_read_bio_RSAPrivateKey(prkeybio, &p_rsa, NULL, NULL);
+
+  auto input = *DecodeBase64(base64cipherText.c_str());
+
+  int cipherTextSize = RSA_size(p_rsa);
+  void *plaintext = malloc(cipherTextSize);
+  if (plaintext == NULL) {
+    throw std::runtime_error(std::string(strerror(errno)));
+  }
+  memset(plaintext, 0, cipherTextSize);
+  void *ciphertext = malloc(cipherTextSize);
+  if (ciphertext == NULL) {
+    throw std::runtime_error(std::string(strerror(errno)));
+  }
+  memset(ciphertext, 0, cipherTextSize);
+
+  if (input.size() > (size_t)cipherTextSize) {
+    throw std::runtime_error("Data size exceeds the limit");
+  }
+  memcpy(ciphertext, input.data(), input.size());
+  if (RSA_private_decrypt(cipherTextSize, (unsigned char *)ciphertext,
+                          (unsigned char *)plaintext, p_rsa,
+                          RSA_PKCS1_PADDING) < 0) {
+    throw std::runtime_error("Decrypt " + std::string(strerror(errno)));
+  }
+  std::string output{(char *)plaintext};
+  free(ciphertext);
+  free(plaintext);
+  BIO_free(prkeybio);
+  return output;
 }
 
 }  // namespace
