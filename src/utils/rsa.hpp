@@ -66,7 +66,7 @@ inline std::pair<std::string,std::string> GenerateKeypair() {
     return {pub_str, pri_str};
 }
 
-std::string EnvelopeSeal(const std::string& pub_key, const std::string& plain) {
+inline std::string EnvelopeSeal(const std::string& pub_key, const std::string& plain) {
     BIO *pbkeybio = NULL;
     pbkeybio=BIO_new_mem_buf((void*) pub_key.c_str(), pub_key.size());
     RSA *pb_rsa = NULL;
