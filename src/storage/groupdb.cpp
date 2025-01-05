@@ -19,15 +19,14 @@
 
 namespace nunchuk {
 
-void NunchukGroupDb::Init() {
-  CreateTable();
-}
+void NunchukGroupDb::Init() { CreateTable(); }
 
 void NunchukGroupDb::SetDeviceToken(const std::string& value) {
   PutString(DbKeys::GROUP_DEVICE_TOKEN, value);
 }
 
-void NunchukGroupDb::SetEphemeralKey(const std::string& pub, const std::string& priv) {
+void NunchukGroupDb::SetEphemeralKey(const std::string& pub,
+                                     const std::string& priv) {
   PutString(DbKeys::GROUP_EPHEMERAL_PUB, pub);
   PutString(DbKeys::GROUP_EPHEMERAL_PRIV, priv);
 }
@@ -37,7 +36,8 @@ std::string NunchukGroupDb::GetDeviceToken() const {
 }
 
 std::pair<std::string, std::string> NunchukGroupDb::GetEphemeralKey() const {
-  return {GetString(DbKeys::GROUP_EPHEMERAL_PUB), GetString(DbKeys::GROUP_EPHEMERAL_PRIV)};
+  return {GetString(DbKeys::GROUP_EPHEMERAL_PUB),
+          GetString(DbKeys::GROUP_EPHEMERAL_PRIV)};
 }
 
 }  // namespace nunchuk

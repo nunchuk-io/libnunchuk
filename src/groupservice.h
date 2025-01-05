@@ -25,34 +25,34 @@
 namespace nunchuk {
 
 class GroupService {
-public:
+ public:
   GroupService(const std::string& baseUrl);
-  GroupService(const std::string& baseUrl,
-                const std::string& ephemeralPub_,
-                const std::string& ephemeralPriv_,
-                const std::string& deviceToken_ = {});
+  GroupService(const std::string& baseUrl, const std::string& ephemeralPub_,
+               const std::string& ephemeralPriv_,
+               const std::string& deviceToken_ = {});
 
   void SetEphemeralKey(const std::string& pub, const std::string priv);
   void SetDeviceToken(const std::string& token);
 
-  std::string RegisterDevice(
-                const std::string& osName,
-                const std::string& osVersion,
-                const std::string& appVersion,
-                const std::string& deviceClass,
-                const std::string& deviceId);
+  std::string RegisterDevice(const std::string& osName,
+                             const std::string& osVersion,
+                             const std::string& appVersion,
+                             const std::string& deviceClass,
+                             const std::string& deviceId);
   std::string GroupToEvent(const SandboxGroup& group, const std::string type);
   SandboxGroup ParseGroupResult(const std::string& data);
-  SandboxGroup CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer);
+  SandboxGroup CreateGroup(int m, int n, AddressType addressType,
+                           const SingleSigner& signer);
   SandboxGroup GetGroup(const std::string& groupId);
   std::vector<SandboxGroup> GetGroups();
   SandboxGroup JoinGroup(const std::string& groupId);
   SandboxGroup UpdateGroup(const SandboxGroup& group);
   void ListenEvents(std::function<bool(const std::string&)> callback);
 
-private:
-  std::string Get(const std::string &url);
-  std::string Post(const std::string &url, const std::vector<unsigned char> &body);
+ private:
+  std::string Get(const std::string& url);
+  std::string Post(const std::string& url,
+                   const std::vector<unsigned char>& body);
 
   std::string baseUrl_;
   std::string deviceToken_;
@@ -62,4 +62,4 @@ private:
 
 }  // namespace nunchuk
 
-#endif // NUNCHUK_GROUPSERVICE_H
+#endif  // NUNCHUK_GROUPSERVICE_H

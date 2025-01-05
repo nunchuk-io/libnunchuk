@@ -33,45 +33,43 @@ static const std::string MIME_TYPE = "application/json";
 GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {}
 
 GroupService::GroupService(const std::string& baseUrl,
-                const std::string& ephemeralPub,
-                const std::string& ephemeralPriv,
-                const std::string& deviceToken) 
-  : baseUrl_(baseUrl), ephemeralPub_(ephemeralPub), ephemeralPriv_(ephemeralPriv), deviceToken_(deviceToken) {}
+                           const std::string& ephemeralPub,
+                           const std::string& ephemeralPriv,
+                           const std::string& deviceToken)
+    : baseUrl_(baseUrl),
+      ephemeralPub_(ephemeralPub),
+      ephemeralPriv_(ephemeralPriv),
+      deviceToken_(deviceToken) {}
 
-
-void GroupService::SetEphemeralKey(const std::string& pub, const std::string priv) {
+void GroupService::SetEphemeralKey(const std::string& pub,
+                                   const std::string priv) {
   ephemeralPub_ = pub;
   ephemeralPriv_ = priv;
 }
 
 void GroupService::SetDeviceToken(const std::string& token) {
-  deviceToken_ = token; 
+  deviceToken_ = token;
 }
 
-std::string GroupService::RegisterDevice(
-  const std::string& osName,
-  const std::string& osVersion,
-  const std::string& appVersion,
-  const std::string& deviceClass,
-  const std::string& deviceId
-){
+std::string GroupService::RegisterDevice(const std::string& osName,
+                                         const std::string& osVersion,
+                                         const std::string& appVersion,
+                                         const std::string& deviceClass,
+                                         const std::string& deviceId) {
   std::string url = "/v1.1/shared-wallets/devices/register";
   std::string body = "{}";
   httplib::Headers headers = {
-    {"X-NC-OS-NAME", osName},
-    {"X-NC-OS-VERSION", osVersion},
-    {"X-NC-APP-VERSION", appVersion},
-    {"X-NC-DEVICE-CLASS", deviceClass},
-    {"X-NC-DEVICE-ID", deviceId},
+      {"X-NC-OS-NAME", osName},         {"X-NC-OS-VERSION", osVersion},
+      {"X-NC-APP-VERSION", appVersion}, {"X-NC-DEVICE-CLASS", deviceClass},
+      {"X-NC-DEVICE-ID", deviceId},
   };
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
-  auto res = client.Post(url.c_str(), headers, (const char *)body.data(),
+  auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
                          body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
-    throw NunchukException(
-        NunchukException::SERVER_REQUEST_ERROR,
-        res ? res->body : "Server error");
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           res ? res->body : "Server error");
   }
   deviceToken_ = json::parse(res->body)["data"]["device_token"];
   return deviceToken_;
@@ -81,14 +79,14 @@ json GetHttpResponseData(const std::string& resp) {
   // std::cout << "resp " << resp<< std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
-    throw NunchukException(
-        NunchukException::SERVER_REQUEST_ERROR,
-        parsed["error"]["message"]); 
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           parsed["error"]["message"]);
   }
   return parsed["data"];
 }
 
-SandboxGroup ParseGroup(const json& group, const std::string& pub, const std::string& priv) {
+SandboxGroup ParseGroup(const json& group, const std::string& pub,
+                        const std::string& priv) {
   SandboxGroup rs(group["id"]);
   rs.set_finalized(group["status"] == "ACTIVE");
   json info = rs.is_finalized() ? group["finalize"] : group["init"];
@@ -133,21 +131,23 @@ SandboxGroup GroupService::ParseGroupResult(const std::string& resp) {
   return ParseGroup(group, ephemeralPub_, ephemeralPriv_);
 }
 
-std::string GroupService::GroupToEvent(const SandboxGroup& group, const std::string type) {
+std::string GroupService::GroupToEvent(const SandboxGroup& group,
+                                       const std::string type) {
   json signers = json::array();
   for (auto&& signer : group.get_signers()) {
     signers.push_back(signer.get_descriptor());
   }
   json plaintext = {
-    {"m", group.get_m()},
-    {"n", group.get_n()},
-    {"addressType", group.get_address_type()},
-    {"signers", signers},
+      {"m", group.get_m()},
+      {"n", group.get_n()},
+      {"addressType", group.get_address_type()},
+      {"signers", signers},
   };
 
   if (group.is_finalized()) {
     if (group.get_pubkey().empty() || group.get_wallet_id().empty()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid wallet id");
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid wallet id");
     }
     plaintext["pubkey"] = group.get_pubkey();
     plaintext["walletId"] = group.get_wallet_id();
@@ -158,19 +158,20 @@ std::string GroupService::GroupToEvent(const SandboxGroup& group, const std::str
     state[ephemeralKey] = rsa::EnvelopeSeal(ephemeralKey, plaintext.dump());
   }
   json data = {
-    {"version", 1},
-    {"stateId", group.get_state_id() + 1},
-    {"state", state},
+      {"version", 1},
+      {"stateId", group.get_state_id() + 1},
+      {"state", state},
   };
   json body = {
-    {"group_id", group.get_id()},
-    {"type", type},
-    {"data", data},
+      {"group_id", group.get_id()},
+      {"type", type},
+      {"data", data},
   };
   return body.dump();
 }
 
-SandboxGroup GroupService::CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer) {
+SandboxGroup GroupService::CreateGroup(int m, int n, AddressType addressType,
+                                       const SingleSigner& signer) {
   if (m <= 0 || n <= 0 || m > n) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
   }
@@ -208,42 +209,49 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
   json data = GetHttpResponseData(Get(url));
   json group = data["group"];
   if (group["status"] == "ACTIVE") {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, "Group finalized"); 
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Group finalized");
   }
   if (group["init"]["state"][ephemeralPub_] != nullptr) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, "Already joined"); 
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Already joined");
   }
   group["init"]["state"][ephemeralPub_] = "";
   group["init"]["stateId"] = group["init"]["stateId"].get<int>() + 1;
   json event = {
-    {"group_id", groupId},
-    {"type", "init"},
-    {"data", group["init"]},
+      {"group_id", groupId},
+      {"type", "init"},
+      {"data", group["init"]},
   };
   std::string body = event.dump();
-  std::string rs = Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()});
-  Post( "/v1.1/shared-wallets/events/send", {body.begin(), body.end()});
+  std::string rs =
+      Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()});
+  Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()});
   return ParseGroupResult(rs);
 }
 
 SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
-  if (group.get_m() <= 0 || group.get_n() <= 0 || group.get_m() > group.get_n()) {
+  if (group.get_m() <= 0 || group.get_n() <= 0 ||
+      group.get_m() > group.get_n()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
   }
   if (group.is_finalized() && group.get_signers().size() != group.get_n()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid signers");
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid signers");
   }
   std::string url = "/v1.1/shared-wallets/events/send";
-  std::string body = GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
+  std::string body =
+      GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
   std::string rs = Post(url, {body.begin(), body.end()});
   return group;
 }
 
-void GroupService::ListenEvents(std::function<bool(const std::string&)> callback) {
+void GroupService::ListenEvents(
+    std::function<bool(const std::string&)> callback) {
   httplib::Headers headers = {{"Device-Token", deviceToken_}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
-  
+
   auto handle_event = [&](std::string_view event_data) {
     size_t data_pos = event_data.find("data:");
     if (data_pos == std::string::npos) return;
@@ -262,45 +270,44 @@ void GroupService::ListenEvents(std::function<bool(const std::string&)> callback
   };
 
   std::string buffer;
-  client.Get("/v1.1/shared-wallets/events/sse", headers, 
-    [&](const char* data, size_t data_length) {
-      buffer.append(data, data_length);
-      size_t pos;
-      while ((pos = buffer.find("\n\n")) != std::string::npos) {
-        std::string_view event_data = std::string_view(buffer).substr(0, pos);
-        handle_event(event_data);
-        buffer.erase(0, pos + 2);
-      }
-      return true;
-    });
+  client.Get("/v1.1/shared-wallets/events/sse", headers,
+             [&](const char* data, size_t data_length) {
+               buffer.append(data, data_length);
+               size_t pos;
+               while ((pos = buffer.find("\n\n")) != std::string::npos) {
+                 std::string_view event_data =
+                     std::string_view(buffer).substr(0, pos);
+                 handle_event(event_data);
+                 buffer.erase(0, pos + 2);
+               }
+               return true;
+             });
 }
 
-std::string GroupService::Post(const std::string &url,
-                               const std::vector<unsigned char> &body) {
+std::string GroupService::Post(const std::string& url,
+                               const std::vector<unsigned char>& body) {
   httplib::Headers headers = {{"Device-Token", deviceToken_}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
-  auto res = client.Post(url.c_str(), headers, (const char *)body.data(),
+  auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
                          body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
-    throw NunchukException(
-        NunchukException::SERVER_REQUEST_ERROR,
-        res ? res->body : "Server error");
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           res ? res->body : "Server error");
   }
   return res->body;
 }
 
-std::string GroupService::Get(const std::string &url) {
+std::string GroupService::Get(const std::string& url) {
   httplib::Headers headers = {{"Device-Token", deviceToken_}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
   auto res = client.Get(url.c_str(), headers);
   if (!res || res->status != 200) {
-    throw NunchukException(
-        NunchukException::SERVER_REQUEST_ERROR,
-        res ? res->body : "Server error");
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           res ? res->body : "Server error");
   }
   return res->body;
 }
 
-}
+}  // namespace nunchuk

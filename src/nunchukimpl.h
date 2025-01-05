@@ -561,19 +561,24 @@ class NunchukImpl : public Nunchuk {
 
   // Group Wallet
   void EnableGroupWallet(const std::string& osName,
-                        const std::string& osVersion,
-                        const std::string& appVersion,
-                        const std::string& deviceClass,
-                        const std::string& deviceId) override;
+                         const std::string& osVersion,
+                         const std::string& appVersion,
+                         const std::string& deviceClass,
+                         const std::string& deviceId) override;
   void ConsumeGroupEvent(const std::string& event) override;
-  SandboxGroup CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer = {}) override;
+  SandboxGroup CreateGroup(int m, int n, AddressType addressType,
+                           const SingleSigner& signer = {}) override;
   SandboxGroup GetGroup(const std::string& groupId) override;
   std::vector<SandboxGroup> GetGroups() override;
   SandboxGroup JoinGroup(const std::string& groupId) override;
-  SandboxGroup AddSignerToGroup(const std::string& groupId, const SingleSigner& signer) override;
-  SandboxGroup UpdateGroup(const std::string& groupId, int m, int n, AddressType addressType, const SingleSigner& signer = {}) override;
+  SandboxGroup AddSignerToGroup(const std::string& groupId,
+                                const SingleSigner& signer) override;
+  SandboxGroup UpdateGroup(const std::string& groupId, int m, int n,
+                           AddressType addressType,
+                           const SingleSigner& signer = {}) override;
   SandboxGroup FinalizeGroup(const std::string& groupId) override;
-  void AddGroupUpdateListener(std::function<void(const SandboxGroup& state)> listener) override;
+  void AddGroupUpdateListener(
+      std::function<void(const SandboxGroup& state)> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,

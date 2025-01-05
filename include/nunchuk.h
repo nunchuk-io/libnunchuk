@@ -1479,19 +1479,24 @@ class NUNCHUK_EXPORT Nunchuk {
 
   // Group Wallet
   virtual void EnableGroupWallet(const std::string& osName,
-                                const std::string& osVersion,
-                                const std::string& appVersion,
-                                const std::string& deviceClass,
-                                const std::string& deviceId) = 0;
+                                 const std::string& osVersion,
+                                 const std::string& appVersion,
+                                 const std::string& deviceClass,
+                                 const std::string& deviceId) = 0;
   virtual void ConsumeGroupEvent(const std::string& event) = 0;
-  virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer = {}) = 0;
+  virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType,
+                                   const SingleSigner& signer = {}) = 0;
   virtual SandboxGroup GetGroup(const std::string& groupId) = 0;
   virtual std::vector<SandboxGroup> GetGroups() = 0;
   virtual SandboxGroup JoinGroup(const std::string& groupId) = 0;
-  virtual SandboxGroup AddSignerToGroup(const std::string& groupId, const SingleSigner& signer) = 0;
-  virtual SandboxGroup UpdateGroup(const std::string& groupId, int m, int n, AddressType addressType, const SingleSigner& signer = {}) = 0;
+  virtual SandboxGroup AddSignerToGroup(const std::string& groupId,
+                                        const SingleSigner& signer) = 0;
+  virtual SandboxGroup UpdateGroup(const std::string& groupId, int m, int n,
+                                   AddressType addressType,
+                                   const SingleSigner& signer = {}) = 0;
   virtual SandboxGroup FinalizeGroup(const std::string& groupId) = 0;
-  virtual void AddGroupUpdateListener(std::function<void(const SandboxGroup& state)> listener) = 0;
+  virtual void AddGroupUpdateListener(
+      std::function<void(const SandboxGroup& state)> listener) = 0;
 
  protected:
   Nunchuk() = default;

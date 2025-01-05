@@ -26,12 +26,11 @@ using json = nlohmann::json;
 
 namespace nunchuk {
 
-void NunchukImpl::EnableGroupWallet(
-                        const std::string& osName,
-                        const std::string& osVersion,
-                        const std::string& appVersion,
-                        const std::string& deviceClass,
-                        const std::string& deviceId) {
+void NunchukImpl::EnableGroupWallet(const std::string& osName,
+                                    const std::string& osVersion,
+                                    const std::string& appVersion,
+                                    const std::string& deviceClass,
+                                    const std::string& deviceId) {
   group_wallet_enable_ = true;
   auto keypair = storage_->GetGroupEphemeralKey(chain_);
   if (keypair.first.empty() || keypair.second.empty()) {
@@ -41,29 +40,23 @@ void NunchukImpl::EnableGroupWallet(
   group_service_.SetEphemeralKey(keypair.first, keypair.second);
   std::string deviceToken = storage_->GetGroupDeviceToken(chain_);
   if (deviceToken.empty()) {
-    deviceToken = group_service_.RegisterDevice(
-        osName,
-        osVersion,
-        appVersion,
-        deviceClass,
-        deviceId
-    );
+    deviceToken = group_service_.RegisterDevice(osName, osVersion, appVersion,
+                                                deviceClass, deviceId);
     storage_->SetGroupDeviceToken(chain_, deviceToken);
   } else {
     group_service_.SetDeviceToken(deviceToken);
   }
 }
 
-void NunchukImpl::ConsumeGroupEvent(const std::string& event) {
-  
-}
+void NunchukImpl::ConsumeGroupEvent(const std::string& event) {}
 
-SandboxGroup NunchukImpl::CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer) {
+SandboxGroup NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
+                                      const SingleSigner& signer) {
   return group_service_.CreateGroup(m, n, addressType, signer);
 }
 
 SandboxGroup NunchukImpl::GetGroup(const std::string& groupId) {
- return group_service_.GetGroup(groupId); 
+  return group_service_.GetGroup(groupId);
 }
 
 std::vector<SandboxGroup> NunchukImpl::GetGroups() {
@@ -74,7 +67,8 @@ SandboxGroup NunchukImpl::JoinGroup(const std::string& groupId) {
   return group_service_.JoinGroup(groupId);
 }
 
-SandboxGroup NunchukImpl::AddSignerToGroup(const std::string& groupId, const SingleSigner& signer) {
+SandboxGroup NunchukImpl::AddSignerToGroup(const std::string& groupId,
+                                           const SingleSigner& signer) {
   auto group = group_service_.GetGroup(groupId);
   auto signers = group.get_signers();
   signers.push_back(signer);
@@ -82,7 +76,9 @@ SandboxGroup NunchukImpl::AddSignerToGroup(const std::string& groupId, const Sin
   return group_service_.UpdateGroup(group);
 }
 
-SandboxGroup NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n, AddressType addressType, const SingleSigner& signer) {
+SandboxGroup NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
+                                      AddressType addressType,
+                                      const SingleSigner& signer) {
   auto group = group_service_.GetGroup(groupId);
   group.set_m(m);
   group.set_n(n);
@@ -97,7 +93,8 @@ SandboxGroup NunchukImpl::FinalizeGroup(const std::string& groupId) {
   return group_service_.UpdateGroup(group);
 }
 
-void NunchukImpl::AddGroupUpdateListener(std::function<void(const SandboxGroup& state)> listener) {
+void NunchukImpl::AddGroupUpdateListener(
+    std::function<void(const SandboxGroup& state)> listener) {
   group_wallet_listener_.connect(listener);
 }
 
