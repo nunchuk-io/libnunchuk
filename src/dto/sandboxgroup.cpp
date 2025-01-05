@@ -21,23 +21,7 @@
 
 namespace nunchuk {
 
-SandboxGroup::SandboxGroup(const std::string& id)
-    : id_(id) {};
-
-SandboxGroup::SandboxGroup(const std::string& id, int m, int n,
-               AddressType address_type,
-               const std::vector<SingleSigner>& signers,
-               bool finalized,
-               const std::vector<std::string>& keys,
-               int state_id)
-    : id_(id),
-      m_(m),
-      n_(n),
-      address_type_(address_type),
-      signers_(signers),
-      finalized_(finalized),
-      keys_(keys),
-      state_id_(state_id) {};
+SandboxGroup::SandboxGroup(const std::string& id) : id_(id) {};
 
 std::string SandboxGroup::get_id() const { return id_; }
 int SandboxGroup::get_m() const { return m_; }
@@ -47,6 +31,9 @@ AddressType SandboxGroup::get_address_type() const { return address_type_; }
 bool SandboxGroup::is_finalized() const { return finalized_; }
 int SandboxGroup::get_state_id() const { return state_id_; }
 const std::vector<std::string>& SandboxGroup::get_ephemeral_keys() const { return keys_; }
+bool SandboxGroup::need_broadcast() const { return need_broadcast_; }
+std::string SandboxGroup::get_wallet_id() const { return wallet_id_; }
+std::string SandboxGroup::get_pubkey() const { return pubkey_; }
 
 void SandboxGroup::set_n(int n) { n_ = n; }
 void SandboxGroup::set_m(int m) { m_ = m; }
@@ -55,5 +42,8 @@ void SandboxGroup::set_address_type(AddressType value) { address_type_ = value; 
 void SandboxGroup::set_finalized(bool value) { finalized_ = value; }
 void SandboxGroup::set_ephemeral_keys(std::vector<std::string> keys) { keys_ = std::move(keys); }
 void SandboxGroup::set_state_id(int value) { state_id_ = value; }
+void SandboxGroup::set_need_broadcast(bool value) { need_broadcast_ = value; }
+void SandboxGroup::set_wallet_id(const std::string& value) { wallet_id_ = value; }
+void SandboxGroup::set_pubkey(const std::string& value) { pubkey_ = value; }
 
 }  // namespace nunchuk

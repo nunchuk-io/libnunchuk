@@ -77,29 +77,42 @@ json GetHttpResponseData(const std::string& resp) {
 }
 
 SandboxGroup ParseGroup(const json& group, const std::string& pub, const std::string& priv) {
-  bool finalized = group["status"] == "ACTIVE";
-  json info = finalized ? group["finalize"] : group["init"];
+  SandboxGroup rs(group["id"]);
+  rs.set_finalized(group["status"] == "ACTIVE");
+  json info = rs.is_finalized() ? group["finalize"] : group["init"];
+  rs.set_state_id(info["stateId"]);
 
   json config = nullptr;
   std::vector<std::string> keys{};
   for (auto& [key, value] : info["state"].items()) {
     if (key == pub) {
-      config = json::parse(rsa::Decrypt(priv, value));
+      if (!value.get<std::string>().empty()) {
+        config = json::parse(rsa::Decrypt(priv, value));
+      }
+    } else if (value.get<std::string>().empty()) {
+      rs.set_need_broadcast(true);
     }
     keys.push_back(key);
   }
-  if (config == nullptr) return { group["id"] };
+  if (config == nullptr) {
+    rs.set_need_broadcast(false);
+    return rs;
+  }
 
   std::vector<SingleSigner> signers{};
   for (auto& item : config["signers"]) {
     signers.push_back(ParseSignerString(item));
   }
-
-  return {
-    group["id"], config["m"], config["n"],
-    AddressType(config["addressType"]),
-    signers, finalized, keys, info["stateId"]
-  };
+  rs.set_m(config["m"]);
+  rs.set_n(config["n"]);
+  rs.set_address_type(AddressType(config["addressType"]));
+  rs.set_signers(signers);
+  rs.set_ephemeral_keys(keys);
+  if (rs.is_finalized()) {
+    rs.set_pubkey(config["pubkey"]);
+    rs.set_wallet_id(config["walletId"]);
+  }
+  return rs;
 }
 
 SandboxGroup GroupService::ParseGroupResult(const std::string& resp) {
@@ -120,6 +133,14 @@ std::string GroupService::GroupToEvent(const SandboxGroup& group, const std::str
     {"signers", signers},
   };
 
+  if (group.is_finalized()) {
+    if (group.get_pubkey().empty() || group.get_wallet_id().empty()) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid wallet id");
+    }
+    plaintext["pubkey"] = group.get_pubkey();
+    plaintext["walletId"] = group.get_wallet_id();
+  }
+
   json state{};
   for (auto&& ephemeralKey : group.get_ephemeral_keys()) {
     state[ephemeralKey] = rsa::Encrypt(ephemeralKey, plaintext.dump());
@@ -138,8 +159,16 @@ std::string GroupService::GroupToEvent(const SandboxGroup& group, const std::str
 }
 
 SandboxGroup GroupService::CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer) {
+  if (m <= 0 || n <= 0 || m > n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
+  }
   std::string url = "/v1.1/shared-wallets/groups";
-  SandboxGroup group("", m, n, addressType, {signer}, false, {ephemeralPub_}, 0);
+  SandboxGroup group("");
+  group.set_m(m);
+  group.set_n(n);
+  group.set_address_type(addressType);
+  if (!signer.get_master_fingerprint().empty()) group.set_signers({signer});
+  group.set_ephemeral_keys({ephemeralPub_});
   std::string body = GroupToEvent(group, "init");
   std::string rs = Post(url, {body.begin(), body.end()});
   return ParseGroupResult(rs);
@@ -160,6 +189,41 @@ std::vector<SandboxGroup> GroupService::GetGroups() {
     rs.push_back(ParseGroup(group, ephemeralPub_, ephemeralPriv_));
   }
   return rs;
+}
+
+SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
+  std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
+  json data = GetHttpResponseData(Get(url));
+  json group = data["group"];
+  if (group["status"] == "ACTIVE") {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, "Group finalized"); 
+  }
+  if (group["init"]["state"][ephemeralPub_] != nullptr) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, "Already joined"); 
+  }
+  group["init"]["state"][ephemeralPub_] = "";
+  group["init"]["state"]["stateId"] = group["init"]["state"]["stateId"].get<int>() + 1;
+  json event = {
+    {"group_id", groupId},
+    {"type", "init"},
+    {"data", group["init"]},
+  };
+  std::string body = event.dump();
+  std::string rs = Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()});
+  return ParseGroupResult(rs);
+}
+
+SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
+  if (group.get_m() <= 0 || group.get_n() <= 0 || group.get_m() > group.get_n()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
+  }
+  if (group.is_finalized() && group.get_signers().size() != group.get_n()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid signers");
+  }
+  std::string url = "/v1.1/shared-wallets/events/send";
+  std::string body = GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
+  std::string rs = Post(url, {body.begin(), body.end()});
+  return group;
 }
 
 std::string GroupService::Post(const std::string &url,
