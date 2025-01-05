@@ -25,6 +25,7 @@
 #include "roomdb.h"
 #include "tapprotocoldb.h"
 #include "localdb.h"
+#include "groupdb.h"
 
 #include <filesystem>
 #include <shared_mutex>
@@ -310,6 +311,11 @@ class NunchukStorage {
   Wallet CreateDecoyWallet(Chain chain, const Wallet &wallet,
                            const std::string &pin);
 
+  std::string GetGroupDeviceToken(Chain chain);
+  std::pair<std::string, std::string> GetGroupEphemeralKey(Chain chain);
+  bool SetGroupDeviceToken(Chain chain, const std::string& value);
+  bool SetGroupEphemeralKey(Chain chain, const std::string& pub, const std::string& priv);
+
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
   static std::shared_mutex access_;
@@ -318,6 +324,7 @@ class NunchukStorage {
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
+  NunchukGroupDb GetGroupDb(Chain chain);
   NunchukTapprotocolDb GetTaprotocolDb(Chain chain,
                                        const std::filesystem::path &dir = {});
   std::filesystem::path ChainStr(Chain chain) const;
@@ -327,6 +334,7 @@ class NunchukStorage {
   std::filesystem::path GetPrimaryDir(Chain chain) const;
   std::filesystem::path GetLocalDir(Chain chain) const;
   std::filesystem::path GetRoomDir(Chain chain) const;
+  std::filesystem::path GetGroupDir(Chain chain) const;
   std::filesystem::path GetTapprotocolDir(
       Chain chain, const std::filesystem::path &dir = {}) const;
   std::filesystem::path GetDefaultDataDir() const;

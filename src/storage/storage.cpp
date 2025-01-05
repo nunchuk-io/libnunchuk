@@ -334,6 +334,10 @@ bfs::path NunchukStorage::GetRoomDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "room";
 }
 
+bfs::path NunchukStorage::GetGroupDir(Chain chain) const {
+  return datadir_ / ChainStr(chain) / "group";
+}
+
 bfs::path NunchukStorage::GetTapprotocolDir(Chain chain,
                                             const bfs::path& dir) const {
   if (dir.empty()) {
@@ -383,6 +387,14 @@ NunchukLocalDb NunchukStorage::GetLocalDb(Chain chain) {
   bfs::path db_file = GetLocalDir(chain);
   bool is_new = !bfs::exists(db_file);
   auto db = NunchukLocalDb{chain, "", db_file.string(), ""};
+  db.Init();
+  return db;
+}
+
+NunchukGroupDb NunchukStorage::GetGroupDb(Chain chain) {
+  bfs::path db_file = GetGroupDir(chain);
+  bool is_new = !bfs::exists(db_file);
+  auto db = NunchukGroupDb{chain, "", db_file.string(), ""};
   db.Init();
   return db;
 }
@@ -2195,6 +2207,28 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
   Wallet true_wallet = wallet;
   true_wallet.set_signers(true_signers);
   return true_wallet;
+}
+
+std::string NunchukStorage::GetGroupDeviceToken(Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetDeviceToken();
+}
+
+std::pair<std::string, std::string> NunchukStorage::GetGroupEphemeralKey(Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetEphemeralKey();
+}
+
+bool NunchukStorage::SetGroupDeviceToken(Chain chain, const std::string& value) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetGroupDb(chain).SetDeviceToken(value);
+  return true;
+}
+
+bool NunchukStorage::SetGroupEphemeralKey(Chain chain, const std::string& pub, const std::string& priv) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetGroupDb(chain).SetEphemeralKey(pub, priv);
+  return true;
 }
 
 }  // namespace nunchuk

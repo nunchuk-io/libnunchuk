@@ -50,6 +50,9 @@ std::string AppSettings::get_corerpc_username() const {
 std::string AppSettings::get_corerpc_password() const {
   return corerpc_password_;
 }
+std::string AppSettings::get_group_server() const {
+  return group_server_;
+}
 
 void AppSettings::set_chain(Chain value) { chain_ = value; }
 void AppSettings::set_backend_type(BackendType value) { backend_type_ = value; }
@@ -89,6 +92,9 @@ void AppSettings::set_corerpc_username(const std::string& value) {
 }
 void AppSettings::set_corerpc_password(const std::string& value) {
   corerpc_password_ = value;
+}
+void AppSettings::set_group_server(const std::string& value) {
+  group_server_ = value;
 }
 
 }  // namespace nunchuk

@@ -593,6 +593,47 @@ class NUNCHUK_EXPORT UnspentOutput {
   CoinStatus status_;
 };
 
+class NUNCHUK_EXPORT SandboxGroup {
+ public:
+  SandboxGroup(const std::string& id);
+
+  std::string get_id() const;
+  int get_m() const;
+  int get_n() const;
+  AddressType get_address_type() const;
+  const std::vector<SingleSigner>& get_signers() const;
+  bool is_finalized() const;
+  const std::vector<std::string>& get_ephemeral_keys() const;
+  int get_state_id() const;
+  bool need_broadcast() const;
+  std::string get_wallet_id() const;
+  std::string get_pubkey() const;
+
+  void set_n(int n);
+  void set_m(int m);
+  void set_address_type(AddressType value);
+  void set_signers(std::vector<SingleSigner> signers);
+  void set_finalized(bool value);
+  void set_ephemeral_keys(std::vector<std::string> keys);
+  void set_state_id(int id);
+  void set_need_broadcast(bool value);
+  void set_wallet_id(const std::string& value);
+  void set_pubkey(const std::string& value);
+
+ private:
+  std::string id_;
+  int m_{0};
+  int n_{0};
+  AddressType address_type_;
+  std::vector<SingleSigner> signers_;
+  bool finalized_{false};
+  std::vector<std::string> keys_;
+  int state_id_{0};
+  bool need_broadcast_{false};
+  std::string wallet_id_{};
+  std::string pubkey_{};
+};
+
 typedef std::map<std::string, bool> KeyStatus;  // xfp-signed map
 typedef std::pair<TransactionStatus, KeyStatus> KeysetStatus;
 
@@ -838,6 +879,7 @@ class NUNCHUK_EXPORT AppSettings {
   int get_corerpc_port() const;
   std::string get_corerpc_username() const;
   std::string get_corerpc_password() const;
+  std::string get_group_server() const;
 
   void set_chain(Chain value);
   void set_backend_type(BackendType value);
@@ -856,6 +898,7 @@ class NUNCHUK_EXPORT AppSettings {
   void set_corerpc_port(int value);
   void set_corerpc_username(const std::string& value);
   void set_corerpc_password(const std::string& value);
+  void set_group_server(const std::string& value);
 
  private:
   Chain chain_;
@@ -875,6 +918,7 @@ class NUNCHUK_EXPORT AppSettings {
   int corerpc_port_;
   std::string corerpc_username_;
   std::string corerpc_password_;
+  std::string group_server_;
 };
 
 class NUNCHUK_EXPORT Nunchuk {
@@ -1432,6 +1476,22 @@ class NUNCHUK_EXPORT Nunchuk {
                                              const std::string& cvc,
                                              const SingleSigner& signer,
                                              const std::string& message) = 0;
+
+  // Group Wallet
+  virtual void EnableGroupWallet(const std::string& osName,
+                                const std::string& osVersion,
+                                const std::string& appVersion,
+                                const std::string& deviceClass,
+                                const std::string& deviceId) = 0;
+  virtual void ConsumeGroupEvent(const std::string& event) = 0;
+  virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer = {}) = 0;
+  virtual SandboxGroup GetGroup(const std::string& groupId) = 0;
+  virtual std::vector<SandboxGroup> GetGroups() = 0;
+  virtual SandboxGroup JoinGroup(const std::string& groupId) = 0;
+  virtual SandboxGroup AddSignerToGroup(const std::string& groupId, const SingleSigner& signer) = 0;
+  virtual SandboxGroup UpdateGroup(const std::string& groupId, int m, int n, AddressType addressType, const SingleSigner& signer = {}) = 0;
+  virtual SandboxGroup FinalizeGroup(const std::string& groupId) = 0;
+  virtual void AddGroupUpdateListener(std::function<void(const SandboxGroup& state)> listener) = 0;
 
  protected:
   Nunchuk() = default;

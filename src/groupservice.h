@@ -26,10 +26,14 @@ namespace nunchuk {
 
 class GroupService {
 public:
+  GroupService(const std::string& baseUrl);
   GroupService(const std::string& baseUrl,
                 const std::string& ephemeralPub_,
                 const std::string& ephemeralPriv_,
                 const std::string& deviceToken_ = {});
+
+  void SetEphemeralKey(const std::string& pub, const std::string priv);
+  void SetDeviceToken(const std::string& token);
 
   std::string RegisterDevice(
                 const std::string& osName,

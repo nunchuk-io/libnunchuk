@@ -20,6 +20,7 @@
 
 #include <descriptor.h>
 #include <hwiservice.h>
+#include <groupservice.h>
 #include <nunchuk.h>
 #include <coreutils.h>
 #include <storage/storage.h>
@@ -558,6 +559,22 @@ class NunchukImpl : public Nunchuk {
       const std::set<int>& tags, const std::set<int>& collections,
       Amount fee_rate = -1) override;
 
+  // Group Wallet
+  void EnableGroupWallet(const std::string& osName,
+                        const std::string& osVersion,
+                        const std::string& appVersion,
+                        const std::string& deviceClass,
+                        const std::string& deviceId) override;
+  void ConsumeGroupEvent(const std::string& event) override;
+  SandboxGroup CreateGroup(int m, int n, AddressType addressType, const SingleSigner& signer = {}) override;
+  SandboxGroup GetGroup(const std::string& groupId) override;
+  std::vector<SandboxGroup> GetGroups() override;
+  SandboxGroup JoinGroup(const std::string& groupId) override;
+  SandboxGroup AddSignerToGroup(const std::string& groupId, const SingleSigner& signer) override;
+  SandboxGroup UpdateGroup(const std::string& groupId, int m, int n, AddressType addressType, const SingleSigner& signer = {}) override;
+  SandboxGroup FinalizeGroup(const std::string& groupId) override;
+  void AddGroupUpdateListener(std::function<void(const SandboxGroup& state)> listener) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,
@@ -586,6 +603,11 @@ class NunchukImpl : public Nunchuk {
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
   Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
   static std::map<std::string, time_t> last_scan_;
+
+  // Group wallet
+  bool group_wallet_enable_{false};
+  GroupService group_service_;
+  boost::signals2::signal<void(const SandboxGroup&)> group_wallet_listener_;
 };
 
 }  // namespace nunchuk

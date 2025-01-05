@@ -139,6 +139,7 @@ target_include_directories(ur-2 PUBLIC
 
 add_library("${PROJECT_NAME}" STATIC 
     src/hwiservice.cpp 
+    src/groupservice.cpp
     src/selector.cpp 
     src/spender.cpp
     src/coreutils.cpp
@@ -149,6 +150,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/nunchukutils.cpp
     src/nunchukmatriximpl.cpp
     src/nunchuktapprotocol.cpp
+    src/nunchukgroupwallet.cpp
     src/backend/synchronizer.cpp
     src/backend/electrum/client.cpp
     src/backend/electrum/synchronizer.cpp
@@ -169,6 +171,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/roomwallet.cpp
     src/dto/tapsignerstatus.cpp
     src/dto/satscardstatus.cpp
+    src/dto/sandboxgroup.cpp
     src/storage/appstatedb.cpp
     src/storage/db.cpp
     src/storage/localdb.cpp
@@ -178,6 +181,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/storage/walletdb.cpp
     src/storage/roomdb.cpp
     src/storage/tapprotocoldb.cpp
+    src/storage/groupdb.cpp
     src/utils/loguru.cpp
     src/utils/ndef.hpp
     src/utils/enumconverter.hpp

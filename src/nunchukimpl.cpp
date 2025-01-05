@@ -83,7 +83,8 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
       chain_(app_settings_.get_chain()),
       hwi_(app_settings_.get_hwi_path(), chain_),
       storage_(NunchukStorage::get(account_)),
-      hwi_tapsigner_(MakeHWITapsigner(NunchukChain2TapsignerChain(chain_))) {
+      hwi_tapsigner_(MakeHWITapsigner(NunchukChain2TapsignerChain(chain_))),
+      group_service_(app_settings_.get_group_server()) {
   CoreUtils::getInstance().SetChain(chain_);
   storage_->Init(app_settings_.get_storage_path(), passphrase);
   storage_->MaybeMigrate(chain_);

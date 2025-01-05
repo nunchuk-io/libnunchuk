@@ -30,11 +30,23 @@ namespace nunchuk {
 
 static const std::string MIME_TYPE = "application/json";
 
+GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {}
+
 GroupService::GroupService(const std::string& baseUrl,
                 const std::string& ephemeralPub,
                 const std::string& ephemeralPriv,
                 const std::string& deviceToken) 
   : baseUrl_(baseUrl), ephemeralPub_(ephemeralPub), ephemeralPriv_(ephemeralPriv), deviceToken_(deviceToken) {}
+
+
+void GroupService::SetEphemeralKey(const std::string& pub, const std::string priv) {
+  ephemeralPub_ = pub;
+  ephemeralPriv_ = priv;
+}
+
+void GroupService::SetDeviceToken(const std::string& token) {
+  deviceToken_ = token; 
+}
 
 std::string GroupService::RegisterDevice(
   const std::string& osName,
