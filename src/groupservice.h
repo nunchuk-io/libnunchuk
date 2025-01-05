@@ -44,6 +44,7 @@ public:
   std::vector<SandboxGroup> GetGroups();
   SandboxGroup JoinGroup(const std::string& groupId);
   SandboxGroup UpdateGroup(const SandboxGroup& group);
+  void ListenEvents(std::function<bool(const std::string&)> callback);
 
 private:
   std::string Get(const std::string &url);

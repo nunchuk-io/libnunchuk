@@ -202,7 +202,7 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR, "Already joined"); 
   }
   group["init"]["state"][ephemeralPub_] = "";
-  group["init"]["state"]["stateId"] = group["init"]["state"]["stateId"].get<int>() + 1;
+  group["init"]["stateId"] = group["init"]["stateId"].get<int>() + 1;
   json event = {
     {"group_id", groupId},
     {"type", "init"},
@@ -210,6 +210,7 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
   };
   std::string body = event.dump();
   std::string rs = Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()});
+  Post( "/v1.1/shared-wallets/events/send", {body.begin(), body.end()});
   return ParseGroupResult(rs);
 }
 
@@ -224,6 +225,42 @@ SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
   std::string body = GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
   std::string rs = Post(url, {body.begin(), body.end()});
   return group;
+}
+
+void GroupService::ListenEvents(std::function<bool(const std::string&)> callback) {
+  httplib::Headers headers = {{"Device-Token", deviceToken_}};
+  httplib::Client client(baseUrl_.c_str());
+  client.enable_server_certificate_verification(false);
+  
+  auto handle_event = [&](std::string_view event_data) {
+    size_t data_pos = event_data.find("data:");
+    if (data_pos == std::string::npos) return;
+    size_t data_start = data_pos + 5;
+    size_t data_end = event_data.find('\n', data_start);
+    if (data_end == std::string::npos) data_end = event_data.size();
+
+    std::string_view raw = event_data.substr(data_start, data_end - data_start);
+    if (raw == "ping") return;
+
+    try {
+      callback({raw.begin(), raw.end()});
+    } catch (...) {
+      // ignore error
+    }
+  };
+
+  std::string buffer;
+  client.Get("/v1.1/shared-wallets/events/sse", headers, 
+    [&](const char* data, size_t data_length) {
+      buffer.append(data, data_length);
+      size_t pos;
+      while ((pos = buffer.find("\n\n")) != std::string::npos) {
+        std::string_view event_data = std::string_view(buffer).substr(0, pos);
+        handle_event(event_data);
+        buffer.erase(0, pos + 2);
+      }
+      return true;
+    });
 }
 
 std::string GroupService::Post(const std::string &url,
