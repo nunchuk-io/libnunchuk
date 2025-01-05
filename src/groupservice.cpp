@@ -66,7 +66,7 @@ std::string GroupService::RegisterDevice(
 }
 
 json GetHttpResponseData(const std::string& resp) {
-  std::cout << "resp " << resp<< std::endl;
+  // std::cout << "resp " << resp<< std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
     throw NunchukException(
@@ -87,7 +87,7 @@ SandboxGroup ParseGroup(const json& group, const std::string& pub, const std::st
   for (auto& [key, value] : info["state"].items()) {
     if (key == pub) {
       if (!value.get<std::string>().empty()) {
-        config = json::parse(rsa::Decrypt(priv, value));
+        config = json::parse(rsa::EnvelopeOpen(pub, priv, value));
       }
     } else if (value.get<std::string>().empty()) {
       rs.set_need_broadcast(true);
@@ -143,7 +143,7 @@ std::string GroupService::GroupToEvent(const SandboxGroup& group, const std::str
 
   json state{};
   for (auto&& ephemeralKey : group.get_ephemeral_keys()) {
-    state[ephemeralKey] = rsa::Encrypt(ephemeralKey, plaintext.dump());
+    state[ephemeralKey] = rsa::EnvelopeSeal(ephemeralKey, plaintext.dump());
   }
   json data = {
     {"version", 1},

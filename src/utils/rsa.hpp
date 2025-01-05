@@ -33,7 +33,8 @@
 #include <utils/stringutils.hpp>
 #include <util/strencodings.h>
 
-namespace nunchuk::rsa {
+namespace nunchuk {
+namespace rsa {
 
 inline std::pair<std::string,std::string> GenerateKeypair() {
     BIGNUM *bne = BN_new();
@@ -98,12 +99,12 @@ inline std::string EnvelopeSeal(const std::string& pub_key, const std::string& p
 
     EVP_SealFinal(ctx, &cyphered[0] + len, &len);
     ciphertext_len += len;
+    cyphered.resize(ciphertext_len);
 
     std::string rs = EncodeBase64(cyphered) + "-" + EncodeBase64(iv) + "-" + EncodeBase64({encrypted_key, encrypted_key + encrypted_key_len});
     
     /* Clean up */
     EVP_CIPHER_CTX_free(ctx);
-    cyphered.resize(ciphertext_len);
     BIO_free(pbkeybio);
     free(encrypted_key);
     EVP_PKEY_free(evp_pbkey);
@@ -224,6 +225,7 @@ inline std::string Decrypt(const std::string& priv_key, const std::string &base6
   return output;
 }
 
+}
 }  // namespace
 
 #endif  //  NUNCHUK_RSA_H

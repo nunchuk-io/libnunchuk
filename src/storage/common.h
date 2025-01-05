@@ -67,6 +67,9 @@ const int GAP_LIMIT = 24;
 const int VISIBLE = 25;
 const int NEED_BACKUP = 26;
 const int HOTWALLET_ID = 27;
+const int GROUP_DEVICE_TOKEN = 28;
+const int GROUP_EPHEMERAL_PUB = 29;
+const int GROUP_EPHEMERAL_PRIV = 30;
 }  // namespace DbKeys
 
 }  // namespace nunchuk
