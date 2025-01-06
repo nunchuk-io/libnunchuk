@@ -58,9 +58,10 @@ std::string GroupService::RegisterDevice(const std::string& osName,
                                          const std::string& deviceClass,
                                          const std::string& deviceId,
                                          const std::string& accessToken) {
+  accessToken_ = accessToken;
   std::string url = "/v1.1/shared-wallets/devices/register";
   std::string body = "{}";
-  std::string auth = (std::string("Bearer ") + accessToken);
+  std::string auth = (std::string("Bearer ") + accessToken_);
   httplib::Headers headers = {
       {"X-NC-OS-NAME", osName},         {"X-NC-OS-VERSION", osVersion},
       {"X-NC-APP-VERSION", appVersion}, {"X-NC-DEVICE-CLASS", deviceClass},
@@ -88,19 +89,20 @@ json GetHttpResponseData(const std::string& resp) {
   return parsed["data"];
 }
 
-SandboxGroup ParseGroup(const json& group, const std::string& pub,
-                        const std::string& priv) {
-  SandboxGroup rs(group["id"]);
-  rs.set_finalized(group["status"] == "ACTIVE");
-  json info = rs.is_finalized() ? group["finalize"] : group["init"];
+SandboxGroup GroupService::ParseGroupData(const std::string& groupId,
+                                          bool finalized,
+                                          const nlohmann::json& info) {
+  SandboxGroup rs(groupId);
+  rs.set_finalized(finalized);
   rs.set_state_id(info["stateId"]);
 
   json config = nullptr;
   std::vector<std::string> keys{};
   for (auto& [key, value] : info["state"].items()) {
-    if (key == pub) {
+    if (key == ephemeralPub_) {
       if (!value.get<std::string>().empty()) {
-        config = json::parse(rsa::EnvelopeOpen(pub, priv, value));
+        config = json::parse(
+            rsa::EnvelopeOpen(ephemeralPub_, ephemeralPriv_, value));
       }
     } else if (value.get<std::string>().empty()) {
       rs.set_need_broadcast(true);
@@ -128,10 +130,16 @@ SandboxGroup ParseGroup(const json& group, const std::string& pub,
   return rs;
 }
 
-SandboxGroup GroupService::ParseGroupResult(const std::string& resp) {
+SandboxGroup GroupService::ParseGroup(const json& group) {
+  bool finalized = group["status"] == "ACTIVE";
+  return ParseGroupData(group["id"], finalized,
+                        finalized ? group["finalize"] : group["init"]);
+}
+
+SandboxGroup GroupService::ParseGroupResponse(const std::string& resp) {
   json data = GetHttpResponseData(resp);
   json group = data["group"];
-  return ParseGroup(group, ephemeralPub_, ephemeralPriv_);
+  return ParseGroup(group);
 }
 
 std::string GroupService::GroupToEvent(const SandboxGroup& group,
@@ -187,13 +195,13 @@ SandboxGroup GroupService::CreateGroup(int m, int n, AddressType addressType,
   group.set_ephemeral_keys({ephemeralPub_});
   std::string body = GroupToEvent(group, "init");
   std::string rs = Post(url, {body.begin(), body.end()});
-  return ParseGroupResult(rs);
+  return ParseGroupResponse(rs);
 }
 
 SandboxGroup GroupService::GetGroup(const std::string& groupId) {
   std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
   std::string rs = Get(url);
-  return ParseGroupResult(rs);
+  return ParseGroupResponse(rs);
 }
 
 std::vector<SandboxGroup> GroupService::GetGroups(
@@ -205,7 +213,7 @@ std::vector<SandboxGroup> GroupService::GetGroups(
   json groups = data["groups"];
   std::vector<SandboxGroup> rs{};
   for (auto&& group : groups) {
-    rs.push_back(ParseGroup(group, ephemeralPub_, ephemeralPriv_));
+    rs.push_back(ParseGroup(group));
   }
   return rs;
 }
@@ -232,7 +240,7 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
   std::string body = event.dump();
   GetHttpResponseData(
       Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()}));
-  return ParseGroup(group, ephemeralPub_, ephemeralPriv_);
+  return ParseGroup(group);
 }
 
 SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
@@ -253,7 +261,9 @@ SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
 
 void GroupService::StartListenEvents(
     std::function<bool(const std::string&)> callback) {
+  std::string auth = (std::string("Bearer ") + accessToken_);
   httplib::Headers headers = {{"Device-Token", deviceToken_},
+                              {"Authorization", auth},
                               {"Accept", "text/event-stream"}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
@@ -311,7 +321,9 @@ void GroupService::Subscribe(const std::vector<std::string>& groupIds,
 
 std::string GroupService::Post(const std::string& url,
                                const std::vector<unsigned char>& body) {
-  httplib::Headers headers = {{"Device-Token", deviceToken_}};
+  std::string auth = (std::string("Bearer ") + accessToken_);
+  httplib::Headers headers = {{"Device-Token", deviceToken_},
+                              {"Authorization", auth}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
   auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
@@ -324,7 +336,9 @@ std::string GroupService::Post(const std::string& url,
 }
 
 std::string GroupService::Get(const std::string& url) {
-  httplib::Headers headers = {{"Device-Token", deviceToken_}};
+  std::string auth = (std::string("Bearer ") + accessToken_);
+  httplib::Headers headers = {{"Device-Token", deviceToken_},
+                              {"Authorization", auth}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
   auto res = client.Get(url.c_str(), headers);

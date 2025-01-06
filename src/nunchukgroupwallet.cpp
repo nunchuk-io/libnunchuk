@@ -49,8 +49,36 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   }
 }
 
-void NunchukImpl::StartConsumeGroupEvent() {}
-void NunchukImpl::StopConsumeGroupEvent() {}
+void NunchukImpl::StartConsumeGroupEvent() {
+  auto groupIds = storage_->GetGroupSandboxIds(chain_);
+  auto walletIds = storage_->GetGroupWalletIds(chain_);
+  group_service_.Subscribe(groupIds, walletIds);
+  group_service_.StartListenEvents([&](const std::string& event) {
+    json payload = json::parse(event)["payload"];
+    if (payload["type"] == "init") {
+      auto group = group_service_.ParseGroupData(payload["group_id"], false,
+                                                 payload["data"]);
+      if (group.need_broadcast()) {
+        group_service_.UpdateGroup(group);
+      }
+      group_wallet_listener_(group);
+    } else if (payload["type"] == "finalize") {
+      auto group = group_service_.ParseGroupData(payload["group_id"], true,
+                                                 payload["data"]);
+      if (!storage_->HasWallet(chain_, group.get_wallet_id())) {
+        auto wallet = CreateWallet(
+            group.get_id(), group.get_m(), group.get_n(), group.get_signers(),
+            group.get_address_type(), false, {}, true, {});
+      }
+      group_wallet_listener_(group);
+    } else if (payload["type"] == "chat") {
+      // TODO: handle chat event
+    }
+    return true;
+  });
+}
+
+void NunchukImpl::StopConsumeGroupEvent() { group_service_.StopListenEvents(); }
 
 SandboxGroup NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
                                       const SingleSigner& signer) {
@@ -92,7 +120,12 @@ SandboxGroup NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
 
 SandboxGroup NunchukImpl::FinalizeGroup(const std::string& groupId) {
   auto group = group_service_.GetGroup(groupId);
+  auto wallet = CreateWallet(group.get_id(), group.get_m(), group.get_n(),
+                             group.get_signers(), group.get_address_type(),
+                             false, {}, true, {});
   group.set_finalized(true);
+  group.set_wallet_id(wallet.get_id());
+  // TODO: set group pubkey
   return group_service_.UpdateGroup(group);
 }
 

@@ -21,6 +21,7 @@
 #include <nunchuk.h>
 #include <vector>
 #include <string>
+#include <utils/json.hpp>
 
 namespace nunchuk {
 
@@ -40,8 +41,7 @@ class GroupService {
                              const std::string& deviceClass,
                              const std::string& deviceId,
                              const std::string& accessToken);
-  std::string GroupToEvent(const SandboxGroup& group, const std::string type);
-  SandboxGroup ParseGroupResult(const std::string& data);
+
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,
                            const SingleSigner& signer);
   SandboxGroup GetGroup(const std::string& groupId);
@@ -53,16 +53,25 @@ class GroupService {
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
 
+  // Parse event data
+  SandboxGroup ParseGroupData(const std::string& groupId, bool finalized,
+                              const nlohmann::json& data);
+
  private:
   std::string Get(const std::string& url);
   std::string Post(const std::string& url,
                    const std::vector<unsigned char>& body);
+
+  SandboxGroup ParseGroupResponse(const std::string& resp);
+  SandboxGroup ParseGroup(const nlohmann::json& group);
+  std::string GroupToEvent(const SandboxGroup& group, const std::string type);
 
   bool stop_{false};
   std::string baseUrl_;
   std::string deviceToken_;
   std::string ephemeralPub_;
   std::string ephemeralPriv_;
+  std::string accessToken_;
 };
 
 }  // namespace nunchuk
