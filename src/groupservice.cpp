@@ -52,13 +52,15 @@ void GroupService::SetDeviceToken(const std::string& token) {
   deviceToken_ = token;
 }
 
+void GroupService::SetAccessToken(const std::string& token) {
+  accessToken_ = token;
+}
+
 std::string GroupService::RegisterDevice(const std::string& osName,
                                          const std::string& osVersion,
                                          const std::string& appVersion,
                                          const std::string& deviceClass,
-                                         const std::string& deviceId,
-                                         const std::string& accessToken) {
-  accessToken_ = accessToken;
+                                         const std::string& deviceId) {
   std::string url = "/v1.1/shared-wallets/devices/register";
   std::string body = "{}";
   std::string auth = (std::string("Bearer ") + accessToken_);
@@ -143,7 +145,7 @@ SandboxGroup GroupService::ParseGroupResponse(const std::string& resp) {
 }
 
 std::string GroupService::GroupToEvent(const SandboxGroup& group,
-                                       const std::string type) {
+                                       const std::string& type) {
   json signers = json::array();
   for (auto&& signer : group.get_signers()) {
     signers.push_back(signer.get_descriptor());
@@ -176,6 +178,32 @@ std::string GroupService::GroupToEvent(const SandboxGroup& group,
   json body = {
       {"group_id", group.get_id()},
       {"type", type},
+      {"data", data},
+  };
+  return body.dump();
+}
+
+GroupMessage GroupService::ParseMessageData(const std::string& id,
+                                            const std::string& groupId,
+                                            const nlohmann::json& data) {
+  GroupMessage rs(id, groupId);
+  // TODO: decrypt data using groupId pubkey
+  rs.set_sender(data["sender"]);
+  rs.set_content(data["msg"]);
+  return rs;
+}
+
+std::string GroupService::MessageToEvent(const std::string& groupId,
+                                         const std::string& msg) {
+  json data = {
+      {"version", 1},
+      {"msg", msg},
+      {"sender", ""},
+  };
+  // TODO: encrypt data using groupId pubkey
+  json body = {
+      {"group_id", groupId},
+      {"type", "chat"},
       {"data", data},
   };
   return body.dump();
@@ -257,6 +285,13 @@ SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
       GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   return group;
+}
+
+void GroupService::SendMessage(const std::string& groupId,
+                               const std::string& msg) {
+  std::string url = "/v1.1/shared-wallets/events/send";
+  std::string body = MessageToEvent(groupId, msg);
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
 }
 
 void GroupService::StartListenEvents(

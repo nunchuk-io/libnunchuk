@@ -634,6 +634,29 @@ class NUNCHUK_EXPORT SandboxGroup {
   std::string pubkey_{};
 };
 
+class NUNCHUK_EXPORT GroupMessage {
+ public:
+  GroupMessage(const std::string& id, const std::string& group_id);
+
+  std::string get_id() const;
+  std::string get_group_id() const;
+  std::string get_sender() const;
+  std::string get_content() const;
+  time_t get_ts() const;
+
+  void set_group_id(const std::string& value);
+  void set_sender(const std::string& value);
+  void set_content(const std::string& value);
+  void set_ts(time_t value);
+
+ private:
+  std::string id_;
+  std::string group_id_;
+  std::string sender_;
+  std::string content_;
+  time_t ts_;
+};
+
 typedef std::map<std::string, bool> KeyStatus;  // xfp-signed map
 typedef std::pair<TransactionStatus, KeyStatus> KeysetStatus;
 
@@ -1497,8 +1520,12 @@ class NUNCHUK_EXPORT Nunchuk {
                                    AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
   virtual SandboxGroup FinalizeGroup(const std::string& groupId) = 0;
+  virtual void SendGroupMessage(const std::string& walletId,
+                                const std::string& msg) = 0;
   virtual void AddGroupUpdateListener(
       std::function<void(const SandboxGroup& state)> listener) = 0;
+  virtual void AddGroupMessageListener(
+      std::function<void(const GroupMessage& msg)> listener) = 0;
 
  protected:
   Nunchuk() = default;

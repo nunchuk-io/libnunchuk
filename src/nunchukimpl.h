@@ -579,8 +579,12 @@ class NunchukImpl : public Nunchuk {
                            AddressType addressType,
                            const SingleSigner& signer = {}) override;
   SandboxGroup FinalizeGroup(const std::string& groupId) override;
+  void SendGroupMessage(const std::string& walletId,
+                        const std::string& msg) override;
   void AddGroupUpdateListener(
       std::function<void(const SandboxGroup& state)> listener) override;
+  void AddGroupMessageListener(
+      std::function<void(const GroupMessage& msg)> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -615,6 +619,7 @@ class NunchukImpl : public Nunchuk {
   bool group_wallet_enable_{false};
   GroupService group_service_;
   boost::signals2::signal<void(const SandboxGroup&)> group_wallet_listener_;
+  boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
 };
 
 }  // namespace nunchuk
