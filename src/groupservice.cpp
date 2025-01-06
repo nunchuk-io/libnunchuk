@@ -21,6 +21,7 @@
 #include <utils/httplib.h>
 #include <utils/json.hpp>
 #include <utils/rsa.hpp>
+#include <utils/stringutils.hpp>
 #include <descriptor.h>
 #include <boost/algorithm/string.hpp>
 
@@ -195,8 +196,11 @@ SandboxGroup GroupService::GetGroup(const std::string& groupId) {
   return ParseGroupResult(rs);
 }
 
-std::vector<SandboxGroup> GroupService::GetGroups() {
-  std::string url = "/v1.1/shared-wallets/groups?page=0&page_size=100";
+std::vector<SandboxGroup> GroupService::GetGroups(
+    const std::vector<std::string>& groupIds) {
+  std::string url =
+      std::string("/v1.1/shared-wallets/groups/batch?group_ids=") +
+      join(groupIds, ',');
   json data = GetHttpResponseData(Get(url));
   json groups = data["groups"];
   std::vector<SandboxGroup> rs{};
@@ -226,8 +230,8 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
       {"data", group["init"]},
   };
   std::string body = event.dump();
-  std::string rs =
-      Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()});
+  GetHttpResponseData(
+      Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()}));
   return ParseGroup(group, ephemeralPub_, ephemeralPriv_);
 }
 
@@ -243,11 +247,11 @@ SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
   std::string url = "/v1.1/shared-wallets/events/send";
   std::string body =
       GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
-  std::string rs = Post(url, {body.begin(), body.end()});
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   return group;
 }
 
-void GroupService::ListenEvents(
+void GroupService::StartListenEvents(
     std::function<bool(const std::string&)> callback) {
   httplib::Headers headers = {{"Device-Token", deviceToken_},
                               {"Accept", "text/event-stream"}};
@@ -273,6 +277,7 @@ void GroupService::ListenEvents(
   };
 
   std::string buffer;
+  stop_ = false;
   client.Get("/v1.1/shared-wallets/events/sse", headers,
              [&](const char* data, size_t data_length) {
                buffer.append(data, data_length);
@@ -283,8 +288,25 @@ void GroupService::ListenEvents(
                  handle_event(event_data);
                  buffer.erase(0, pos + 2);
                }
-               return true;
+               return !stop_;
              });
+}
+
+void GroupService::StopListenEvents() { stop_ = true; }
+
+void GroupService::Subscribe(const std::vector<std::string>& groupIds,
+                             const std::vector<std::string>& walletIds) {
+  std::string url = "/v1.1/shared-wallets/events/subscribe";
+  json ids = json::array();
+  for (auto&& id : groupIds) {
+    ids.push_back({{"group_id", id}, {"from_ts_ms", 0}});
+  }
+  for (auto&& id : walletIds) {
+    ids.push_back({{"wallet_id", id}, {"from_ts_ms", 0}});
+  }
+  json sub = {{"sub", ids}};
+  std::string body = sub.dump();
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
 }
 
 std::string GroupService::Post(const std::string& url,

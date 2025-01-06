@@ -45,16 +45,20 @@ class GroupService {
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,
                            const SingleSigner& signer);
   SandboxGroup GetGroup(const std::string& groupId);
-  std::vector<SandboxGroup> GetGroups();
+  std::vector<SandboxGroup> GetGroups(const std::vector<std::string>& groupIds);
   SandboxGroup JoinGroup(const std::string& groupId);
   SandboxGroup UpdateGroup(const SandboxGroup& group);
-  void ListenEvents(std::function<bool(const std::string&)> callback);
+  void StartListenEvents(std::function<bool(const std::string&)> callback);
+  void StopListenEvents();
+  void Subscribe(const std::vector<std::string>& groupIds,
+                 const std::vector<std::string>& walletIds);
 
  private:
   std::string Get(const std::string& url);
   std::string Post(const std::string& url,
                    const std::vector<unsigned char>& body);
 
+  bool stop_{false};
   std::string baseUrl_;
   std::string deviceToken_;
   std::string ephemeralPub_;

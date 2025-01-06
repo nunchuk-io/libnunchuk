@@ -62,7 +62,8 @@ SandboxGroup NunchukImpl::GetGroup(const std::string& groupId) {
 }
 
 std::vector<SandboxGroup> NunchukImpl::GetGroups() {
-  return group_service_.GetGroups();
+  auto groupIds = storage_->GetGroupSandboxIds(chain_);
+  return group_service_.GetGroups(groupIds);
 }
 
 SandboxGroup NunchukImpl::JoinGroup(const std::string& groupId) {
