@@ -30,7 +30,8 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
                                     const std::string& osVersion,
                                     const std::string& appVersion,
                                     const std::string& deviceClass,
-                                    const std::string& deviceId) {
+                                    const std::string& deviceId,
+                                    const std::string& accessToken) {
   group_wallet_enable_ = true;
   auto keypair = storage_->GetGroupEphemeralKey(chain_);
   if (keypair.first.empty() || keypair.second.empty()) {
@@ -40,15 +41,16 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   group_service_.SetEphemeralKey(keypair.first, keypair.second);
   std::string deviceToken = storage_->GetGroupDeviceToken(chain_);
   if (deviceToken.empty()) {
-    deviceToken = group_service_.RegisterDevice(osName, osVersion, appVersion,
-                                                deviceClass, deviceId);
+    deviceToken = group_service_.RegisterDevice(
+        osName, osVersion, appVersion, deviceClass, deviceId, accessToken);
     storage_->SetGroupDeviceToken(chain_, deviceToken);
   } else {
     group_service_.SetDeviceToken(deviceToken);
   }
 }
 
-void NunchukImpl::ConsumeGroupEvent(const std::string& event) {}
+void NunchukImpl::StartConsumeGroupEvent() {}
+void NunchukImpl::StopConsumeGroupEvent() {}
 
 SandboxGroup NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
                                       const SingleSigner& signer) {

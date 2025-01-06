@@ -21,23 +21,47 @@ namespace nunchuk {
 
 void NunchukGroupDb::Init() { CreateTable(); }
 
-void NunchukGroupDb::SetDeviceToken(const std::string& value) {
+void NunchukGroupDb::SetDeviceToken(const std::string &value) {
   PutString(DbKeys::GROUP_DEVICE_TOKEN, value);
-}
-
-void NunchukGroupDb::SetEphemeralKey(const std::string& pub,
-                                     const std::string& priv) {
-  PutString(DbKeys::GROUP_EPHEMERAL_PUB, pub);
-  PutString(DbKeys::GROUP_EPHEMERAL_PRIV, priv);
 }
 
 std::string NunchukGroupDb::GetDeviceToken() const {
   return GetString(DbKeys::GROUP_DEVICE_TOKEN);
 }
 
+void NunchukGroupDb::SetEphemeralKey(const std::string &pub,
+                                     const std::string &priv) {
+  PutString(DbKeys::GROUP_EPHEMERAL_PUB, pub);
+  PutString(DbKeys::GROUP_EPHEMERAL_PRIV, priv);
+}
+
 std::pair<std::string, std::string> NunchukGroupDb::GetEphemeralKey() const {
   return {GetString(DbKeys::GROUP_EPHEMERAL_PUB),
           GetString(DbKeys::GROUP_EPHEMERAL_PRIV)};
+}
+
+std::vector<std::string> NunchukGroupDb::GetSandboxIds() const {
+  return GetListStr(DbKeys::GROUP_SANDBOX_LIST);
+}
+
+bool NunchukGroupDb::AddSandboxId(const std::string &id) {
+  return AddToListStr(DbKeys::GROUP_SANDBOX_LIST, id);
+}
+
+bool NunchukGroupDb::RemoveSandboxId(const std::string &id) {
+  return RemoveFromListStr(DbKeys::GROUP_SANDBOX_LIST, id);
+}
+
+std::vector<std::string> NunchukGroupDb::GetWalletIds() const {
+  return GetListStr(DbKeys::GROUP_WALLET_LIST);
+}
+
+bool NunchukGroupDb::AddWalletId(const std::string &id) {
+  return AddToListStr(DbKeys::GROUP_WALLET_LIST, id);
+}
+
+bool NunchukGroupDb::RemoveWalletId(const std::string &id) {
+  return RemoveFromListStr(DbKeys::GROUP_WALLET_LIST, id);
 }
 
 }  // namespace nunchuk

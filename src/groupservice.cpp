@@ -55,13 +55,15 @@ std::string GroupService::RegisterDevice(const std::string& osName,
                                          const std::string& osVersion,
                                          const std::string& appVersion,
                                          const std::string& deviceClass,
-                                         const std::string& deviceId) {
+                                         const std::string& deviceId,
+                                         const std::string& accessToken) {
   std::string url = "/v1.1/shared-wallets/devices/register";
   std::string body = "{}";
+  std::string auth = (std::string("Bearer ") + accessToken);
   httplib::Headers headers = {
       {"X-NC-OS-NAME", osName},         {"X-NC-OS-VERSION", osVersion},
       {"X-NC-APP-VERSION", appVersion}, {"X-NC-DEVICE-CLASS", deviceClass},
-      {"X-NC-DEVICE-ID", deviceId},
+      {"X-NC-DEVICE-ID", deviceId},     {"Authorization", auth},
   };
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
@@ -225,9 +227,8 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
   };
   std::string body = event.dump();
   std::string rs =
-      Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()});
-  Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()});
-  return ParseGroupResult(rs);
+      Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()});
+  return ParseGroup(group, ephemeralPub_, ephemeralPriv_);
 }
 
 SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
@@ -248,9 +249,11 @@ SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
 
 void GroupService::ListenEvents(
     std::function<bool(const std::string&)> callback) {
-  httplib::Headers headers = {{"Device-Token", deviceToken_}};
+  httplib::Headers headers = {{"Device-Token", deviceToken_},
+                              {"Accept", "text/event-stream"}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
+  client.set_read_timeout(std::chrono::hours(24));
 
   auto handle_event = [&](std::string_view event_data) {
     size_t data_pos = event_data.find("data:");

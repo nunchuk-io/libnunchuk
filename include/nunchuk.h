@@ -1482,8 +1482,10 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& osVersion,
                                  const std::string& appVersion,
                                  const std::string& deviceClass,
-                                 const std::string& deviceId) = 0;
-  virtual void ConsumeGroupEvent(const std::string& event) = 0;
+                                 const std::string& deviceId,
+                                 const std::string& accessToken) = 0;
+  virtual void StartConsumeGroupEvent() = 0;
+  virtual void StopConsumeGroupEvent() = 0;
   virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
   virtual SandboxGroup GetGroup(const std::string& groupId) = 0;

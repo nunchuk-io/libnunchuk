@@ -564,8 +564,10 @@ class NunchukImpl : public Nunchuk {
                          const std::string& osVersion,
                          const std::string& appVersion,
                          const std::string& deviceClass,
-                         const std::string& deviceId) override;
-  void ConsumeGroupEvent(const std::string& event) override;
+                         const std::string& deviceId,
+                         const std::string& accessToken) override;
+  void StartConsumeGroupEvent() override;
+  void StopConsumeGroupEvent() override;
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,
                            const SingleSigner& signer = {}) override;
   SandboxGroup GetGroup(const std::string& groupId) override;

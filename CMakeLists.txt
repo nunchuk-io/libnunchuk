@@ -187,6 +187,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/enumconverter.hpp
     src/utils/rfc2440.hpp
     src/utils/coldcard.cpp
+    src/utils/bip85.cpp
 )
 
 set(PROJECT_LIBRARIES

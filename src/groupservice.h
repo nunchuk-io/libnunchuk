@@ -38,7 +38,8 @@ class GroupService {
                              const std::string& osVersion,
                              const std::string& appVersion,
                              const std::string& deviceClass,
-                             const std::string& deviceId);
+                             const std::string& deviceId,
+                             const std::string& accessToken);
   std::string GroupToEvent(const SandboxGroup& group, const std::string type);
   SandboxGroup ParseGroupResult(const std::string& data);
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,

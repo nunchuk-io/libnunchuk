@@ -31,11 +31,19 @@ class NunchukGroupDb : public NunchukDb {
   using NunchukDb::NunchukDb;
   void Init();
 
-  void SetDeviceToken(const std::string& value);
-  void SetEphemeralKey(const std::string& pub, const std::string& priv);
-
+  void SetDeviceToken(const std::string &value);
   std::string GetDeviceToken() const;
+
   std::pair<std::string, std::string> GetEphemeralKey() const;
+  void SetEphemeralKey(const std::string &pub, const std::string &priv);
+
+  std::vector<std::string> GetSandboxIds() const;
+  bool AddSandboxId(const std::string &id);
+  bool RemoveSandboxId(const std::string &id);
+
+  std::vector<std::string> GetWalletIds() const;
+  bool AddWalletId(const std::string &id);
+  bool RemoveWalletId(const std::string &id);
 
  private:
   friend class NunchukStorage;

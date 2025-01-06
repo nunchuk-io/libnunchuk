@@ -312,9 +312,19 @@ class NunchukStorage {
                            const std::string &pin);
 
   std::string GetGroupDeviceToken(Chain chain);
+  bool SetGroupDeviceToken(Chain chain, const std::string &value);
   std::pair<std::string, std::string> GetGroupEphemeralKey(Chain chain);
-  bool SetGroupDeviceToken(Chain chain, const std::string& value);
-  bool SetGroupEphemeralKey(Chain chain, const std::string& pub, const std::string& priv);
+  bool SetGroupEphemeralKey(Chain chain, const std::string &pub,
+                            const std::string &priv);
+  std::vector<std::string> GetGroupSandboxIds(Chain chain);
+  std::vector<std::string> AddGroupSandboxId(Chain chain,
+                                             const std::string &id);
+  std::vector<std::string> RemoveGroupSandboxId(Chain chain,
+                                                const std::string &id);
+  std::vector<std::string> GetGroupWalletIds(Chain chain);
+  std::vector<std::string> AddGroupWalletId(Chain chain, const std::string &id);
+  std::vector<std::string> RemoveGroupWalletId(Chain chain,
+                                               const std::string &id);
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
@@ -350,9 +360,9 @@ class NunchukStorage {
   void InitDataDir(const std::filesystem::path &dir);
   std::filesystem::path GetDecoyPath(const std::string &pin) const;
   std::filesystem::path GetWalletDir0(const std::filesystem::path &dir,
-                                        Chain chain, std::string id) const;
+                                      Chain chain, std::string id) const;
   std::filesystem::path GetSignerDir0(const std::filesystem::path &dir,
-                                        Chain chain, std::string id) const;
+                                      Chain chain, std::string id) const;
 
   std::filesystem::path basedatadir_;
   std::filesystem::path datadir_;

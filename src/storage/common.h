@@ -70,6 +70,8 @@ const int HOTWALLET_ID = 27;
 const int GROUP_DEVICE_TOKEN = 28;
 const int GROUP_EPHEMERAL_PUB = 29;
 const int GROUP_EPHEMERAL_PRIV = 30;
+const int GROUP_SANDBOX_LIST = 31;
+const int GROUP_WALLET_LIST = 32;
 }  // namespace DbKeys
 
 }  // namespace nunchuk
