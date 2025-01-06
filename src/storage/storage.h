@@ -311,8 +311,9 @@ class NunchukStorage {
   Wallet CreateDecoyWallet(Chain chain, const Wallet &wallet,
                            const std::string &pin);
 
-  std::string GetGroupDeviceToken(Chain chain);
-  bool SetGroupDeviceToken(Chain chain, const std::string &value);
+  std::pair<std::string, std::string> GetGroupDeviceInfo(Chain chain);
+  bool SetGroupDeviceInfo(Chain chain, const std::string &token,
+                          const std::string &uid);
   std::pair<std::string, std::string> GetGroupEphemeralKey(Chain chain);
   bool SetGroupEphemeralKey(Chain chain, const std::string &pub,
                             const std::string &priv);

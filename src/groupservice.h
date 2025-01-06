@@ -30,17 +30,18 @@ class GroupService {
   GroupService(const std::string& baseUrl);
   GroupService(const std::string& baseUrl, const std::string& ephemeralPub_,
                const std::string& ephemeralPriv_,
-               const std::string& deviceToken_ = {});
+               const std::string& deviceToken_ = {},
+               const std::string& uid_ = {});
 
   void SetEphemeralKey(const std::string& pub, const std::string priv);
-  void SetDeviceToken(const std::string& token);
+  void SetDeviceInfo(const std::string& token, const std::string uid);
   void SetAccessToken(const std::string& token);
 
-  std::string RegisterDevice(const std::string& osName,
-                             const std::string& osVersion,
-                             const std::string& appVersion,
-                             const std::string& deviceClass,
-                             const std::string& deviceId);
+  std::pair<std::string, std::string> ParseUrl(const std::string& url);
+  std::pair<std::string, std::string> RegisterDevice(
+      const std::string& osName, const std::string& osVersion,
+      const std::string& appVersion, const std::string& deviceClass,
+      const std::string& deviceId);
 
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,
                            const SingleSigner& signer);
@@ -75,6 +76,7 @@ class GroupService {
   bool stop_{false};
   std::string baseUrl_;
   std::string deviceToken_;
+  std::string uid_;
   std::string ephemeralPub_;
   std::string ephemeralPriv_;
   std::string accessToken_;

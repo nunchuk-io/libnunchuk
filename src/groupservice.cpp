@@ -31,16 +31,28 @@ namespace nunchuk {
 
 static const std::string MIME_TYPE = "application/json";
 
+json GetHttpResponseData(const std::string& resp) {
+  // std::cout << "resp " << resp<< std::endl;
+  json parsed = json::parse(resp);
+  if (parsed["error"] != nullptr) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           parsed["error"]["message"]);
+  }
+  return parsed["data"];
+}
+
 GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {}
 
 GroupService::GroupService(const std::string& baseUrl,
                            const std::string& ephemeralPub,
                            const std::string& ephemeralPriv,
-                           const std::string& deviceToken)
+                           const std::string& deviceToken,
+                           const std::string& uid)
     : baseUrl_(baseUrl),
       ephemeralPub_(ephemeralPub),
       ephemeralPriv_(ephemeralPriv),
-      deviceToken_(deviceToken) {}
+      deviceToken_(deviceToken),
+      uid_(uid) {}
 
 void GroupService::SetEphemeralKey(const std::string& pub,
                                    const std::string priv) {
@@ -48,19 +60,28 @@ void GroupService::SetEphemeralKey(const std::string& pub,
   ephemeralPriv_ = priv;
 }
 
-void GroupService::SetDeviceToken(const std::string& token) {
+void GroupService::SetDeviceInfo(const std::string& token,
+                                 const std::string uid) {
   deviceToken_ = token;
+  uid_ = uid;
 }
 
 void GroupService::SetAccessToken(const std::string& token) {
   accessToken_ = token;
 }
 
-std::string GroupService::RegisterDevice(const std::string& osName,
-                                         const std::string& osVersion,
-                                         const std::string& appVersion,
-                                         const std::string& deviceClass,
-                                         const std::string& deviceId) {
+std::pair<std::string, std::string> GroupService::ParseUrl(
+    const std::string& group_url) {
+  std::string url = "/v1.1/shared-wallets/url/parse";
+  std::string body = json({{"url", group_url}}).dump();
+  json data = GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+  return {data["group_id"], data["redirect_url"]};
+}
+
+std::pair<std::string, std::string> GroupService::RegisterDevice(
+    const std::string& osName, const std::string& osVersion,
+    const std::string& appVersion, const std::string& deviceClass,
+    const std::string& deviceId) {
   std::string url = "/v1.1/shared-wallets/devices/register";
   std::string body = "{}";
   std::string auth = (std::string("Bearer ") + accessToken_);
@@ -77,18 +98,10 @@ std::string GroupService::RegisterDevice(const std::string& osName,
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            res ? res->body : "Server error");
   }
-  deviceToken_ = json::parse(res->body)["data"]["device_token"];
-  return deviceToken_;
-}
-
-json GetHttpResponseData(const std::string& resp) {
-  // std::cout << "resp " << resp<< std::endl;
-  json parsed = json::parse(resp);
-  if (parsed["error"] != nullptr) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           parsed["error"]["message"]);
-  }
-  return parsed["data"];
+  auto data = GetHttpResponseData(res->body);
+  deviceToken_ = data["device_token"];
+  uid_ = data["uid"];
+  return {deviceToken_, uid_};
 }
 
 SandboxGroup GroupService::ParseGroupData(const std::string& groupId,
@@ -134,8 +147,10 @@ SandboxGroup GroupService::ParseGroupData(const std::string& groupId,
 
 SandboxGroup GroupService::ParseGroup(const json& group) {
   bool finalized = group["status"] == "ACTIVE";
-  return ParseGroupData(group["id"], finalized,
-                        finalized ? group["finalize"] : group["init"]);
+  auto rs = ParseGroupData(group["id"], finalized,
+                           finalized ? group["finalize"] : group["init"]);
+  rs.set_url(group["url"]);
+  return rs;
 }
 
 SandboxGroup GroupService::ParseGroupResponse(const std::string& resp) {
@@ -188,7 +203,6 @@ GroupMessage GroupService::ParseMessageData(const std::string& id,
                                             const nlohmann::json& data) {
   GroupMessage rs(id, groupId);
   // TODO: decrypt data using groupId pubkey
-  rs.set_sender(data["sender"]);
   rs.set_content(data["msg"]);
   return rs;
 }
@@ -198,7 +212,6 @@ std::string GroupService::MessageToEvent(const std::string& groupId,
   json data = {
       {"version", 1},
       {"msg", msg},
-      {"sender", ""},
   };
   // TODO: encrypt data using groupId pubkey
   json body = {

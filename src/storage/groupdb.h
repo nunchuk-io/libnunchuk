@@ -31,8 +31,8 @@ class NunchukGroupDb : public NunchukDb {
   using NunchukDb::NunchukDb;
   void Init();
 
-  void SetDeviceToken(const std::string &value);
-  std::string GetDeviceToken() const;
+  std::pair<std::string, std::string> GetDeviceInfo() const;
+  void SetDeviceInfo(const std::string &token, const std::string &uid);
 
   std::pair<std::string, std::string> GetEphemeralKey() const;
   void SetEphemeralKey(const std::string &pub, const std::string &priv);

@@ -40,14 +40,19 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
     storage_->SetGroupEphemeralKey(chain_, keypair.first, keypair.second);
   }
   group_service_.SetEphemeralKey(keypair.first, keypair.second);
-  std::string deviceToken = storage_->GetGroupDeviceToken(chain_);
-  if (deviceToken.empty()) {
-    deviceToken = group_service_.RegisterDevice(osName, osVersion, appVersion,
-                                                deviceClass, deviceId);
-    storage_->SetGroupDeviceToken(chain_, deviceToken);
+  auto deviceInfo = storage_->GetGroupDeviceInfo(chain_);
+  if (deviceInfo.first.empty() || deviceInfo.second.empty()) {
+    deviceInfo = group_service_.RegisterDevice(osName, osVersion, appVersion,
+                                               deviceClass, deviceId);
+    storage_->SetGroupDeviceInfo(chain_, deviceInfo.first, deviceInfo.second);
   } else {
-    group_service_.SetDeviceToken(deviceToken);
+    group_service_.SetDeviceInfo(deviceInfo.first, deviceInfo.second);
   }
+}
+
+std::pair<std::string, std::string> NunchukImpl::ParseGroupUrl(
+    const std::string& url) {
+  return group_service_.ParseUrl(url);
 }
 
 void NunchukImpl::StartConsumeGroupEvent() {
@@ -58,6 +63,7 @@ void NunchukImpl::StartConsumeGroupEvent() {
     json event = json::parse(e);
     time_t ts = event["timestamp_ms"];
     std::string id = event["id"];
+    std::string uid = event["uid"];
     json payload = event["payload"];
     std::string type = payload["type"];
     std::string groupId = payload["group_id"];
@@ -80,6 +86,7 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "chat") {
       auto message = group_service_.ParseMessageData(id, groupId, data);
       message.set_ts(ts);
+      message.set_sender(uid);
       group_message_listener_(message);
     }
     return true;
@@ -138,7 +145,8 @@ SandboxGroup NunchukImpl::FinalizeGroup(const std::string& groupId) {
 }
 
 void NunchukImpl::SendGroupMessage(const std::string& walletId,
-                                   const std::string& msg) {
+                                   const std::string& msg,
+                                   const SingleSigner& signer) {
   group_service_.SendMessage(walletId, msg);
 }
 

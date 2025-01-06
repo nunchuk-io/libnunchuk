@@ -21,12 +21,15 @@ namespace nunchuk {
 
 void NunchukGroupDb::Init() { CreateTable(); }
 
-void NunchukGroupDb::SetDeviceToken(const std::string &value) {
-  PutString(DbKeys::GROUP_DEVICE_TOKEN, value);
+void NunchukGroupDb::SetDeviceInfo(const std::string &token,
+                                   const std::string &uid) {
+  PutString(DbKeys::GROUP_DEVICE_TOKEN, token);
+  PutString(DbKeys::GROUP_DEVICE_UID, uid);
 }
 
-std::string NunchukGroupDb::GetDeviceToken() const {
-  return GetString(DbKeys::GROUP_DEVICE_TOKEN);
+std::pair<std::string, std::string> NunchukGroupDb::GetDeviceInfo() const {
+  return {GetString(DbKeys::GROUP_DEVICE_TOKEN),
+          GetString(DbKeys::GROUP_DEVICE_UID)};
 }
 
 void NunchukGroupDb::SetEphemeralKey(const std::string &pub,

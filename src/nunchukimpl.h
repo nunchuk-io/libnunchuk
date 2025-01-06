@@ -566,6 +566,8 @@ class NunchukImpl : public Nunchuk {
                          const std::string& deviceClass,
                          const std::string& deviceId,
                          const std::string& accessToken) override;
+  std::pair<std::string, std::string> ParseGroupUrl(
+      const std::string& url) override;
   void StartConsumeGroupEvent() override;
   void StopConsumeGroupEvent() override;
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,
@@ -579,8 +581,8 @@ class NunchukImpl : public Nunchuk {
                            AddressType addressType,
                            const SingleSigner& signer = {}) override;
   SandboxGroup FinalizeGroup(const std::string& groupId) override;
-  void SendGroupMessage(const std::string& walletId,
-                        const std::string& msg) override;
+  void SendGroupMessage(const std::string& walletId, const std::string& msg,
+                        const SingleSigner& signer = {}) override;
   void AddGroupUpdateListener(
       std::function<void(const SandboxGroup& state)> listener) override;
   void AddGroupMessageListener(

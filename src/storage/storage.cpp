@@ -2209,15 +2209,16 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
   return true_wallet;
 }
 
-std::string NunchukStorage::GetGroupDeviceToken(Chain chain) {
+std::pair<std::string, std::string> NunchukStorage::GetGroupDeviceInfo(
+    Chain chain) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetGroupDb(chain).GetDeviceToken();
+  return GetGroupDb(chain).GetDeviceInfo();
 }
 
-bool NunchukStorage::SetGroupDeviceToken(Chain chain,
-                                         const std::string& value) {
+bool NunchukStorage::SetGroupDeviceInfo(Chain chain, const std::string& token,
+                                        const std::string& uid) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  GetGroupDb(chain).SetDeviceToken(value);
+  GetGroupDb(chain).SetDeviceInfo(token, uid);
   return true;
 }
 

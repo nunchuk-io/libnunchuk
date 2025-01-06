@@ -598,6 +598,7 @@ class NUNCHUK_EXPORT SandboxGroup {
   SandboxGroup(const std::string& id);
 
   std::string get_id() const;
+  std::string get_url() const;
   int get_m() const;
   int get_n() const;
   AddressType get_address_type() const;
@@ -609,6 +610,7 @@ class NUNCHUK_EXPORT SandboxGroup {
   std::string get_wallet_id() const;
   std::string get_pubkey() const;
 
+  void set_url(const std::string& value);
   void set_n(int n);
   void set_m(int m);
   void set_address_type(AddressType value);
@@ -622,6 +624,7 @@ class NUNCHUK_EXPORT SandboxGroup {
 
  private:
   std::string id_;
+  std::string url_;
   int m_{0};
   int n_{0};
   AddressType address_type_;
@@ -1507,6 +1510,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& deviceClass,
                                  const std::string& deviceId,
                                  const std::string& accessToken) = 0;
+  virtual std::pair<std::string, std::string> ParseGroupUrl(
+      const std::string& url) = 0;
   virtual void StartConsumeGroupEvent() = 0;
   virtual void StopConsumeGroupEvent() = 0;
   virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType,
@@ -1521,7 +1526,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const SingleSigner& signer = {}) = 0;
   virtual SandboxGroup FinalizeGroup(const std::string& groupId) = 0;
   virtual void SendGroupMessage(const std::string& walletId,
-                                const std::string& msg) = 0;
+                                const std::string& msg,
+                                const SingleSigner& signer = {}) = 0;
   virtual void AddGroupUpdateListener(
       std::function<void(const SandboxGroup& state)> listener) = 0;
   virtual void AddGroupMessageListener(
