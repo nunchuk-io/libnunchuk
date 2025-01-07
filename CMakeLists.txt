@@ -171,7 +171,9 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/roomwallet.cpp
     src/dto/tapsignerstatus.cpp
     src/dto/satscardstatus.cpp
-    src/dto/sandboxgroup.cpp
+    src/dto/groupsandbox.cpp
+    src/dto/groupmessage.cpp
+    src/dto/groupconfig.cpp
     src/storage/appstatedb.cpp
     src/storage/db.cpp
     src/storage/localdb.cpp

@@ -55,6 +55,8 @@ std::pair<std::string, std::string> NunchukImpl::ParseGroupUrl(
   return group_service_.ParseUrl(url);
 }
 
+GroupConfig NunchukImpl::GetGroupConfig() { return group_service_.GetConfig(); }
+
 void NunchukImpl::StartConsumeGroupEvent() {
   auto groupIds = storage_->GetGroupSandboxIds(chain_);
   auto walletIds = storage_->GetGroupWalletIds(chain_);

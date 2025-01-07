@@ -660,6 +660,24 @@ class NUNCHUK_EXPORT GroupMessage {
   time_t ts_;
 };
 
+class NUNCHUK_EXPORT GroupConfig {
+ public:
+  GroupConfig();
+
+  int get_total() const;
+  int get_remain() const;
+  int get_max_keys(AddressType address_type) const;
+
+  void set_total(int value);
+  void set_remain(int value);
+  void set_max_keys(AddressType address_type, int value);
+
+ private:
+  int total_;
+  int remain_;
+  std::map<AddressType, int> address_key_limits_{};
+};
+
 typedef std::map<std::string, bool> KeyStatus;  // xfp-signed map
 typedef std::pair<TransactionStatus, KeyStatus> KeysetStatus;
 
@@ -1512,6 +1530,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& accessToken) = 0;
   virtual std::pair<std::string, std::string> ParseGroupUrl(
       const std::string& url) = 0;
+  virtual GroupConfig GetGroupConfig() = 0;
   virtual void StartConsumeGroupEvent() = 0;
   virtual void StopConsumeGroupEvent() = 0;
   virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType,

@@ -568,6 +568,7 @@ class NunchukImpl : public Nunchuk {
                          const std::string& accessToken) override;
   std::pair<std::string, std::string> ParseGroupUrl(
       const std::string& url) override;
+  GroupConfig GetGroupConfig() override;
   void StartConsumeGroupEvent() override;
   void StopConsumeGroupEvent() override;
   SandboxGroup CreateGroup(int m, int n, AddressType addressType,

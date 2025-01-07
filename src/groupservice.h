@@ -38,6 +38,7 @@ class GroupService {
   void SetAccessToken(const std::string& token);
 
   std::pair<std::string, std::string> ParseUrl(const std::string& url);
+  GroupConfig GetConfig();
   std::pair<std::string, std::string> RegisterDevice(
       const std::string& osName, const std::string& osVersion,
       const std::string& appVersion, const std::string& deviceClass,

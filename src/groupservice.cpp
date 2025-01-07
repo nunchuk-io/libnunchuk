@@ -22,6 +22,7 @@
 #include <utils/json.hpp>
 #include <utils/rsa.hpp>
 #include <utils/stringutils.hpp>
+#include <utils/enumconverter.hpp>
 #include <descriptor.h>
 #include <boost/algorithm/string.hpp>
 
@@ -76,6 +77,20 @@ std::pair<std::string, std::string> GroupService::ParseUrl(
   std::string body = json({{"url", group_url}}).dump();
   json data = GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   return {data["group_id"], data["redirect_url"]};
+}
+
+GroupConfig GroupService::GetConfig() {
+  std::string url = "/v1.1/shared-wallets/configs";
+  json data = GetHttpResponseData(Get(url));
+  GroupConfig rs{};
+  rs.set_total(data["total"]);
+  rs.set_remain(data["remaining"]);
+  json limits = data["address_key_limits"];
+  for (auto&& limit : limits) {
+    rs.set_max_keys(AddressTypeFromStr(limit["address_type"]),
+                    limit["max_keys"]);
+  }
+  return rs;
 }
 
 std::pair<std::string, std::string> GroupService::RegisterDevice(
