@@ -25,6 +25,7 @@
 #include <iomanip>
 
 #include <utils/txutils.hpp>
+#include <utils/secretbox.h>
 
 #include <key_io.h>
 #include <random.h>
@@ -37,8 +38,10 @@
 #include <secp256k1_musig.h>
 
 extern "C" {
+#include <pbkdf2.h>
 #include <bip39.h>
 #include <bip39_english.h>
+#include <hmac.h>
 void random_buffer(uint8_t* buf, size_t len) {
   // Core's GetStrongRandBytes
   // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
@@ -87,6 +90,50 @@ SoftwareSigner::SoftwareSigner(const std::string& master_xprv)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid master xprv");
   }
+}
+
+SoftwareSigner::SoftwareSigner(const Wallet& group_wallet) {
+  auto desc = group_wallet.get_descriptor(DescriptorPath::ANY);
+  uint8_t seed[512 / 8];
+  uint8_t salt[8 + 256] = {0};
+  PBKDF2_HMAC_SHA512_CTX pctx;
+  pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t*)desc.c_str(), desc.size(),
+                          salt, 8, 1);
+  pbkdf2_hmac_sha512_Update(&pctx, 2048);
+  pbkdf2_hmac_sha512_Final(&pctx, seed);
+
+  std::vector<std::byte> spanSeed;
+  for (size_t i = 0; i < 64; i++) spanSeed.push_back(std::byte{seed[i]});
+  bip32rootkey_.SetSeed(spanSeed);
+}
+
+static const std::string BIP85_HASH_KEY = "bip-entropy-from-k";
+
+void SoftwareSigner::SetupBoxKey(const std::string& path) {
+  auto xkey = GetExtKeyAtPath(path);
+
+  std::vector<uint8_t> key(BIP85_HASH_KEY.begin(), BIP85_HASH_KEY.end());
+  std::vector<uint8_t> data((uint8_t*)xkey.key.begin(),
+                            (uint8_t*)xkey.key.end());
+  uint8_t hmac[512 / 8];
+  hmac_sha512(&key[0], key.size(), &data[0], data.size(), hmac);
+  boxKey_ = std::vector<uint8_t>(hmac, hmac + 32);
+}
+
+std::string SoftwareSigner::EncryptMessage(const std::string& plaintext) {
+  if (boxKey_.empty()) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Box key is not setup");
+  }
+  return Secretbox(boxKey_).Box(plaintext);
+}
+
+std::string SoftwareSigner::DecryptMessage(const std::string& ciphertext) {
+  if (boxKey_.empty()) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Box key is not setup");
+  }
+  return Secretbox(boxKey_).Open(ciphertext);
 }
 
 CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
@@ -155,13 +202,10 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   return EncodePsbt(psbtx);
 }
 
-std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
-                                          const std::string& base64_psbt,
-                                          const std::string& basepath,
-                                          const std::string& external_desc,
-                                          const std::string& internal_desc,
-                                          int external_index,
-                                          int internal_index) {
+std::string SoftwareSigner::SignTaprootTx(
+    const NunchukLocalDb& db, const std::string& base64_psbt,
+    const std::string& basepath, const std::string& external_desc,
+    const std::string& internal_desc, int external_index, int internal_index) {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
@@ -172,8 +216,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
     auto key = GetExtKeyAtPath(path);
     XOnlyPubKey internal_key(key.Neuter().pubkey);
     auto cpubkeys = internal_key.GetCPubKeys();
-    for (auto && fullpubkey: cpubkeys) {
-        provider.keys[fullpubkey.GetID()] = key.key;
+    for (auto&& fullpubkey : cpubkeys) {
+      provider.keys[fullpubkey.GetID()] = key.key;
     }
   };
 
@@ -187,7 +231,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
     desc1.front()->Expand(i, provider, output_scripts, provider);
     addPath(basepath + "/1/" + std::to_string(i));
   }
-  
+
   std::map<uint256, MuSig2SecNonce> musig2_secnonces{};
   provider.musig2_secnonces = &musig2_secnonces;
 
@@ -211,19 +255,24 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
             auto partial_sigs = input.m_musig2_partial_sigs.at(agg_lh);
             if (partial_sigs.count(part)) continue;
           }
-          SigVersion sigversion = lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
+          SigVersion sigversion =
+              lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
           ScriptExecutionData execdata;
           execdata.m_annex_init = true;
-          execdata.m_annex_present = false; // Only support annex-less signing for now.
+          execdata.m_annex_present =
+              false;  // Only support annex-less signing for now.
           if (sigversion == SigVersion::TAPSCRIPT) {
-              execdata.m_codeseparator_pos_init = true;
-              execdata.m_codeseparator_pos = 0xFFFFFFFF; // Only support non-OP_CODESEPARATOR BIP342 signing for now.
-              execdata.m_tapleaf_hash_init = true;
-              execdata.m_tapleaf_hash = lh;
+            execdata.m_codeseparator_pos_init = true;
+            execdata.m_codeseparator_pos =
+                0xFFFFFFFF;  // Only support non-OP_CODESEPARATOR BIP342 signing
+                             // for now.
+            execdata.m_tapleaf_hash_init = true;
+            execdata.m_tapleaf_hash = lh;
           }
           uint256 hash;
-          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, sigversion, txdata, MissingDataBehavior::FAIL);
-      
+          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT,
+                               sigversion, txdata, MissingDataBehavior::FAIL);
+
           HashWriter hasher;
           hasher << agg << part << hash;
           uint256 session_id = hasher.GetSHA256();
@@ -234,7 +283,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
             const auto& [leaf_hashes, origin] = leaf_origin;
             std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
             if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
-              musig2_secnonces.emplace(session_id, db.GetMuSig2SecNonce(session_id));
+              musig2_secnonces.emplace(session_id,
+                                       db.GetMuSig2SecNonce(session_id));
             }
           }
         }
@@ -242,7 +292,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
 
       SignatureData sigdata;
       psbtx.inputs[i].FillSignatureData(sigdata);
-      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr, false);
+      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr,
+                    false);
       // psbtx.inputs[i].m_tap_script_sigs.clear();
       // psbtx.inputs[i].m_tap_scripts.clear();
 

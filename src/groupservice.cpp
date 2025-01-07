@@ -25,12 +25,15 @@
 #include <utils/enumconverter.hpp>
 #include <descriptor.h>
 #include <boost/algorithm/string.hpp>
+#include <coreutils.h>
 
 using json = nlohmann::json;
 
 namespace nunchuk {
 
 static const std::string MIME_TYPE = "application/json";
+static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
+static const std::string KEYPAIR_PATH = "m/83696968'/128169'/32'/0'";
 
 json GetHttpResponseData(const std::string& resp) {
   // std::cout << "resp " << resp<< std::endl;
@@ -218,29 +221,49 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
 }
 
 GroupMessage GroupService::ParseMessageData(const std::string& id,
-                                            const std::string& walletId,
+                                            const std::string& walletGid,
                                             const nlohmann::json& data) {
+  std::string walletId = walletGid2Id_[walletGid];
+  if (walletId.empty()) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Invalid wallet group id");
+  }
   GroupMessage rs(id, walletId);
-  // TODO: decrypt data using groupId pubkey
-  rs.set_content(data["msg"]);
-  // TODO: if data["signature"] valid, set signer
-  rs.set_signer(data["signer"]);
+  auto walletSigner = walletSigner_.at(walletId);
+  if (!CoreUtils::getInstance().VerifyMessage(walletGid, data["sig"],
+                                              data["msg"])) {
+    std::cout << "Invalid message signature" << std::endl;
+    throw NunchukException(NunchukException::INVALID_SIGNATURE,
+                           "Invalid group message");
+  }
+  json plaintext = json::parse(walletSigner->DecryptMessage(data["msg"]));
+  rs.set_content(plaintext["content"]);
+  // TODO: if plaintext["signature"] valid, set signer
+  rs.set_signer(plaintext["signer"]);
   return rs;
 }
 
 std::string GroupService::MessageToEvent(const std::string& walletId,
-                                         const std::string& msg,
+                                         const std::string& content,
                                          const std::string& signer,
                                          const std::string& signature) {
-  json data = {
-      {"version", 1},
-      {"msg", msg},
+  json plaintext = {
+      {"content", content},
       {"signer", signer},
       {"signature", signature},
   };
-  // TODO: encrypt data using groupId pubkey
+  auto walletSigner = walletSigner_.at(walletId);
+  auto msg = walletSigner->EncryptMessage(plaintext.dump());
+  auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
+  auto wallet_gid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+
+  json data = {
+      {"version", 1},
+      {"msg", msg},
+      {"sig", sig},
+  };
   json body = {
-      {"wallet_id", walletId},
+      {"wallet_id", wallet_gid},
       {"type", "chat"},
       {"data", data},
   };
@@ -326,18 +349,19 @@ GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
 }
 
 void GroupService::SendMessage(const std::string& walletId,
-                               const std::string& msg,
+                               const std::string& content,
                                const std::string& signer,
                                const std::string& signature) {
   std::string url = "/v1.1/shared-wallets/events/send";
-  std::string body = MessageToEvent(walletId, msg, signer, signature);
+  std::string body = MessageToEvent(walletId, content, signer, signature);
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
 }
 
 std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
                                                     int page, int pageSize,
                                                     bool latest) {
-  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletId +
+  auto wallet_gid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + wallet_gid +
                     "/chat?page=" + std::to_string(page) +
                     "&page_size=" + std::to_string(pageSize) + "&sort=desc";
   json data = GetHttpResponseData(Get(url));
@@ -407,7 +431,8 @@ void GroupService::Subscribe(const std::vector<std::string>& groupIds,
     ids.push_back({{"group_id", id}, {"from_ts_ms", 0}});
   }
   for (auto&& id : walletIds) {
-    ids.push_back({{"wallet_id", id}, {"from_ts_ms", 0}});
+    auto gid = walletSigner_.at(id)->GetAddressAtPath(KEYPAIR_PATH);
+    ids.push_back({{"wallet_id", gid}, {"from_ts_ms", 0}});
   }
   json sub = {{"sub", ids}};
   std::string body = sub.dump();
@@ -442,6 +467,14 @@ std::string GroupService::Get(const std::string& url) {
                            res ? res->body : "Server error");
   }
   return res->body;
+}
+
+std::string GroupService::SetupKey(const Wallet& wallet) {
+  walletSigner_[wallet.get_id()] = std::make_shared<SoftwareSigner>(wallet);
+  walletSigner_.at(wallet.get_id())->SetupBoxKey(SECRET_PATH);
+  auto gid = walletSigner_.at(wallet.get_id())->GetAddressAtPath(KEYPAIR_PATH);
+  walletGid2Id_[gid] = wallet.get_id();
+  return gid;
 }
 
 }  // namespace nunchuk

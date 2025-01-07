@@ -190,6 +190,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/rfc2440.hpp
     src/utils/coldcard.cpp
     src/utils/bip85.cpp
+    src/utils/secretbox.cpp
+    src/utils/tweetnacl.c
 )
 
 set(PROJECT_LIBRARIES

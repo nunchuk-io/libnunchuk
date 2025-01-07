@@ -22,6 +22,7 @@
 #include <vector>
 #include <string>
 #include <utils/json.hpp>
+#include <softwaresigner.h>
 
 namespace nunchuk {
 
@@ -50,7 +51,7 @@ class GroupService {
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
-  void SendMessage(const std::string& walletId, const std::string& msg,
+  void SendMessage(const std::string& walletId, const std::string& content,
                    const std::string& signer, const std::string& signature);
   std::vector<GroupMessage> GetMessages(const std::string& walletId, int page,
                                         int pageSize, bool latest);
@@ -58,12 +59,13 @@ class GroupService {
   void StopListenEvents();
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
+  std::string SetupKey(const Wallet& wallet);
 
   // Parse event data
   GroupSandbox ParseGroupData(const std::string& groupId, bool finalized,
                               const nlohmann::json& data);
   GroupMessage ParseMessageData(const std::string& id,
-                                const std::string& walletId,
+                                const std::string& walletGid,
                                 const nlohmann::json& data);
 
  private:
@@ -75,7 +77,8 @@ class GroupService {
   GroupSandbox ParseGroup(const nlohmann::json& group);
   std::string GroupToEvent(const GroupSandbox& group, const std::string& type);
   std::string MessageToEvent(const std::string& walletId,
-                             const std::string& msg, const std::string& signer,
+                             const std::string& content,
+                             const std::string& signer,
                              const std::string& signature);
 
   bool stop_{false};
@@ -85,6 +88,8 @@ class GroupService {
   std::string ephemeralPub_;
   std::string ephemeralPriv_;
   std::string accessToken_;
+  std::map<std::string, std::shared_ptr<SoftwareSigner>> walletSigner_{};
+  std::map<std::string, std::string> walletGid2Id_{};
 };
 
 }  // namespace nunchuk

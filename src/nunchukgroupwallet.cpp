@@ -96,6 +96,7 @@ void NunchukImpl::StartConsumeGroupEvent() {
         auto wallet = CreateWallet(
             group.get_id(), group.get_m(), group.get_n(), group.get_signers(),
             group.get_address_type(), false, {}, true, {});
+        group_service_.SetupKey(wallet);
       }
       group_wallet_listener_(group);
     } else if (type == "chat") {
@@ -166,8 +167,7 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
                              false, {}, true, {});
   group.set_finalized(true);
   group.set_wallet_id(wallet.get_id());
-  // TODO: calculate and set group pubkey
-  group.set_pubkey(wallet.get_id());
+  group.set_pubkey(group_service_.SetupKey(wallet));
   return group_service_.UpdateGroup(group);
 }
 
