@@ -571,21 +571,21 @@ class NunchukImpl : public Nunchuk {
   GroupConfig GetGroupConfig() override;
   void StartConsumeGroupEvent() override;
   void StopConsumeGroupEvent() override;
-  SandboxGroup CreateGroup(int m, int n, AddressType addressType,
+  GroupSandbox CreateGroup(int m, int n, AddressType addressType,
                            const SingleSigner& signer = {}) override;
-  SandboxGroup GetGroup(const std::string& groupId) override;
-  std::vector<SandboxGroup> GetGroups() override;
-  SandboxGroup JoinGroup(const std::string& groupId) override;
-  SandboxGroup AddSignerToGroup(const std::string& groupId,
+  GroupSandbox GetGroup(const std::string& groupId) override;
+  std::vector<GroupSandbox> GetGroups() override;
+  GroupSandbox JoinGroup(const std::string& groupId) override;
+  GroupSandbox AddSignerToGroup(const std::string& groupId,
                                 const SingleSigner& signer) override;
-  SandboxGroup UpdateGroup(const std::string& groupId, int m, int n,
+  GroupSandbox UpdateGroup(const std::string& groupId, int m, int n,
                            AddressType addressType,
                            const SingleSigner& signer = {}) override;
-  SandboxGroup FinalizeGroup(const std::string& groupId) override;
+  GroupSandbox FinalizeGroup(const std::string& groupId) override;
   void SendGroupMessage(const std::string& walletId, const std::string& msg,
                         const SingleSigner& signer = {}) override;
   void AddGroupUpdateListener(
-      std::function<void(const SandboxGroup& state)> listener) override;
+      std::function<void(const GroupSandbox& state)> listener) override;
   void AddGroupMessageListener(
       std::function<void(const GroupMessage& msg)> listener) override;
 
@@ -621,7 +621,7 @@ class NunchukImpl : public Nunchuk {
   // Group wallet
   bool group_wallet_enable_{false};
   GroupService group_service_;
-  boost::signals2::signal<void(const SandboxGroup&)> group_wallet_listener_;
+  boost::signals2::signal<void(const GroupSandbox&)> group_wallet_listener_;
   boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
 };
 

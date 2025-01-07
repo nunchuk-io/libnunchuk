@@ -593,9 +593,9 @@ class NUNCHUK_EXPORT UnspentOutput {
   CoinStatus status_;
 };
 
-class NUNCHUK_EXPORT SandboxGroup {
+class NUNCHUK_EXPORT GroupSandbox {
  public:
-  SandboxGroup(const std::string& id);
+  GroupSandbox(const std::string& id);
 
   std::string get_id() const;
   std::string get_url() const;
@@ -1533,22 +1533,22 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupConfig GetGroupConfig() = 0;
   virtual void StartConsumeGroupEvent() = 0;
   virtual void StopConsumeGroupEvent() = 0;
-  virtual SandboxGroup CreateGroup(int m, int n, AddressType addressType,
+  virtual GroupSandbox CreateGroup(int m, int n, AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
-  virtual SandboxGroup GetGroup(const std::string& groupId) = 0;
-  virtual std::vector<SandboxGroup> GetGroups() = 0;
-  virtual SandboxGroup JoinGroup(const std::string& groupId) = 0;
-  virtual SandboxGroup AddSignerToGroup(const std::string& groupId,
+  virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
+  virtual std::vector<GroupSandbox> GetGroups() = 0;
+  virtual GroupSandbox JoinGroup(const std::string& groupId) = 0;
+  virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
                                         const SingleSigner& signer) = 0;
-  virtual SandboxGroup UpdateGroup(const std::string& groupId, int m, int n,
+  virtual GroupSandbox UpdateGroup(const std::string& groupId, int m, int n,
                                    AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
-  virtual SandboxGroup FinalizeGroup(const std::string& groupId) = 0;
+  virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;
   virtual void SendGroupMessage(const std::string& walletId,
                                 const std::string& msg,
                                 const SingleSigner& signer = {}) = 0;
   virtual void AddGroupUpdateListener(
-      std::function<void(const SandboxGroup& state)> listener) = 0;
+      std::function<void(const GroupSandbox& state)> listener) = 0;
   virtual void AddGroupMessageListener(
       std::function<void(const GroupMessage& msg)> listener) = 0;
 

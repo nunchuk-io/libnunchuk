@@ -97,25 +97,25 @@ void NunchukImpl::StartConsumeGroupEvent() {
 
 void NunchukImpl::StopConsumeGroupEvent() { group_service_.StopListenEvents(); }
 
-SandboxGroup NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
+GroupSandbox NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
                                       const SingleSigner& signer) {
   return group_service_.CreateGroup(m, n, addressType, signer);
 }
 
-SandboxGroup NunchukImpl::GetGroup(const std::string& groupId) {
+GroupSandbox NunchukImpl::GetGroup(const std::string& groupId) {
   return group_service_.GetGroup(groupId);
 }
 
-std::vector<SandboxGroup> NunchukImpl::GetGroups() {
+std::vector<GroupSandbox> NunchukImpl::GetGroups() {
   auto groupIds = storage_->GetGroupSandboxIds(chain_);
   return group_service_.GetGroups(groupIds);
 }
 
-SandboxGroup NunchukImpl::JoinGroup(const std::string& groupId) {
+GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
   return group_service_.JoinGroup(groupId);
 }
 
-SandboxGroup NunchukImpl::AddSignerToGroup(const std::string& groupId,
+GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
                                            const SingleSigner& signer) {
   auto group = group_service_.GetGroup(groupId);
   auto signers = group.get_signers();
@@ -124,7 +124,7 @@ SandboxGroup NunchukImpl::AddSignerToGroup(const std::string& groupId,
   return group_service_.UpdateGroup(group);
 }
 
-SandboxGroup NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
+GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
                                       AddressType addressType,
                                       const SingleSigner& signer) {
   auto group = group_service_.GetGroup(groupId);
@@ -135,7 +135,7 @@ SandboxGroup NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
   return group_service_.UpdateGroup(group);
 }
 
-SandboxGroup NunchukImpl::FinalizeGroup(const std::string& groupId) {
+GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
   auto group = group_service_.GetGroup(groupId);
   auto wallet = CreateWallet(group.get_id(), group.get_m(), group.get_n(),
                              group.get_signers(), group.get_address_type(),
@@ -153,7 +153,7 @@ void NunchukImpl::SendGroupMessage(const std::string& walletId,
 }
 
 void NunchukImpl::AddGroupUpdateListener(
-    std::function<void(const SandboxGroup& state)> listener) {
+    std::function<void(const GroupSandbox& state)> listener) {
   group_wallet_listener_.connect(listener);
 }
 

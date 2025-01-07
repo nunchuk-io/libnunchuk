@@ -44,12 +44,12 @@ class GroupService {
       const std::string& appVersion, const std::string& deviceClass,
       const std::string& deviceId);
 
-  SandboxGroup CreateGroup(int m, int n, AddressType addressType,
+  GroupSandbox CreateGroup(int m, int n, AddressType addressType,
                            const SingleSigner& signer);
-  SandboxGroup GetGroup(const std::string& groupId);
-  std::vector<SandboxGroup> GetGroups(const std::vector<std::string>& groupIds);
-  SandboxGroup JoinGroup(const std::string& groupId);
-  SandboxGroup UpdateGroup(const SandboxGroup& group);
+  GroupSandbox GetGroup(const std::string& groupId);
+  std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
+  GroupSandbox JoinGroup(const std::string& groupId);
+  GroupSandbox UpdateGroup(const GroupSandbox& group);
   void SendMessage(const std::string& groupId, const std::string& msg);
   void StartListenEvents(std::function<bool(const std::string&)> callback);
   void StopListenEvents();
@@ -57,7 +57,7 @@ class GroupService {
                  const std::vector<std::string>& walletIds);
 
   // Parse event data
-  SandboxGroup ParseGroupData(const std::string& groupId, bool finalized,
+  GroupSandbox ParseGroupData(const std::string& groupId, bool finalized,
                               const nlohmann::json& data);
   GroupMessage ParseMessageData(const std::string& id,
                                 const std::string& groupId,
@@ -68,9 +68,9 @@ class GroupService {
   std::string Post(const std::string& url,
                    const std::vector<unsigned char>& body);
 
-  SandboxGroup ParseGroupResponse(const std::string& resp);
-  SandboxGroup ParseGroup(const nlohmann::json& group);
-  std::string GroupToEvent(const SandboxGroup& group, const std::string& type);
+  GroupSandbox ParseGroupResponse(const std::string& resp);
+  GroupSandbox ParseGroup(const nlohmann::json& group);
+  std::string GroupToEvent(const GroupSandbox& group, const std::string& type);
   std::string MessageToEvent(const std::string& groupId,
                              const std::string& msg);
 

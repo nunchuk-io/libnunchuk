@@ -21,43 +21,43 @@
 
 namespace nunchuk {
 
-SandboxGroup::SandboxGroup(const std::string& id) : id_(id){};
+GroupSandbox::GroupSandbox(const std::string& id) : id_(id){};
 
-std::string SandboxGroup::get_id() const { return id_; }
-std::string SandboxGroup::get_url() const { return url_; }
-int SandboxGroup::get_m() const { return m_; }
-int SandboxGroup::get_n() const { return n_; }
-const std::vector<SingleSigner>& SandboxGroup::get_signers() const {
+std::string GroupSandbox::get_id() const { return id_; }
+std::string GroupSandbox::get_url() const { return url_; }
+int GroupSandbox::get_m() const { return m_; }
+int GroupSandbox::get_n() const { return n_; }
+const std::vector<SingleSigner>& GroupSandbox::get_signers() const {
   return signers_;
 }
-AddressType SandboxGroup::get_address_type() const { return address_type_; }
-bool SandboxGroup::is_finalized() const { return finalized_; }
-int SandboxGroup::get_state_id() const { return state_id_; }
-const std::vector<std::string>& SandboxGroup::get_ephemeral_keys() const {
+AddressType GroupSandbox::get_address_type() const { return address_type_; }
+bool GroupSandbox::is_finalized() const { return finalized_; }
+int GroupSandbox::get_state_id() const { return state_id_; }
+const std::vector<std::string>& GroupSandbox::get_ephemeral_keys() const {
   return keys_;
 }
-bool SandboxGroup::need_broadcast() const { return need_broadcast_; }
-std::string SandboxGroup::get_wallet_id() const { return wallet_id_; }
-std::string SandboxGroup::get_pubkey() const { return pubkey_; }
+bool GroupSandbox::need_broadcast() const { return need_broadcast_; }
+std::string GroupSandbox::get_wallet_id() const { return wallet_id_; }
+std::string GroupSandbox::get_pubkey() const { return pubkey_; }
 
-void SandboxGroup::set_url(const std::string& value) { url_ = value; }
-void SandboxGroup::set_n(int n) { n_ = n; }
-void SandboxGroup::set_m(int m) { m_ = m; }
-void SandboxGroup::set_signers(std::vector<SingleSigner> signers) {
+void GroupSandbox::set_url(const std::string& value) { url_ = value; }
+void GroupSandbox::set_n(int n) { n_ = n; }
+void GroupSandbox::set_m(int m) { m_ = m; }
+void GroupSandbox::set_signers(std::vector<SingleSigner> signers) {
   signers_ = std::move(signers);
 }
-void SandboxGroup::set_address_type(AddressType value) {
+void GroupSandbox::set_address_type(AddressType value) {
   address_type_ = value;
 }
-void SandboxGroup::set_finalized(bool value) { finalized_ = value; }
-void SandboxGroup::set_ephemeral_keys(std::vector<std::string> keys) {
+void GroupSandbox::set_finalized(bool value) { finalized_ = value; }
+void GroupSandbox::set_ephemeral_keys(std::vector<std::string> keys) {
   keys_ = std::move(keys);
 }
-void SandboxGroup::set_state_id(int value) { state_id_ = value; }
-void SandboxGroup::set_need_broadcast(bool value) { need_broadcast_ = value; }
-void SandboxGroup::set_wallet_id(const std::string& value) {
+void GroupSandbox::set_state_id(int value) { state_id_ = value; }
+void GroupSandbox::set_need_broadcast(bool value) { need_broadcast_ = value; }
+void GroupSandbox::set_wallet_id(const std::string& value) {
   wallet_id_ = value;
 }
-void SandboxGroup::set_pubkey(const std::string& value) { pubkey_ = value; }
+void GroupSandbox::set_pubkey(const std::string& value) { pubkey_ = value; }
 
 }  // namespace nunchuk

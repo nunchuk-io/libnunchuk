@@ -119,10 +119,10 @@ std::pair<std::string, std::string> GroupService::RegisterDevice(
   return {deviceToken_, uid_};
 }
 
-SandboxGroup GroupService::ParseGroupData(const std::string& groupId,
+GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
                                           bool finalized,
                                           const nlohmann::json& info) {
-  SandboxGroup rs(groupId);
+  GroupSandbox rs(groupId);
   rs.set_finalized(finalized);
   rs.set_state_id(info["stateId"]);
 
@@ -160,7 +160,7 @@ SandboxGroup GroupService::ParseGroupData(const std::string& groupId,
   return rs;
 }
 
-SandboxGroup GroupService::ParseGroup(const json& group) {
+GroupSandbox GroupService::ParseGroup(const json& group) {
   bool finalized = group["status"] == "ACTIVE";
   auto rs = ParseGroupData(group["id"], finalized,
                            finalized ? group["finalize"] : group["init"]);
@@ -168,13 +168,13 @@ SandboxGroup GroupService::ParseGroup(const json& group) {
   return rs;
 }
 
-SandboxGroup GroupService::ParseGroupResponse(const std::string& resp) {
+GroupSandbox GroupService::ParseGroupResponse(const std::string& resp) {
   json data = GetHttpResponseData(resp);
   json group = data["group"];
   return ParseGroup(group);
 }
 
-std::string GroupService::GroupToEvent(const SandboxGroup& group,
+std::string GroupService::GroupToEvent(const GroupSandbox& group,
                                        const std::string& type) {
   json signers = json::array();
   for (auto&& signer : group.get_signers()) {
@@ -237,13 +237,13 @@ std::string GroupService::MessageToEvent(const std::string& groupId,
   return body.dump();
 }
 
-SandboxGroup GroupService::CreateGroup(int m, int n, AddressType addressType,
+GroupSandbox GroupService::CreateGroup(int m, int n, AddressType addressType,
                                        const SingleSigner& signer) {
   if (m <= 0 || n <= 0 || m > n) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
   }
   std::string url = "/v1.1/shared-wallets/groups";
-  SandboxGroup group("");
+  GroupSandbox group("");
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
@@ -254,27 +254,27 @@ SandboxGroup GroupService::CreateGroup(int m, int n, AddressType addressType,
   return ParseGroupResponse(rs);
 }
 
-SandboxGroup GroupService::GetGroup(const std::string& groupId) {
+GroupSandbox GroupService::GetGroup(const std::string& groupId) {
   std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
   std::string rs = Get(url);
   return ParseGroupResponse(rs);
 }
 
-std::vector<SandboxGroup> GroupService::GetGroups(
+std::vector<GroupSandbox> GroupService::GetGroups(
     const std::vector<std::string>& groupIds) {
   std::string url =
       std::string("/v1.1/shared-wallets/groups/batch?group_ids=") +
       join(groupIds, ',');
   json data = GetHttpResponseData(Get(url));
   json groups = data["groups"];
-  std::vector<SandboxGroup> rs{};
+  std::vector<GroupSandbox> rs{};
   for (auto&& group : groups) {
     rs.push_back(ParseGroup(group));
   }
   return rs;
 }
 
-SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
+GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
   std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
   json data = GetHttpResponseData(Get(url));
   json group = data["group"];
@@ -299,7 +299,7 @@ SandboxGroup GroupService::JoinGroup(const std::string& groupId) {
   return ParseGroup(group);
 }
 
-SandboxGroup GroupService::UpdateGroup(const SandboxGroup& group) {
+GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
   if (group.get_m() <= 0 || group.get_n() <= 0 ||
       group.get_m() > group.get_n()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
