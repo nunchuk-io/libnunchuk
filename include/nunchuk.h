@@ -219,6 +219,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_SIGNATURE = -1027;
   static const int INVALID_RBF = -1028;
   static const int INSUFFICIENT_FEE = -1029;
+  static const int INVALID_STATE = -1030;
   using BaseException::BaseException;
 };
 
@@ -651,7 +652,7 @@ class NUNCHUK_EXPORT GroupMessage {
   void set_wallet_id(const std::string& value);
   void set_sender(const std::string& value);
   void set_content(const std::string& value);
-  void set_signer(const  std::string& value);
+  void set_signer(const std::string& value);
   void set_ts(time_t value);
 
  private:
@@ -1550,6 +1551,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void SendGroupMessage(const std::string& walletId,
                                 const std::string& msg,
                                 const SingleSigner& signer = {}) = 0;
+  virtual std::vector<GroupMessage> GetGroupMessages(
+      const std::string& walletId, int page, int pageSize, bool latest) = 0;
   virtual void AddGroupUpdateListener(
       std::function<void(const GroupSandbox& state)> listener) = 0;
   virtual void AddGroupMessageListener(

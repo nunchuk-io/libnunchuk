@@ -584,6 +584,9 @@ class NunchukImpl : public Nunchuk {
   GroupSandbox FinalizeGroup(const std::string& groupId) override;
   void SendGroupMessage(const std::string& walletId, const std::string& msg,
                         const SingleSigner& signer = {}) override;
+  std::vector<GroupMessage> GetGroupMessages(const std::string& walletId,
+                                             int page, int pageSize,
+                                             bool latest) override;
   void AddGroupUpdateListener(
       std::function<void(const GroupSandbox& state)> listener) override;
   void AddGroupMessageListener(

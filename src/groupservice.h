@@ -51,8 +51,9 @@ class GroupService {
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
   void SendMessage(const std::string& walletId, const std::string& msg,
-                   const std::string& signer = {},
-                   const std::string& signature = {});
+                   const std::string& signer, const std::string& signature);
+  std::vector<GroupMessage> GetMessages(const std::string& walletId, int page,
+                                        int pageSize, bool latest);
   void StartListenEvents(std::function<bool(const std::string&)> callback);
   void StopListenEvents();
   void Subscribe(const std::vector<std::string>& groupIds,

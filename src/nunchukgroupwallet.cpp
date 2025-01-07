@@ -26,6 +26,13 @@ using json = nlohmann::json;
 
 namespace nunchuk {
 
+void ThrowIfNotEnable(bool value) {
+  if (!value) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Group wallet is not enabled");
+  }
+}
+
 void NunchukImpl::EnableGroupWallet(const std::string& osName,
                                     const std::string& osVersion,
                                     const std::string& appVersion,
@@ -52,12 +59,17 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
 
 std::pair<std::string, std::string> NunchukImpl::ParseGroupUrl(
     const std::string& url) {
+  ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.ParseUrl(url);
 }
 
-GroupConfig NunchukImpl::GetGroupConfig() { return group_service_.GetConfig(); }
+GroupConfig NunchukImpl::GetGroupConfig() {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetConfig();
+}
 
 void NunchukImpl::StartConsumeGroupEvent() {
+  ThrowIfNotEnable(group_wallet_enable_);
   auto groupIds = storage_->GetGroupSandboxIds(chain_);
   auto walletIds = storage_->GetGroupWalletIds(chain_);
   group_service_.Subscribe(groupIds, walletIds);
@@ -97,28 +109,36 @@ void NunchukImpl::StartConsumeGroupEvent() {
   });
 }
 
-void NunchukImpl::StopConsumeGroupEvent() { group_service_.StopListenEvents(); }
+void NunchukImpl::StopConsumeGroupEvent() {
+  ThrowIfNotEnable(group_wallet_enable_);
+  group_service_.StopListenEvents();
+}
 
 GroupSandbox NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
                                       const SingleSigner& signer) {
+  ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.CreateGroup(m, n, addressType, signer);
 }
 
 GroupSandbox NunchukImpl::GetGroup(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.GetGroup(groupId);
 }
 
 std::vector<GroupSandbox> NunchukImpl::GetGroups() {
+  ThrowIfNotEnable(group_wallet_enable_);
   auto groupIds = storage_->GetGroupSandboxIds(chain_);
   return group_service_.GetGroups(groupIds);
 }
 
 GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.JoinGroup(groupId);
 }
 
 GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
                                            const SingleSigner& signer) {
+  ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   auto signers = group.get_signers();
   signers.push_back(signer);
@@ -129,6 +149,7 @@ GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
 GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
                                       AddressType addressType,
                                       const SingleSigner& signer) {
+  ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   group.set_m(m);
   group.set_n(n);
@@ -138,6 +159,7 @@ GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
 }
 
 GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   auto wallet = CreateWallet(group.get_id(), group.get_m(), group.get_n(),
                              group.get_signers(), group.get_address_type(),
@@ -152,9 +174,16 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
 void NunchukImpl::SendGroupMessage(const std::string& walletId,
                                    const std::string& msg,
                                    const SingleSigner& signer) {
-  std::string signature = {}; // TODO: sign the msg with signature
+  ThrowIfNotEnable(group_wallet_enable_);
+  std::string signature = {};  // TODO: sign the msg with signature
   group_service_.SendMessage(walletId, msg, signer.get_master_fingerprint(),
                              signature);
+}
+
+std::vector<GroupMessage> NunchukImpl::GetGroupMessages(
+    const std::string& walletId, int page, int pageSize, bool latest) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetMessages(walletId, page, pageSize, latest);
 }
 
 void NunchukImpl::AddGroupUpdateListener(

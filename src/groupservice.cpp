@@ -206,7 +206,8 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
       {"state", state},
   };
   if (group.is_finalized()) {
-    data["wallet_id"] = group.get_pubkey(); // we use pubkey as server wallet id
+    data["wallet_id"] =
+        group.get_pubkey();  // we use pubkey as server wallet id
   }
   json body = {
       {"group_id", group.get_id()},
@@ -222,7 +223,7 @@ GroupMessage GroupService::ParseMessageData(const std::string& id,
   GroupMessage rs(id, walletId);
   // TODO: decrypt data using groupId pubkey
   rs.set_content(data["msg"]);
-  // TODO: if data["signature"] valid, set signer 
+  // TODO: if data["signature"] valid, set signer
   rs.set_signer(data["signer"]);
   return rs;
 }
@@ -331,6 +332,26 @@ void GroupService::SendMessage(const std::string& walletId,
   std::string url = "/v1.1/shared-wallets/events/send";
   std::string body = MessageToEvent(walletId, msg, signer, signature);
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+}
+
+std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
+                                                    int page, int pageSize,
+                                                    bool latest) {
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletId +
+                    "/chat?page=" + std::to_string(page) +
+                    "&page_size=" + std::to_string(pageSize) + "&sort=desc";
+  json data = GetHttpResponseData(Get(url));
+  json events = data["events"];
+  std::vector<GroupMessage> rs{};
+  for (auto&& event : events) {
+    json payload = event["payload"];
+    json data = payload["data"];
+    auto message = ParseMessageData(event["id"], payload["wallet_id"], data);
+    message.set_ts(event["timestamp_ms"].get<int64_t>() / 1000);
+    message.set_sender(event["uid"]);
+    rs.push_back(message);
+  }
+  return rs;
 }
 
 void GroupService::StartListenEvents(
