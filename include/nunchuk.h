@@ -639,24 +639,27 @@ class NUNCHUK_EXPORT GroupSandbox {
 
 class NUNCHUK_EXPORT GroupMessage {
  public:
-  GroupMessage(const std::string& id, const std::string& group_id);
+  GroupMessage(const std::string& id, const std::string& wallet_id);
 
   std::string get_id() const;
-  std::string get_group_id() const;
+  std::string get_wallet_id() const;
   std::string get_sender() const;
   std::string get_content() const;
+  std::string get_signer() const;
   time_t get_ts() const;
 
-  void set_group_id(const std::string& value);
+  void set_wallet_id(const std::string& value);
   void set_sender(const std::string& value);
   void set_content(const std::string& value);
+  void set_signer(const  std::string& value);
   void set_ts(time_t value);
 
  private:
   std::string id_;
-  std::string group_id_;
+  std::string wallet_id_;
   std::string sender_;
   std::string content_;
+  std::string signer_;
   time_t ts_;
 };
 

@@ -63,22 +63,23 @@ void NunchukImpl::StartConsumeGroupEvent() {
   group_service_.Subscribe(groupIds, walletIds);
   group_service_.StartListenEvents([&](const std::string& e) {
     json event = json::parse(e);
-    time_t ts = event["timestamp_ms"];
-    std::string id = event["id"];
+    time_t ts = event["timestamp_ms"].get<int64_t>() / 1000;
+    std::string eid = event["id"];
     std::string uid = event["uid"];
     json payload = event["payload"];
     std::string type = payload["type"];
-    std::string groupId = payload["group_id"];
     json data = payload["data"];
 
     if (type == "init") {
-      auto group = group_service_.ParseGroupData(groupId, false, data);
+      auto group =
+          group_service_.ParseGroupData(payload["group_id"], false, data);
       if (group.need_broadcast()) {
         group_service_.UpdateGroup(group);
       }
       group_wallet_listener_(group);
     } else if (type == "finalize") {
-      auto group = group_service_.ParseGroupData(groupId, true, data);
+      auto group =
+          group_service_.ParseGroupData(payload["group_id"], true, data);
       if (!storage_->HasWallet(chain_, group.get_wallet_id())) {
         auto wallet = CreateWallet(
             group.get_id(), group.get_m(), group.get_n(), group.get_signers(),
@@ -86,7 +87,8 @@ void NunchukImpl::StartConsumeGroupEvent() {
       }
       group_wallet_listener_(group);
     } else if (type == "chat") {
-      auto message = group_service_.ParseMessageData(id, groupId, data);
+      auto message =
+          group_service_.ParseMessageData(eid, payload["wallet_id"], data);
       message.set_ts(ts);
       message.set_sender(uid);
       group_message_listener_(message);
@@ -142,14 +144,17 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
                              false, {}, true, {});
   group.set_finalized(true);
   group.set_wallet_id(wallet.get_id());
-  // TODO: set group pubkey
+  // TODO: calculate and set group pubkey
+  group.set_pubkey(wallet.get_id());
   return group_service_.UpdateGroup(group);
 }
 
 void NunchukImpl::SendGroupMessage(const std::string& walletId,
                                    const std::string& msg,
                                    const SingleSigner& signer) {
-  group_service_.SendMessage(walletId, msg);
+  std::string signature = {}; // TODO: sign the msg with signature
+  group_service_.SendMessage(walletId, msg, signer.get_master_fingerprint(),
+                             signature);
 }
 
 void NunchukImpl::AddGroupUpdateListener(

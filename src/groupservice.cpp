@@ -205,6 +205,9 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
       {"stateId", group.get_state_id() + 1},
       {"state", state},
   };
+  if (group.is_finalized()) {
+    data["wallet_id"] = group.get_pubkey(); // we use pubkey as server wallet id
+  }
   json body = {
       {"group_id", group.get_id()},
       {"type", type},
@@ -214,23 +217,29 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
 }
 
 GroupMessage GroupService::ParseMessageData(const std::string& id,
-                                            const std::string& groupId,
+                                            const std::string& walletId,
                                             const nlohmann::json& data) {
-  GroupMessage rs(id, groupId);
+  GroupMessage rs(id, walletId);
   // TODO: decrypt data using groupId pubkey
   rs.set_content(data["msg"]);
+  // TODO: if data["signature"] valid, set signer 
+  rs.set_signer(data["signer"]);
   return rs;
 }
 
-std::string GroupService::MessageToEvent(const std::string& groupId,
-                                         const std::string& msg) {
+std::string GroupService::MessageToEvent(const std::string& walletId,
+                                         const std::string& msg,
+                                         const std::string& signer,
+                                         const std::string& signature) {
   json data = {
       {"version", 1},
       {"msg", msg},
+      {"signer", signer},
+      {"signature", signature},
   };
   // TODO: encrypt data using groupId pubkey
   json body = {
-      {"group_id", groupId},
+      {"wallet_id", walletId},
       {"type", "chat"},
       {"data", data},
   };
@@ -315,10 +324,12 @@ GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
   return group;
 }
 
-void GroupService::SendMessage(const std::string& groupId,
-                               const std::string& msg) {
+void GroupService::SendMessage(const std::string& walletId,
+                               const std::string& msg,
+                               const std::string& signer,
+                               const std::string& signature) {
   std::string url = "/v1.1/shared-wallets/events/send";
-  std::string body = MessageToEvent(groupId, msg);
+  std::string body = MessageToEvent(walletId, msg, signer, signature);
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
 }
 

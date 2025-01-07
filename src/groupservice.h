@@ -50,7 +50,9 @@ class GroupService {
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
-  void SendMessage(const std::string& groupId, const std::string& msg);
+  void SendMessage(const std::string& walletId, const std::string& msg,
+                   const std::string& signer = {},
+                   const std::string& signature = {});
   void StartListenEvents(std::function<bool(const std::string&)> callback);
   void StopListenEvents();
   void Subscribe(const std::vector<std::string>& groupIds,
@@ -60,7 +62,7 @@ class GroupService {
   GroupSandbox ParseGroupData(const std::string& groupId, bool finalized,
                               const nlohmann::json& data);
   GroupMessage ParseMessageData(const std::string& id,
-                                const std::string& groupId,
+                                const std::string& walletId,
                                 const nlohmann::json& data);
 
  private:
@@ -71,8 +73,9 @@ class GroupService {
   GroupSandbox ParseGroupResponse(const std::string& resp);
   GroupSandbox ParseGroup(const nlohmann::json& group);
   std::string GroupToEvent(const GroupSandbox& group, const std::string& type);
-  std::string MessageToEvent(const std::string& groupId,
-                             const std::string& msg);
+  std::string MessageToEvent(const std::string& walletId,
+                             const std::string& msg, const std::string& signer,
+                             const std::string& signature);
 
   bool stop_{false};
   std::string baseUrl_;

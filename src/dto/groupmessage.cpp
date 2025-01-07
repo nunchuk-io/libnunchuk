@@ -21,18 +21,20 @@
 
 namespace nunchuk {
 
-GroupMessage::GroupMessage(const std::string& id, const std::string& group_id)
- : id_(id), group_id_(group_id) {}
+GroupMessage::GroupMessage(const std::string& id, const std::string& wallet_id)
+ : id_(id), wallet_id_(wallet_id) {}
 
 std::string GroupMessage::get_id() const { return id_; }
-std::string GroupMessage::get_group_id() const { return group_id_; }
+std::string GroupMessage::get_wallet_id() const { return wallet_id_; }
 std::string GroupMessage::get_sender() const { return sender_; }
 std::string GroupMessage::get_content() const { return content_; }
+std::string GroupMessage::get_signer() const { return signer_; }
 time_t GroupMessage::get_ts() const { return ts_; }
 
-void GroupMessage::set_group_id(const std::string& value) { group_id_ = value; }
+void GroupMessage::set_wallet_id(const std::string& value) { wallet_id_ = value; }
 void GroupMessage::set_sender(const std::string& value) { sender_ = value; }
 void GroupMessage::set_content(const std::string& value) { content_ = value; }
+void GroupMessage::set_signer(const std::string& value) { signer_ = value; }
 void GroupMessage::set_ts(time_t value) { ts_ = value; }
 
 }  // namespace nunchuk
