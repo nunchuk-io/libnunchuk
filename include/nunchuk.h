@@ -315,6 +315,19 @@ class TapProtocolException : public BaseException {
                       NormalizeErrorMessage(te.what())) {}
 };
 
+class NUNCHUK_EXPORT GroupException : public BaseException {
+ public:
+  static const int NOT_ENABLED = -7000;
+  static const int SERVER_REQUEST_ERROR = -7001;
+  static const int WALLET_NOT_FOUND = -7002;
+  static const int SIGNER_NOT_FOUND = -7003;
+  static const int TOO_MANY_SIGNER = -7004;
+  static const int SIGNER_EXISTS = -7005;
+  static const int INVALID_PARAMETER = -7006;
+  static const int INVALID_SIGNATURE = -7007;
+  using BaseException::BaseException;
+};
+
 class NUNCHUK_EXPORT Device {
  public:
   Device();
@@ -1544,10 +1557,13 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupSandbox JoinGroup(const std::string& groupId) = 0;
   virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
                                         const SingleSigner& signer) = 0;
+  virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                             const SingleSigner& signer) = 0;
   virtual GroupSandbox UpdateGroup(const std::string& groupId, int m, int n,
                                    AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
   virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;
+  virtual bool CheckGroupWalletExists(const Wallet& wallet) = 0;
   virtual void SendGroupMessage(const std::string& walletId,
                                 const std::string& msg,
                                 const SingleSigner& signer = {}) = 0;

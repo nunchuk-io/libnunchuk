@@ -36,11 +36,15 @@ static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/83696968'/128169'/32'/0'";
 
 json GetHttpResponseData(const std::string& resp) {
-  // std::cout << "resp " << resp<< std::endl;
+  // std::cout << "resp " << resp << std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+    if (parsed["error"]["code"] == 5404) {
+      throw GroupException(GroupException::WALLET_NOT_FOUND,
                            parsed["error"]["message"]);
+    }
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         parsed["error"]["message"]);
   }
   return parsed["data"];
 }
@@ -113,8 +117,8 @@ std::pair<std::string, std::string> GroupService::RegisterDevice(
   auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
                          body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           res ? res->body : "Server error");
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         res ? res->body : "Server error");
   }
   auto data = GetHttpResponseData(res->body);
   deviceToken_ = data["device_token"];
@@ -192,8 +196,8 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
 
   if (group.is_finalized()) {
     if (group.get_pubkey().empty() || group.get_wallet_id().empty()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid wallet id");
+      throw GroupException(GroupException::INVALID_PARAMETER,
+                           "Invalid wallet id");
     }
     plaintext["pubkey"] = group.get_pubkey();
     plaintext["walletId"] = group.get_wallet_id();
@@ -225,20 +229,17 @@ GroupMessage GroupService::ParseMessageData(const std::string& id,
                                             const nlohmann::json& data) {
   std::string walletId = walletGid2Id_[walletGid];
   if (walletId.empty()) {
-    throw NunchukException(NunchukException::INVALID_STATE,
-                           "Invalid wallet group id");
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid wallet");
   }
   GroupMessage rs(id, walletId);
   auto walletSigner = walletSigner_.at(walletId);
   if (!CoreUtils::getInstance().VerifyMessage(walletGid, data["sig"],
                                               data["msg"])) {
-    std::cout << "Invalid message signature" << std::endl;
-    throw NunchukException(NunchukException::INVALID_SIGNATURE,
-                           "Invalid group message");
+    throw GroupException(GroupException::INVALID_SIGNATURE, "Invalid message");
   }
   json plaintext = json::parse(walletSigner->DecryptMessage(data["msg"]));
   rs.set_content(plaintext["content"]);
-  // TODO: if plaintext["signature"] valid, set signer
+  // TODO: set signer iif plaintext["signature"] is valid
   rs.set_signer(plaintext["signer"]);
   return rs;
 }
@@ -273,7 +274,7 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
 GroupSandbox GroupService::CreateGroup(int m, int n, AddressType addressType,
                                        const SingleSigner& signer) {
   if (m <= 0 || n <= 0 || m > n) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   std::string url = "/v1.1/shared-wallets/groups";
   GroupSandbox group("");
@@ -312,12 +313,12 @@ GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
   json data = GetHttpResponseData(Get(url));
   json group = data["group"];
   if (group["status"] == "ACTIVE") {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           "Group finalized");
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         "Group finalized");
   }
   if (group["init"]["state"][ephemeralPub_] != nullptr) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           "Already joined");
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         "Already joined");
   }
   group["init"]["state"][ephemeralPub_] = "";
   group["init"]["stateId"] = group["init"]["stateId"].get<int>() + 1;
@@ -335,17 +336,27 @@ GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
 GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
   if (group.get_m() <= 0 || group.get_n() <= 0 ||
       group.get_m() > group.get_n()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid m/n");
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   if (group.is_finalized() && group.get_signers().size() != group.get_n()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid signers");
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid signers");
   }
   std::string url = "/v1.1/shared-wallets/events/send";
-  std::string body =
-      GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
+  auto body = GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   return group;
+}
+
+bool GroupService::CheckWalletExists(const Wallet& wallet) {
+  auto walletGid = SoftwareSigner(wallet).GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid;
+  try {
+    auto data = GetHttpResponseData(Get(url));
+    return data["wallet"]["status"] == "ACTIVE";
+  } catch (GroupException& ne) {
+    if (ne.code() != GroupException::WALLET_NOT_FOUND) throw;
+    return false;
+  }
 }
 
 void GroupService::SendMessage(const std::string& walletId,
@@ -449,8 +460,8 @@ std::string GroupService::Post(const std::string& url,
   auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
                          body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           res ? res->body : "Server error");
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         res ? res->body : "Server error");
   }
   return res->body;
 }
@@ -463,8 +474,8 @@ std::string GroupService::Get(const std::string& url) {
   client.enable_server_certificate_verification(false);
   auto res = client.Get(url.c_str(), headers);
   if (!res || res->status != 200) {
-    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
-                           res ? res->body : "Server error");
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         res ? res->body : "Server error");
   }
   return res->body;
 }

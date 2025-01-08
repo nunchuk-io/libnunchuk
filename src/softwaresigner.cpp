@@ -95,10 +95,10 @@ SoftwareSigner::SoftwareSigner(const std::string& master_xprv)
 SoftwareSigner::SoftwareSigner(const Wallet& group_wallet) {
   auto desc = group_wallet.get_descriptor(DescriptorPath::ANY);
   uint8_t seed[512 / 8];
-  uint8_t salt[8 + 256] = {0};
+  std::string salt = "entropy-from-descriptor";
   PBKDF2_HMAC_SHA512_CTX pctx;
   pbkdf2_hmac_sha512_Init(&pctx, (const uint8_t*)desc.c_str(), desc.size(),
-                          salt, 8, 1);
+                          (const uint8_t*)salt.c_str(), salt.size(), 1);
   pbkdf2_hmac_sha512_Update(&pctx, 2048);
   pbkdf2_hmac_sha512_Final(&pctx, seed);
 

@@ -51,6 +51,7 @@ class GroupService {
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
+  bool CheckWalletExists(const Wallet& wallet);
   void SendMessage(const std::string& walletId, const std::string& content,
                    const std::string& signer, const std::string& signature);
   std::vector<GroupMessage> GetMessages(const std::string& walletId, int page,

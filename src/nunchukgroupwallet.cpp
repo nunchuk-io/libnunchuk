@@ -28,8 +28,7 @@ namespace nunchuk {
 
 void ThrowIfNotEnable(bool value) {
   if (!value) {
-    throw NunchukException(NunchukException::INVALID_STATE,
-                           "Group wallet is not enabled");
+    throw GroupException(GroupException::NOT_ENABLED, "Group is not enabled");
   }
 }
 
@@ -142,7 +141,31 @@ GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   auto signers = group.get_signers();
+  if (signers.size() == group.get_n()) {
+    throw GroupException(GroupException::TOO_MANY_SIGNER, "Too many signer");
+  }
+  auto desc = signer.get_descriptor();
+  for (auto&& s : signers) {
+    if (s.get_descriptor() == desc) {
+      throw GroupException(GroupException::SIGNER_EXISTS, "Signer exists");
+    }
+  }
   signers.push_back(signer);
+  group.set_signers(signers);
+  return group_service_.UpdateGroup(group);
+}
+
+GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
+                                                const SingleSigner& signer) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto group = group_service_.GetGroup(groupId);
+  auto signers = group.get_signers();
+  auto desc = signer.get_descriptor();
+  signers.erase(std::remove_if(signers.begin(), signers.end(),
+                               [&](const SingleSigner& s) {
+                                 return s.get_descriptor() == desc;
+                               }),
+                signers.end());
   group.set_signers(signers);
   return group_service_.UpdateGroup(group);
 }
@@ -169,6 +192,11 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
   group.set_wallet_id(wallet.get_id());
   group.set_pubkey(group_service_.SetupKey(wallet));
   return group_service_.UpdateGroup(group);
+}
+
+bool NunchukImpl::CheckGroupWalletExists(const Wallet& wallet) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.CheckWalletExists(wallet);
 }
 
 void NunchukImpl::SendGroupMessage(const std::string& walletId,
