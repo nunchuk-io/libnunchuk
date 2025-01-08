@@ -1564,6 +1564,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const SingleSigner& signer = {}) = 0;
   virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;
   virtual bool CheckGroupWalletExists(const Wallet& wallet) = 0;
+  virtual void RecoverGroupWallet(const std::string& walletId) = 0;
   virtual void SendGroupMessage(const std::string& walletId,
                                 const std::string& msg,
                                 const SingleSigner& signer = {}) = 0;

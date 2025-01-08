@@ -54,6 +54,12 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   } else {
     group_service_.SetDeviceInfo(deviceInfo.first, deviceInfo.second);
   }
+
+  auto walletIds = storage_->GetGroupWalletIds(chain_);
+  for (auto&& walletId : walletIds) {
+    auto wallet = GetWallet(walletId);
+    group_service_.SetupKey(wallet);
+  }
 }
 
 std::pair<std::string, std::string> NunchukImpl::ParseGroupUrl(
@@ -96,6 +102,9 @@ void NunchukImpl::StartConsumeGroupEvent() {
             group.get_id(), group.get_m(), group.get_n(), group.get_signers(),
             group.get_address_type(), false, {}, true, {});
         group_service_.SetupKey(wallet);
+        walletIds = storage_->AddGroupWalletId(chain_, wallet.get_id());
+        groupIds = storage_->RemoveGroupSandboxId(chain_, payload["group_id"]);
+        group_service_.Subscribe(groupIds, walletIds);
       }
       group_wallet_listener_(group);
     } else if (type == "chat") {
@@ -117,7 +126,10 @@ void NunchukImpl::StopConsumeGroupEvent() {
 GroupSandbox NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
                                       const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
-  return group_service_.CreateGroup(m, n, addressType, signer);
+  auto group = group_service_.CreateGroup(m, n, addressType, signer);
+  storage_->AddGroupSandboxId(chain_, group.get_id());
+  // BE auto subcribe new groupId for creator, don't need to call Subscribe here
+  return group;
 }
 
 GroupSandbox NunchukImpl::GetGroup(const std::string& groupId) {
@@ -133,6 +145,9 @@ std::vector<GroupSandbox> NunchukImpl::GetGroups() {
 
 GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
   ThrowIfNotEnable(group_wallet_enable_);
+  auto groupIds = storage_->AddGroupSandboxId(chain_, groupId);
+  auto walletIds = storage_->GetGroupWalletIds(chain_);
+  group_service_.Subscribe(groupIds, walletIds);
   return group_service_.JoinGroup(groupId);
 }
 
@@ -197,6 +212,18 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
 bool NunchukImpl::CheckGroupWalletExists(const Wallet& wallet) {
   ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.CheckWalletExists(wallet);
+}
+
+void NunchukImpl::RecoverGroupWallet(const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto wallet = GetWallet(walletId);
+  if (!group_service_.CheckWalletExists(wallet)) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
+  group_service_.SetupKey(wallet);
+  auto groupIds = storage_->GetGroupSandboxIds(chain_);
+  auto walletIds = storage_->AddGroupWalletId(chain_, walletId);
+  group_service_.Subscribe(groupIds, walletIds);
 }
 
 void NunchukImpl::SendGroupMessage(const std::string& walletId,
