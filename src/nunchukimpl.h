@@ -584,6 +584,7 @@ class NunchukImpl : public Nunchuk {
                            AddressType addressType,
                            const SingleSigner& signer = {}) override;
   GroupSandbox FinalizeGroup(const std::string& groupId) override;
+  std::vector<Wallet> GetGroupWallets() override;
   bool CheckGroupWalletExists(const Wallet& wallet) override;
   void RecoverGroupWallet(const std::string& walletId) override;
   void SendGroupMessage(const std::string& walletId, const std::string& msg,
