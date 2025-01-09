@@ -231,10 +231,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
 GroupMessage GroupService::ParseMessageData(const std::string& id,
                                             const std::string& walletGid,
                                             const nlohmann::json& data) {
-  std::string walletId = walletGid2Id_[walletGid];
-  if (walletId.empty()) {
-    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
-  }
+  std::string walletId = GetWalletIdFromGid(walletGid);
   GroupMessage rs(id, walletId);
   auto walletSigner = walletSigner_.at(walletId);
   if (!CoreUtils::getInstance().VerifyMessage(walletGid, data["sig"],
@@ -252,9 +249,7 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
                                          const std::string& content,
                                          const std::string& signer,
                                          const std::string& signature) {
-  if (!HasWallet(walletId)) {
-    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
-  }
+  HasWallet(walletId, true);
   json plaintext = {
       {"content", content},
       {"signer", signer},
@@ -272,6 +267,42 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
   };
   json body = {
       {"wallet_id", wallet_gid},
+      {"type", "chat"},
+      {"data", data},
+  };
+  return body.dump();
+}
+
+std::string GroupService::ParseTransactionData(const std::string& walletGid,
+                                               const nlohmann::json& data) {
+  std::string walletId = GetWalletIdFromGid(walletGid);
+  auto walletSigner = walletSigner_.at(walletId);
+  if (!CoreUtils::getInstance().VerifyMessage(walletGid, data["sig"],
+                                              data["msg"])) {
+    throw GroupException(GroupException::INVALID_SIGNATURE, "Invalid message");
+  }
+  json plaintext = json::parse(walletSigner->DecryptMessage(data["msg"]));
+  return plaintext["psbt"];
+}
+
+std::string GroupService::TransactionToEvent(const std::string& walletId,
+                                             const std::string& txId,
+                                             const std::string& psbt) {
+  HasWallet(walletId, true);
+  json plaintext = {{"psbt", psbt}};
+  auto walletSigner = walletSigner_.at(walletId);
+  auto msg = walletSigner->EncryptMessage(plaintext.dump());
+  auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
+  auto wallet_gid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  auto tx_gid = walletSigner->EncryptMessage(txId);
+
+  json data = {
+      {"version", 1},
+      {"msg", msg},
+      {"sig", sig},
+  };
+  json body = {
+      {"id", tx_gid},
       {"type", "chat"},
       {"data", data},
   };
@@ -357,9 +388,7 @@ GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
 }
 
 GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {
-  if (!HasWallet(walletId)) {
-    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
-  }
+  HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
   std::string url = "/v1.1/shared-wallets/wallets/" + walletGid;
   auto data = GetHttpResponseData(Get(url));
@@ -370,9 +399,7 @@ GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {
 
 void GroupService::SetWalletConfig(const std::string& walletId,
                                    const GroupWalletConfig& config) {
-  if (!HasWallet(walletId)) {
-    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
-  }
+  HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
   std::string url = "/v1.1/shared-wallets/events/send";
   json data = {{"chat_retention_days", config.get_chat_retention_days()}};
@@ -409,9 +436,7 @@ void GroupService::SendMessage(const std::string& walletId,
 std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
                                                     int page, int pageSize,
                                                     bool latest) {
-  if (!HasWallet(walletId)) {
-    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
-  }
+  HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/chat?page=" + std::to_string(page) +
@@ -483,10 +508,7 @@ void GroupService::Subscribe(const std::vector<std::string>& groupIds,
     ids.push_back({{"group_id", id}, {"from_ts_ms", 0}});
   }
   for (auto&& id : walletIds) {
-    if (!HasWallet(id)) {
-      throw GroupException(GroupException::WALLET_NOT_FOUND,
-                           "Wallet not found");
-    }
+    HasWallet(id, true);
     auto gid = walletSigner_.at(id)->GetAddressAtPath(KEYPAIR_PATH);
     ids.push_back({{"wallet_id", gid}, {"from_ts_ms", 0}});
   }
@@ -525,8 +547,27 @@ std::string GroupService::Get(const std::string& url) {
   return res->body;
 }
 
-bool GroupService::HasWallet(const std::string& walletId) {
-  return walletSigner_.count(walletId) == 1;
+std::string GroupService::Delete(const std::string& url) {
+  std::string auth = (std::string("Bearer ") + accessToken_);
+  httplib::Headers headers = {{"Device-Token", deviceToken_},
+                              {"Authorization", auth}};
+  httplib::Client client(baseUrl_.c_str());
+  client.enable_server_certificate_verification(false);
+  auto res = client.Delete(url.c_str(), headers);
+  if (!res || res->status != 200) {
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         res ? res->body : "Server error");
+  }
+  return res->body;
+}
+
+bool GroupService::HasWallet(const std::string& walletId,
+                             bool throwIfNotFound) {
+  bool found = walletSigner_.count(walletId) == 1;
+  if (!found && throwIfNotFound) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
+  return found;
 }
 
 std::string GroupService::GetWalletIdFromGid(const std::string& walletGid) {
@@ -538,7 +579,42 @@ std::string GroupService::GetWalletIdFromGid(const std::string& walletGid) {
 }
 
 std::string GroupService::GetTxIdFromGid(const std::string& walletId,
-                                         const std::string& txGid) {}
+                                         const std::string& txGid) {
+  HasWallet(walletId, true);
+  return walletSigner_.at(walletId)->DecryptMessage(txGid);
+}
+
+std::string GroupService::GetTransaction(const std::string& walletId,
+                                         const std::string& txId) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  auto txGid = walletSigner_.at(walletId)->EncryptMessage(txId);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
+                    "/transactions/" + txGid;
+  auto data = GetHttpResponseData(Get(url));
+  return ParseTransactionData(walletGid, data);
+}
+
+void GroupService::UpdateTransaction(const std::string& walletId,
+                                     const std::string& txId,
+                                     const std::string& psbt) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
+                    "/transactions";
+  std::string body = TransactionToEvent(walletId, txId, psbt);
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+}
+
+void GroupService::DeleteTransaction(const std::string& walletId,
+                                     const std::string& txId) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  auto txGid = walletSigner_.at(walletId)->EncryptMessage(txId);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
+                    "/transactions/" + txGid;
+  GetHttpResponseData(Delete(url));
+}
 
 std::string GroupService::SetupKey(const Wallet& wallet) {
   if (!HasWallet(wallet.get_id())) {

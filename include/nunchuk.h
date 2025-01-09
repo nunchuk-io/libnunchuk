@@ -1141,7 +1141,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                         const std::string& file_path) = 0;
   virtual Transaction ImportPsbt(const std::string& wallet_id,
                                  const std::string& psbt,
-                                 bool throw_if_unchanged = true) = 0;
+                                 bool throw_if_unchanged = true,
+                                 bool send_group_event = true) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
@@ -1149,7 +1150,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::string GetRawTransaction(const std::string& wallet_id,
                                         const std::string& tx_id) = 0;
   virtual bool DeleteTransaction(const std::string& wallet_id,
-                                 const std::string& tx_id) = 0;
+                                 const std::string& tx_id,
+                                 bool send_group_event = true) = 0;
 
   virtual Transaction DraftTransaction(
       const std::string& wallet_id,

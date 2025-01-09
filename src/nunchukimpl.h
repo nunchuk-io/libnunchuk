@@ -200,7 +200,8 @@ class NunchukImpl : public Nunchuk {
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
   Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt,
-                         bool throw_if_unchanged = true) override;
+                         bool throw_if_unchanged = true,
+                         bool send_group_event = true) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
@@ -216,8 +217,8 @@ class NunchukImpl : public Nunchuk {
                              const std::string& tx_id) override;
   std::string GetRawTransaction(const std::string& wallet_id,
                                 const std::string& tx_id) override;
-  bool DeleteTransaction(const std::string& wallet_id,
-                         const std::string& tx_id) override;
+  bool DeleteTransaction(const std::string& wallet_id, const std::string& tx_id,
+                         bool send_group_event = true) override;
 
   Transaction DraftTransaction(const std::string& wallet_id,
                                const std::map<std::string, Amount>& outputs,

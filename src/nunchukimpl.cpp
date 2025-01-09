@@ -1029,6 +1029,9 @@ Transaction NunchukImpl::CreateTransaction(
                                  replace_txid);
   rs.set_vsize(vsize);
   storage_listener_();
+  if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
+    group_service_.UpdateTransaction(wallet_id, rs.get_txid(), psbt);
+  }
   return rs;
 }
 
@@ -1044,7 +1047,8 @@ bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
 
 Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
                                     const std::string& base64_psbt,
-                                    bool throw_if_unchanged) {
+                                    bool throw_if_unchanged,
+                                    bool send_group_event) {
   constexpr auto is_hex_tx = [](const std::string& str) {
     return boost::starts_with(str, "01000000") ||
            boost::starts_with(str, "02000000");
@@ -1078,11 +1082,19 @@ Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
     }
     storage_->UpdatePsbt(chain_, wallet_id, combined_psbt);
     storage_listener_();
+    if (group_wallet_enable_ && group_service_.HasWallet(wallet_id) &&
+        send_group_event) {
+      group_service_.UpdateTransaction(wallet_id, tx_id, combined_psbt);
+    }
     return GetTransaction(wallet_id, tx_id);
   } catch (StorageException& se) {
     if (se.code() != StorageException::TX_NOT_FOUND) throw;
     auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt);
     storage_listener_();
+    if (group_wallet_enable_ && group_service_.HasWallet(wallet_id) &&
+        send_group_event) {
+      group_service_.UpdateTransaction(wallet_id, tx_id, psbt);
+    }
     return rs;
   }
 }
@@ -1188,6 +1200,9 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
          signed_psbt.c_str());
   storage_->UpdatePsbt(chain_, wallet_id, signed_psbt);
   storage_listener_();
+  if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
+    group_service_.UpdateTransaction(wallet_id, tx_id, signed_psbt);
+  }
   return GetTransaction(wallet_id, tx_id);
 }
 
@@ -1267,6 +1282,10 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
          signed_psbt.c_str());
   Transaction signed_tx = tx;
   signed_tx.set_psbt(signed_psbt);
+  if (group_wallet_enable_ && group_service_.HasWallet(wallet.get_id())) {
+    group_service_.UpdateTransaction(wallet.get_id(), signed_tx.get_txid(),
+                                     signed_psbt);
+  }
   return signed_tx;
 }
 
@@ -1370,9 +1389,14 @@ std::string NunchukImpl::GetRawTransaction(const std::string& wallet_id,
 }
 
 bool NunchukImpl::DeleteTransaction(const std::string& wallet_id,
-                                    const std::string& tx_id) {
+                                    const std::string& tx_id,
+                                    bool send_group_event) {
   auto rs = storage_->DeleteTransaction(chain_, wallet_id, tx_id);
   storage_listener_();
+  if (group_wallet_enable_ && group_service_.HasWallet(wallet_id) &&
+      send_group_event) {
+    group_service_.DeleteTransaction(wallet_id, tx_id);
+  }
   return rs;
 }
 

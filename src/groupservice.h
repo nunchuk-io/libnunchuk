@@ -63,10 +63,12 @@ class GroupService {
   void StopListenEvents();
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
-  bool HasWallet(const std::string& walletId);
+  bool HasWallet(const std::string& walletId, bool throwIfNotFound = false);
   std::string GetWalletIdFromGid(const std::string& walletGid);
   std::string GetTxIdFromGid(const std::string& walletId,
                              const std::string& txGid);
+  std::string GetTransaction(const std::string& walletId,
+                             const std::string& txId);
   void UpdateTransaction(const std::string& walletId, const std::string& txId,
                          const std::string& psbt);
   void DeleteTransaction(const std::string& walletId, const std::string& txId);
@@ -78,11 +80,14 @@ class GroupService {
   GroupMessage ParseMessageData(const std::string& id,
                                 const std::string& walletGid,
                                 const nlohmann::json& data);
+  std::string ParseTransactionData(const std::string& walletGid,
+                                   const nlohmann::json& data);
 
  private:
   std::string Get(const std::string& url);
   std::string Post(const std::string& url,
                    const std::vector<unsigned char>& body);
+  std::string Delete(const std::string& url);
 
   GroupSandbox ParseGroupResponse(const std::string& resp);
   GroupSandbox ParseGroup(const nlohmann::json& group);
@@ -91,6 +96,9 @@ class GroupService {
                              const std::string& content,
                              const std::string& signer,
                              const std::string& signature);
+  std::string TransactionToEvent(const std::string& walletId,
+                                 const std::string& txId,
+                                 const std::string& psbt);
 
   bool stop_{false};
   std::string baseUrl_;

@@ -119,12 +119,14 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "transaction_updated") {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
-      // ImportPsbt()
+      auto txId = group_service_.GetTxIdFromGid(walletId, txGid);
+      auto psbt = group_service_.GetTransaction(walletId, txId);
+      ImportPsbt(walletId, psbt, false, false);
     } else if (type == "transaction_deleted") {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
       auto txId = group_service_.GetTxIdFromGid(walletId, txGid);
-      DeleteTransaction(walletId, txId);
+      DeleteTransaction(walletId, txId, false);
     }
     return true;
   });
