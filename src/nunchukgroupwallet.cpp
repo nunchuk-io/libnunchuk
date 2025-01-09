@@ -135,7 +135,7 @@ void NunchukImpl::StopConsumeGroupEvent() {
   group_service_.StopListenEvents();
 }
 
-GroupSandbox NunchukImpl::CreateGroup(std::string name, int m, int n,
+GroupSandbox NunchukImpl::CreateGroup(const std::string& name, int m, int n,
                                       AddressType addressType,
                                       const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
@@ -198,11 +198,13 @@ GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
   return group_service_.UpdateGroup(group);
 }
 
-GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId, int m, int n,
+GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId,
+                                      const std::string& name, int m, int n,
                                       AddressType addressType,
                                       const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
+  group.set_name(name);
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);

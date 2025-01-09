@@ -45,7 +45,7 @@ class GroupService {
       const std::string& appVersion, const std::string& deviceClass,
       const std::string& deviceId);
 
-  GroupSandbox CreateGroup(std::string name, int m, int n,
+  GroupSandbox CreateGroup(const std::string& name, int m, int n,
                            AddressType addressType, const SingleSigner& signer);
   GroupSandbox GetGroup(const std::string& groupId);
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);

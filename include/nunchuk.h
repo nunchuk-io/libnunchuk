@@ -1564,7 +1564,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupConfig GetGroupConfig() = 0;
   virtual void StartConsumeGroupEvent() = 0;
   virtual void StopConsumeGroupEvent() = 0;
-  virtual GroupSandbox CreateGroup(std::string name, int m, int n,
+  virtual GroupSandbox CreateGroup(const std::string& name, int m, int n,
                                    AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
   virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
@@ -1574,7 +1574,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                         const SingleSigner& signer) = 0;
   virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                              const SingleSigner& signer) = 0;
-  virtual GroupSandbox UpdateGroup(const std::string& groupId, int m, int n,
+  virtual GroupSandbox UpdateGroup(const std::string& groupId,
+                                   const std::string& name, int m, int n,
                                    AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
   virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;

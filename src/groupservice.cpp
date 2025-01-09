@@ -278,7 +278,7 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
   return body.dump();
 }
 
-GroupSandbox GroupService::CreateGroup(std::string name, int m, int n,
+GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
                                        AddressType addressType,
                                        const SingleSigner& signer) {
   if (m <= 0 || n <= 0 || m > n) {
@@ -286,6 +286,7 @@ GroupSandbox GroupService::CreateGroup(std::string name, int m, int n,
   }
   std::string url = "/v1.1/shared-wallets/groups";
   GroupSandbox group("");
+  group.set_name(name);
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
