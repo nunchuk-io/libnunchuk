@@ -46,6 +46,12 @@ class NunchukImpl : public Nunchuk {
                       const std::string& description = {},
                       bool allow_used_signer = false,
                       const std::string& decoy_pin = {}) override;
+  Wallet CreateWallet(const std::string& name, int m, int n,
+                      const std::vector<SingleSigner>& signers,
+                      AddressType address_type, WalletType wallet_type,
+                      const std::string& description = {},
+                      bool allow_used_signer = false,
+                      const std::string& decoy_pin = {}) override;
   Wallet CreateWallet(const Wallet& wallet, bool allow_used_signer = false,
                       const std::string& decoy_pin = {}) override;
   Wallet CloneWallet(const std::string& wallet_id,
@@ -58,6 +64,10 @@ class NunchukImpl : public Nunchuk {
   std::string DraftWallet(const std::string& name, int m, int n,
                           const std::vector<SingleSigner>& signers,
                           AddressType address_type, bool is_escrow,
+                          const std::string& desc = {}) override;
+  std::string DraftWallet(const std::string& name, int m, int n,
+                          const std::vector<SingleSigner>& signers,
+                          AddressType address_type, WalletType wallet_type,
                           const std::string& desc = {}) override;
   std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
                                      OrderBy::OLDEST_FIRST}) override;
@@ -188,14 +198,17 @@ class NunchukImpl : public Nunchuk {
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
-  Transaction ImportPsbt(const std::string& wallet_id,
-                         const std::string& psbt,
+  Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt,
                          bool throw_if_unchanged = true) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
   Transaction SignTransaction(const Wallet& wallet, const Transaction& tx,
                               const Device& device) override;
+  void SetPreferScriptPath(const Wallet& wallet, const std::string& tx_id,
+                           bool value) override;
+  bool IsPreferScriptPath(const Wallet& wallet,
+                          const std::string& tx_id) override;
   Transaction BroadcastTransaction(const std::string& wallet_id,
                                    const std::string& tx_id) override;
   Transaction GetTransaction(const std::string& wallet_id,

@@ -37,12 +37,13 @@ static const int SINGLESIG_BIP86_CACHE_NUMBER = 3;
 static const int MULTISIG_BIP45_CACHE_NUMBER = 1;
 static const int MULTISIG_BIP48_1_CACHE_NUMBER = 1;
 static const int MULTISIG_BIP48_2_CACHE_NUMBER = 3;
+static const int MUSIG_BIP87_CACHE_NUMBER = 3;
 static const int ESCROW_CACHE_NUMBER = 1;
 static const int TOTAL_CACHE_NUMBER =
     SINGLESIG_BIP44_CACHE_NUMBER + SINGLESIG_BIP49_CACHE_NUMBER +
     SINGLESIG_BIP84_CACHE_NUMBER + SINGLESIG_BIP86_CACHE_NUMBER +
     MULTISIG_BIP45_CACHE_NUMBER + MULTISIG_BIP48_1_CACHE_NUMBER +
-    MULTISIG_BIP48_2_CACHE_NUMBER + ESCROW_CACHE_NUMBER;
+    MULTISIG_BIP48_2_CACHE_NUMBER + MUSIG_BIP87_CACHE_NUMBER + ESCROW_CACHE_NUMBER;
 
 static const std::string TESTNET_HEALTH_CHECK_PATH = "m/45'/1'/0'/1/0";
 static const std::string MAINNET_HEALTH_CHECK_PATH = "m/45'/0'/0'/1/0";
@@ -95,6 +96,10 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
           // Native Segwit Multi-sig BIP48 Wallets: m/48h/ch/zh/2h
           return boost::str(boost::format{"m/48h/%dh/%dh/2h"} % coin_type %
                             index);
+        case AddressType::TAPROOT:
+          // Taproot Musig BIP87 Wallets: m/87h/ch/zh
+          return boost::str(boost::format{"m/87h/%dh/%dh"} % coin_type %
+                            index);
         default:
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
                                  "Invalid address type");
@@ -114,6 +119,7 @@ inline std::string GetBip32Type(const std::string& path) {
   if (boost::algorithm::starts_with(path, "m/49h")) return "bip49";
   if (boost::algorithm::starts_with(path, "m/84h")) return "bip84";
   if (boost::algorithm::starts_with(path, "m/86h")) return "bip86";
+  if (boost::algorithm::starts_with(path, "m/87h")) return "bip87";
   if (boost::algorithm::starts_with(
           path, strprintf("m/48h/0h/%dh", ESCROW_ACCOUNT_INDEX)) ||
       boost::algorithm::starts_with(
@@ -153,6 +159,8 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
           return "bip48_1";
         case AddressType::NATIVE_SEGWIT:
           return "bip48_2";
+        case AddressType::TAPROOT:
+          return "bip87";
         default:
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
                                  "Invalid address type");

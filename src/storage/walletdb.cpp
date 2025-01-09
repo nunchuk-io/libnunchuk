@@ -93,7 +93,7 @@ void NunchukWalletDb::InitWallet(const Wallet& wallet) {
   json immutable_data = {{"m", wallet.get_m()},
                          {"n", wallet.get_n()},
                          {"address_type", wallet.get_address_type()},
-                         {"is_escrow", wallet.is_escrow()},
+                         {"wallet_type", wallet.get_wallet_type()},
                          {"create_date", wallet.get_create_date()}};
   PutString(DbKeys::IMMUTABLE_DATA, immutable_data.dump());
   for (auto&& signer : wallet.get_signers()) {
@@ -188,12 +188,18 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   int m = immutable_data["m"];
   int n = immutable_data["n"];
   AddressType address_type = immutable_data["address_type"];
-  bool is_escrow = immutable_data["is_escrow"];
   time_t create_date = immutable_data["create_date"];
   int gap_limit = GetInt(DbKeys::GAP_LIMIT);
 
-  Wallet wallet(id_, m, n, GetSigners(), address_type, is_escrow, create_date);
-  wallet.set_name(GetString(DbKeys::NAME));
+  WalletType wallet_type = WalletType::MULTI_SIG;
+  if (immutable_data["wallet_type"] != nullptr) {
+    wallet_type = immutable_data["wallet_type"];
+  } else { // backward compatible
+    bool is_escrow = immutable_data["is_escrow"];
+    wallet_type = is_escrow ? WalletType::ESCROW : (n == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG);
+  }
+
+  Wallet wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(), address_type, wallet_type, create_date);
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
   wallet.set_gap_limit(gap_limit <= 0 ? DEFAULT_ADDRESS_LOOK_AHEAD : gap_limit);
@@ -584,8 +590,9 @@ void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
 bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
                                         time_t blocktime,
                                         const std::string& reject_msg) {
+  auto wallet = GetWallet(true, true);
   if (height == -1) {
-    auto [tx, is_hex_tx] = GetTransactionFromStr(raw_tx, GetSigners(), 0, -1);
+    auto [tx, is_hex_tx] = GetTransactionFromStr(raw_tx, wallet, -1);
     std::string tx_id = tx.get_txid();
 
     sqlite3_stmt* stmt;
@@ -640,7 +647,7 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     if (sqlite3_column_text(stmt, 1)) {
       std::string value = std::string((char*)sqlite3_column_text(stmt, 0));
       extra = std::string((char*)sqlite3_column_text(stmt, 1));
-      auto [tx, is_hex_tx] = GetTransactionFromStr(value, GetSigners(), 0, -1);
+      auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, -1);
 
       json extra_json = extra.empty() ? json{} : json::parse(extra);
       extra_json["signers"] = tx.get_signers();
@@ -860,7 +867,7 @@ std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
   if (sqlite3_column_text(stmt, 0)) {
     std::string rs = std::string((char*)sqlite3_column_text(stmt, 0));
     SQLCHECK(sqlite3_finalize(stmt));
-    auto [tx, is_hex_tx] = GetTransactionFromStr(rs, {}, 0, -1);
+    auto [tx, is_hex_tx] = GetTransactionFromStr(rs, {}, -1);
     return {rs, is_hex_tx};
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
@@ -871,9 +878,7 @@ std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
 Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
   if (txs_cache_[db_file_name_].count(tx_id))
     return txs_cache_[db_file_name_][tx_id];
-  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-  int m = immutable_data["m"];
-  auto signers = GetSigners();
+  auto wallet = GetWallet(true, true);
 
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
@@ -888,9 +893,9 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
     int change_pos = sqlite3_column_int(stmt, 5);
     time_t blocktime = sqlite3_column_int64(stmt, 6);
 
-    auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
+    auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
     tx.set_txid(tx_id);
-    tx.set_m(m);
+    tx.set_m(wallet.get_m());
     tx.set_fee(Amount(fee));
     tx.set_fee_rate(0);
     tx.set_change_index(change_pos);
@@ -965,9 +970,7 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) {
 }
 
 std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
-  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-  int m = immutable_data["m"];
-  auto signers = GetSigners();
+  auto wallet = GetWallet(true, true);
 
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM VTX;";
@@ -985,9 +988,9 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
       int change_pos = sqlite3_column_int(stmt, 5);
       time_t blocktime = sqlite3_column_int64(stmt, 6);
 
-      auto [tx, is_hex_tx] = GetTransactionFromStr(value, signers, m, height);
+      auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
       tx.set_txid(tx_id);
-      tx.set_m(m);
+      tx.set_m(wallet.get_m());
       tx.set_fee(Amount(fee));
       tx.set_fee_rate(0);
       tx.set_change_index(change_pos);
@@ -1052,7 +1055,7 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
   for (int i = 0; i < nin; i++) {
-    SignPSBTInput(provider, psbt, i, &txdata, 1);
+    SignPSBTInput(provider, psbt, i, &txdata, 1, nullptr, false);
   }
 
   // Update script/keypath information using descriptor data.
@@ -1090,7 +1093,7 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
     if (extra_json["signers"] != nullptr &&
         (tx.get_height() >= 0 || !tx.get_raw().empty())) {
       for (auto&& signer : tx.get_signers()) {
-        tx.set_signer(signer.first, extra_json["signers"][signer.first]);
+        if (!signer.second) tx.set_signer(signer.first, extra_json["signers"][signer.first]);
       }
     }
     if (extra_json["outputs"] != nullptr) {
@@ -2101,6 +2104,8 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
         set_status(id, CoinStatus::OUTGOING_PENDING_BROADCAST);
       } else if (tx.get_status() == TransactionStatus::PENDING_SIGNATURES) {
         set_status(id, CoinStatus::OUTGOING_PENDING_SIGNATURES);
+      } else if (tx.get_status() == TransactionStatus::PENDING_NONCE) {
+        set_status(id, CoinStatus::OUTGOING_PENDING_SIGNATURES);
       }
       coins[id].set_memo(prev_tx.get_memo());
       coins[id].set_change(isMyChange(address));
@@ -2240,8 +2245,7 @@ RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
         auto amountIn = input.witness_utxo.nValue;
         CScript scriptCode = input.witness_script;
         const CMutableTransaction& tx = *dummyPsbt.tx;
-        const PrecomputedTransactionData txdata = PrecomputePSBTData(dummyPsbt);
-        MutableTransactionSignatureCreator creator(&tx, 0, amountIn, &txdata);
+        MutableTransactionSignatureCreator creator(tx, 0, amountIn, SIGHASH_DEFAULT);
 
         auto pair = split(token, '.');
         for (const auto& key : input.hd_keypaths) {
@@ -2304,10 +2308,7 @@ RequestTokens NunchukWalletDb::GetDummyTxRequestToken(const std::string& id) {
 }
 
 std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
-  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-  int m = immutable_data["m"];
-  auto signers = GetSigners();
-
+  auto wallet = GetWallet(true, true);
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM DUMMYTX;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -2320,9 +2321,7 @@ std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
 
-    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt),
-                                                           signers, -1);
-    tx.set_m(m);
+    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
     tx.set_change_index(-1);
@@ -2347,10 +2346,7 @@ std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
 }
 
 Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
-  json immutable_data = json::parse(GetString(DbKeys::IMMUTABLE_DATA));
-  int m = immutable_data["m"];
-  auto signers = GetSigners();
-
+  auto wallet = GetWallet(true, true);
   sqlite3_stmt* stmt;
   std::string sql = "SELECT * FROM DUMMYTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -2362,9 +2358,7 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
 
-    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt),
-                                                           signers, -1);
-    tx.set_m(m);
+    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
     tx.set_change_index(-1);

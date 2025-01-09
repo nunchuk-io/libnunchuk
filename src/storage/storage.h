@@ -24,8 +24,9 @@
 #include "appstatedb.h"
 #include "roomdb.h"
 #include "tapprotocoldb.h"
+#include "localdb.h"
 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <shared_mutex>
 #include <iostream>
 #include <map>
@@ -300,6 +301,7 @@ class NunchukStorage {
                                                  const std::string &wallet_id);
   Transaction GetDummyTx(Chain chain, const std::string &wallet_id,
                          const std::string &id);
+  NunchukLocalDb GetLocalDb(Chain chain);
 
   bool NewDecoyPin(const std::string &pin);
   bool IsExistingDecoyPin(const std::string &pin);
@@ -317,16 +319,17 @@ class NunchukStorage {
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
   NunchukTapprotocolDb GetTaprotocolDb(Chain chain,
-                                       const boost::filesystem::path &dir = {});
-  boost::filesystem::path ChainStr(Chain chain) const;
-  boost::filesystem::path GetWalletDir(Chain chain, std::string id) const;
-  boost::filesystem::path GetSignerDir(Chain chain, std::string id) const;
-  boost::filesystem::path GetAppStateDir(Chain chain) const;
-  boost::filesystem::path GetPrimaryDir(Chain chain) const;
-  boost::filesystem::path GetRoomDir(Chain chain) const;
-  boost::filesystem::path GetTapprotocolDir(
-      Chain chain, const boost::filesystem::path &dir = {}) const;
-  boost::filesystem::path GetDefaultDataDir() const;
+                                       const std::filesystem::path &dir = {});
+  std::filesystem::path ChainStr(Chain chain) const;
+  std::filesystem::path GetWalletDir(Chain chain, std::string id) const;
+  std::filesystem::path GetSignerDir(Chain chain, std::string id) const;
+  std::filesystem::path GetAppStateDir(Chain chain) const;
+  std::filesystem::path GetPrimaryDir(Chain chain) const;
+  std::filesystem::path GetLocalDir(Chain chain) const;
+  std::filesystem::path GetRoomDir(Chain chain) const;
+  std::filesystem::path GetTapprotocolDir(
+      Chain chain, const std::filesystem::path &dir = {}) const;
+  std::filesystem::path GetDefaultDataDir() const;
   Wallet CreateWallet0(Chain chain, const Wallet &wallet);
   SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
                               bool create_if_not_exist) const;
@@ -336,15 +339,15 @@ class NunchukStorage {
   std::vector<UnspentOutput> GetUtxos0(Chain chain,
                                        const std::string &wallet_id,
                                        bool include_spent = false);
-  void InitDataDir(const boost::filesystem::path &dir);
-  boost::filesystem::path GetDecoyPath(const std::string &pin) const;
-  boost::filesystem::path GetWalletDir0(const boost::filesystem::path &dir,
+  void InitDataDir(const std::filesystem::path &dir);
+  std::filesystem::path GetDecoyPath(const std::string &pin) const;
+  std::filesystem::path GetWalletDir0(const std::filesystem::path &dir,
                                         Chain chain, std::string id) const;
-  boost::filesystem::path GetSignerDir0(const boost::filesystem::path &dir,
+  std::filesystem::path GetSignerDir0(const std::filesystem::path &dir,
                                         Chain chain, std::string id) const;
 
-  boost::filesystem::path basedatadir_;
-  boost::filesystem::path datadir_;
+  std::filesystem::path basedatadir_;
+  std::filesystem::path datadir_;
   std::string passphrase_;
   std::string account_;
   std::map<std::string, std::string> signer_passphrase_;

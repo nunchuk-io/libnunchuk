@@ -17,11 +17,13 @@
 
 #include <nunchuk.h>
 #include <descriptor.h>
+#include <coreutils.h>
 
 #include <doctest.h>
 
 TEST_CASE("testing ParseDescriptors") {
   using namespace nunchuk;
+  CoreUtils::getInstance().SetChain(Chain::REGTEST);
   AddressType address_type;
   WalletType wallet_type;
   int m;
@@ -48,7 +50,7 @@ TEST_CASE("testing ParseDescriptors") {
         "91TagW9Q6kMy2xbmKsV9nqCsbD2jjLWDqXyibc5q2");
   CHECK(signers[0].get_public_key() == "");
   CHECK(signers[0].get_master_fingerprint() == "423faab6");
-  CHECK(signers[0].get_derivation_path() == "m/44'/1'/0'");
+  CHECK(signers[0].get_derivation_path() == "m/44h/1h/0h");
   signers.clear();
 
   std::string nested1of3 =
@@ -78,20 +80,20 @@ TEST_CASE("testing ParseDescriptors") {
         "TgF2jEH4b2oyTUmw116wjZmPNWo8E725ZqdPgK58G");
   CHECK(signers[0].get_public_key() == "");
   CHECK(signers[0].get_master_fingerprint() == "423faab6");
-  CHECK(signers[0].get_derivation_path() == "m/48'/1'/6'");
+  CHECK(signers[0].get_derivation_path() == "m/48h/1h/6h");
   CHECK(signers[1].get_xpub() ==
         "tpubDDHA32QuyKQXdUJQcrhVjD4DwHrTCLCFKkAGf3q4vEPPZKLU2XjnuuF4XwCxxBJMqn"
         "P7484SyhEtnCyK4WcMei8MRvewrY7GtbgkjXG9R16");
   CHECK(signers[1].get_public_key() == "");
 
   CHECK(signers[1].get_master_fingerprint() == "0b93c52e");
-  CHECK(signers[1].get_derivation_path() == "m/48'/1'/1'");
+  CHECK(signers[1].get_derivation_path() == "m/48h/1h/1h");
   CHECK(signers[2].get_xpub() ==
         "tpubDDcE2gjg1bWMzPiLtMgGp4iBV4ZTeCnQxWj2qsbz7cJW4mqVFBMpZpsmidLwV1T7MC"
         "WRaBwhNFHuv6iJNFRcCKD2aLG4pkrVNzY3TDyW75j");
   CHECK(signers[2].get_public_key() == "");
   CHECK(signers[2].get_master_fingerprint() == "a43bb737");
-  CHECK(signers[2].get_derivation_path() == "m/48'/1'/6'");
+  CHECK(signers[2].get_derivation_path() == "m/48h/1h/6h");
   signers.clear();
 
   std::string nativeEscrow2of2 =
@@ -112,11 +114,11 @@ TEST_CASE("testing ParseDescriptors") {
   CHECK(signers[0].get_public_key() ==
         "02841c0aafa8728be24a2649a9d84912f1cef794c85434dbcc5c689e2eb9cbd5f1");
   CHECK(signers[0].get_master_fingerprint() == "423faab6");
-  CHECK(signers[0].get_derivation_path() == "m/48'/1'/6'");
+  CHECK(signers[0].get_derivation_path() == "m/48h/1h/6h");
   CHECK(signers[1].get_xpub() == "");
   CHECK(signers[1].get_public_key() ==
         "03cd1289fa27f2d5a9dd4af68782bb703280ca86e4f6b91f8eb7a067c86875eb28");
   CHECK(signers[1].get_master_fingerprint() == "a43bb737");
-  CHECK(signers[1].get_derivation_path() == "m/48'/1'/6'");
+  CHECK(signers[1].get_derivation_path() == "m/48h/1h/6h");
   signers.clear();
 }

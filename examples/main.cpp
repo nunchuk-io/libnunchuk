@@ -17,6 +17,7 @@
 
 #include <nunchuk.h>
 #include <utils/loguru.hpp>
+#include <utils/bsms.hpp>
 
 #include <vector>
 #include <iostream>
@@ -46,6 +47,29 @@ inline bool input_bool(const std::string& message) {
   std::string yn;
   std::cin >> yn;
   return (yn != "n" && yn != "N");
+}
+
+inline AddressType input_address_type(const WalletType& wallet_type) {
+  std::cout << "... Choose address type: " << std::endl;
+  std::cout << "1: Native Segwit" << std::endl;
+  std::cout << "2: Nested Segwit" << std::endl;
+  std::cout << "3: Legacy" << std::endl;
+  std::cout << "4: Taproot (singlesig only)" << std::endl;
+  int input;
+  std::cin >> input;
+  switch (input) {
+    case 1:
+      return AddressType::NATIVE_SEGWIT;
+    case 2:
+      return AddressType::NESTED_SEGWIT;
+    case 3:
+      return AddressType::LEGACY;
+    case 4:
+      if (wallet_type != WalletType::SINGLE_SIG)
+        throw std::runtime_error("Only SingleSig wallet support Taproot");
+      return AddressType::TAPROOT;
+  }
+  throw std::runtime_error("Invalid address type");
 }
 
 inline void print_list_devices(const std::vector<Device>& devices) {
@@ -158,9 +182,9 @@ void newwallet() {
     throw std::runtime_error(
         "Required signatures must less or equal total signers");
   }
-  AddressType address_type = AddressType::NATIVE_SEGWIT;
   WalletType wallet_type =
       n == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG;
+  AddressType address_type = input_address_type(wallet_type);
 
   std::vector<SingleSigner> signers;
   for (int i = 0; i < n; i++) {
@@ -186,6 +210,7 @@ void newwallet() {
       nu.get()->CreateWallet(name, m, n, signers, address_type, false);
   std::cout << "\nWallet create success. Wallet id: " << wallet.get_id()
             << std::endl;
+  std::cout << GetDescriptorRecord(wallet) << std::endl;
 }
 
 void newaddress() {
@@ -239,17 +264,21 @@ void send() {
   Amount subtotal = 0;
   do {
     auto to_address = input_string("Enter to address");
-    Amount amount = input_int("Enter amount (int satoshi)");
+    Amount amount = input_int("Enter amount (in satoshi)");
     outputs[to_address] = amount;
     subtotal += amount;
   } while (input_bool("Add another output"));
+  Amount fee_rate = input_int("Enter fee rate (sats/kvB)");
+  bool sffa = input_bool("Subtract fee from amount");
 
   // Create transaction
-  auto tx = nu.get()->CreateTransaction(wallet.get_id(), outputs);
+  auto tx = nu.get()->CreateTransaction(wallet.get_id(), outputs, {}, {},
+                                        fee_rate, sffa);
   std::cout << "Transaction info\n  Inputs:\n";
   for (auto&& input : tx.get_inputs()) {
     std::cout << "    " << input.first << ":" << input.second << std::endl;
   }
+  std::cout << "  Psbt: " << tx.get_psbt() << std::endl;
   std::cout << "  Sub total: " << subtotal << std::endl;
   std::cout << "  Fee: " << tx.get_fee() << std::endl;
   std::cout << "  Fee Rate: " << tx.get_fee_rate() << std::endl;
@@ -258,7 +287,6 @@ void send() {
   if (isCpfp) {
     std::cout << "  Package Fee Rate: " << package_fee_rate << std::endl;
   }
-  
   std::cout << "  Total: " << (subtotal + tx.get_fee()) << "\n\n";
 
   // Sign transaction

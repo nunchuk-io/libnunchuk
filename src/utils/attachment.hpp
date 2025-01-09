@@ -88,23 +88,22 @@ inline std::string DecryptAttachment(
         "Version not supported");
   }
 
-  bool invalid = false;
-  auto key = DecodeBase64(file["key"]["k"].get<std::string>(), &invalid);
-  if (invalid) {
+  auto key = DecodeBase64(file["key"]["k"].get<std::string>());
+  if (!key) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data key");
   }
 
-  auto iv = DecodeBase64(file["iv"].get<std::string>(), &invalid);
-  if (invalid) {
+  auto iv = DecodeBase64(file["iv"].get<std::string>());
+  if (!iv) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data iv");
   }
 
-  iv.resize(AES_BLOCKSIZE);
+  iv->resize(AES_BLOCKSIZE);
   std::vector<unsigned char> decrypted(file_data.size());
-  AES256CBCDecrypt dec((const unsigned char*)key.data(),
-                       (const unsigned char*)iv.data(), true);
+  AES256CBCDecrypt dec((const unsigned char*)key->data(),
+                       (const unsigned char*)iv->data(), true);
   int size = dec.Decrypt(file_data.data(), file_data.size(), decrypted.data());
   if (size == 0) {
     throw nunchuk::NunchukException(nunchuk::NunchukException::DECRYPT_FAIL,
@@ -147,15 +146,16 @@ inline std::string EncryptAttachment(const nunchuk::UploadFileFunc& upload,
   }
 
   std::vector<unsigned char> key(32, 0);
-  GetStrongRandBytes(key.data(), 32);
+  GetStrongRandBytes(key);
   file["key"] = {{"alg", "A256CBC"},
                  {"ext", true},
                  {"k", EncodeBase64(key)},
                  {"key_ops", {"encrypt", "decrypt"}},
                  {"kty", "oct"}};
 
-  std::vector<unsigned char> iv(16, 0);
-  GetStrongRandBytes(iv.data(), 8);
+  std::vector<unsigned char> iv(8, 0);
+  GetStrongRandBytes(iv);
+  iv.resize(16);
   file["iv"] = EncodeBase64(iv);
   iv.resize(AES_BLOCKSIZE);
 
@@ -198,24 +198,23 @@ inline std::string DecryptTxId(const std::string& descriptor,
   hasher.Write((const unsigned char*)descriptor.data(), descriptor.size());
   hasher.Finalize(key.data());
 
-  bool invalid = false;
-  auto iv = DecodeBase64(file["iv"].get<std::string>(), &invalid);
-  if (invalid) {
+  auto iv = DecodeBase64(file["iv"].get<std::string>());
+  if (!iv) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data iv");
   }
 
-  auto buf = DecodeBase64(file["d"].get<std::string>(), &invalid);
-  if (invalid) {
+  auto buf = DecodeBase64(file["d"].get<std::string>());
+  if (!buf) {
     throw nunchuk::NunchukException(
         nunchuk::NunchukException::INVALID_PARAMETER, "Invalid data");
   }
 
-  iv.resize(AES_BLOCKSIZE);
-  std::vector<unsigned char> decrypted(buf.size());
+  iv->resize(AES_BLOCKSIZE);
+  std::vector<unsigned char> decrypted(buf->size());
   AES256CBCDecrypt dec((const unsigned char*)key.data(),
-                       (const unsigned char*)iv.data(), true);
-  int size = dec.Decrypt((const unsigned char*)buf.data(), buf.size(),
+                       (const unsigned char*)iv->data(), true);
+  int size = dec.Decrypt((const unsigned char*)buf->data(), buf->size(),
                          decrypted.data());
   decrypted.resize(size);
   return std::string(decrypted.begin(), decrypted.end());
@@ -232,8 +231,9 @@ inline std::string EncryptTxId(const std::string& descriptor,
   hasher.Write((const unsigned char*)descriptor.data(), descriptor.size());
   hasher.Finalize(key.data());
 
-  std::vector<unsigned char> iv(16, 0);
-  GetStrongRandBytes(iv.data(), 8);
+  std::vector<unsigned char> iv(8, 0);
+  GetStrongRandBytes(iv);
+  iv.resize(16);
   encrypted["iv"] = EncodeBase64(iv);
   iv.resize(AES_BLOCKSIZE);
 

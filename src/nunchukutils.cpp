@@ -32,7 +32,7 @@
 #include <hwiservice.h>
 
 #include <base58.h>
-#include <amount.h>
+#include <consensus/amount.h>
 #include <stdlib.h>
 #include <util/bip32.h>
 #include <util/strencodings.h>
@@ -52,6 +52,7 @@
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
 
+#include <random.h>
 #include <ctime>
 #include <iostream>
 #include "key_io.h"
@@ -107,11 +108,13 @@ std::string Utils::GenerateRandomMessage(int message_length) {
 }
 
 std::string Utils::GenerateRandomChainCode() {
-  std::vector<unsigned char> buf(128);
+  std::vector<unsigned char> buf{};
 
   // GetStrongRandBytes can only generate up to 32 bytes
-  for (int cur = 0; cur < buf.size(); cur += 32) {
-    GetStrongRandBytes(buf.data() + cur, 32);
+  for (int i = 0; i < 4; i++) {
+    std::vector<unsigned char> tmp(32);
+    GetStrongRandBytes(tmp);
+    buf.insert(buf.end(), tmp.begin(), tmp.end());
   }
 
   std::vector<unsigned char> chain_code(CHash256::OUTPUT_SIZE);
@@ -356,11 +359,7 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
       ParseConfig(Utils::GetChain(), descs, name, address_type, wallet_type, m,
                   n, signers)) {
     std::string id = GetWalletId(signers, m, address_type, wallet_type);
-    bool is_escrow = wallet_type == WalletType::ESCROW;
-    auto wallet =
-        Wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-    wallet.set_name(name);
-    return wallet;
+    return Wallet{id, name, m, n, signers, address_type, wallet_type, std::time(0)};
   }
 
   throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -419,11 +418,7 @@ static Wallet parseBCR2Wallet(Chain chain,
     }
   }
   std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  bool is_escrow = wallet_type == WalletType::ESCROW;
-
-  Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-  wallet.set_name(name);
-  return wallet;
+  return {id, name, m, n, signers, address_type, wallet_type, std::time(0)};
 }
 
 static Wallet parseBBQRWallet(Chain chain,
@@ -524,10 +519,7 @@ Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
                            "Could not parse multisig config");
   }
   std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  bool is_escrow = wallet_type == WalletType::ESCROW;
-  Wallet wallet{id, m, n, signers, address_type, is_escrow, std::time(0)};
-  wallet.set_name(name);
-  return wallet;
+  return {id, name, m, n, signers, address_type, wallet_type, std::time(0)};
 }
 
 BSMSData Utils::ParseBSMSData(const std::string& bsms) {
@@ -567,9 +559,8 @@ std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
           {}, derivation_path, xfp, std::time(nullptr), {}, false,
           signer_type));
 
-      Wallet wallet({}, 1, 1, {std::move(signer)}, address_type, false,
+      Wallet wallet({}, tmp_name, 1, 1, {std::move(signer)}, address_type, WalletType::SINGLE_SIG,
                     std::time(0));
-      wallet.set_name(tmp_name);
       result.emplace_back(std::move(wallet));
     }
     return result;
@@ -742,8 +733,7 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
       boost::starts_with(psbt, "psbt")
           ? EncodeBase64(MakeUCharSpan(boost::trim_copy(psbt)))
           : boost::trim_copy(psbt);
-  auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(base64_psbt), wallet.get_signers(), wallet.get_m());
+  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(base64_psbt), wallet);
   tx.set_fee(150);
   tx.set_sub_amount(10000);
   tx.set_change_index(-1);
@@ -756,8 +746,7 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
 Transaction Utils::DecodeTx(const Wallet& wallet, const std::string& psbt,
                             const Amount& sub_amount, const Amount& fee,
                             const Amount& fee_rate) {
-  auto tx = GetTransactionFromPartiallySignedTransaction(
-      DecodePsbt(psbt), wallet.get_signers(), wallet.get_m());
+  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
   tx.set_sub_amount(sub_amount);
   tx.set_fee(fee);
   tx.set_fee_rate(fee_rate);
@@ -782,12 +771,11 @@ std::vector<std::string> Utils::ExportKeystoneTransaction(
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
-  bool invalid;
-  auto data = DecodeBase64(psbt.c_str(), &invalid);
-  if (invalid) {
+  auto data = DecodeBase64(psbt.c_str());
+  if (!data) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  bcr2::CryptoPSBT crypto_psbt{data};
+  bcr2::CryptoPSBT crypto_psbt{*data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, crypto_psbt);
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
@@ -803,12 +791,11 @@ std::vector<std::string> Utils::ExportPassportTransaction(
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid psbt");
   }
-  bool invalid;
-  auto data = DecodeBase64(psbt.c_str(), &invalid);
-  if (invalid) {
+  auto data = DecodeBase64(psbt.c_str());
+  if (!data) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
-  bcr2::CryptoPSBT crypto_psbt{data};
+  bcr2::CryptoPSBT crypto_psbt{*data};
   ur::ByteVector cbor;
   encodeCryptoPSBT(cbor, crypto_psbt);
   auto encoder = ur::UREncoder(ur::UR("crypto-psbt", cbor), fragment_len);
@@ -822,16 +809,15 @@ std::vector<std::string> Utils::ExportPassportTransaction(
 std::vector<std::string> Utils::ExportBBQRTransaction(const std::string& psbt,
                                                       int min_version,
                                                       int max_version) {
-  bool invalid;
-  auto data = DecodeBase64(psbt.c_str(), &invalid);
-  if (invalid) {
+  auto data = DecodeBase64(psbt.c_str());
+  if (!data) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid base64");
   }
   bbqr::SplitOption option{};
   option.min_version = min_version;
   option.max_version = max_version;
   try {
-    auto split_result = bbqr::split_qrs(data, bbqr::FileType::P, option);
+    auto split_result = bbqr::split_qrs(*data, bbqr::FileType::P, option);
     return split_result.parts;
   } catch (std::exception& e) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, e.what());

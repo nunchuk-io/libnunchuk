@@ -111,53 +111,126 @@ std::string GetKeyPath(DescriptorPath path, int index) {
   return keypath.str();
 }
 
+std::string GetScriptpathDescriptor(const std::vector<std::string>& nodes) {
+  if (nodes.size() == 1) return nodes[0];
+  std::vector<std::string> rs;
+  for (size_t i = 0; i < nodes.size(); i = i + 2) {
+    if (i == nodes.size() - 1) {
+      rs.push_back(nodes[i]);
+    } else {
+      std::stringstream node;
+      node << "{" << nodes[i] << "," << nodes[i + 1] << "}";
+      rs.push_back(node.str());
+    }
+  }
+  return GetScriptpathDescriptor(rs);
+};
+
+std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m) {
+  int n = keys.size();
+
+  std::vector<bool> v(n);
+  std::fill(v.begin(), v.begin() + m, true);
+  auto musig = [&]() {
+    std::stringstream rs;
+    rs << "musig(";
+    bool first = true;
+    for (int i = 0; i < n; i++) {
+      if (v[i]) {
+          if (!first) { rs << ","; } else { first = false; }
+          rs << keys[i];
+      }
+    }
+    rs << ")";
+    return rs.str();
+  };
+
+  std::stringstream desc;
+  desc << "tr(" << musig(); // keypath
+  if (n == m) {
+    desc << ")"; 
+    return desc.str();
+  }
+  desc << ",";
+
+  std::vector<std::string> leaves{};
+  while (std::prev_permutation(v.begin(), v.end())) {
+    std::stringstream pkmusig;
+    pkmusig << "pk(" << musig() << ")";
+    leaves.push_back(pkmusig.str());
+  }
+
+  desc << GetScriptpathDescriptor(leaves) << ")";
+  return desc.str();
+}
+
 std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
                                     int m, DescriptorPath key_path,
                                     AddressType address_type,
                                     WalletType wallet_type, int index,
                                     bool sorted) {
-  std::stringstream desc;
   std::string keypath = GetKeyPath(key_path, index);
+  std::vector<std::string> keys{};
+  for (auto&& signer : signers) {
+    std::stringstream key;
+    key << "[" << signer.get_master_fingerprint();
+    if (wallet_type == WalletType::ESCROW) {
+      std::string pubkey = signer.get_public_key();
+      if (pubkey.empty()) {
+        pubkey = HexStr(DecodeExtPubKey(signer.get_xpub()).pubkey);
+      }
+      key << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
+    } else if (wallet_type == WalletType::MULTI_SIG && 
+              (key_path == DescriptorPath::EXTERNAL_PUBKEY || key_path == DescriptorPath::INTERNAL_PUBKEY)) {
+      std::stringstream p;
+      p << signer.get_derivation_path() << keypath;
+      std::string path = FormalizePath(p.str());
+      // displayaddress only takes pubkeys as inputs, not xpubs
+      auto xpub = DecodeExtPubKey(signer.get_xpub());
+      if (!xpub.Derive(xpub, (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH, "Invalid path");
+      }
+      if (!xpub.Derive(xpub, index)) {
+        throw NunchukException(NunchukException::INVALID_BIP32_PATH, "Invalid path");
+      }
+      std::string pubkey = HexStr(xpub.pubkey);
+      key << path << "]" << pubkey;
+    } else {
+      key << FormalizePath(signer.get_derivation_path()) << "]" << signer.get_xpub() << keypath;
+    }
+    keys.push_back(key.str());
+  }
+
+  std::stringstream desc;
   if (wallet_type == WalletType::SINGLE_SIG) {
-    const SingleSigner& signer = signers[0];
-    std::string path = FormalizePath(signer.get_derivation_path());
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY
                  ? "pkh"
                  : address_type == AddressType::TAPROOT ? "tr" : "wpkh");
-    desc << "([" << signer.get_master_fingerprint() << path << "]"
-         << signer.get_xpub() << keypath << ")";
+    desc << "(" << keys[0] << ")";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
+  } else if (address_type == AddressType::TAPROOT) {
+    if (keys.size() <= 5 || keys.size() == m) {
+      desc << GetMusigDescriptor(keys, m);
+    } else {
+      desc << "tr(musig(";
+      for (int i = 0; i < m; i++) {
+        if (i > 0) desc << ",";
+        desc << keys[i];
+      }
+      desc << "),";
+      desc << (sorted ? "sortedmulti_a(" : "multi_a(") << m;
+      for (auto&& key : keys) {
+        desc << "," << key;
+      }
+      desc << "))";
+    }
   } else {
     desc << (address_type == AddressType::NESTED_SEGWIT ? "sh(" : "");
     desc << (address_type == AddressType::LEGACY ? "sh" : "wsh");
     desc << (sorted ? "(sortedmulti(" : "(multi(") << m;
-    for (auto&& signer : signers) {
-      if (wallet_type == WalletType::ESCROW) {
-        std::string pubkey = signer.get_public_key();
-        if (pubkey.empty()) {
-          pubkey = HexStr(DecodeExtPubKey(signer.get_xpub()).pubkey);
-        }
-        desc << ",[" << signer.get_master_fingerprint()
-             << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
-      } else if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
-                 key_path == DescriptorPath::INTERNAL_PUBKEY) {
-        std::stringstream p;
-        p << signer.get_derivation_path() << keypath;
-        std::string path = FormalizePath(p.str());
-        // displayaddress only takes pubkeys as inputs, not xpubs
-        auto xpub = DecodeExtPubKey(signer.get_xpub());
-        xpub.Derive(xpub,
-                    (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0));
-        xpub.Derive(xpub, index);
-        std::string pubkey = HexStr(xpub.pubkey);
-        desc << ",[" << signer.get_master_fingerprint() << path << "]"
-             << pubkey;
-      } else {
-        desc << ",[" << signer.get_master_fingerprint()
-             << FormalizePath(signer.get_derivation_path()) << "]"
-             << signer.get_xpub() << keypath;
-      }
+    for (auto&& key : keys) {
+      desc << "," << key;
     }
     desc << "))";
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
@@ -215,7 +288,9 @@ static std::map<std::string, std::pair<AddressType, WalletType>>
         {"wpkh(", {AddressType::NATIVE_SEGWIT, WalletType::SINGLE_SIG}},
         {"sh(wpkh(", {AddressType::NESTED_SEGWIT, WalletType::SINGLE_SIG}},
         {"pkh(", {AddressType::LEGACY, WalletType::SINGLE_SIG}},
-        {"tr(", {AddressType::TAPROOT, WalletType::SINGLE_SIG}}};
+        {"tr(50929b", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
+        {"tr(musig(", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
+        {"tr([", {AddressType::TAPROOT, WalletType::SINGLE_SIG}}};
 
 SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
@@ -249,7 +324,24 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
             prefix.first.size(), external.find(")", 0) - prefix.first.size());
         if (w == WalletType::SINGLE_SIG) {
           m = n = 1;
+          if (a == AddressType::TAPROOT) signer_info = "[" + signer_info;
           signers.push_back(ParseSignerString(signer_info));
+        } else if (a == AddressType::TAPROOT) {
+          std::vector<std::string> parts;
+          boost::split(parts, signer_info, boost::is_any_of(","),
+                       boost::token_compress_off);
+          m = parts.size();
+          boost::split(parts, external, boost::is_any_of(",{}()"),
+                       boost::token_compress_off);
+          std::set<std::string> signerStr{};
+          for (unsigned i = 0; i < parts.size(); ++i) {
+            if (parts[i].size() < 20) continue;
+            if (signerStr.count(parts[i])) continue;
+            auto signer = ParseSignerString(parts[i]);
+            signers.push_back(signer);
+            signerStr.insert(parts[i]);
+          }
+          n = signers.size();
         } else {
           std::vector<std::string> parts;
           boost::split(parts, signer_info, boost::is_any_of(","),

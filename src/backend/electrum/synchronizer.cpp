@@ -585,6 +585,7 @@ std::vector<UnspentOutput> ElectrumSynchronizer::ListUnspent(
     u.set_vout(item["tx_pos"]);
     u.set_amount(Amount(item["value"]));
     u.set_height(item["height"]);
+    u.set_address(address);
     ret.emplace_back(std::move(u));
   }
   return ret;
@@ -690,6 +691,8 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
   tx.set_raw(raw);
   tx.set_receive(false);
   tx.set_blocktime(time);
+  tx.set_change_index(-1);
+  tx.set_height(height);
 
   return tx;
 }

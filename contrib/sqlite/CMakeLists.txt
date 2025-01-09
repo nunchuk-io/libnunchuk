@@ -11,6 +11,7 @@ set(SQLITE_SOURCE
 add_library("${PROJECT_NAME}" STATIC ${SQLITE_SOURCE})
 target_include_directories("${PROJECT_NAME}" PUBLIC
         "${PROJECT_SOURCE_DIR}"
+        "${PROJECT_SOURCE_DIR}/sqlcipher"
         "${PROJECT_SOURCE_DIR}/../openssl/include"
         )
 target_link_libraries("${PROJECT_NAME}" PRIVATE OpenSSL::SSL OpenSSL::Crypto dl)
@@ -30,7 +31,7 @@ target_compile_definitions("${PROJECT_NAME}" PRIVATE
   -DSQLITE_OMIT_DEPRECATED
   #-DSQLITE_OMIT_SHARED_CACHE
 )
-target_compile_definitions("${PROJECT_NAME}" PRIVATE -DSQLITE_HAS_CODEC -DSQLITE_TEMP_STORE=2 -DSQLITE_ENABLE_FTS5 -DSQLITE_DISABLE_LFS -DOMIT_MEMLOCK)
+target_compile_definitions("${PROJECT_NAME}" PRIVATE -DSQLITE_HAS_CODEC -DSQLITE_TEMP_STORE=2 -DSQLITE_ENABLE_FTS5 -DSQLITE_DISABLE_LFS)
 
 if (NOT WIN32)
   target_compile_definitions("${PROJECT_NAME}" PRIVATE -DHAVE_USLEEP -DNDEBUG=1)

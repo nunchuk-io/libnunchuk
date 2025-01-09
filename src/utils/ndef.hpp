@@ -152,14 +152,17 @@ inline std::string NDEFRecordsToPSBT(const std::vector<NDEFRecord> &records) {
 }
 
 inline std::vector<NDEFRecord> NDEFRecordsFromPSBT(const std::string &psbt) {
-  std::string raw_psbt = DecodeBase64(psbt);
+  auto raw_psbt = DecodeBase64(psbt);
+  if (!raw_psbt) {
+    return {};
+  }
   // TODO(giahuy): write SHA256 of psbt?
   return {
       NDEFRecord{
           NDEFRecord::TNF_EXTERNAL,
           NDEFRecord::TYPE_PSBT,
           {},
-          {std::begin(raw_psbt), std::end(raw_psbt)},
+          {std::begin(*raw_psbt), std::end(*raw_psbt)},
       },
   };
 }

@@ -19,7 +19,7 @@ extern "C" {
 
 #include <key_io.h>
 #include <key.h>
-#include <util/message.h>
+#include <common/signmessage.h>
 
 #include <descriptor.h>
 #include <utils/loguru.hpp>

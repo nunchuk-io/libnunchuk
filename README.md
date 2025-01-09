@@ -109,22 +109,13 @@ add_subdirectory(libnunchuk)
 target_link_libraries("${PROJECT_NAME}" PUBLIC nunchuk)
 ```
 
-Build Bitcoin Core ([details](https://github.com/bitcoin/bitcoin/tree/master/doc#building)).
+Build OpenSSL ([details](https://github.com/openssl/openssl)).
 
 ```
-$ pushd libnunchuk/contrib/bitcoin
-$ ./autogen.sh
-$ ./configure --without-gui --disable-zmq --with-miniupnpc=no --enable-module-ecdh # important
+$ pushd libnunchuk/contrib/openssl
+$ ./config --prefix="$PWD/lib"
 $ make -j8
-$ popd
-```
-
-Build Sqlcipher ([details](https://github.com/sqlcipher/sqlcipher)).
-
-```
-$ pushd libnunchuk/contrib/sqlcipher
-$ ./configure --enable-tempstore=yes CFLAGS="-DSQLITE_HAS_CODEC" LDFLAGS="-lcrypto"
-$ make -j8
+$ make install_dev
 $ popd
 ```
 

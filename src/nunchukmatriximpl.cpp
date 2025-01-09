@@ -291,7 +291,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   bool is_escrow = init_body["is_escrow"];
   auto a = AddressTypeFromStr(init_body["address_type"]);
 
-  Wallet w("", m, n, signers, a, is_escrow, 0);
+  Wallet w("", name, m, n, signers, a, is_escrow? WalletType::ESCROW : WalletType::MULTI_SIG, 0);
   std::string descriptor = w.get_descriptor(DescriptorPath::TEMPLATE);
   std::string first_address = CoreUtils::getInstance().DeriveAddress(
       w.get_descriptor(DescriptorPath::EXTERNAL_ALL), is_escrow ? -1 : 0);

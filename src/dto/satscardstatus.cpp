@@ -74,7 +74,7 @@ void SatscardStatus::set_number_of_slots(int index) {
   active_slot_index_ = index;
 }
 void SatscardStatus::set_slots(std::vector<SatscardSlot> slots) {
-  slots = std::move(slots);
+  slots_ = std::move(slots);
 }
 
 SatscardSlot::SatscardSlot() {}

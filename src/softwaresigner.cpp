@@ -28,10 +28,13 @@
 
 #include <key_io.h>
 #include <random.h>
-#include <util/message.h>
+#include <common/signmessage.h>
 #include <util/bip32.h>
 #include <script/signingprovider.h>
 #include <rpc/util.h>
+#include <descriptor.h>
+
+#include <secp256k1_musig.h>
 
 extern "C" {
 #include <bip39.h>
@@ -39,7 +42,8 @@ extern "C" {
 void random_buffer(uint8_t* buf, size_t len) {
   // Core's GetStrongRandBytes
   // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  GetStrongRandBytes(buf, len);
+  Span<unsigned char> bytes(buf, len);
+  GetStrongRandBytes(bytes);
 }
 }
 
@@ -97,7 +101,10 @@ CExtKey SoftwareSigner::GetExtKeyAtPath(const std::string& path) const {
   CExtKey xkey = bip32rootkey_;
   for (auto&& i : keypath) {
     CExtKey child;
-    xkey.Derive(child, i);
+    if (!xkey.Derive(child, i)) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid path");
+    }
     xkey = child;
   }
   return xkey;
@@ -115,7 +122,10 @@ std::string SoftwareSigner::GetAddressAtPath(const std::string& path) const {
 
 std::string SoftwareSigner::GetMasterFingerprint() const {
   CExtKey masterkey{};
-  bip32rootkey_.Derive(masterkey, 0);
+  if (!bip32rootkey_.Derive(masterkey, 0)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           "Invalid path");
+  }
   return hexStr(masterkey.vchFingerprint, 4);
 }
 
@@ -145,37 +155,102 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   return EncodePsbt(psbtx);
 }
 
-std::string SoftwareSigner::SignTaprootTx(
-    const std::string& base64_psbt,
-    const std::vector<std::string>& keypaths) const {
+std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
+                                          const std::string& base64_psbt,
+                                          const std::string& basepath,
+                                          const std::string& external_desc,
+                                          const std::string& internal_desc,
+                                          int external_index,
+                                          int internal_index) {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
 
-  for (auto&& path : keypaths) {
-    TaprootBuilder builder;
+  std::string error;
+  std::vector<CScript> output_scripts;
+  auto addPath = [&](const std::string& path) {
     auto key = GetExtKeyAtPath(path);
-    CPubKey pubkey = key.Neuter().pubkey;
-    XOnlyPubKey xpk(pubkey);
+    XOnlyPubKey internal_key(key.Neuter().pubkey);
+    auto cpubkeys = internal_key.GetCPubKeys();
+    for (auto && fullpubkey: cpubkeys) {
+        provider.keys[fullpubkey.GetID()] = key.key;
+    }
+  };
 
-    builder.Finalize(xpk);
-    WitnessV1Taproot output = builder.GetOutput();
-    provider.tr_spenddata[output].Merge(builder.GetSpendData());
-    unsigned char b[33] = {0x02};
-    auto internal_key = provider.tr_spenddata[output].internal_key;
-    std::copy(internal_key.begin(), internal_key.end(), b + 1);
-    CPubKey fullpubkey;
-    fullpubkey.Set(b, b + 33);
-    CKeyID keyid = fullpubkey.GetID();
-    provider.keys[keyid] = key.key;
+  auto desc0 = Parse(external_desc, provider, error, true);
+  for (int i = 0; i <= external_index; i++) {
+    desc0.front()->Expand(i, provider, output_scripts, provider);
+    addPath(basepath + "/0/" + std::to_string(i));
   }
+  auto desc1 = Parse(internal_desc, provider, error, true);
+  for (int i = 0; i <= internal_index; i++) {
+    desc1.front()->Expand(i, provider, output_scripts, provider);
+    addPath(basepath + "/1/" + std::to_string(i));
+  }
+  
+  std::map<uint256, MuSig2SecNonce> musig2_secnonces{};
+  provider.musig2_secnonces = &musig2_secnonces;
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
+  const CMutableTransaction& tx = *psbtx.tx;
+  bool preferScriptPath = db.IsPreferScriptPath(tx.GetHash().GetHex());
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
-    SignatureData sigdata;
-    psbtx.inputs[i].FillSignatureData(sigdata);
-    SignPSBTInput(HidingSigningProvider(&provider, false, false), psbtx, i,
-                  &txdata, psbtx.inputs[i].sighash_type);
+    const PSBTInput& input = psbtx.inputs[i];
+
+    if (preferScriptPath) {
+      SignatureData sigdata;
+      psbtx.inputs[i].FillSignatureData(sigdata);
+      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
+      psbtx.inputs[i].m_musig2_partial_sigs.clear();
+      psbtx.inputs[i].m_musig2_pubnonces.clear();
+    } else {
+      for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
+        const auto& [agg, lh] = agg_lh;
+        for (const auto& [part, pubnonce] : part_pubnonce) {
+          if (input.m_musig2_partial_sigs.count(agg_lh)) {
+            auto partial_sigs = input.m_musig2_partial_sigs.at(agg_lh);
+            if (partial_sigs.count(part)) continue;
+          }
+          SigVersion sigversion = lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
+          ScriptExecutionData execdata;
+          execdata.m_annex_init = true;
+          execdata.m_annex_present = false; // Only support annex-less signing for now.
+          if (sigversion == SigVersion::TAPSCRIPT) {
+              execdata.m_codeseparator_pos_init = true;
+              execdata.m_codeseparator_pos = 0xFFFFFFFF; // Only support non-OP_CODESEPARATOR BIP342 signing for now.
+              execdata.m_tapleaf_hash_init = true;
+              execdata.m_tapleaf_hash = lh;
+          }
+          uint256 hash;
+          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, sigversion, txdata, MissingDataBehavior::FAIL);
+      
+          HashWriter hasher;
+          hasher << agg << part << hash;
+          uint256 session_id = hasher.GetSHA256();
+
+          XOnlyPubKey xpart(part);
+          std::string pubkey = HexStr(xpart);
+          for (const auto& [xonly, leaf_origin] : input.m_tap_bip32_paths) {
+            const auto& [leaf_hashes, origin] = leaf_origin;
+            std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
+            if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
+              musig2_secnonces.emplace(session_id, db.GetMuSig2SecNonce(session_id));
+            }
+          }
+        }
+      }
+
+      SignatureData sigdata;
+      psbtx.inputs[i].FillSignatureData(sigdata);
+      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr, false);
+      // psbtx.inputs[i].m_tap_script_sigs.clear();
+      // psbtx.inputs[i].m_tap_scripts.clear();
+
+      for (auto&& [session_id, secnonce] : musig2_secnonces) {
+        db.SetMuSig2SecNonce(session_id, std::move(secnonce));
+      }
+    }
+    musig2_secnonces.clear();
   }
   return EncodePsbt(psbtx);
 }
@@ -199,8 +274,10 @@ CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
     mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
   }
 
-  CExtKey bip32rootkey{};
-  bip32rootkey.SetSeed(seed, 512 / 8);
+  std::vector<std::byte> spanSeed;
+  for (size_t i = 0; i < 64; i++) spanSeed.push_back(std::byte{seed[i]});
+  CExtKey bip32rootkey;
+  bip32rootkey.SetSeed(spanSeed);
   return bip32rootkey;
 }
 

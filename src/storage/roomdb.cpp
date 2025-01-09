@@ -383,7 +383,11 @@ Transaction NunchukRoomDb::GetTransaction(const RoomTransaction& rtx) {
     signers.push_back(ParseSignerString(key));
   }
 
-  return GetTransactionFromPartiallySignedTransaction(psbt, signers, m);
+  Wallet w{false};
+  w.set_signers(signers);
+  w.set_m(m);
+  w.set_wallet_type(WalletType::MULTI_SIG);
+  return GetTransactionFromPartiallySignedTransaction(psbt, w);
 }
 
 }  // namespace nunchuk

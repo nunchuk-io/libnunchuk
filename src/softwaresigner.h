@@ -19,6 +19,7 @@
 #define NUNCHUK_SOFTWARESIGNER_H
 
 #include <nunchuk.h>
+#include <storage/localdb.h>
 
 #include <string>
 #include <vector>
@@ -39,13 +40,16 @@ class SoftwareSigner {
   std::string GetAddressAtPath(const std::string& derivation_path) const;
   std::string GetMasterFingerprint() const;
   std::string SignTx(const std::string& base64_psbt) const;
-  std::string SignTaprootTx(const std::string& base64_psbt,
-                            const std::vector<std::string>& keypaths) const;
+  std::string SignTaprootTx(const NunchukLocalDb& db, const std::string& base64_psbt,
+                            const std::string& basepath,
+                            const std::string& external_desc,
+                            const std::string& internal_desc,
+                            int external_index, int internal_index);
   std::string SignMessage(const std::string& message,
                           const std::string& derivation_path) const;
 
  private:
-  static std::mutex *mu_;
+  static std::mutex* mu_;
   CExtKey GetBip32RootKey(const std::string& mnemonic,
                           const std::string& passphrase) const;
   CExtKey bip32rootkey_;
