@@ -155,6 +155,7 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   for (auto& item : config["signers"]) {
     signers.push_back(ParseSignerString(item));
   }
+  rs.set_name(config["name"]);
   rs.set_m(config["m"]);
   rs.set_n(config["n"]);
   rs.set_address_type(AddressType(config["addressType"]));
@@ -185,13 +186,16 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
                                        const std::string& type) {
   json signers = json::array();
   for (auto&& signer : group.get_signers()) {
-    signers.push_back(signer.get_descriptor());
+    if (!signer.get_master_fingerprint().empty()) {
+      signers.push_back(signer.get_descriptor());
+    }
   }
   json plaintext = {
       {"m", group.get_m()},
       {"n", group.get_n()},
       {"addressType", group.get_address_type()},
       {"signers", signers},
+      {"name", group.get_name()},
   };
 
   if (group.is_finalized()) {
@@ -229,7 +233,7 @@ GroupMessage GroupService::ParseMessageData(const std::string& id,
                                             const nlohmann::json& data) {
   std::string walletId = walletGid2Id_[walletGid];
   if (walletId.empty()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid wallet");
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
   }
   GroupMessage rs(id, walletId);
   auto walletSigner = walletSigner_.at(walletId);
@@ -248,6 +252,9 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
                                          const std::string& content,
                                          const std::string& signer,
                                          const std::string& signature) {
+  if (!HasWallet(walletId)) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
   json plaintext = {
       {"content", content},
       {"signer", signer},
@@ -271,7 +278,8 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
   return body.dump();
 }
 
-GroupSandbox GroupService::CreateGroup(int m, int n, AddressType addressType,
+GroupSandbox GroupService::CreateGroup(std::string name, int m, int n,
+                                       AddressType addressType,
                                        const SingleSigner& signer) {
   if (m <= 0 || n <= 0 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
@@ -281,7 +289,7 @@ GroupSandbox GroupService::CreateGroup(int m, int n, AddressType addressType,
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
-  if (!signer.get_master_fingerprint().empty()) group.set_signers({signer});
+  group.set_signers({signer});
   group.set_ephemeral_keys({ephemeralPub_});
   std::string body = GroupToEvent(group, "init");
   std::string rs = Post(url, {body.begin(), body.end()});
@@ -347,6 +355,35 @@ GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
   return group;
 }
 
+GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {
+  if (!HasWallet(walletId)) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid;
+  auto data = GetHttpResponseData(Get(url));
+  GroupWalletConfig rs{};
+  rs.set_chat_retention_days(data["wallet"]["chat_retention_days"]);
+  return rs;
+}
+
+void GroupService::SetWalletConfig(const std::string& walletId,
+                                   const GroupWalletConfig& config) {
+  if (!HasWallet(walletId)) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/events/send";
+  json data = {{"chat_retention_days", config.get_chat_retention_days()}};
+  json postbody = {
+      {"wallet_id", walletGid},
+      {"type", "update_chat_config"},
+      {"data", data},
+  };
+  std::string body = json(postbody).dump();
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+}
+
 bool GroupService::CheckWalletExists(const Wallet& wallet) {
   auto walletGid = SoftwareSigner(wallet).GetAddressAtPath(KEYPAIR_PATH);
   std::string url = "/v1.1/shared-wallets/wallets/" + walletGid;
@@ -371,8 +408,11 @@ void GroupService::SendMessage(const std::string& walletId,
 std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
                                                     int page, int pageSize,
                                                     bool latest) {
-  auto wallet_gid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
-  std::string url = std::string("/v1.1/shared-wallets/wallets/") + wallet_gid +
+  if (!HasWallet(walletId)) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/chat?page=" + std::to_string(page) +
                     "&page_size=" + std::to_string(pageSize) + "&sort=desc";
   json data = GetHttpResponseData(Get(url));
@@ -442,6 +482,10 @@ void GroupService::Subscribe(const std::vector<std::string>& groupIds,
     ids.push_back({{"group_id", id}, {"from_ts_ms", 0}});
   }
   for (auto&& id : walletIds) {
+    if (!HasWallet(id)) {
+      throw GroupException(GroupException::WALLET_NOT_FOUND,
+                           "Wallet not found");
+    }
     auto gid = walletSigner_.at(id)->GetAddressAtPath(KEYPAIR_PATH);
     ids.push_back({{"wallet_id", gid}, {"from_ts_ms", 0}});
   }
@@ -480,9 +524,26 @@ std::string GroupService::Get(const std::string& url) {
   return res->body;
 }
 
+bool GroupService::HasWallet(const std::string& walletId) {
+  return walletSigner_.count(walletId) == 1;
+}
+
+std::string GroupService::GetWalletIdFromGid(const std::string& walletGid) {
+  std::string walletId = walletGid2Id_[walletGid];
+  if (walletId.empty()) {
+    throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
+  }
+  return walletId;
+}
+
+std::string GroupService::GetTxIdFromGid(const std::string& walletId,
+                                         const std::string& txGid) {}
+
 std::string GroupService::SetupKey(const Wallet& wallet) {
-  walletSigner_[wallet.get_id()] = std::make_shared<SoftwareSigner>(wallet);
-  walletSigner_.at(wallet.get_id())->SetupBoxKey(SECRET_PATH);
+  if (!HasWallet(wallet.get_id())) {
+    walletSigner_[wallet.get_id()] = std::make_shared<SoftwareSigner>(wallet);
+    walletSigner_.at(wallet.get_id())->SetupBoxKey(SECRET_PATH);
+  }
   auto gid = walletSigner_.at(wallet.get_id())->GetAddressAtPath(KEYPAIR_PATH);
   walletGid2Id_[gid] = wallet.get_id();
   return gid;

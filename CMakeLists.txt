@@ -174,6 +174,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/groupsandbox.cpp
     src/dto/groupmessage.cpp
     src/dto/groupconfig.cpp
+    src/dto/groupwalletconfig.cpp
     src/storage/appstatedb.cpp
     src/storage/db.cpp
     src/storage/localdb.cpp

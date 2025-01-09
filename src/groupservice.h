@@ -45,12 +45,15 @@ class GroupService {
       const std::string& appVersion, const std::string& deviceClass,
       const std::string& deviceId);
 
-  GroupSandbox CreateGroup(int m, int n, AddressType addressType,
-                           const SingleSigner& signer);
+  GroupSandbox CreateGroup(std::string name, int m, int n,
+                           AddressType addressType, const SingleSigner& signer);
   GroupSandbox GetGroup(const std::string& groupId);
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
+  GroupWalletConfig GetWalletConfig(const std::string& walletId);
+  void SetWalletConfig(const std::string& walletId,
+                       const GroupWalletConfig& config);
   bool CheckWalletExists(const Wallet& wallet);
   void SendMessage(const std::string& walletId, const std::string& content,
                    const std::string& signer, const std::string& signature);
@@ -60,6 +63,13 @@ class GroupService {
   void StopListenEvents();
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
+  bool HasWallet(const std::string& walletId);
+  std::string GetWalletIdFromGid(const std::string& walletGid);
+  std::string GetTxIdFromGid(const std::string& walletId,
+                             const std::string& txGid);
+  void UpdateTransaction(const std::string& walletId, const std::string& txId,
+                         const std::string& psbt);
+  void DeleteTransaction(const std::string& walletId, const std::string& txId);
   std::string SetupKey(const Wallet& wallet);
 
   // Parse event data

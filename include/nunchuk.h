@@ -612,6 +612,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   GroupSandbox(const std::string& id);
 
   std::string get_id() const;
+  std::string get_name() const;
   std::string get_url() const;
   int get_m() const;
   int get_n() const;
@@ -624,6 +625,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string get_wallet_id() const;
   std::string get_pubkey() const;
 
+  void set_name(const std::string& value);
   void set_url(const std::string& value);
   void set_n(int n);
   void set_m(int m);
@@ -638,6 +640,7 @@ class NUNCHUK_EXPORT GroupSandbox {
 
  private:
   std::string id_;
+  std::string name_;
   std::string url_;
   int m_{0};
   int n_{0};
@@ -693,6 +696,17 @@ class NUNCHUK_EXPORT GroupConfig {
   int total_;
   int remain_;
   std::map<AddressType, int> address_key_limits_{};
+};
+
+class NUNCHUK_EXPORT GroupWalletConfig {
+ public:
+  GroupWalletConfig();
+
+  int get_chat_retention_days() const;
+  void set_chat_retention_days(int value);
+
+ private:
+  int chat_retention_days_{1};
 };
 
 typedef std::map<std::string, bool> KeyStatus;  // xfp-signed map
@@ -1550,7 +1564,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupConfig GetGroupConfig() = 0;
   virtual void StartConsumeGroupEvent() = 0;
   virtual void StopConsumeGroupEvent() = 0;
-  virtual GroupSandbox CreateGroup(int m, int n, AddressType addressType,
+  virtual GroupSandbox CreateGroup(std::string name, int m, int n,
+                                   AddressType addressType,
                                    const SingleSigner& signer = {}) = 0;
   virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
   virtual std::vector<GroupSandbox> GetGroups() = 0;
@@ -1564,6 +1579,10 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const SingleSigner& signer = {}) = 0;
   virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;
   virtual std::vector<Wallet> GetGroupWallets() = 0;
+  virtual GroupWalletConfig GetGroupWalletConfig(
+      const std::string& walletId) = 0;
+  virtual void SetGroupWalletConfig(const std::string& walletId,
+                                    const GroupWalletConfig& config) = 0;
   virtual bool CheckGroupWalletExists(const Wallet& wallet) = 0;
   virtual void RecoverGroupWallet(const std::string& walletId) = 0;
   virtual void SendGroupMessage(const std::string& walletId,

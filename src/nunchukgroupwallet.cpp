@@ -94,31 +94,37 @@ void NunchukImpl::StartConsumeGroupEvent() {
     json data = payload["data"];
 
     if (type == "init") {
-      auto group =
-          group_service_.ParseGroupData(payload["group_id"], false, data);
-      if (group.need_broadcast() && group.get_m() > 0) {
-        group_service_.UpdateGroup(group);
+      auto g = group_service_.ParseGroupData(payload["group_id"], false, data);
+      if (g.need_broadcast() && g.get_m() > 0) {
+        group_service_.UpdateGroup(g);
       }
-      group_wallet_listener_(group);
+      group_wallet_listener_(g);
     } else if (type == "finalize") {
-      auto group =
-          group_service_.ParseGroupData(payload["group_id"], true, data);
-      if (!storage_->HasWallet(chain_, group.get_wallet_id())) {
-        auto wallet = CreateWallet(
-            group.get_id(), group.get_m(), group.get_n(), group.get_signers(),
-            group.get_address_type(), false, {}, true, {});
+      auto g = group_service_.ParseGroupData(payload["group_id"], true, data);
+      if (!storage_->HasWallet(chain_, g.get_wallet_id())) {
+        auto wallet =
+            CreateWallet(g.get_name(), g.get_m(), g.get_n(), g.get_signers(),
+                         g.get_address_type(), false, {}, true, {});
         group_service_.SetupKey(wallet);
         walletIds = storage_->AddGroupWalletId(chain_, wallet.get_id());
         groupIds = storage_->RemoveGroupSandboxId(chain_, payload["group_id"]);
         group_service_.Subscribe(groupIds, walletIds);
       }
-      group_wallet_listener_(group);
+      group_wallet_listener_(g);
     } else if (type == "chat") {
-      auto message =
-          group_service_.ParseMessageData(eid, payload["wallet_id"], data);
-      message.set_ts(ts);
-      message.set_sender(uid);
-      group_message_listener_(message);
+      auto m = group_service_.ParseMessageData(eid, payload["wallet_id"], data);
+      m.set_ts(ts);
+      m.set_sender(uid);
+      group_message_listener_(m);
+    } else if (type == "transaction_updated") {
+      auto txGid = data["transaction_id"];
+      auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
+      // ImportPsbt()
+    } else if (type == "transaction_deleted") {
+      auto txGid = data["transaction_id"];
+      auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
+      auto txId = group_service_.GetTxIdFromGid(walletId, txGid);
+      DeleteTransaction(walletId, txId);
     }
     return true;
   });
@@ -129,10 +135,11 @@ void NunchukImpl::StopConsumeGroupEvent() {
   group_service_.StopListenEvents();
 }
 
-GroupSandbox NunchukImpl::CreateGroup(int m, int n, AddressType addressType,
+GroupSandbox NunchukImpl::CreateGroup(std::string name, int m, int n,
+                                      AddressType addressType,
                                       const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto group = group_service_.CreateGroup(m, n, addressType, signer);
+  auto group = group_service_.CreateGroup(name, m, n, addressType, signer);
   storage_->AddGroupSandboxId(chain_, group.get_id());
   // BE auto subcribe new groupId for creator, don't need to call Subscribe here
   return group;
@@ -220,7 +227,7 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
   }
   signers.resize(group.get_n());
   auto wallet =
-      CreateWallet(group.get_id(), group.get_m(), group.get_n(), signers,
+      CreateWallet(group.get_name(), group.get_m(), group.get_n(), signers,
                    group.get_address_type(), false, {}, true, {});
   group.set_signers(signers);
   group.set_finalized(true);
@@ -241,6 +248,18 @@ std::vector<Wallet> NunchukImpl::GetGroupWallets() {
     rs.push_back(wallet);
   }
   return rs;
+}
+
+GroupWalletConfig NunchukImpl::GetGroupWalletConfig(
+    const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetWalletConfig(walletId);
+}
+
+void NunchukImpl::SetGroupWalletConfig(const std::string& walletId,
+                                       const GroupWalletConfig& config) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.SetWalletConfig(walletId, config);
 }
 
 bool NunchukImpl::CheckGroupWalletExists(const Wallet& wallet) {

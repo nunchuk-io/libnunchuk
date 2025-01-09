@@ -24,6 +24,7 @@ namespace nunchuk {
 GroupSandbox::GroupSandbox(const std::string& id) : id_(id){};
 
 std::string GroupSandbox::get_id() const { return id_; }
+std::string GroupSandbox::get_name() const { return name_; }
 std::string GroupSandbox::get_url() const { return url_; }
 int GroupSandbox::get_m() const { return m_; }
 int GroupSandbox::get_n() const { return n_; }
@@ -40,6 +41,7 @@ bool GroupSandbox::need_broadcast() const { return need_broadcast_; }
 std::string GroupSandbox::get_wallet_id() const { return wallet_id_; }
 std::string GroupSandbox::get_pubkey() const { return pubkey_; }
 
+void GroupSandbox::set_name(const std::string& value) { name_ = value; }
 void GroupSandbox::set_url(const std::string& value) { url_ = value; }
 void GroupSandbox::set_n(int n) { n_ = n; }
 void GroupSandbox::set_m(int m) { m_ = m; }
