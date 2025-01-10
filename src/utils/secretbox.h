@@ -24,15 +24,27 @@
 namespace nunchuk {
 
 class Secretbox {
-public:
+ public:
   Secretbox(const std::vector<unsigned char> &key);
   std::string Box(const std::string &plain);
   std::string Open(const std::string &box);
 
-private:
+ private:
   std::vector<unsigned char> key_;
 };
 
-} // namespace nunchuk
+class Publicbox {
+ public:
+  static std::pair<std::string, std::string> GenerateKeyPair();
+  Publicbox(const std::string &pkey, const std::string &skey);
+  std::string Box(const std::string &plain, const std::string &receiver_pkey);
+  std::string Open(const std::string &box);
 
-#endif // NUNCHUK_CRYPTO_SECRETBOX_H
+ private:
+  std::vector<unsigned char> skey_;
+  std::vector<unsigned char> pkey_;
+};
+
+}  // namespace nunchuk
+
+#endif  // NUNCHUK_CRYPTO_SECRETBOX_H

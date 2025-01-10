@@ -20,7 +20,7 @@
 #include <groupservice.h>
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
-#include <utils/rsa.hpp>
+#include <utils/secretbox.h>
 
 using json = nlohmann::json;
 
@@ -42,7 +42,7 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   group_service_.SetAccessToken(accessToken);
   auto keypair = storage_->GetGroupEphemeralKey(chain_);
   if (keypair.first.empty() || keypair.second.empty()) {
-    keypair = rsa::GenerateKeypair();
+    keypair = Publicbox::GenerateKeyPair();
     storage_->SetGroupEphemeralKey(chain_, keypair.first, keypair.second);
   }
   group_service_.SetEphemeralKey(keypair.first, keypair.second);
@@ -119,8 +119,7 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "transaction_updated") {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
-      auto txId = group_service_.GetTxIdFromGid(walletId, txGid);
-      auto psbt = group_service_.GetTransaction(walletId, txId);
+      auto psbt = group_service_.GetTransaction(walletId, txGid);
       ImportPsbt(walletId, psbt, false, false);
     } else if (type == "transaction_deleted") {
       auto txGid = data["transaction_id"];

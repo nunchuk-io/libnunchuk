@@ -51,6 +51,7 @@ class SoftwareSigner {
                           const std::string& derivation_path) const;
 
   void SetupBoxKey(const std::string& path);
+  std::string HashMessage(const std::string& message);
   std::string EncryptMessage(const std::string& plaintext);
   std::string DecryptMessage(const std::string& ciphertext);
 

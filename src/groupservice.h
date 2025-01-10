@@ -68,7 +68,7 @@ class GroupService {
   std::string GetTxIdFromGid(const std::string& walletId,
                              const std::string& txGid);
   std::string GetTransaction(const std::string& walletId,
-                             const std::string& txId);
+                             const std::string& txGid);
   void UpdateTransaction(const std::string& walletId, const std::string& txId,
                          const std::string& psbt);
   void DeleteTransaction(const std::string& walletId, const std::string& txId);
@@ -80,7 +80,7 @@ class GroupService {
   GroupMessage ParseMessageData(const std::string& id,
                                 const std::string& walletGid,
                                 const nlohmann::json& data);
-  std::string ParseTransactionData(const std::string& walletGid,
+  std::pair<std::string, std::string> ParseTransactionData(const std::string& walletGid,
                                    const nlohmann::json& data);
 
  private:

@@ -20,7 +20,7 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/json.hpp>
-#include <utils/rsa.hpp>
+#include <utils/secretbox.h>
 #include <utils/stringutils.hpp>
 #include <utils/enumconverter.hpp>
 #include <descriptor.h>
@@ -138,8 +138,8 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   for (auto& [key, value] : info["state"].items()) {
     if (key == ephemeralPub_) {
       if (!value.get<std::string>().empty()) {
-        config = json::parse(
-            rsa::EnvelopeOpen(ephemeralPub_, ephemeralPriv_, value));
+        config =
+            json::parse(Publicbox(ephemeralPub_, ephemeralPriv_).Open(value));
       }
     } else if (value.get<std::string>().empty()) {
       rs.set_need_broadcast(true);
@@ -209,7 +209,8 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
 
   json state{};
   for (auto&& ephemeralKey : group.get_ephemeral_keys()) {
-    state[ephemeralKey] = rsa::EnvelopeSeal(ephemeralKey, plaintext.dump());
+    state[ephemeralKey] = Publicbox(ephemeralPub_, ephemeralPriv_)
+                              .Box(plaintext.dump(), ephemeralKey);
   }
   json data = {
       {"version", 1},
@@ -273,8 +274,8 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
   return body.dump();
 }
 
-std::string GroupService::ParseTransactionData(const std::string& walletGid,
-                                               const nlohmann::json& data) {
+std::pair<std::string, std::string> GroupService::ParseTransactionData(
+    const std::string& walletGid, const nlohmann::json& data) {
   std::string walletId = GetWalletIdFromGid(walletGid);
   auto walletSigner = walletSigner_.at(walletId);
   if (!CoreUtils::getInstance().VerifyMessage(walletGid, data["sig"],
@@ -282,19 +283,19 @@ std::string GroupService::ParseTransactionData(const std::string& walletGid,
     throw GroupException(GroupException::INVALID_SIGNATURE, "Invalid message");
   }
   json plaintext = json::parse(walletSigner->DecryptMessage(data["msg"]));
-  return plaintext["psbt"];
+  return {plaintext["psbt"], plaintext["txId"]};
 }
 
 std::string GroupService::TransactionToEvent(const std::string& walletId,
                                              const std::string& txId,
                                              const std::string& psbt) {
   HasWallet(walletId, true);
-  json plaintext = {{"psbt", psbt}};
+  json plaintext = {{"psbt", psbt}, {"txId", txId}};
   auto walletSigner = walletSigner_.at(walletId);
   auto msg = walletSigner->EncryptMessage(plaintext.dump());
   auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
   auto wallet_gid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
-  auto tx_gid = walletSigner->EncryptMessage(txId);
+  auto tx_gid = walletSigner->HashMessage(txId);
 
   json data = {
       {"version", 1},
@@ -581,18 +582,21 @@ std::string GroupService::GetWalletIdFromGid(const std::string& walletGid) {
 std::string GroupService::GetTxIdFromGid(const std::string& walletId,
                                          const std::string& txGid) {
   HasWallet(walletId, true);
-  return walletSigner_.at(walletId)->DecryptMessage(txGid);
-}
-
-std::string GroupService::GetTransaction(const std::string& walletId,
-                                         const std::string& txId) {
-  HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
-  auto txGid = walletSigner_.at(walletId)->EncryptMessage(txId);
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/transactions/" + txGid;
   auto data = GetHttpResponseData(Get(url));
-  return ParseTransactionData(walletGid, data);
+  return ParseTransactionData(walletGid, data).second;
+}
+
+std::string GroupService::GetTransaction(const std::string& walletId,
+                                         const std::string& txGid) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
+                    "/transactions/" + txGid;
+  auto data = GetHttpResponseData(Get(url));
+  return ParseTransactionData(walletGid, data).first;
 }
 
 void GroupService::UpdateTransaction(const std::string& walletId,
@@ -610,7 +614,7 @@ void GroupService::DeleteTransaction(const std::string& walletId,
                                      const std::string& txId) {
   HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
-  auto txGid = walletSigner_.at(walletId)->EncryptMessage(txId);
+  auto txGid = walletSigner_.at(walletId)->HashMessage(txId);
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/transactions/" + txGid;
   GetHttpResponseData(Delete(url));

@@ -120,6 +120,17 @@ void SoftwareSigner::SetupBoxKey(const std::string& path) {
   boxKey_ = std::vector<uint8_t>(hmac, hmac + 32);
 }
 
+std::string SoftwareSigner::HashMessage(const std::string& message) {
+  if (boxKey_.empty()) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Box key is not setup");
+  }
+  std::vector<uint8_t> data(message.begin(), message.end());
+  uint8_t hmac[512 / 8];
+  hmac_sha512(&boxKey_[0], boxKey_.size(), &data[0], data.size(), hmac);
+  return hexStr(hmac, 512 / 8);
+}
+
 std::string SoftwareSigner::EncryptMessage(const std::string& plaintext) {
   if (boxKey_.empty()) {
     throw NunchukException(NunchukException::INVALID_STATE,

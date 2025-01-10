@@ -23,7 +23,7 @@
 #include <random.h>
 
 extern "C" {
-void randombytes(unsigned char* buf,unsigned long long len) {
+void randombytes(unsigned char *buf, unsigned long long len) {
   Span<unsigned char> bytes(buf, len);
   GetStrongRandBytes(bytes);
 }
@@ -73,4 +73,65 @@ std::string Secretbox::Open(const std::string &box) {
   return rs;
 }
 
-} // namespace nunchuk
+std::pair<std::string, std::string> Publicbox::GenerateKeyPair() {
+  std::vector<unsigned char> skey(crypto_box_SECRETKEYBYTES, 0);
+  std::vector<unsigned char> pkey(crypto_box_PUBLICKEYBYTES, 0);
+  crypto_box_keypair(pkey.data(), skey.data());
+  return {EncodeBase64(pkey), EncodeBase64(skey)};
+}
+
+Publicbox::Publicbox(const std::string &pkey, const std::string &skey)
+    : pkey_(*DecodeBase64(pkey)), skey_(*DecodeBase64(skey)) {
+  if (skey_.size() != crypto_box_SECRETKEYBYTES ||
+      pkey_.size() != crypto_box_PUBLICKEYBYTES) {
+    throw std::runtime_error("Incorrect key length");
+  }
+}
+
+std::string Publicbox::Box(const std::string &plain, const std::string &pkey) {
+  auto receiver_pkey = DecodeBase64(pkey);
+  if (!receiver_pkey) {
+    throw std::runtime_error("Invalid sender public key");
+  }
+
+  std::vector<unsigned char> m(crypto_box_ZEROBYTES, 0);
+  m.insert(m.end(), plain.begin(), plain.end());
+  std::vector<unsigned char> c(m.size(), 0);
+  std::vector<unsigned char> nonce(crypto_box_NONCEBYTES, 0);
+  randombytes(nonce.data(), nonce.size());
+  crypto_box(c.data(), m.data(), m.size(), nonce.data(), receiver_pkey->data(),
+             skey_.data());
+  std::vector<unsigned char> cipher(c.begin() + crypto_box_BOXZEROBYTES,
+                                    c.end());
+  return EncodeBase64(pkey_) + "." + EncodeBase64(nonce) + "." +
+         EncodeBase64(cipher);
+}
+
+std::string Publicbox::Open(const std::string &box) {
+  auto part = split(box, '.');
+  auto sender_pkey = DecodeBase64(part[0].c_str());
+  if (!sender_pkey) {
+    throw std::runtime_error("Invalid sender public key");
+  }
+  auto nonce = DecodeBase64(part[1].c_str());
+  if (!nonce) {
+    throw std::runtime_error("Invalid nonce");
+  }
+  auto cipher = DecodeBase64(part[2].c_str());
+  if (!cipher) {
+    throw std::runtime_error("Invalid cipher");
+  }
+
+  std::vector<unsigned char> c(crypto_box_BOXZEROBYTES, 0);
+  c.insert(c.end(), cipher->begin(), cipher->end());
+  std::vector<unsigned char> m(c.size(), 0);
+
+  if (crypto_box_open(m.data(), c.data(), c.size(), nonce->data(),
+                      sender_pkey->data(), skey_.data()) != 0) {
+    throw std::runtime_error("Fails verification");
+  }
+  std::string rs(m.begin() + crypto_box_ZEROBYTES, m.end());
+  return rs;
+}
+
+}  // namespace nunchuk
