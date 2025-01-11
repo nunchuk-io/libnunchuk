@@ -573,18 +573,15 @@ class NunchukImpl : public Nunchuk {
   void StartConsumeGroupEvent() override;
   void StopConsumeGroupEvent() override;
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
-                           AddressType addressType,
-                           const SingleSigner& signer = {}) override;
+                           AddressType addressType) override;
   GroupSandbox GetGroup(const std::string& groupId) override;
   std::vector<GroupSandbox> GetGroups() override;
   GroupSandbox JoinGroup(const std::string& groupId) override;
   GroupSandbox AddSignerToGroup(const std::string& groupId,
-                                const SingleSigner& signer) override;
-  GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
-                                     const SingleSigner& signer) override;
+                                const SingleSigner& signer, int index) override;
+  GroupSandbox RemoveSignerFromGroup(const std::string& groupId, int index) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
-                           int m, int n, AddressType addressType,
-                           const SingleSigner& signer = {}) override;
+                           int m, int n, AddressType addressType) override;
   GroupSandbox FinalizeGroup(const std::string& groupId) override;
   std::vector<Wallet> GetGroupWallets() override;
   GroupWalletConfig GetGroupWalletConfig(const std::string& walletId) override;

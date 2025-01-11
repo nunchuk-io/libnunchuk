@@ -137,10 +137,9 @@ void NunchukImpl::StopConsumeGroupEvent() {
 }
 
 GroupSandbox NunchukImpl::CreateGroup(const std::string& name, int m, int n,
-                                      AddressType addressType,
-                                      const SingleSigner& signer) {
+                                      AddressType addressType) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto group = group_service_.CreateGroup(name, m, n, addressType, signer);
+  auto group = group_service_.CreateGroup(name, m, n, addressType);
   storage_->AddGroupSandboxId(chain_, group.get_id());
   // BE auto subcribe new groupId for creator, don't need to call Subscribe here
   return group;
@@ -166,54 +165,53 @@ GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
 }
 
 GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
-                                           const SingleSigner& signer) {
+                                           const SingleSigner& signer,
+                                           int index) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   auto signers = group.get_signers();
-  if (signers.size() == group.get_n()) {
-    throw GroupException(GroupException::TOO_MANY_SIGNER, "Too many signer");
-  }
   auto desc = signer.get_descriptor();
   for (auto&& s : signers) {
     if (s.get_descriptor() == desc) {
       throw GroupException(GroupException::SIGNER_EXISTS, "Signer exists");
     }
   }
-  signers.push_back(signer);
+  signers[index] = signer;
+  signers.resize(group.get_n());
   group.set_signers(signers);
   return group_service_.UpdateGroup(group);
 }
 
 GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
-                                                const SingleSigner& signer) {
+                                                int index) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   auto signers = group.get_signers();
-  auto desc = signer.get_descriptor();
-  signers.erase(std::remove_if(signers.begin(), signers.end(),
-                               [&](const SingleSigner& s) {
-                                 return s.get_descriptor() == desc;
-                               }),
-                signers.end());
+  signers[index] = SingleSigner{};
+  signers.resize(group.get_n());
   group.set_signers(signers);
   return group_service_.UpdateGroup(group);
 }
 
 GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId,
                                       const std::string& name, int m, int n,
-                                      AddressType addressType,
-                                      const SingleSigner& signer) {
+                                      AddressType addressType) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   group.set_name(name);
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
+
+  std::vector<SingleSigner> signers = group.get_signers();
   if (group.get_address_type() != addressType &&
       (group.get_address_type() == AddressType::TAPROOT ||
        addressType == AddressType::TAPROOT)) {
-    group.set_signers({signer});
+    signers.clear();
   }
+
+  signers.resize(n);
+  group.set_signers(signers);
   return group_service_.UpdateGroup(group);
 }
 
@@ -225,10 +223,13 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   auto signers = group.get_signers();
-  if (signers.size() < group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid signers");
-  }
   signers.resize(group.get_n());
+  for (auto&& signer : signers) {
+    if (signer.get_master_fingerprint().empty()) {
+      throw GroupException(GroupException::INVALID_PARAMETER,
+                           "Invalid signers");
+    }
+  }
   auto wallet =
       CreateWallet(group.get_name(), group.get_m(), group.get_n(), signers,
                    group.get_address_type(), false, {}, true, {});

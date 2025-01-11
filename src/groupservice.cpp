@@ -153,7 +153,12 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
 
   std::vector<SingleSigner> signers{};
   for (auto& item : config["signers"]) {
-    signers.push_back(ParseSignerString(item));
+    std::string desc = item;
+    if (desc == "[]") {  // placeholder
+      signers.push_back({});
+    } else {
+      signers.push_back(ParseSignerString(desc));
+    }
   }
   rs.set_name(config["name"]);
   rs.set_m(config["m"]);
@@ -186,9 +191,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
                                        const std::string& type) {
   json signers = json::array();
   for (auto&& signer : group.get_signers()) {
-    if (!signer.get_master_fingerprint().empty()) {
-      signers.push_back(signer.get_descriptor());
-    }
+    signers.push_back(signer.get_descriptor());
   }
   json plaintext = {
       {"m", group.get_m()},
@@ -218,8 +221,8 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
       {"state", state},
   };
   if (group.is_finalized()) {
-    data["wallet_id"] =
-        group.get_pubkey();  // we use pubkey as server wallet id
+    // we use pubkey as server wallet id
+    data["wallet_id"] = group.get_pubkey();
   }
   json body = {
       {"group_id", group.get_id()},
@@ -311,18 +314,18 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
 }
 
 GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
-                                       AddressType addressType,
-                                       const SingleSigner& signer) {
+                                       AddressType addressType) {
   if (m <= 0 || n <= 0 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   std::string url = "/v1.1/shared-wallets/groups";
   GroupSandbox group("");
+  std::vector<SingleSigner> signers(n);
   group.set_name(name);
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
-  group.set_signers({signer});
+  group.set_signers(signers);
   group.set_ephemeral_keys({ephemeralPub_});
   std::string body = GroupToEvent(group, "init");
   std::string rs = Post(url, {body.begin(), body.end()});

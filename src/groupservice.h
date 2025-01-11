@@ -46,7 +46,7 @@ class GroupService {
       const std::string& deviceId);
 
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
-                           AddressType addressType, const SingleSigner& signer);
+                           AddressType addressType);
   GroupSandbox GetGroup(const std::string& groupId);
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
@@ -80,8 +80,8 @@ class GroupService {
   GroupMessage ParseMessageData(const std::string& id,
                                 const std::string& walletGid,
                                 const nlohmann::json& data);
-  std::pair<std::string, std::string> ParseTransactionData(const std::string& walletGid,
-                                   const nlohmann::json& data);
+  std::pair<std::string, std::string> ParseTransactionData(
+      const std::string& walletGid, const nlohmann::json& data);
 
  private:
   std::string Get(const std::string& url);
