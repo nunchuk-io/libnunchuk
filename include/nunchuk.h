@@ -1569,6 +1569,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupSandbox CreateGroup(const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
   virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
+  virtual int GetGroupOnline(const std::string& groupId) = 0;
   virtual std::vector<GroupSandbox> GetGroups() = 0;
   virtual GroupSandbox JoinGroup(const std::string& groupId) = 0;
   virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
@@ -1596,6 +1597,8 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(const GroupSandbox& state)> listener) = 0;
   virtual void AddGroupMessageListener(
       std::function<void(const GroupMessage& msg)> listener) = 0;
+  virtual void AddGroupOnlineListener(
+      std::function<void(const std::string& groupId, int online)> listener) = 0;
 
  protected:
   Nunchuk() = default;

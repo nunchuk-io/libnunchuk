@@ -307,7 +307,6 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
   };
   json body = {
       {"id", tx_gid},
-      {"type", "chat"},
       {"data", data},
   };
   return body.dump();

@@ -575,11 +575,13 @@ class NunchukImpl : public Nunchuk {
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
                            AddressType addressType) override;
   GroupSandbox GetGroup(const std::string& groupId) override;
+  int GetGroupOnline(const std::string& groupId) override;
   std::vector<GroupSandbox> GetGroups() override;
   GroupSandbox JoinGroup(const std::string& groupId) override;
   GroupSandbox AddSignerToGroup(const std::string& groupId,
                                 const SingleSigner& signer, int index) override;
-  GroupSandbox RemoveSignerFromGroup(const std::string& groupId, int index) override;
+  GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                     int index) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType) override;
   GroupSandbox FinalizeGroup(const std::string& groupId) override;
@@ -598,6 +600,9 @@ class NunchukImpl : public Nunchuk {
       std::function<void(const GroupSandbox& state)> listener) override;
   void AddGroupMessageListener(
       std::function<void(const GroupMessage& msg)> listener) override;
+  void AddGroupOnlineListener(
+      std::function<void(const std::string& groupId, int online)> listener)
+      override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -633,6 +638,8 @@ class NunchukImpl : public Nunchuk {
   GroupService group_service_;
   boost::signals2::signal<void(const GroupSandbox&)> group_wallet_listener_;
   boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
+  boost::signals2::signal<void(const std::string&, int)> group_online_listener_;
+  std::map<std::string, int> group_online_cache_{};
 };
 
 }  // namespace nunchuk

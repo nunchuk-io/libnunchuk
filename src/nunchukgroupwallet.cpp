@@ -92,8 +92,12 @@ void NunchukImpl::StartConsumeGroupEvent() {
     json payload = event["payload"];
     std::string type = payload["type"];
     json data = payload["data"];
-
-    if (type == "init") {
+    if (payload["type"] == "online") {
+      std::string groupId = payload["group_id"];
+      auto count = payload["data"]["members"].size();
+      group_online_cache_[groupId] = count;
+      group_online_listener_(groupId, count);
+    } else if (type == "init") {
       auto g = group_service_.ParseGroupData(payload["group_id"], false, data);
       if (g.need_broadcast() && g.get_m() > 0) {
         group_service_.UpdateGroup(g);
@@ -148,6 +152,11 @@ GroupSandbox NunchukImpl::CreateGroup(const std::string& name, int m, int n,
 GroupSandbox NunchukImpl::GetGroup(const std::string& groupId) {
   ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.GetGroup(groupId);
+}
+
+int NunchukImpl::GetGroupOnline(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_online_cache_.at(groupId);
 }
 
 std::vector<GroupSandbox> NunchukImpl::GetGroups() {
@@ -306,6 +315,11 @@ void NunchukImpl::AddGroupUpdateListener(
 void NunchukImpl::AddGroupMessageListener(
     std::function<void(const GroupMessage& msg)> listener) {
   group_message_listener_.connect(listener);
+}
+
+void NunchukImpl::AddGroupOnlineListener(
+    std::function<void(const std::string& groupId, int online)> listener) {
+  group_online_listener_.connect(listener);
 }
 
 }  // namespace nunchuk
