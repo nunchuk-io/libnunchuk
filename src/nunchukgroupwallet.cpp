@@ -151,19 +151,19 @@ GroupSandbox NunchukImpl::CreateGroup(const std::string& name, int m, int n,
 
 GroupSandbox NunchukImpl::GetGroup(const std::string& groupId) {
   ThrowIfNotEnable(group_wallet_enable_);
-  return group_service_.GetGroup(groupId);
-}
-
-int NunchukImpl::GetGroupOnline(const std::string& groupId) {
-  ThrowIfNotEnable(group_wallet_enable_);
   try {
-    return group_online_cache_.at(groupId);
+    return group_service_.GetGroup(groupId);
   } catch (GroupException& ne) {
     if (ne.code() == GroupException::GROUP_NOT_FOUND) {
       storage_->RemoveGroupSandboxId(chain_, groupId);
     }
     throw;
   }
+}
+
+int NunchukImpl::GetGroupOnline(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_online_cache_.at(groupId);
 }
 
 std::vector<GroupSandbox> NunchukImpl::GetGroups() {
