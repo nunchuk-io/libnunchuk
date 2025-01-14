@@ -609,6 +609,24 @@ std::string GroupService::GetTransaction(const std::string& walletId,
   return ParseTransactionData(walletGid, data).first;
 }
 
+std::map<std::string, std::string> GroupService::GetTransactions(
+    const std::string& walletId, int page, int pageSize, bool latest) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
+                    "/transactions?page=" + std::to_string(page) +
+                    "&page_size=" + std::to_string(pageSize) + "&sort=desc";
+  json data = GetHttpResponseData(Get(url));
+  json txs = data["transactions"];
+  std::map<std::string, std::string> rs{};
+  for (auto&& tx : txs) {
+    json data = tx["data"];
+    auto parsed = ParseTransactionData(walletGid, data);
+    rs[parsed.second] = parsed.first;
+  }
+  return rs;
+}
+
 void GroupService::UpdateTransaction(const std::string& walletId,
                                      const std::string& txId,
                                      const std::string& psbt) {

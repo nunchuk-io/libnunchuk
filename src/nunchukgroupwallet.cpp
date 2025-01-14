@@ -346,4 +346,15 @@ void NunchukImpl::AddGroupOnlineListener(
   group_online_listener_.connect(listener);
 }
 
+void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto data = group_service_.GetTransactions(walletId, 0, 1000, true);
+  for (auto&& [txid, tx] : data) {
+    try {
+      ImportPsbt(walletId, tx, false, false);
+    } catch (...) {
+    }
+  }
+}
+
 }  // namespace nunchuk

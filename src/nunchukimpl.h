@@ -617,6 +617,7 @@ class NunchukImpl : public Nunchuk {
   void RunScanWalletAddress(const std::string& wallet_id);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
+  void SyncGroupTransactions(const std::string& walletId);
 
   AppSettings app_settings_;
   std::string account_;
