@@ -325,6 +325,7 @@ class NUNCHUK_EXPORT GroupException : public BaseException {
   static const int SIGNER_EXISTS = -7005;
   static const int INVALID_PARAMETER = -7006;
   static const int INVALID_SIGNATURE = -7007;
+  static const int GROUP_NOT_FOUND = -7008;
   using BaseException::BaseException;
 };
 
@@ -1581,6 +1582,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
   virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;
+  virtual void DeleteGroup(const std::string& groupId) = 0;
   virtual std::vector<Wallet> GetGroupWallets() = 0;
   virtual GroupWalletConfig GetGroupWalletConfig(
       const std::string& walletId) = 0;

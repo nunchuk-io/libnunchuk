@@ -39,12 +39,15 @@ json GetHttpResponseData(const std::string& resp) {
   // std::cout << "resp " << resp << std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
+    std::string msg = parsed["error"]["message"];
     if (parsed["error"]["code"] == 5404) {
-      throw GroupException(GroupException::WALLET_NOT_FOUND,
-                           parsed["error"]["message"]);
+      if (msg.rfind("Group", 0) == 0) {
+        throw GroupException(GroupException::GROUP_NOT_FOUND, msg);
+      } else {
+        throw GroupException(GroupException::WALLET_NOT_FOUND, msg);
+      }
     }
-    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         parsed["error"]["message"]);
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR, msg);
   }
   return parsed["data"];
 }
@@ -388,6 +391,11 @@ GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
   auto body = GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   return group;
+}
+
+void GroupService::DeleteGroup(const std::string& groupId) {
+  std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
+  GetHttpResponseData(Delete(url));
 }
 
 GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {

@@ -51,6 +51,7 @@ class GroupService {
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
+  void DeleteGroup(const std::string& groupId);
   GroupWalletConfig GetWalletConfig(const std::string& walletId);
   void SetWalletConfig(const std::string& walletId,
                        const GroupWalletConfig& config);

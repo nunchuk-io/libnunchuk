@@ -156,13 +156,31 @@ GroupSandbox NunchukImpl::GetGroup(const std::string& groupId) {
 
 int NunchukImpl::GetGroupOnline(const std::string& groupId) {
   ThrowIfNotEnable(group_wallet_enable_);
-  return group_online_cache_.at(groupId);
+  try {
+    return group_online_cache_.at(groupId);
+  } catch (GroupException& ne) {
+    if (ne.code() == GroupException::GROUP_NOT_FOUND) {
+      storage_->RemoveGroupSandboxId(chain_, groupId);
+    }
+    throw;
+  }
 }
 
 std::vector<GroupSandbox> NunchukImpl::GetGroups() {
   ThrowIfNotEnable(group_wallet_enable_);
   auto groupIds = storage_->GetGroupSandboxIds(chain_);
-  return group_service_.GetGroups(groupIds);
+  auto groups = group_service_.GetGroups(groupIds);
+  for (auto&& groupId : groupIds) {
+    bool found = false;
+    for (auto&& group : groups) {
+      if (group.get_id() == groupId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) storage_->RemoveGroupSandboxId(chain_, groupId);
+  }
+  return groups;
 }
 
 GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
@@ -251,6 +269,12 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
   auto groupIds = storage_->RemoveGroupSandboxId(chain_, groupId);
   group_service_.Subscribe(groupIds, walletIds);
   return rs;
+}
+
+void NunchukImpl::DeleteGroup(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  group_service_.DeleteGroup(groupId);
+  storage_->RemoveGroupSandboxId(chain_, groupId);
 }
 
 std::vector<Wallet> NunchukImpl::GetGroupWallets() {
