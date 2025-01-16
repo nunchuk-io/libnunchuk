@@ -117,6 +117,7 @@ class NunchukImpl : public Nunchuk {
                             std::vector<SignerTag> tags = {},
                             bool replace = false) override;
   bool HasSigner(const SingleSigner& signer) override;
+  SingleSigner GetSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,
                                       const AddressType& address_type) override;

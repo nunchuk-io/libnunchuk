@@ -326,6 +326,8 @@ class NunchukStorage {
   std::vector<std::string> AddGroupWalletId(Chain chain, const std::string &id);
   std::vector<std::string> RemoveGroupWalletId(Chain chain,
                                                const std::string &id);
+  SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
+                              bool create_if_not_exist) const;
 
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
@@ -350,8 +352,6 @@ class NunchukStorage {
       Chain chain, const std::filesystem::path &dir = {}) const;
   std::filesystem::path GetDefaultDataDir() const;
   Wallet CreateWallet0(Chain chain, const Wallet &wallet);
-  SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
-                              bool create_if_not_exist) const;
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
   SoftwareSigner GetSoftwareSigner0(Chain chain, const std::string &id);

@@ -603,6 +603,10 @@ bool NunchukImpl::HasSigner(const SingleSigner& signer) {
   return storage_->HasSigner(chain_, signer);
 }
 
+SingleSigner NunchukImpl::GetSigner(const SingleSigner& signer) {
+  return storage_->GetTrueSigner0(chain_, signer, false);
+}
+
 int NunchukImpl::GetCurrentIndexFromMasterSigner(
     const std::string& mastersigner_id, const WalletType& wallet_type,
     const AddressType& address_type) {
@@ -880,7 +884,8 @@ std::vector<Transaction> NunchukImpl::GetTransactionHistory(
   if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
     try {
       SyncGroupTransactions(wallet_id);
-    } catch (...) {}
+    } catch (...) {
+    }
   }
   auto txs = storage_->GetTransactions(chain_, wallet_id, count, skip);
   auto removed_iter =

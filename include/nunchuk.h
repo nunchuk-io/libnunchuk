@@ -1073,6 +1073,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                     std::vector<SignerTag> tags = {},
                                     bool replace = false) = 0;
   virtual bool HasSigner(const SingleSigner& signer) = 0;
+  virtual SingleSigner GetSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type) = 0;
