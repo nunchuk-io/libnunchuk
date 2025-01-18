@@ -1014,7 +1014,8 @@ Transaction NunchukImpl::CreateTransaction(
     }
     if (!include_origin_input) {
       throw NunchukException(NunchukException::INVALID_RBF,
-                             "Tx not include any input of origin tx!");
+                             "New transaction does not include any input of "
+                             "the original transaction!");
     }
     origin_fee = origin_tx.get_fee();
   }

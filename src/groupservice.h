@@ -37,6 +37,7 @@ class GroupService {
   void SetEphemeralKey(const std::string& pub, const std::string priv);
   void SetDeviceInfo(const std::string& token, const std::string uid);
   void SetAccessToken(const std::string& token);
+  std::pair<std::string, std::string> GetDeviceInfo();
 
   std::pair<std::string, std::string> ParseUrl(const std::string& url);
   GroupConfig GetConfig();

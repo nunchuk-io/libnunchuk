@@ -571,6 +571,7 @@ class NunchukImpl : public Nunchuk {
   std::pair<std::string, std::string> ParseGroupUrl(
       const std::string& url) override;
   GroupConfig GetGroupConfig() override;
+  std::string GetGroupDeviceUID() override;
   void StartConsumeGroupEvent() override;
   void StopConsumeGroupEvent() override;
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
@@ -605,6 +606,8 @@ class NunchukImpl : public Nunchuk {
   void AddGroupOnlineListener(
       std::function<void(const std::string& groupId, int online)> listener)
       override;
+  void AddGroupDeleteListener(
+      std::function<void(const std::string& groupId)> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -642,6 +645,7 @@ class NunchukImpl : public Nunchuk {
   boost::signals2::signal<void(const GroupSandbox&)> group_wallet_listener_;
   boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
   boost::signals2::signal<void(const std::string&, int)> group_online_listener_;
+  boost::signals2::signal<void(const std::string&)> group_delete_listener_;
   std::map<std::string, int> group_online_cache_{};
 };
 

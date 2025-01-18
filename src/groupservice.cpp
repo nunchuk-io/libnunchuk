@@ -81,6 +81,10 @@ void GroupService::SetAccessToken(const std::string& token) {
   accessToken_ = token;
 }
 
+std::pair<std::string, std::string> GroupService::GetDeviceInfo() {
+  return {deviceToken_, uid_};
+}
+
 std::pair<std::string, std::string> GroupService::ParseUrl(
     const std::string& group_url) {
   std::string url = "/v1.1/shared-wallets/url/parse";

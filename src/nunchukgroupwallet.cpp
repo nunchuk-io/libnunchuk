@@ -79,6 +79,11 @@ GroupConfig NunchukImpl::GetGroupConfig() {
   return group_service_.GetConfig();
 }
 
+std::string NunchukImpl::GetGroupDeviceUID() {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetDeviceInfo().second;
+}
+
 void NunchukImpl::StartConsumeGroupEvent() {
   ThrowIfNotEnable(group_wallet_enable_);
   auto groupIds = storage_->GetGroupSandboxIds(chain_);
@@ -115,6 +120,12 @@ void NunchukImpl::StartConsumeGroupEvent() {
         group_service_.Subscribe(groupIds, walletIds);
       }
       group_wallet_listener_(g);
+    } else if (type == "group_deleted") {
+      std::string groupId = payload["group_id"];
+      walletIds = storage_->GetGroupWalletIds(chain_);
+      groupIds = storage_->RemoveGroupSandboxId(chain_, groupId);
+      group_service_.Subscribe(groupIds, walletIds);
+      group_delete_listener_(groupId);
     } else if (type == "chat") {
       auto m = group_service_.ParseMessageData(eid, payload["wallet_id"], data);
       m.set_ts(ts);
@@ -344,6 +355,11 @@ void NunchukImpl::AddGroupMessageListener(
 void NunchukImpl::AddGroupOnlineListener(
     std::function<void(const std::string& groupId, int online)> listener) {
   group_online_listener_.connect(listener);
+}
+
+void NunchukImpl::AddGroupDeleteListener(
+    std::function<void(const std::string& groupId)> listener) {
+  group_delete_listener_.connect(listener);
 }
 
 void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {

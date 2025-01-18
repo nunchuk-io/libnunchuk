@@ -1566,6 +1566,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::pair<std::string, std::string> ParseGroupUrl(
       const std::string& url) = 0;
   virtual GroupConfig GetGroupConfig() = 0;
+  virtual std::string GetGroupDeviceUID() = 0;
   virtual void StartConsumeGroupEvent() = 0;
   virtual void StopConsumeGroupEvent() = 0;
   virtual GroupSandbox CreateGroup(const std::string& name, int m, int n,
@@ -1602,6 +1603,8 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(const GroupMessage& msg)> listener) = 0;
   virtual void AddGroupOnlineListener(
       std::function<void(const std::string& groupId, int online)> listener) = 0;
+  virtual void AddGroupDeleteListener(
+      std::function<void(const std::string& groupId)> listener) = 0;
 
  protected:
   Nunchuk() = default;
