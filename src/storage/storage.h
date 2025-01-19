@@ -82,7 +82,8 @@ class NunchukStorage {
   std::vector<std::string> ListMasterSigners(Chain chain);
 
   Wallet GetWallet(Chain chain, const std::string &id,
-                   bool create_signers_if_not_exist = false);
+                   bool create_signers_if_not_exist = false,
+                   bool fill_extra = true);
   bool HasWallet(Chain chain, const std::string &wallet_id);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
   SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);

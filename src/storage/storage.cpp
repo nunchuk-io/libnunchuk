@@ -911,10 +911,12 @@ std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
 }
 
 Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
-                                 bool create_signers_if_not_exist) {
+                                 bool create_signers_if_not_exist,
+                                 bool fill_extra) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
   Wallet wallet = wallet_db.GetWallet(false, true);
+  if (!fill_extra) return wallet;
 
   std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {

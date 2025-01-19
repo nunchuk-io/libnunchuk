@@ -63,7 +63,7 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   }
   auto walletIds = storage_->GetGroupWalletIds(chain_);
   for (auto&& walletId : walletIds) {
-    auto wallet = GetWallet(walletId);
+    auto wallet = storage_->GetWallet(chain_, walletId, false, false);
     group_service_.SetupKey(wallet);
   }
 }
