@@ -93,7 +93,6 @@ void NunchukImpl::StartConsumeGroupEvent() {
     json event = json::parse(e);
     time_t ts = event["timestamp_ms"].get<int64_t>() / 1000;
     std::string eid = event["id"];
-    std::string uid = event["uid"];
     json payload = event["payload"];
     std::string type = payload["type"];
     json data = payload["data"];
@@ -129,7 +128,7 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "chat") {
       auto m = group_service_.ParseMessageData(eid, payload["wallet_id"], data);
       m.set_ts(ts);
-      m.set_sender(uid);
+      m.set_sender(event["uid"]);
       group_message_listener_(m);
     } else if (type == "transaction_updated") {
       auto txGid = data["transaction_id"];

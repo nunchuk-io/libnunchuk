@@ -99,6 +99,7 @@ GroupConfig GroupService::GetConfig() {
   GroupConfig rs{};
   rs.set_total(data["total"]);
   rs.set_remain(data["remaining"]);
+  rs.set_retention_days_options(data["chat_retention_days_options"]);
   json limits = data["address_key_limits"];
   for (auto&& limit : limits) {
     rs.set_max_keys(AddressTypeFromStr(limit["address_type"]),

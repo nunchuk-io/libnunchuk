@@ -688,15 +688,18 @@ class NUNCHUK_EXPORT GroupConfig {
   int get_total() const;
   int get_remain() const;
   int get_max_keys(AddressType address_type) const;
+  const std::vector<int>& get_retention_days_options() const;
 
   void set_total(int value);
   void set_remain(int value);
   void set_max_keys(AddressType address_type, int value);
+  void set_retention_days_options(std::vector<int> values);
 
  private:
   int total_;
   int remain_;
   std::map<AddressType, int> address_key_limits_{};
+  std::vector<int> retention_days_options_{};
 };
 
 class NUNCHUK_EXPORT GroupWalletConfig {

@@ -28,11 +28,17 @@ int GroupConfig::get_remain() const { return remain_; }
 int GroupConfig::get_max_keys(AddressType address_type) const {
   return address_key_limits_.at(address_type);
 }
+const std::vector<int>& GroupConfig::get_retention_days_options() const {
+  return retention_days_options_;
+}
 
 void GroupConfig::set_total(int value) { total_ = value; }
 void GroupConfig::set_remain(int value) { remain_ = value; }
 void GroupConfig::set_max_keys(AddressType address_type, int value) {
   address_key_limits_[address_type] = value;
+}
+void GroupConfig::set_retention_days_options(std::vector<int> values) {
+  retention_days_options_ = std::move(values);
 }
 
 }  // namespace nunchuk
