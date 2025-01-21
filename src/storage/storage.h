@@ -327,6 +327,9 @@ class NunchukStorage {
   std::vector<std::string> AddGroupWalletId(Chain chain, const std::string &id);
   std::vector<std::string> RemoveGroupWalletId(Chain chain,
                                                const std::string &id);
+  std::string GetLastEvent(Chain chain, const std::string &wallet_id);
+  void SetReadEvent(Chain chain, const std::string &wallet_id,
+                    const std::string &event_id);
   SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
                               bool create_if_not_exist) const;
 

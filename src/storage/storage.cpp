@@ -2279,4 +2279,15 @@ std::vector<std::string> NunchukStorage::RemoveGroupWalletId(
   return db.GetWalletIds();
 }
 
+std::string NunchukStorage::GetLastEvent(Chain chain,
+                                         const std::string& wallet_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetLastEvent(wallet_id);
+}
+void NunchukStorage::SetReadEvent(Chain chain, const std::string& wallet_id,
+                                  const std::string& event_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).SetReadEvent(wallet_id, event_id);
+}
+
 }  // namespace nunchuk

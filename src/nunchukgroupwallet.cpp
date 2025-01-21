@@ -235,6 +235,7 @@ GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
   signers[index] = signer;
   signers.resize(group.get_n());
   group.set_signers(signers);
+  group.remove_occupied(index);
   return group_service_.UpdateGroup(group);
 }
 
@@ -355,6 +356,24 @@ void NunchukImpl::SendGroupMessage(const std::string& walletId,
   std::string signature = {};  // TODO: sign the msg with signature
   group_service_.SendMessage(walletId, msg, signer.get_master_fingerprint(),
                              signature);
+}
+
+void NunchukImpl::SetLastReadMessage(const std::string& walletId,
+                                     const std::string& messageId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  storage_->SetReadEvent(chain_, walletId, messageId);
+}
+
+int NunchukImpl::GetUnreadMessagesCount(const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto lastEvent = storage_->GetLastEvent(chain_, walletId);
+  int count = 0;
+  auto messages = group_service_.GetMessages(walletId, 0, 100, true);
+  for (int i = 0; i < messages.size(); i++) {
+    if (messages[i].get_id() == lastEvent) break;
+    count++;
+  }
+  return count;
 }
 
 std::vector<GroupMessage> NunchukImpl::GetGroupMessages(

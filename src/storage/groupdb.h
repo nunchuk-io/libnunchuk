@@ -45,6 +45,9 @@ class NunchukGroupDb : public NunchukDb {
   bool AddWalletId(const std::string &id);
   bool RemoveWalletId(const std::string &id);
 
+  std::string GetLastEvent(const std::string &group_id) const;
+  void SetReadEvent(const std::string &group_id, const std::string &event_id);
+
  private:
   friend class NunchukStorage;
 };

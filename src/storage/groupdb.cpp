@@ -19,7 +19,14 @@
 
 namespace nunchuk {
 
-void NunchukGroupDb::Init() { CreateTable(); }
+void NunchukGroupDb::Init() {
+  CreateTable();
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS LASTEVENT("
+                        "GROUPID TEXT PRIMARY KEY NOT NULL,"
+                        "EVENTID TEXT             NOT NULL);",
+                        NULL, 0, NULL));
+}
 
 void NunchukGroupDb::SetDeviceInfo(const std::string &token,
                                    const std::string &uid) {
@@ -65,6 +72,33 @@ bool NunchukGroupDb::AddWalletId(const std::string &id) {
 
 bool NunchukGroupDb::RemoveWalletId(const std::string &id) {
   return RemoveFromListStr(DbKeys::GROUP_WALLET_LIST, id);
+}
+
+void NunchukGroupDb::SetReadEvent(const std::string &group_id,
+                                  const std::string &event_id) {
+  sqlite3_stmt *stmt;
+  std::string sql =
+      "INSERT INTO LASTEVENT(GROUPID, EVENTID) VALUES (?1, ?2)"
+      "ON CONFLICT(GROUPID) DO UPDATE SET EVENTID=excluded.EVENTID;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, group_id.c_str(), group_id.size(), NULL);
+  sqlite3_bind_text(stmt, 2, event_id.c_str(), event_id.size(), NULL);
+  sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
+}
+
+std::string NunchukGroupDb::GetLastEvent(const std::string &group_id) const {
+  sqlite3_stmt *stmt;
+  std::string sql = "SELECT * FROM LASTEVENT WHERE GROUPID = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, group_id.c_str(), group_id.size(), NULL);
+  sqlite3_step(stmt);
+  std::string rs{};
+  if (sqlite3_column_text(stmt, 0)) {
+    rs = std::string((char *)sqlite3_column_text(stmt, 1));
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
 }
 
 }  // namespace nunchuk

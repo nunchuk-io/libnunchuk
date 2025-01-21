@@ -598,6 +598,9 @@ class NunchukImpl : public Nunchuk {
   void RecoverGroupWallet(const std::string& walletId) override;
   void SendGroupMessage(const std::string& walletId, const std::string& msg,
                         const SingleSigner& signer = {}) override;
+  void SetLastReadMessage(const std::string& walletId,
+                          const std::string& messageId) override;
+  int GetUnreadMessagesCount(const std::string& walletId) override;
   std::vector<GroupMessage> GetGroupMessages(const std::string& walletId,
                                              int page, int pageSize,
                                              bool latest) override;
