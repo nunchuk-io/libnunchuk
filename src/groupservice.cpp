@@ -168,6 +168,11 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
       signers.push_back(ParseSignerString(desc));
     }
   }
+  if (config["occupied"] != nullptr) {
+    for (auto& item : config["occupied"]) {
+      rs.add_occupied(item["i"], item["ts"], item["uid"]);
+    }
+  }
   rs.set_name(config["name"]);
   rs.set_m(config["m"]);
   rs.set_n(config["n"]);
@@ -201,12 +206,17 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
   for (auto&& signer : group.get_signers()) {
     signers.push_back(signer.get_descriptor());
   }
+  json occupied = json::array();
+  for (auto&& [i, v] : group.get_occupied()) {
+    occupied.push_back({{"i", i}, {"uid", v.second}, {"ts", v.first}});
+  }
   json plaintext = {
       {"m", group.get_m()},
       {"n", group.get_n()},
       {"addressType", group.get_address_type()},
       {"signers", signers},
       {"name", group.get_name()},
+      {"occupied", occupied},
   };
 
   if (group.is_finalized()) {

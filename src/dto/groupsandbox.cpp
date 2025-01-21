@@ -40,6 +40,10 @@ const std::vector<std::string>& GroupSandbox::get_ephemeral_keys() const {
 bool GroupSandbox::need_broadcast() const { return need_broadcast_; }
 std::string GroupSandbox::get_wallet_id() const { return wallet_id_; }
 std::string GroupSandbox::get_pubkey() const { return pubkey_; }
+const std::map<int, std::pair<time_t, std::string>>&
+GroupSandbox::get_occupied() const {
+  return occupied_;
+}
 
 void GroupSandbox::set_name(const std::string& value) { name_ = value; }
 void GroupSandbox::set_url(const std::string& value) { url_ = value; }
@@ -61,5 +65,9 @@ void GroupSandbox::set_wallet_id(const std::string& value) {
   wallet_id_ = value;
 }
 void GroupSandbox::set_pubkey(const std::string& value) { pubkey_ = value; }
+void GroupSandbox::add_occupied(int index, time_t ts, const std::string& uid) {
+  occupied_[index] = {ts, uid};
+}
+void GroupSandbox::remove_occupied(int index) { occupied_.erase(index); }
 
 }  // namespace nunchuk

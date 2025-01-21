@@ -326,6 +326,7 @@ class NUNCHUK_EXPORT GroupException : public BaseException {
   static const int INVALID_PARAMETER = -7006;
   static const int INVALID_SIGNATURE = -7007;
   static const int GROUP_NOT_FOUND = -7008;
+  static const int VERSION_MISMATCH = -7009;
   using BaseException::BaseException;
 };
 
@@ -625,6 +626,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   bool need_broadcast() const;
   std::string get_wallet_id() const;
   std::string get_pubkey() const;
+  const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
 
   void set_name(const std::string& value);
   void set_url(const std::string& value);
@@ -638,6 +640,8 @@ class NUNCHUK_EXPORT GroupSandbox {
   void set_need_broadcast(bool value);
   void set_wallet_id(const std::string& value);
   void set_pubkey(const std::string& value);
+  void add_occupied(int index, time_t ts, const std::string& uid);
+  void remove_occupied(int index);
 
  private:
   std::string id_;
@@ -653,6 +657,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   bool need_broadcast_{false};
   std::string wallet_id_{};
   std::string pubkey_{};
+  std::map<int, std::pair<time_t, std::string>> occupied_{};
 };
 
 class NUNCHUK_EXPORT GroupMessage {
@@ -1578,6 +1583,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual int GetGroupOnline(const std::string& groupId) = 0;
   virtual std::vector<GroupSandbox> GetGroups() = 0;
   virtual GroupSandbox JoinGroup(const std::string& groupId) = 0;
+  virtual GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
+                                       bool value) = 0;
   virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
                                         const SingleSigner& signer,
                                         int index) = 0;

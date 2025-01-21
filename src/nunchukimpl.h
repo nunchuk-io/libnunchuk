@@ -580,6 +580,8 @@ class NunchukImpl : public Nunchuk {
   int GetGroupOnline(const std::string& groupId) override;
   std::vector<GroupSandbox> GetGroups() override;
   GroupSandbox JoinGroup(const std::string& groupId) override;
+  GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
+                               bool value) override;
   GroupSandbox AddSignerToGroup(const std::string& groupId,
                                 const SingleSigner& signer, int index) override;
   GroupSandbox RemoveSignerFromGroup(const std::string& groupId,

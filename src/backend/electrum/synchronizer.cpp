@@ -74,8 +74,10 @@ void ElectrumSynchronizer::Run() {
           }));
     } catch (...) {
       std::lock_guard<std::mutex> guard(status_mutex_);
-      status_ = Status::UNINITIALIZED;
-      status_cv_.notify_all();
+      if (status_ != Status::STOPPED) {
+        status_ = Status::UNINITIALIZED;
+        status_cv_.notify_all();
+      }
       return;
     }
     {

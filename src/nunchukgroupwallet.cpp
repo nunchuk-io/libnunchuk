@@ -201,11 +201,30 @@ GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
   return group_service_.JoinGroup(groupId);
 }
 
+GroupSandbox NunchukImpl::SetSlotOccupied(const std::string& groupId, int index,
+                                          bool value) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto group = group_service_.GetGroup(groupId);
+  if (index >= group.get_n()) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
+  }
+  if (value) {
+    auto uid = group_service_.GetDeviceInfo().second;
+    group.add_occupied(index, std::time(0), uid);
+  } else {
+    group.remove_occupied(index);
+  }
+  return group_service_.UpdateGroup(group);
+}
+
 GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
                                            const SingleSigner& signer,
                                            int index) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
+  if (index >= group.get_n()) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
+  }
   auto signers = group.get_signers();
   auto desc = signer.get_descriptor();
   for (auto&& s : signers) {
@@ -223,6 +242,9 @@ GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
                                                 int index) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
+  if (index >= group.get_n()) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
+  }
   auto signers = group.get_signers();
   signers[index] = SingleSigner{};
   signers.resize(group.get_n());
