@@ -145,12 +145,16 @@ void NunchukImpl::StartConsumeGroupEvent() {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
       auto psbt = group_service_.GetTransaction(walletId, txGid);
-      ImportPsbt(walletId, psbt, false, false);
+      auto tx = ImportPsbt(walletId, psbt, false, false);
+      synchronizer_->NotifyTransactionUpdate(walletId, tx.get_txid(),
+                                             tx.get_status());
     } else if (type == "transaction_deleted") {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
       auto txId = group_service_.GetTxIdFromGid(walletId, txGid);
       DeleteTransaction(walletId, txId, false);
+      synchronizer_->NotifyTransactionUpdate(walletId, txId,
+                                             TransactionStatus::DELETED);
     }
     return true;
   });
@@ -359,9 +363,8 @@ void NunchukImpl::RecoverGroupWallet(const std::string& walletId) {
     throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
   }
   group_service_.SetupKey(wallet);
-  auto groupIds = storage_->GetGroupSandboxIds(chain_);
-  auto walletIds = storage_->AddGroupWalletId(chain_, walletId);
-  group_service_.Subscribe(groupIds, walletIds);
+  group_service_.RecoverWallet(walletId);
+  storage_->AddGroupWalletId(chain_, walletId);
 }
 
 void NunchukImpl::SendGroupMessage(const std::string& walletId,

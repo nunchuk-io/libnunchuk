@@ -274,9 +274,7 @@ bool NunchukImpl::DeleteWallet(const std::string& wallet_id) {
   storage_listener_();
   if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
     storage_->RemoveGroupWalletId(chain_, wallet_id);
-    auto walletIds = storage_->RemoveGroupWalletId(chain_, wallet_id);
-    auto groupIds = storage_->GetGroupSandboxIds(chain_);
-    group_service_.Subscribe(groupIds, walletIds);
+    group_service_.DeleteWallet(wallet_id);
   }
   return rs;
 }

@@ -67,6 +67,8 @@ class GroupService {
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
   bool HasWallet(const std::string& walletId, bool throwIfNotFound = false);
+  void RecoverWallet(const std::string& walletId);
+  void DeleteWallet(const std::string& walletId);
   std::string GetWalletIdFromGid(const std::string& walletGid);
   std::string GetTxIdFromGid(const std::string& walletId,
                              const std::string& txGid);

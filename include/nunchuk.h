@@ -95,6 +95,7 @@ enum class TransactionStatus {
   REPLACED,
   CONFIRMED,
   PENDING_NONCE,  // Musig wallet only
+  DELETED, // Group wallet only
 };
 
 enum class CoinStatus {

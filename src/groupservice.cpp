@@ -598,6 +598,22 @@ bool GroupService::HasWallet(const std::string& walletId,
   return found;
 }
 
+void GroupService::RecoverWallet(const std::string& walletId) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url =
+      std::string("/v1.1/shared-wallets/wallets/") + walletGid + "/recover";
+  std::string body = "{}";
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+}
+
+void GroupService::DeleteWallet(const std::string& walletId) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid;
+  GetHttpResponseData(Delete(url));
+}
+
 std::string GroupService::GetWalletIdFromGid(const std::string& walletGid) {
   std::string walletId = walletGid2Id_[walletGid];
   if (walletId.empty()) {
