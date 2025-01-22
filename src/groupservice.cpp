@@ -16,6 +16,8 @@
  */
 
 #include "groupservice.h"
+#include <chrono>
+#include <thread>
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
@@ -510,20 +512,24 @@ void GroupService::StartListenEvents(
     }
   };
 
-  std::string buffer;
   stop_ = false;
-  client.Get("/v1.1/shared-wallets/events/sse", headers,
-             [&](const char* data, size_t data_length) {
-               buffer.append(data, data_length);
-               size_t pos;
-               while ((pos = buffer.find("\n\n")) != std::string::npos) {
-                 std::string_view event_data =
-                     std::string_view(buffer).substr(0, pos);
-                 handle_event(event_data);
-                 buffer.erase(0, pos + 2);
-               }
-               return !stop_;
-             });
+  while (!stop_) {
+    std::string buffer;
+    client.Get("/v1.1/shared-wallets/events/sse", headers,
+               [&](const char* data, size_t data_length) {
+                 buffer.append(data, data_length);
+                 size_t pos;
+                 while ((pos = buffer.find("\n\n")) != std::string::npos) {
+                   std::string_view event_data =
+                       std::string_view(buffer).substr(0, pos);
+                   handle_event(event_data);
+                   buffer.erase(0, pos + 2);
+                 }
+                 return !stop_;
+               });
+    if (stop_) break;
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+  }
 }
 
 void GroupService::StopListenEvents() { stop_ = true; }
