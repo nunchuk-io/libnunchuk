@@ -327,6 +327,7 @@ class NUNCHUK_EXPORT GroupException : public BaseException {
   static const int INVALID_SIGNATURE = -7007;
   static const int GROUP_NOT_FOUND = -7008;
   static const int VERSION_MISMATCH = -7009;
+  static const int SANDBOX_FINALIZED = -7010;
   using BaseException::BaseException;
 };
 

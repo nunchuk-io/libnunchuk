@@ -627,6 +627,7 @@ class NunchukImpl : public Nunchuk {
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
   void SyncGroupTransactions(const std::string& walletId);
+  void CreateGroupWallet(const GroupSandbox& group);
 
   AppSettings app_settings_;
   std::string account_;
@@ -652,6 +653,7 @@ class NunchukImpl : public Nunchuk {
   boost::signals2::signal<void(const std::string&, int)> group_online_listener_;
   boost::signals2::signal<void(const std::string&)> group_delete_listener_;
   std::map<std::string, int> group_online_cache_{};
+  std::shared_mutex cache_access_;
 };
 
 }  // namespace nunchuk

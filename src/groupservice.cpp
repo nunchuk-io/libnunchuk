@@ -65,6 +65,8 @@ GroupService::GroupService(const std::string& baseUrl,
       deviceToken_(deviceToken),
       uid_(uid) {}
 
+GroupService::~GroupService() { stop_ = true; }
+
 void GroupService::SetEphemeralKey(const std::string& pub,
                                    const std::string priv) {
   ephemeralPub_ = pub;

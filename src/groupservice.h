@@ -33,6 +33,7 @@ class GroupService {
                const std::string& ephemeralPriv_,
                const std::string& deviceToken_ = {},
                const std::string& uid_ = {});
+  ~GroupService();
 
   void SetEphemeralKey(const std::string& pub, const std::string priv);
   void SetDeviceInfo(const std::string& token, const std::string uid);
