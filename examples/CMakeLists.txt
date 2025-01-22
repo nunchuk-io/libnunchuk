@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(.. lib EXCLUDE_FROM_ALL)
 
-add_executable("${PROJECT_NAME}" main.cpp)
+add_executable("${PROJECT_NAME}" groupwallet.cpp)
 target_link_libraries("${PROJECT_NAME}" PUBLIC nunchuk)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

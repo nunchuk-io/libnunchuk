@@ -422,7 +422,7 @@ void NunchukImpl::AddGroupDeleteListener(
 
 void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto data = group_service_.GetTransactions(walletId, 0, 1000, true);
+  auto data = group_service_.GetTransactions(walletId, 0, 100, true);
   for (auto&& [txid, tx] : data) {
     try {
       ImportPsbt(walletId, tx, false, false);

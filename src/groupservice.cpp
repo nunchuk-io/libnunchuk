@@ -629,7 +629,7 @@ std::string GroupService::GetTxIdFromGid(const std::string& walletId,
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/transactions/" + txGid;
   auto data = GetHttpResponseData(Get(url));
-  return ParseTransactionData(walletGid, data).second;
+  return ParseTransactionData(walletGid, data["transaction"]["data"]).second;
 }
 
 std::string GroupService::GetTransaction(const std::string& walletId,
@@ -639,7 +639,7 @@ std::string GroupService::GetTransaction(const std::string& walletId,
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/transactions/" + txGid;
   auto data = GetHttpResponseData(Get(url));
-  return ParseTransactionData(walletGid, data).first;
+  return ParseTransactionData(walletGid, data["transaction"]["data"]).first;
 }
 
 std::map<std::string, std::string> GroupService::GetTransactions(
