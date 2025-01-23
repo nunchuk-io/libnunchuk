@@ -151,7 +151,8 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "transaction_deleted") {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
-      auto txId = group_service_.GetTxIdFromGid(walletId, txGid);
+      auto txs = storage_->GetTransactions(chain_, walletId, 1000, 0);
+      auto txId = group_service_.GetTxIdFromGid(walletId, txGid, txs);
       DeleteTransaction(walletId, txId, false);
       synchronizer_->NotifyTransactionUpdate(walletId, txId,
                                              TransactionStatus::DELETED);
@@ -427,6 +428,16 @@ void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {
     try {
       ImportPsbt(walletId, tx, false, false);
     } catch (...) {
+    }
+  }
+
+  auto txs = storage_->GetTransactions(chain_, walletId, 1000, 0);
+  for (auto&& tx : txs) {
+    if (tx.get_status() == TransactionStatus::PENDING_SIGNATURES ||
+        tx.get_status() == TransactionStatus::PENDING_NONCE) {
+      if (data.count(tx.get_txid()) != 1) {
+        DeleteTransaction(walletId, tx.get_txid(), false);
+      }
     }
   }
 }

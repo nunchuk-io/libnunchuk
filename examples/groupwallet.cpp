@@ -497,6 +497,29 @@ void deletetransaction() {
   nu.get()->DeleteTransaction(wallet_id, history[tx_idx].get_txid());
 }
 
+void setretentiondays() {
+  auto wallets = nu.get()->GetGroupWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any group wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose wallet to update config");
+  if (wallet_idx < 0 || wallet_idx > wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+
+  auto wallet_id = wallets[wallet_idx].get_id();
+  auto config = nu.get()->GetGroupWalletConfig(wallet_id);
+  auto options = nu.get()->GetGroupConfig().get_retention_days_options();
+
+  int d = input_int("Enter chat retention days (" + join(options, ',') + ")");
+  if (std::find(options.begin(), options.end(), d) == options.end()) {
+    throw std::runtime_error("Invalid config");
+  }
+  config.set_chat_retention_days(d);
+  nu.get()->SetGroupWalletConfig(wallet_id, config);
+}
+
 void init() {
   auto account = input_string("Enter account name");
 
@@ -543,6 +566,7 @@ void interactive() {
       {listgroupwallets, "listgroupwallets", "list group wallets"},
       {sendchat, "sendchat", "send group chat"},
       {deletetransaction, "deletetransaction", "delete transaction"},
+      {setretentiondays, "setretentiondays", "set group chat retention days"},
 
       {history, "history", "list transaction history"},
       {send, "send", "create new transaction"}};

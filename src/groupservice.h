@@ -71,7 +71,8 @@ class GroupService {
   void DeleteWallet(const std::string& walletId);
   std::string GetWalletIdFromGid(const std::string& walletGid);
   std::string GetTxIdFromGid(const std::string& walletId,
-                             const std::string& txGid);
+                             const std::string& txGid,
+                             const std::vector<Transaction>& txs);
   std::string GetTransaction(const std::string& walletId,
                              const std::string& txGid);
   std::map<std::string, std::string> GetTransactions(

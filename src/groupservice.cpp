@@ -429,9 +429,20 @@ GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {
 void GroupService::SetWalletConfig(const std::string& walletId,
                                    const GroupWalletConfig& config) {
   HasWallet(walletId, true);
-  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  auto walletSigner = walletSigner_.at(walletId);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
   std::string url = "/v1.1/shared-wallets/events/send";
-  json data = {{"chat_retention_days", config.get_chat_retention_days()}};
+
+  json plaintext = {{"ts", std::time(0)},
+                    {"chat_retention_days", config.get_chat_retention_days()}};
+  auto msg = plaintext.dump();
+  auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
+  json data = {
+      {"version", 1},
+      {"msg", msg},
+      {"sig", sig},
+      {"chat_retention_days", config.get_chat_retention_days()},
+  };
   json postbody = {
       {"wallet_id", walletGid},
       {"type", "update_chat_config"},
@@ -632,13 +643,16 @@ std::string GroupService::GetWalletIdFromGid(const std::string& walletGid) {
 }
 
 std::string GroupService::GetTxIdFromGid(const std::string& walletId,
-                                         const std::string& txGid) {
+                                         const std::string& txGid,
+                                         const std::vector<Transaction>& txs) {
   HasWallet(walletId, true);
-  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
-  std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
-                    "/transactions/" + txGid;
-  auto data = GetHttpResponseData(Get(url));
-  return ParseTransactionData(walletGid, data["transaction"]["data"]).second;
+  auto walletSigner = walletSigner_.at(walletId);
+  for (auto&& tx : txs) {
+    if (walletSigner->HashMessage(tx.get_txid()) == txGid) {
+      return tx.get_txid();
+    }
+  }
+  return {};
 }
 
 std::string GroupService::GetTransaction(const std::string& walletId,
@@ -687,8 +701,7 @@ void GroupService::DeleteTransaction(const std::string& walletId,
   auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
   auto txGid = walletSigner->HashMessage(txId);
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
-                    "/transactions/" + txGid;
-
+                    "/transactions";
   auto tx_gid = walletSigner->HashMessage(txId);
   json plaintext = {{"ts", std::time(0)}, {"txGid", tx_gid}};
   auto msg = plaintext.dump();
