@@ -38,7 +38,7 @@ static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/83696968'/128169'/32'/0'";
 
 json GetHttpResponseData(const std::string& resp) {
-  // std::cout << "resp " << resp << std::endl;
+  std::cout << "resp " << resp << std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
     std::string msg = parsed["error"]["message"];
@@ -319,7 +319,6 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
   auto walletSigner = walletSigner_.at(walletId);
   auto msg = walletSigner->EncryptMessage(plaintext.dump());
   auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
-  auto wallet_gid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
   auto tx_gid = walletSigner->HashMessage(txId);
 
   json data = {
@@ -581,13 +580,17 @@ std::string GroupService::Get(const std::string& url) {
   return res->body;
 }
 
-std::string GroupService::Delete(const std::string& url) {
+std::string GroupService::Delete(const std::string& url,
+                                 const std::vector<unsigned char>& body) {
   std::string auth = (std::string("Bearer ") + accessToken_);
   httplib::Headers headers = {{"Device-Token", deviceToken_},
                               {"Authorization", auth}};
   httplib::Client client(baseUrl_.c_str());
   client.enable_server_certificate_verification(false);
-  auto res = client.Delete(url.c_str(), headers);
+  auto res = body.empty()
+                 ? client.Delete(url.c_str(), headers)
+                 : client.Delete(url.c_str(), headers, (const char*)body.data(),
+                                 body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
                          res ? res->body : "Server error");
@@ -680,11 +683,27 @@ void GroupService::UpdateTransaction(const std::string& walletId,
 void GroupService::DeleteTransaction(const std::string& walletId,
                                      const std::string& txId) {
   HasWallet(walletId, true);
-  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
-  auto txGid = walletSigner_.at(walletId)->HashMessage(txId);
+  auto walletSigner = walletSigner_.at(walletId);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  auto txGid = walletSigner->HashMessage(txId);
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/transactions/" + txGid;
-  GetHttpResponseData(Delete(url));
+
+  auto tx_gid = walletSigner->HashMessage(txId);
+  json plaintext = {{"ts", std::time(0)}, {"txGid", tx_gid}};
+  auto msg = plaintext.dump();
+  auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
+  json data = {
+      {"version", 1},
+      {"msg", msg},
+      {"sig", sig},
+  };
+  json jbody = {
+      {"id", tx_gid},
+      {"data", data},
+  };
+  std::string body = jbody.dump();
+  GetHttpResponseData(Delete(url, {body.begin(), body.end()}));
 }
 
 std::string GroupService::SetupKey(const Wallet& wallet) {

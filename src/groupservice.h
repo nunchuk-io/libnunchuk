@@ -94,7 +94,8 @@ class GroupService {
   std::string Get(const std::string& url);
   std::string Post(const std::string& url,
                    const std::vector<unsigned char>& body);
-  std::string Delete(const std::string& url);
+  std::string Delete(const std::string& url,
+                     const std::vector<unsigned char>& body = {});
 
   GroupSandbox ParseGroupResponse(const std::string& resp);
   GroupSandbox ParseGroup(const nlohmann::json& group);

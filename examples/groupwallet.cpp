@@ -466,6 +466,37 @@ void sendchat() {
   nu.get()->SendGroupMessage(wallet.get_id(), msg);
 }
 
+void deletetransaction() {
+  auto wallets = nu.get()->GetWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose wallet to show history");
+  if (wallet_idx < 0 || wallet_idx > wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+
+  auto wallet_id = wallets[wallet_idx].get_id();
+  auto history = nu.get()->GetTransactionHistory(wallet_id, 1000, 0);
+  history.erase(std::remove_if(history.begin(), history.end(),
+                               [&](const Transaction& tx) {
+                                 return tx.get_height() != -1 ||
+                                        tx.is_receive();
+                               }),
+                history.end());
+  int i = 0;
+  for (auto&& tx : history) {
+    std::cout << i++ << ": " << tx.get_txid() << " " << tx.get_sub_amount()
+              << " sat" << std::endl;
+  }
+  int tx_idx = input_int("Choose transaction to delete");
+  if (tx_idx < 0 || tx_idx > history.size()) {
+    throw std::runtime_error("Invalid transaction");
+  }
+  nu.get()->DeleteTransaction(wallet_id, history[tx_idx].get_txid());
+}
+
 void init() {
   auto account = input_string("Enter account name");
 
@@ -511,6 +542,7 @@ void interactive() {
       {finalizesandbox, "finalizesandbox", "finalize group sandbox"},
       {listgroupwallets, "listgroupwallets", "list group wallets"},
       {sendchat, "sendchat", "send group chat"},
+      {deletetransaction, "deletetransaction", "delete transaction"},
 
       {history, "history", "list transaction history"},
       {send, "send", "create new transaction"}};
