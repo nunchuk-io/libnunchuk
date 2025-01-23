@@ -655,14 +655,14 @@ std::string GroupService::GetTxIdFromGid(const std::string& walletId,
   return {};
 }
 
-std::string GroupService::GetTransaction(const std::string& walletId,
-                                         const std::string& txGid) {
+std::pair<std::string, std::string> GroupService::GetTransaction(
+    const std::string& walletId, const std::string& txGid) {
   HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
   std::string url = std::string("/v1.1/shared-wallets/wallets/") + walletGid +
                     "/transactions/" + txGid;
   auto data = GetHttpResponseData(Get(url));
-  return ParseTransactionData(walletGid, data["transaction"]["data"]).first;
+  return ParseTransactionData(walletGid, data["transaction"]["data"]);
 }
 
 std::map<std::string, std::string> GroupService::GetTransactions(

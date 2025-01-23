@@ -1358,6 +1358,9 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
   } else {
     try {
       synchronizer_->Broadcast(raw_tx);
+      if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
+        group_service_.DeleteTransaction(wallet_id, tx_id);
+      }
     } catch (NunchukException& ne) {
       if (ne.code() != NunchukException::NETWORK_REJECTED) throw;
       reject_msg = ne.what();
@@ -1410,7 +1413,7 @@ bool NunchukImpl::DeleteTransaction(const std::string& wallet_id,
   storage_listener_();
   if (group_wallet_enable_ && group_service_.HasWallet(wallet_id) &&
       send_group_event) {
-    group_service_.DeleteTransaction(wallet_id, tx_id);
+    group_service_.UpdateTransaction(wallet_id, tx_id, {});
   }
   return rs;
 }

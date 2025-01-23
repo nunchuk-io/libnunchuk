@@ -144,18 +144,18 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "transaction_updated") {
       auto txGid = data["transaction_id"];
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
-      auto psbt = group_service_.GetTransaction(walletId, txGid);
-      auto tx = ImportPsbt(walletId, psbt, false, false);
-      synchronizer_->NotifyTransactionUpdate(walletId, tx.get_txid(),
-                                             tx.get_status());
+      auto txpair = group_service_.GetTransaction(walletId, txGid);
+      TransactionStatus status = TransactionStatus::DELETED;
+      if (txpair.first.empty()) {
+        DeleteTransaction(walletId, txpair.second, false);
+      } else {
+        auto tx = ImportPsbt(walletId, txpair.first, false, false);
+        status = tx.get_status();
+      }
+      synchronizer_->NotifyTransactionUpdate(walletId, txpair.second, status);
     } else if (type == "transaction_deleted") {
-      auto txGid = data["transaction_id"];
-      auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
-      auto txs = storage_->GetTransactions(chain_, walletId, 1000, 0);
-      auto txId = group_service_.GetTxIdFromGid(walletId, txGid, txs);
-      DeleteTransaction(walletId, txId, false);
-      synchronizer_->NotifyTransactionUpdate(walletId, txId,
-                                             TransactionStatus::DELETED);
+      // Do nothing, broadcast transactions will be deleted from server and
+      // synced through synchronizer
     }
     return true;
   });
@@ -426,18 +426,12 @@ void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {
   auto data = group_service_.GetTransactions(walletId, 0, 100, true);
   for (auto&& [txid, tx] : data) {
     try {
-      ImportPsbt(walletId, tx, false, false);
-    } catch (...) {
-    }
-  }
-
-  auto txs = storage_->GetTransactions(chain_, walletId, 1000, 0);
-  for (auto&& tx : txs) {
-    if (tx.get_status() == TransactionStatus::PENDING_SIGNATURES ||
-        tx.get_status() == TransactionStatus::PENDING_NONCE) {
-      if (data.count(tx.get_txid()) != 1) {
-        DeleteTransaction(walletId, tx.get_txid(), false);
+      if (tx.empty()) {
+        DeleteTransaction(walletId, txid, false);
+      } else {
+        ImportPsbt(walletId, tx, false, false);
       }
+    } catch (...) {
     }
   }
 }

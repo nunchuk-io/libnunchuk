@@ -73,8 +73,8 @@ class GroupService {
   std::string GetTxIdFromGid(const std::string& walletId,
                              const std::string& txGid,
                              const std::vector<Transaction>& txs);
-  std::string GetTransaction(const std::string& walletId,
-                             const std::string& txGid);
+  std::pair<std::string, std::string> GetTransaction(
+      const std::string& walletId, const std::string& txGid);
   std::map<std::string, std::string> GetTransactions(
       const std::string& walletId, int page, int pageSize, bool latest);
   void UpdateTransaction(const std::string& walletId, const std::string& txId,
