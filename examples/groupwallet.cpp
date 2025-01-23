@@ -318,7 +318,7 @@ void send() {
 }
 
 // Group wallet commands
-void newgroupsandbox() {
+void newsandbox() {
   auto name = input_string("Enter wallet name");
   auto n = input_int("Total signers");
   auto m = input_int("Required signatures");
@@ -373,11 +373,11 @@ inline void print_list_sandbox(const std::vector<GroupSandbox>& sandboxes) {
   }
 }
 
-void listgroupsandboxs() { print_list_sandbox(nu.get()->GetGroups()); }
+void listsandboxs() { print_list_sandbox(nu.get()->GetGroups()); }
 
-void listgroupwallets() { print_list_wallets(nu.get()->GetGroupWallets()); }
+void listgroups() { print_list_wallets(nu.get()->GetGroupWallets()); }
 
-void getgroupsandbox() {
+void getsandbox() {
   auto groups = nu.get()->GetGroups();
   if (groups.empty()) {
     throw std::runtime_error("You don't have any group sandbox");
@@ -392,7 +392,7 @@ void getgroupsandbox() {
   printGroup(group);
 }
 
-void joingroupsandbox() {
+void joinsandbox() {
   auto group_id = input_string("Enter group id");
   auto group = nu.get()->JoinGroup(group_id);
 }
@@ -479,11 +479,10 @@ void deletetransaction() {
 
   auto wallet_id = wallets[wallet_idx].get_id();
   auto history = nu.get()->GetTransactionHistory(wallet_id, 1000, 0);
-  history.erase(std::remove_if(history.begin(), history.end(),
-                               [&](const Transaction& tx) {
-                                 return tx.get_height() != -1 ||
-                                        tx.is_receive();
-                               }),
+  auto check = [&](const Transaction& tx) {
+    return tx.get_height() != -1 || tx.is_receive();
+  };
+  history.erase(std::remove_if(history.begin(), history.end(), check),
                 history.end());
   int i = 0;
   for (auto&& tx : history) {
@@ -497,7 +496,7 @@ void deletetransaction() {
   nu.get()->DeleteTransaction(wallet_id, history[tx_idx].get_txid());
 }
 
-void setretentiondays() {
+void groupconfig() {
   auto wallets = nu.get()->GetGroupWallets();
   if (wallets.empty()) {
     throw std::runtime_error("You don't have any group wallet");
@@ -510,6 +509,9 @@ void setretentiondays() {
 
   auto wallet_id = wallets[wallet_idx].get_id();
   auto config = nu.get()->GetGroupWalletConfig(wallet_id);
+  std::cout << "- Current chat retention days: "
+            << config.get_chat_retention_days() << std::endl;
+
   auto options = nu.get()->GetGroupConfig().get_retention_days_options();
 
   int d = input_int("Enter chat retention days (" + join(options, ',') + ")");
@@ -557,16 +559,16 @@ void interactive() {
       {newwallet, "newwallet", "create new wallet"},
       {newaddress, "newaddress", "create new receive address"},
 
-      {newgroupsandbox, "newgroupsandbox", "create new group sandbox"},
-      {listgroupsandboxs, "listgroupsandboxs", "list group sandboxs"},
-      {getgroupsandbox, "getgroupsandbox", "get group sandbox detail"},
-      {joingroupsandbox, "joingroupsandbox", "join group sandbox"},
+      {newsandbox, "newsandbox", "create new group sandbox"},
+      {listsandboxs, "listsandboxs", "list group sandboxs"},
+      {getsandbox, "getsandbox", "get group sandbox detail"},
+      {joinsandbox, "joinsandbox", "join group sandbox"},
       {addkeytosandbox, "addkeytosandbox", "add key to group sandbox"},
       {finalizesandbox, "finalizesandbox", "finalize group sandbox"},
-      {listgroupwallets, "listgroupwallets", "list group wallets"},
+      {listgroups, "listgroups", "list group wallets"},
       {sendchat, "sendchat", "send group chat"},
       {deletetransaction, "deletetransaction", "delete transaction"},
-      {setretentiondays, "setretentiondays", "set group chat retention days"},
+      {groupconfig, "setgroupconfig", "set group config"},
 
       {history, "history", "list transaction history"},
       {send, "send", "create new transaction"}};
@@ -609,23 +611,31 @@ void interactive() {
   }
 }
 
+void sandboxListener(const GroupSandbox& state) {
+  std::cout << "\n--- Received sandbox update" << std::endl;
+  printGroup(state);
+}
+
+void messageListener(const GroupMessage& msg) {
+  std::cout << "\n--- Received message ";
+  std::cout << "(" << msg.get_wallet_id() << "): " << msg.get_content();
+  std::cout << std::endl;
+}
+
+void transactionListener(std::string tx_id, TransactionStatus status,
+                         std::string wallet_id) {
+  std::cout << "\n--- Received transaction update ";
+  std::cout << "(" << wallet_id << "): " << tx_id << ". Status " << int(status);
+  std::cout << std::endl;
+}
+
 int main(int argc, char** argv) {
   loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
   init();
   auto t1 = std::thread([&]() { nu->StartConsumeGroupEvent(); });
-  nu->AddGroupUpdateListener([](const GroupSandbox& state) {
-    std::cout << "\n--- Received sandbox update" << std::endl;
-    printGroup(state);
-  });
-  nu->AddGroupMessageListener([](const GroupMessage& msg) {
-    std::cout << "\n--- Received message (" << msg.get_wallet_id()
-              << "): " << msg.get_content() << std::endl;
-  });
-  nu->AddTransactionListener(
-      [](std::string tx_id, TransactionStatus status, std::string wallet_id) {
-        std::cout << "\n--- Received transaction update " << tx_id << " ("
-                  << wallet_id << ") Status: " << int(status) << std::endl;
-      });
+  nu->AddGroupUpdateListener(sandboxListener);
+  nu->AddGroupMessageListener(messageListener);
+  nu->AddTransactionListener(transactionListener);
 
   interactive();
   nu->StopConsumeGroupEvent();

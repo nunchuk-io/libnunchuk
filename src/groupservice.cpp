@@ -38,7 +38,7 @@ static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/83696968'/128169'/32'/0'";
 
 json GetHttpResponseData(const std::string& resp) {
-  std::cout << "resp " << resp << std::endl;
+  // std::cout << "resp " << resp << std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
     std::string msg = parsed["error"]["message"];
