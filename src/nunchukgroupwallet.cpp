@@ -51,6 +51,7 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
                                     const std::string& deviceClass,
                                     const std::string& deviceId,
                                     const std::string& accessToken) {
+  group_service_.CheckVersion();
   group_wallet_enable_ = true;
   group_service_.SetAccessToken(accessToken);
   auto keypair = storage_->GetGroupEphemeralKey(chain_);
@@ -373,8 +374,8 @@ void NunchukImpl::SendGroupMessage(const std::string& walletId,
                                    const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
   std::string signature = {};  // TODO: sign the msg with signature
-  group_service_.SendMessage(walletId, msg, signer.get_master_fingerprint(),
-                             signature);
+  group_service_.SendChatMessage(walletId, msg, signer.get_master_fingerprint(),
+                                 signature);
 }
 
 void NunchukImpl::SetLastReadMessage(const std::string& walletId,

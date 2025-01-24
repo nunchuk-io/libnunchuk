@@ -33,6 +33,7 @@ using json = nlohmann::json;
 
 namespace nunchuk {
 
+static const int VERSION = 1;
 static const std::string MIME_TYPE = "application/json";
 static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/83696968'/128169'/32'/0'";
@@ -87,6 +88,23 @@ void GroupService::SetAccessToken(const std::string& token) {
 
 std::pair<std::string, std::string> GroupService::GetDeviceInfo() {
   return {deviceToken_, uid_};
+}
+
+void GroupService::CheckVersion() {
+  httplib::Client client(baseUrl_.c_str());
+  client.enable_server_certificate_verification(false);
+  auto res = client.Get("/v1.1/shared-wallets/version");
+  if (!res || res->status != 200) {
+    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                         res ? res->body : "Server error");
+  }
+  json data = GetHttpResponseData(res->body);
+  int version = data["version"];
+  if (version != VERSION) {
+    throw GroupException(GroupException::VERSION_MISMATCH,
+                         "Group wallet version mismatch. Please make sure all "
+                         "devices are on the latest version of Nunchuk.");
+  }
 }
 
 std::pair<std::string, std::string> GroupService::ParseUrl(
@@ -238,7 +256,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
                               .Box(plaintext.dump(), ephemeralKey);
   }
   json data = {
-      {"version", 1},
+      {"version", VERSION},
       {"stateId", group.get_state_id() + 1},
       {"state", state},
   };
@@ -287,7 +305,7 @@ std::string GroupService::MessageToEvent(const std::string& walletId,
   auto wallet_gid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
 
   json data = {
-      {"version", 1},
+      {"version", VERSION},
       {"msg", msg},
       {"sig", sig},
   };
@@ -322,7 +340,7 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
   auto tx_gid = walletSigner->HashMessage(txId);
 
   json data = {
-      {"version", 1},
+      {"version", VERSION},
       {"msg", msg},
       {"sig", sig},
   };
@@ -438,7 +456,7 @@ void GroupService::SetWalletConfig(const std::string& walletId,
   auto msg = plaintext.dump();
   auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
   json data = {
-      {"version", 1},
+      {"version", VERSION},
       {"msg", msg},
       {"sig", sig},
       {"chat_retention_days", config.get_chat_retention_days()},
@@ -464,10 +482,10 @@ bool GroupService::CheckWalletExists(const Wallet& wallet) {
   }
 }
 
-void GroupService::SendMessage(const std::string& walletId,
-                               const std::string& content,
-                               const std::string& signer,
-                               const std::string& signature) {
+void GroupService::SendChatMessage(const std::string& walletId,
+                                   const std::string& content,
+                                   const std::string& signer,
+                                   const std::string& signature) {
   std::string url = "/v1.1/shared-wallets/events/send";
   std::string body = MessageToEvent(walletId, content, signer, signature);
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
@@ -707,7 +725,7 @@ void GroupService::DeleteTransaction(const std::string& walletId,
   auto msg = plaintext.dump();
   auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
   json data = {
-      {"version", 1},
+      {"version", VERSION},
       {"msg", msg},
       {"sig", sig},
   };

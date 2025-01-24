@@ -38,6 +38,7 @@ class GroupService {
   void SetEphemeralKey(const std::string& pub, const std::string priv);
   void SetDeviceInfo(const std::string& token, const std::string uid);
   void SetAccessToken(const std::string& token);
+  void CheckVersion();
   std::pair<std::string, std::string> GetDeviceInfo();
 
   std::pair<std::string, std::string> ParseUrl(const std::string& url);
@@ -58,8 +59,8 @@ class GroupService {
   void SetWalletConfig(const std::string& walletId,
                        const GroupWalletConfig& config);
   bool CheckWalletExists(const Wallet& wallet);
-  void SendMessage(const std::string& walletId, const std::string& content,
-                   const std::string& signer, const std::string& signature);
+  void SendChatMessage(const std::string& walletId, const std::string& content,
+                       const std::string& signer, const std::string& signature);
   std::vector<GroupMessage> GetMessages(const std::string& walletId, int page,
                                         int pageSize, bool latest);
   void StartListenEvents(std::function<bool(const std::string&)> callback);
