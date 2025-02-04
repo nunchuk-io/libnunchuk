@@ -36,7 +36,7 @@ namespace nunchuk {
 static const int VERSION = 1;
 static const std::string MIME_TYPE = "application/json";
 static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
-static const std::string KEYPAIR_PATH = "m/83696968'/128169'/32'/0'";
+static const std::string KEYPAIR_PATH = "m/45'/0'/0'/1/0";
 
 json GetHttpResponseData(const std::string& resp) {
   // std::cout << "resp " << resp << std::endl;
@@ -411,7 +411,7 @@ GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
   };
   std::string body = event.dump();
   GetHttpResponseData(
-      Post("/v1.1/shared-wallets/events/send", {body.begin(), body.end()}));
+      Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()}));
   return ParseGroup(group);
 }
 
@@ -570,7 +570,7 @@ void GroupService::Subscribe(const std::vector<std::string>& groupIds,
     ids.push_back({{"group_id", id}, {"from_ts_ms", 0}});
   }
   for (auto&& id : walletIds) {
-    HasWallet(id, true);
+    if (!HasWallet(id)) continue;
     auto gid = walletSigner_.at(id)->GetAddressAtPath(KEYPAIR_PATH);
     ids.push_back({{"wallet_id", gid}, {"from_ts_ms", 0}});
   }

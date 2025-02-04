@@ -80,8 +80,11 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   }
   auto walletIds = storage_->GetGroupWalletIds(chain_);
   for (auto&& walletId : walletIds) {
-    auto wallet = storage_->GetWallet(chain_, walletId, false, false);
-    group_service_.SetupKey(wallet);
+    try {
+      auto wallet = storage_->GetWallet(chain_, walletId, false, false);
+      group_service_.SetupKey(wallet);
+    } catch (...) {
+    }
   }
 }
 
@@ -212,10 +215,10 @@ std::vector<GroupSandbox> NunchukImpl::GetGroups() {
 
 GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto groupIds = storage_->AddGroupSandboxId(chain_, groupId);
-  auto walletIds = storage_->GetGroupWalletIds(chain_);
-  group_service_.Subscribe(groupIds, walletIds);
-  return group_service_.JoinGroup(groupId);
+  auto group = group_service_.JoinGroup(groupId);
+  storage_->AddGroupSandboxId(chain_, groupId);
+  // BE auto subcribe groupId, don't need to call Subscribe here
+  return group;
 }
 
 GroupSandbox NunchukImpl::SetSlotOccupied(const std::string& groupId, int index,
@@ -335,8 +338,11 @@ std::vector<Wallet> NunchukImpl::GetGroupWallets() {
   auto walletIds = storage_->GetGroupWalletIds(chain_);
   std::vector<Wallet> rs{};
   for (auto&& walletId : walletIds) {
-    auto wallet = GetWallet(walletId);
-    rs.push_back(wallet);
+    try {
+      auto wallet = GetWallet(walletId);
+      rs.push_back(wallet);
+    } catch (...) {
+    }
   }
   return rs;
 }
