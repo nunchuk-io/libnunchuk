@@ -640,4 +640,5 @@ int main(int argc, char** argv) {
   interactive();
   nu->StopConsumeGroupEvent();
   t1.join();
+  nu.reset();
 }

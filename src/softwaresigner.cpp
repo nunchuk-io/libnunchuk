@@ -107,8 +107,6 @@ SoftwareSigner::SoftwareSigner(const Wallet& group_wallet) {
   bip32rootkey_.SetSeed(spanSeed);
 }
 
-SoftwareSigner::~SoftwareSigner() { bip32rootkey_.key = CKey(); }
-
 static const std::string BIP85_HASH_KEY = "bip-entropy-from-k";
 
 void SoftwareSigner::SetupBoxKey(const std::string& path) {
