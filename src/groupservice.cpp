@@ -510,6 +510,8 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
     }
     group["init"]["modified"][ephemeralPub_] = modified;
   }
+  group["init"]["pubstate"]["occupied"] =
+      UpdateOccupiedJson(group["init"]["pubstate"]["occupied"], false, index);
   return SendGroupEvent(groupId, group);
 }
 
