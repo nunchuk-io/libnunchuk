@@ -349,7 +349,12 @@ void printGroup(const GroupSandbox& group) {
   std::cout << "- Finalized: " << group.is_finalized() << std::endl;
   std::cout << "- Signers: " << std::endl;
   for (auto&& signer : group.get_signers()) {
-    std::cout << " . " << signer.get_descriptor() << std::endl;
+    if (signer.get_name() == "ADDED" &&
+        signer.get_master_fingerprint().empty()) {
+      std::cout << " . [xxxxxxxx] (Added)" << std::endl;
+    } else {
+      std::cout << " . " << signer.get_descriptor() << std::endl;
+    }
   }
   std::cout << "- Keys: " << std::endl;
   for (auto&& key : group.get_ephemeral_keys()) {
