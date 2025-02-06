@@ -35,6 +35,14 @@ void ThrowIfNotEnable(bool value) {
 void NunchukImpl::CreateGroupWallet(const GroupSandbox& group) {
   if (!group.is_finalized() || group.get_wallet_id().empty()) return;
   if (!storage_->HasWallet(chain_, group.get_wallet_id())) {
+    bool hasSigner = false;
+    for (auto&& signer : group.get_signers()) {
+      if (storage_->HasSigner(chain_, signer)) {
+        hasSigner = true;
+        break;
+      }
+    }
+    if (!hasSigner) return;
     auto wallet = CreateWallet(group.get_name(), group.get_m(), group.get_n(),
                                group.get_signers(), group.get_address_type(),
                                false, {}, true, {});
