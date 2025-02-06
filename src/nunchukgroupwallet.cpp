@@ -224,75 +224,27 @@ GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
 GroupSandbox NunchukImpl::SetSlotOccupied(const std::string& groupId, int index,
                                           bool value) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto group = group_service_.GetGroup(groupId);
-  if (index >= group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
-  }
-  if (value) {
-    auto uid = group_service_.GetDeviceInfo().second;
-    group.add_occupied(index, std::time(0), uid);
-  } else {
-    group.remove_occupied(index);
-  }
-  return group_service_.UpdateGroup(group);
+  return group_service_.SetOccupied(groupId, index, value);
 }
 
 GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
                                            const SingleSigner& signer,
                                            int index) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto group = group_service_.GetGroup(groupId);
-  if (index >= group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
-  }
-  auto signers = group.get_signers();
-  auto desc = signer.get_descriptor();
-  for (auto&& s : signers) {
-    if (s.get_descriptor() == desc) {
-      throw GroupException(GroupException::SIGNER_EXISTS, "Signer exists");
-    }
-  }
-  signers[index] = signer;
-  signers.resize(group.get_n());
-  group.set_signers(signers);
-  group.remove_occupied(index);
-  return group_service_.UpdateGroup(group);
+  return group_service_.AddSigner(groupId, signer, index);
 }
 
 GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
                                                 int index) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto group = group_service_.GetGroup(groupId);
-  if (index >= group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
-  }
-  auto signers = group.get_signers();
-  signers[index] = SingleSigner{};
-  signers.resize(group.get_n());
-  group.set_signers(signers);
-  return group_service_.UpdateGroup(group);
+  return group_service_.RemoveSigner(groupId, index);
 }
 
 GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId,
                                       const std::string& name, int m, int n,
                                       AddressType addressType) {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto group = group_service_.GetGroup(groupId);
-  group.set_name(name);
-  group.set_m(m);
-  group.set_n(n);
-  group.set_address_type(addressType);
-
-  std::vector<SingleSigner> signers = group.get_signers();
-  if (group.get_address_type() != addressType &&
-      (group.get_address_type() == AddressType::TAPROOT ||
-       addressType == AddressType::TAPROOT)) {
-    signers.clear();
-  }
-
-  signers.resize(n);
-  group.set_signers(signers);
-  return group_service_.UpdateGroup(group);
+  return group_service_.UpdateGroup(groupId, name, m, n, addressType);
 }
 
 GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {

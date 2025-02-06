@@ -53,6 +53,13 @@ class GroupService {
   GroupSandbox GetGroup(const std::string& groupId);
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
+  GroupSandbox SetOccupied(const std::string& groupId, int index, bool value);
+  GroupSandbox AddSigner(const std::string& groupId, const SingleSigner& signer,
+                         int index);
+  GroupSandbox RemoveSigner(const std::string& groupId, int index);
+  GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
+                           int m, int n, AddressType addressType);
+  GroupSandbox FinalizeGroup(const std::string& groupId);
   GroupSandbox UpdateGroup(const GroupSandbox& group);
   void DeleteGroup(const std::string& groupId);
   GroupWalletConfig GetWalletConfig(const std::string& walletId);
@@ -99,7 +106,6 @@ class GroupService {
   std::string Delete(const std::string& url,
                      const std::vector<unsigned char>& body = {});
 
-  GroupSandbox ParseGroupResponse(const std::string& resp);
   GroupSandbox ParseGroup(const nlohmann::json& group);
   std::string GroupToEvent(const GroupSandbox& group, const std::string& type);
   std::string MessageToEvent(const std::string& walletId,
