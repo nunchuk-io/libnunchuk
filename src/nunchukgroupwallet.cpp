@@ -71,9 +71,6 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
 
   auto groups = GetGroups();
   for (auto&& group : groups) {
-    if (group.need_broadcast() && group.get_m() > 0) {
-      group_service_.UpdateGroup(group);
-    }
     if (group.is_finalized()) {
       CreateGroupWallet(group);
     }
@@ -126,9 +123,6 @@ void NunchukImpl::StartConsumeGroupEvent() {
       group_online_listener_(groupId, count);
     } else if (type == "init") {
       auto g = group_service_.ParseGroupData(payload["group_id"], false, data);
-      if (g.need_broadcast() && g.get_m() > 0) {
-        group_service_.UpdateGroup(g);
-      }
       group_wallet_listener_(g);
     } else if (type == "finalize") {
       auto g = group_service_.ParseGroupData(payload["group_id"], true, data);
@@ -231,13 +225,13 @@ GroupSandbox NunchukImpl::AddSignerToGroup(const std::string& groupId,
                                            const SingleSigner& signer,
                                            int index) {
   ThrowIfNotEnable(group_wallet_enable_);
-  return group_service_.AddSigner(groupId, signer, index);
+  return group_service_.SetSigner(groupId, signer, index);
 }
 
 GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
                                                 int index) {
   ThrowIfNotEnable(group_wallet_enable_);
-  return group_service_.RemoveSigner(groupId, index);
+  return group_service_.SetSigner(groupId, {}, index);
 }
 
 GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId,
@@ -273,7 +267,7 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
   group.set_finalized(true);
   group.set_wallet_id(wallet.get_id());
   group.set_pubkey(group_service_.SetupKey(wallet));
-  auto rs = group_service_.UpdateGroup(group);
+  auto rs = group_service_.FinalizeGroup(group);
   auto walletIds = storage_->AddGroupWalletId(chain_, wallet.get_id());
   auto groupIds = storage_->RemoveGroupSandboxId(chain_, groupId);
   group_service_.Subscribe(groupIds, walletIds);

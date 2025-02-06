@@ -163,33 +163,7 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   rs.set_finalized(finalized);
   rs.set_state_id(info["stateId"]);
 
-  json config = nullptr;
-  std::vector<std::string> keys{};
-  for (auto& [key, value] : info["state"].items()) {
-    if (key == ephemeralPub_) {
-      if (!value.get<std::string>().empty()) {
-        config =
-            json::parse(Publicbox(ephemeralPub_, ephemeralPriv_).Open(value));
-      }
-    } else if (value.get<std::string>().empty()) {
-      rs.set_need_broadcast(true);
-    }
-    keys.push_back(key);
-  }
-  if (config == nullptr) {
-    rs.set_need_broadcast(false);
-    return rs;
-  }
-
-  std::vector<SingleSigner> signers{};
-  for (auto& item : config["signers"]) {
-    std::string desc = item;
-    if (desc == "[]") {  // placeholder
-      signers.push_back({});
-    } else {
-      signers.push_back(ParseSignerString(desc));
-    }
-  }
+  auto config = info["pubstate"];
   if (config["occupied"] != nullptr) {
     for (auto& item : config["occupied"]) {
       rs.add_occupied(item["i"], item["ts"], item["uid"]);
@@ -199,11 +173,41 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   rs.set_m(config["m"]);
   rs.set_n(config["n"]);
   rs.set_address_type(AddressType(config["addressType"]));
-  rs.set_signers(signers);
+
+  bool need_broadcast = false;
+  json state = nullptr;
+  std::vector<std::string> keys{};
+  for (auto& [key, value] : info["state"].items()) {
+    if (key == ephemeralPub_) {
+      if (!value.get<std::string>().empty()) {
+        state =
+            json::parse(Publicbox(ephemeralPub_, ephemeralPriv_).Open(value));
+      }
+    } else if (value.get<std::string>().empty()) {
+      need_broadcast = true;
+    }
+    keys.push_back(key);
+  }
   rs.set_ephemeral_keys(keys);
+
+  if (state == nullptr) return rs;
+
+  std::vector<SingleSigner> signers{};
+  for (auto& item : state["signers"]) {
+    std::string desc = item;
+    if (desc == "[]") {  // placeholder
+      signers.push_back({});
+    } else {
+      signers.push_back(ParseSignerString(desc));
+    }
+  }
+  rs.set_signers(signers);
+
   if (rs.is_finalized()) {
-    rs.set_pubkey(config["pubkey"]);
-    rs.set_wallet_id(config["walletId"]);
+    rs.set_pubkey(state["pubkey"]);
+    rs.set_wallet_id(state["walletId"]);
+  } else if (need_broadcast) {
+    // TODO: broadcast state
   }
   return rs;
 }
@@ -216,8 +220,7 @@ GroupSandbox GroupService::ParseGroup(const json& group) {
   return rs;
 }
 
-std::string GroupService::GroupToEvent(const GroupSandbox& group,
-                                       const std::string& type) {
+std::string GroupService::GroupToEvent(const GroupSandbox& group) {
   json signers = json::array();
   for (auto&& signer : group.get_signers()) {
     signers.push_back(signer.get_descriptor());
@@ -248,11 +251,11 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
       {"name", group.get_name()},
       {"occupied", occupied},
   };
+  json modified{};
   json data = {
-      {"version", VERSION},
-      {"stateId", group.get_state_id() + 1},
-      {"state", state},
-      {"pubstate", pubstate},
+      {"version", VERSION},   {"stateId", group.get_state_id() + 1},
+      {"state", state},       {"pubstate", pubstate},
+      {"modified", modified},
   };
   if (group.is_finalized()) {
     // we use pubkey as server wallet id
@@ -260,7 +263,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group,
   }
   json body = {
       {"group_id", group.get_id()},
-      {"type", type},
+      {"type", group.is_finalized() ? "init" : "finalize"},
       {"data", data},
   };
   return body.dump();
@@ -347,7 +350,7 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
 
 GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
                                        AddressType addressType) {
-  if (m <= 0 || n <= 0 || m > n) {
+  if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   std::string url = "/v1.1/shared-wallets/groups";
@@ -359,15 +362,13 @@ GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
   group.set_address_type(addressType);
   group.set_signers(signers);
   group.set_ephemeral_keys({ephemeralPub_});
-  std::string body = GroupToEvent(group, "init");
+  std::string body = GroupToEvent(group);
   std::string rs = Post(url, {body.begin(), body.end()});
   return ParseGroup(GetHttpResponseData(rs)["group"]);
 }
 
 GroupSandbox GroupService::GetGroup(const std::string& groupId) {
-  std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
-  std::string rs = Get(url);
-  return ParseGroup(GetHttpResponseData(rs)["group"]);
+  return ParseGroup(GetGroupJson(groupId));
 }
 
 std::vector<GroupSandbox> GroupService::GetGroups(
@@ -385,110 +386,79 @@ std::vector<GroupSandbox> GroupService::GetGroups(
 }
 
 GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
-  std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
-  json group = GetHttpResponseData(Get(url))["group"];
-  if (group["status"] == "ACTIVE") {
-    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         "Group finalized");
-  }
-  if (group["init"]["state"][ephemeralPub_] != nullptr) {
-    throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         "Already joined");
-  }
+  json group = CheckGroupJson(GetGroupJson(groupId), false, false);
   group["init"]["state"][ephemeralPub_] = "";
-  group["init"]["stateId"] = group["init"]["stateId"].get<int>() + 1;
-  json event = {
-      {"group_id", groupId},
-      {"type", "init"},
-      {"data", group["init"]},
-  };
-  std::string body = event.dump();
-  GetHttpResponseData(
-      Post("/v1.1/shared-wallets/groups/join", {body.begin(), body.end()}));
-  return ParseGroup(group);
+  return SendGroupEvent(groupId, group, true);
 }
 
 GroupSandbox GroupService::SetOccupied(const std::string& groupId, int index,
                                        bool value) {
-  auto group = GetGroup(groupId);
-  if (index >= group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
-  }
-  if (value) {
-    auto uid = GetDeviceInfo().second;
-    group.add_occupied(index, std::time(0), uid);
-  } else {
-    group.remove_occupied(index);
-  }
-  return UpdateGroup(group);
+  json group = CheckGroupJson(GetGroupJson(groupId), true, false, index);
+  group["init"]["pubstate"]["occupied"] =
+      UpdateOccupiedJson(group["init"]["pubstate"]["occupied"], value, index);
+  return SendGroupEvent(groupId, group);
 }
 
-GroupSandbox GroupService::AddSigner(const std::string& groupId,
+GroupSandbox GroupService::SetSigner(const std::string& groupId,
                                      const SingleSigner& signer, int index) {
-  auto group = GetGroup(groupId);
-  if (index >= group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
-  }
-  auto signers = group.get_signers();
-  auto desc = signer.get_descriptor();
-  for (auto&& s : signers) {
-    if (s.get_descriptor() == desc) {
-      throw GroupException(GroupException::SIGNER_EXISTS, "Signer exists");
+  json group = CheckGroupJson(GetGroupJson(groupId), true, false, index);
+  std::string ciphertext = group["init"]["state"][ephemeralPub_];
+  if (!ciphertext.empty()) {
+    json state =
+        json::parse(Publicbox(ephemeralPub_, ephemeralPriv_).Open(ciphertext));
+    json plaintext = {
+        {"signers", UpdateSignersJson(state["signers"], signer, index)}};
+    for (auto& [key, value] : group["init"]["state"].items()) {
+      group["init"]["state"][key] =
+          Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
     }
+  } else {
   }
-  signers[index] = signer;
-  signers.resize(group.get_n());
-  group.set_signers(signers);
-  group.remove_occupied(index);
-  return UpdateGroup(group);
-}
-
-GroupSandbox GroupService::RemoveSigner(const std::string& groupId, int index) {
-  auto group = GetGroup(groupId);
-  if (index >= group.get_n()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
-  }
-  auto signers = group.get_signers();
-  signers[index] = SingleSigner{};
-  signers.resize(group.get_n());
-  group.set_signers(signers);
-  group.remove_occupied(index);
-  return UpdateGroup(group);
+  return SendGroupEvent(groupId, group);
 }
 
 GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
                                        const std::string& name, int m, int n,
                                        AddressType addressType) {
-  auto group = GetGroup(groupId);
-
-  std::vector<SingleSigner> signers = group.get_signers();
-  if (group.get_address_type() != addressType &&
-      (group.get_address_type() == AddressType::TAPROOT ||
-       addressType == AddressType::TAPROOT)) {
-    signers.clear();
+  if (m <= 0 || n <= 1 || m > n) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
-  signers.resize(n);
+  json group = CheckGroupJson(GetGroupJson(groupId), true, false);
 
-  group.set_name(name);
-  group.set_m(m);
-  group.set_n(n);
-  group.set_address_type(addressType);
-  group.set_signers(signers);
-  return UpdateGroup(group);
+  auto curAt = AddressType(group["init"]["pubstate"]["addressType"]);
+  if (curAt != addressType &&
+      (curAt == AddressType::TAPROOT || addressType == AddressType::TAPROOT)) {
+    json signers = json::array();
+    for (int i = 0; i < n; i++) {
+      signers.push_back("[]");
+    }
+    json plaintext = {{"signers", signers}};
+    for (auto& [key, value] : group["init"]["state"].items()) {
+      group["init"]["state"][key] =
+          Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
+    }
+  }
+
+  group["init"]["pubstate"]["m"] = m;
+  group["init"]["pubstate"]["n"] = n;
+  group["init"]["pubstate"]["addressType"] = addressType;
+  group["init"]["pubstate"]["name"] = name;
+  return SendGroupEvent(groupId, group);
 }
 
-GroupSandbox GroupService::FinalizeGroup(const std::string& groupId) {}
-
-GroupSandbox GroupService::UpdateGroup(const GroupSandbox& group) {
-  if (group.get_m() <= 0 || group.get_n() <= 0 ||
+GroupSandbox GroupService::FinalizeGroup(const GroupSandbox& group) {
+  if (group.get_m() <= 0 || group.get_n() <= 1 ||
       group.get_m() > group.get_n()) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
-  if (group.is_finalized() && group.get_signers().size() != group.get_n()) {
+  if (group.get_signers().size() != group.get_n()) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid signers");
   }
+  if (!group.is_finalized()) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid state");
+  }
   std::string url = "/v1.1/shared-wallets/events/send";
-  auto body = GroupToEvent(group, group.is_finalized() ? "finalize" : "init");
+  auto body = GroupToEvent(group);
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   return group;
 }
@@ -809,6 +779,85 @@ std::string GroupService::SetupKey(const Wallet& wallet) {
   auto gid = walletSigner_.at(wallet.get_id())->GetAddressAtPath(KEYPAIR_PATH);
   walletGid2Id_[gid] = wallet.get_id();
   return gid;
+}
+
+json GroupService::GetGroupJson(const std::string& groupId) {
+  std::string url = std::string("/v1.1/shared-wallets/groups/") + groupId;
+  return GetHttpResponseData(Get(url))["group"];
+}
+
+json GroupService::CheckGroupJson(const json& group, bool joined,
+                                  bool finalized, int index) {
+  if (joined && group["init"]["state"][ephemeralPub_] == nullptr) {
+    throw GroupException(GroupException::GROUP_NOT_JOINED, "Not joined group");
+  } else if (!joined && group["init"]["state"][ephemeralPub_] != nullptr) {
+    throw GroupException(GroupException::GROUP_JOINED, "Already joined");
+  }
+  if (finalized && group["status"] == "ACTIVE") {
+    throw GroupException(GroupException::SANDBOX_FINALIZED, "Group finalized");
+  }
+  int n = group["init"]["pubstate"]["n"];
+  if (index >= n) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
+  }
+  return group;
+}
+
+json GroupService::UpdateSignersJson(const json& jsigners, SingleSigner signer,
+                                     int index) {
+  std::vector<SingleSigner> signers{};
+  auto newdesc = signer.get_descriptor();
+  for (auto& item : jsigners) {
+    std::string desc = item;
+    if (desc == "[]") {  // placeholder
+      signers.push_back({});
+    } else {
+      if (desc == newdesc) {
+        throw GroupException(GroupException::SIGNER_EXISTS, "Signer exists");
+      }
+      signers.push_back(ParseSignerString(desc));
+    }
+  }
+  signers[index] = signer;
+  json rs = json::array();
+  for (auto&& signer : signers) {
+    rs.push_back(signer.get_descriptor());
+  }
+  return rs;
+}
+
+json GroupService::UpdateOccupiedJson(const json& joccupied, bool value,
+                                      int index) {
+  std::map<int, std::pair<time_t, std::string>> occupied{};
+  for (auto& item : joccupied) {
+    occupied[item["i"]] = {item["ts"], item["uid"]};
+  }
+  if (value) {
+    auto uid = GetDeviceInfo().second;
+    occupied[index] = {std::time(0), uid};
+  } else {
+    occupied.erase(index);
+  }
+  json rs = json::array();
+  for (auto&& [i, v] : occupied) {
+    rs.push_back({{"i", i}, {"ts", v.first}, {"uid", v.second}});
+  }
+  return rs;
+}
+
+GroupSandbox GroupService::SendGroupEvent(const std::string& groupId,
+                                          json& group, bool join) {
+  group["init"]["stateId"] = group["init"]["stateId"].get<int>() + 1;
+  json event = {
+      {"group_id", groupId},
+      {"type", "init"},
+      {"data", group["init"]},
+  };
+  std::string url = join ? "/v1.1/shared-wallets/groups/join"
+                         : "/v1.1/shared-wallets/events/send";
+  std::string body = event.dump();
+  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+  return ParseGroup(group);
 }
 
 }  // namespace nunchuk

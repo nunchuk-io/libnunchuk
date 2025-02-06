@@ -37,7 +37,6 @@ int GroupSandbox::get_state_id() const { return state_id_; }
 const std::vector<std::string>& GroupSandbox::get_ephemeral_keys() const {
   return keys_;
 }
-bool GroupSandbox::need_broadcast() const { return need_broadcast_; }
 std::string GroupSandbox::get_wallet_id() const { return wallet_id_; }
 std::string GroupSandbox::get_pubkey() const { return pubkey_; }
 const std::map<int, std::pair<time_t, std::string>>&
@@ -60,7 +59,6 @@ void GroupSandbox::set_ephemeral_keys(std::vector<std::string> keys) {
   keys_ = std::move(keys);
 }
 void GroupSandbox::set_state_id(int value) { state_id_ = value; }
-void GroupSandbox::set_need_broadcast(bool value) { need_broadcast_ = value; }
 void GroupSandbox::set_wallet_id(const std::string& value) {
   wallet_id_ = value;
 }

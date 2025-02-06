@@ -54,13 +54,11 @@ class GroupService {
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
   GroupSandbox JoinGroup(const std::string& groupId);
   GroupSandbox SetOccupied(const std::string& groupId, int index, bool value);
-  GroupSandbox AddSigner(const std::string& groupId, const SingleSigner& signer,
+  GroupSandbox SetSigner(const std::string& groupId, const SingleSigner& signer,
                          int index);
-  GroupSandbox RemoveSigner(const std::string& groupId, int index);
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType);
-  GroupSandbox FinalizeGroup(const std::string& groupId);
-  GroupSandbox UpdateGroup(const GroupSandbox& group);
+  GroupSandbox FinalizeGroup(const GroupSandbox& group);
   void DeleteGroup(const std::string& groupId);
   GroupWalletConfig GetWalletConfig(const std::string& walletId);
   void SetWalletConfig(const std::string& walletId,
@@ -107,7 +105,7 @@ class GroupService {
                      const std::vector<unsigned char>& body = {});
 
   GroupSandbox ParseGroup(const nlohmann::json& group);
-  std::string GroupToEvent(const GroupSandbox& group, const std::string& type);
+  std::string GroupToEvent(const GroupSandbox& group);
   std::string MessageToEvent(const std::string& walletId,
                              const std::string& content,
                              const std::string& signer,
@@ -115,6 +113,14 @@ class GroupService {
   std::string TransactionToEvent(const std::string& walletId,
                                  const std::string& txId,
                                  const std::string& psbt);
+
+  json GetGroupJson(const std::string& groupId);
+  json CheckGroupJson(const json& group, bool joined, bool finalized,
+                      int index = -1);
+  json UpdateSignersJson(const json& signers, SingleSigner signer, int index);
+  json UpdateOccupiedJson(const json& occupied, bool value, int index);
+  GroupSandbox SendGroupEvent(const std::string& groupId, json& group,
+                              bool join = false);
 
   bool stop_{false};
   std::string baseUrl_;

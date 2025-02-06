@@ -95,7 +95,7 @@ enum class TransactionStatus {
   REPLACED,
   CONFIRMED,
   PENDING_NONCE,  // Musig wallet only
-  DELETED, // Group wallet only
+  DELETED,        // Group wallet only
 };
 
 enum class CoinStatus {
@@ -329,6 +329,8 @@ class NUNCHUK_EXPORT GroupException : public BaseException {
   static const int GROUP_NOT_FOUND = -7008;
   static const int VERSION_MISMATCH = -7009;
   static const int SANDBOX_FINALIZED = -7010;
+  static const int GROUP_NOT_JOINED = -7011;
+  static const int GROUP_JOINED = -7012;
   using BaseException::BaseException;
 };
 
@@ -625,7 +627,6 @@ class NUNCHUK_EXPORT GroupSandbox {
   bool is_finalized() const;
   const std::vector<std::string>& get_ephemeral_keys() const;
   int get_state_id() const;
-  bool need_broadcast() const;
   std::string get_wallet_id() const;
   std::string get_pubkey() const;
   const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
@@ -639,7 +640,6 @@ class NUNCHUK_EXPORT GroupSandbox {
   void set_finalized(bool value);
   void set_ephemeral_keys(std::vector<std::string> keys);
   void set_state_id(int id);
-  void set_need_broadcast(bool value);
   void set_wallet_id(const std::string& value);
   void set_pubkey(const std::string& value);
   void add_occupied(int index, time_t ts, const std::string& uid);
@@ -656,7 +656,6 @@ class NUNCHUK_EXPORT GroupSandbox {
   bool finalized_{false};
   std::vector<std::string> keys_;
   int state_id_{0};
-  bool need_broadcast_{false};
   std::string wallet_id_{};
   std::string pubkey_{};
   std::map<int, std::pair<time_t, std::string>> occupied_{};
