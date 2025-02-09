@@ -453,7 +453,7 @@ std::vector<GroupSandbox> GroupService::GetGroups(
 GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
   json group = CheckGroupJson(GetGroupJson(groupId), false, false);
   group["init"]["state"][ephemeralPub_] = "";
-  return SendGroupEvent(groupId, group);
+  return SendGroupEvent(groupId, group, true);
 }
 
 GroupSandbox GroupService::SetOccupied(const std::string& groupId, int index,
