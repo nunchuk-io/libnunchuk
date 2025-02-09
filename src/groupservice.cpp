@@ -328,7 +328,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group) {
   }
   json body = {
       {"group_id", group.get_id()},
-      {"type", group.is_finalized() ? "init" : "finalize"},
+      {"type", group.is_finalized() ? "finalize" : "init"},
       {"data", data},
   };
   return body.dump();
