@@ -485,7 +485,8 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
     }
     group["init"]["modified"] = json::object();
 
-    json plaintext = {{"signers", UpdateSignersJson(signers, signer, index)}};
+    json plaintext = {
+        {"signers", UpdateSignersJson(signers, signer, index, n)}};
     for (auto& [key, value] : group["init"]["state"].items()) {
       group["init"]["state"][key] =
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
@@ -502,7 +503,8 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
                           ? group["init"]["modified"][ephemeralPub_]
                           : json::object();
     json signers = GetModifiedSigners(mymodified, n);
-    json plaintext = {{"signers", UpdateSignersJson(signers, signer, index)}};
+    json plaintext = {
+        {"signers", UpdateSignersJson(signers, signer, index, n)}};
     json modified{};
     for (auto& [key, value] : group["init"]["state"].items()) {
       modified[key] =
@@ -524,6 +526,9 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
   json group = CheckGroupJson(GetGroupJson(groupId), true, false);
 
   auto curAt = AddressType(group["init"]["pubstate"]["addressType"]);
+  int curN = group["init"]["pubstate"]["n"];
+  std::string ciphertext = group["init"]["state"][ephemeralPub_];
+
   if (curAt != addressType &&
       (curAt == AddressType::TAPROOT || addressType == AddressType::TAPROOT)) {
     json signers = json::array();
@@ -537,6 +542,52 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
     }
     group["init"]["modified"] = json::object();
     group["init"]["pubstate"]["added"] = json::array();
+  } else if (!ciphertext.empty()) {
+    json signers = json::parse(
+        Publicbox(ephemeralPub_, ephemeralPriv_).Open(ciphertext))["signers"];
+
+    // merge modified signers
+    for (auto& [key, value] : group["init"]["modified"].items()) {
+      json msigners = GetModifiedSigners(value, n);
+      for (int i = 0; i < curN; i++) {
+        if (signers[i].get<std::string>() == "[]" &&
+            msigners[i].get<std::string>() != "[]") {
+          signers[i] = msigners[i];
+        }
+      }
+    }
+    group["init"]["modified"] = json::object();
+
+    // update signers size to n
+    json plaintext = {{"signers", UpdateSignersJson(signers, {}, -1, n)}};
+    for (auto& [key, value] : group["init"]["state"].items()) {
+      group["init"]["state"][key] =
+          Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
+    }
+
+    group["init"]["pubstate"]["added"] = json::array();
+    for (int i = 0; i < n; i++) {
+      if (plaintext["signers"][i].get<std::string>() != "[]") {
+        group["init"]["pubstate"]["added"].push_back(i);
+      }
+    }
+  } else {
+    json mymodified = group["init"]["modified"].contains(ephemeralPub_)
+                          ? group["init"]["modified"][ephemeralPub_]
+                          : json::object();
+    json signers = GetModifiedSigners(mymodified, n);
+    json plaintext = {{"signers", UpdateSignersJson(signers, {}, -1, n)}};
+    for (auto& [key, value] : group["init"]["state"].items()) {
+      group["init"]["state"][key] =
+          Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
+    }
+    group["init"]["modified"] = json::object();
+    group["init"]["pubstate"]["added"] = json::array();
+    for (int i = 0; i < n; i++) {
+      if (plaintext["signers"][i].get<std::string>() != "[]") {
+        group["init"]["pubstate"]["added"].push_back(i);
+      }
+    }
   }
 
   group["init"]["pubstate"]["m"] = m;
@@ -904,7 +955,7 @@ json GroupService::CheckGroupJson(const json& group, bool joined,
 }
 
 json GroupService::UpdateSignersJson(const json& jsigners, SingleSigner signer,
-                                     int index) {
+                                     int index, int n) {
   std::vector<SingleSigner> signers{};
   auto newdesc = signer.get_descriptor();
   for (auto& item : jsigners) {
@@ -918,7 +969,8 @@ json GroupService::UpdateSignersJson(const json& jsigners, SingleSigner signer,
       signers.push_back(ParseSignerString(desc));
     }
   }
-  signers[index] = signer;
+  if (index >= 0) signers[index] = signer;
+  signers.resize(n);
   json rs = json::array();
   for (auto&& signer : signers) {
     rs.push_back(signer.get_descriptor());
