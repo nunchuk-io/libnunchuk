@@ -23,6 +23,7 @@
 #include <string>
 #include <utils/json.hpp>
 #include <softwaresigner.h>
+#include <atomic>
 
 namespace nunchuk {
 
@@ -124,7 +125,7 @@ class GroupService {
   GroupSandbox SendGroupEvent(const std::string& groupId, json& group,
                               bool join = false);
 
-  bool stop_{false};
+  std::atomic<bool> stop_{false};
   std::string baseUrl_;
   std::string deviceToken_;
   std::string uid_;
