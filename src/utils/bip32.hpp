@@ -43,7 +43,8 @@ static const int TOTAL_CACHE_NUMBER =
     SINGLESIG_BIP44_CACHE_NUMBER + SINGLESIG_BIP49_CACHE_NUMBER +
     SINGLESIG_BIP84_CACHE_NUMBER + SINGLESIG_BIP86_CACHE_NUMBER +
     MULTISIG_BIP45_CACHE_NUMBER + MULTISIG_BIP48_1_CACHE_NUMBER +
-    MULTISIG_BIP48_2_CACHE_NUMBER + MUSIG_BIP87_CACHE_NUMBER + ESCROW_CACHE_NUMBER;
+    MULTISIG_BIP48_2_CACHE_NUMBER + MUSIG_BIP87_CACHE_NUMBER +
+    ESCROW_CACHE_NUMBER;
 
 static const std::string TESTNET_HEALTH_CHECK_PATH = "m/45'/1'/0'/1/0";
 static const std::string MAINNET_HEALTH_CHECK_PATH = "m/45'/0'/0'/1/0";
@@ -98,8 +99,7 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
                             index);
         case AddressType::TAPROOT:
           // Taproot Musig BIP87 Wallets: m/87h/ch/zh
-          return boost::str(boost::format{"m/87h/%dh/%dh"} % coin_type %
-                            index);
+          return boost::str(boost::format{"m/87h/%dh/%dh"} % coin_type % index);
         default:
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
                                  "Invalid address type");
@@ -177,6 +177,7 @@ inline int GetIndexFromPath(const nunchuk::WalletType& wallet_type,
                             const std::string& path) {
   if (wallet_type == nunchuk::WalletType::MULTI_SIG) {
     if (address_type == nunchuk::AddressType::LEGACY) return 0;
+    if (path.size() <= 9) return 0;
     return std::stoi(path.substr(9, path.size() - 3));
   }
   std::size_t last = path.find_last_of("/");
@@ -187,6 +188,7 @@ inline int GetIndexFromPath(const std::string& path) {
   auto bip32type = GetBip32Type(path);
   if ("bip45" == bip32type || "custom" == bip32type) return -1;
   if ("bip48_1" == bip32type || "bip48_2" == bip32type) {
+    if (path.size() <= 9) return 0;
     return std::stoi(path.substr(9, path.size() - 3));
   }
   std::size_t last = path.find_last_of("/");
