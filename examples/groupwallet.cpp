@@ -397,6 +397,13 @@ void getsandbox() {
   printGroup(group);
 }
 
+void parseurl() {
+  auto group_url = input_string("Enter group url");
+  auto group = nu.get()->ParseGroupUrl(group_url);
+  std::cout << "Group ID: " << group.first << std::endl;
+  std::cout << "Redirect url: " << group.second << std::endl;
+}
+
 void joinsandbox() {
   auto group_id = input_string("Enter group id");
   auto group = nu.get()->JoinGroup(group_id);
@@ -531,12 +538,13 @@ void init() {
   auto account = input_string("Enter account name");
 
   AppSettings settings;
-  settings.set_chain(Chain::TESTNET);
+  settings.set_chain(Chain::MAIN);
   settings.set_hwi_path("lib/bin/hwi");
   settings.enable_proxy(false);
   settings.set_testnet_servers({"testnet.nunchuk.io:50001"});
+  settings.set_mainnet_servers({"mainnet.nunchuk.io:51001"});
   settings.set_storage_path("/home/bringer/libnunchuk/examples/playground.cpp");
-  settings.set_group_server("https://api-testnet.nunchuk.io");
+  settings.set_group_server("https://api.nunchuk.io");
   nu = MakeNunchukForAccount(settings, {}, account);
   nu->EnableGroupWallet("ubuntu", "22.04", "1.0.0", "desktop", account, {});
 }
@@ -566,6 +574,7 @@ void interactive() {
 
       {newsandbox, "newsandbox", "create new group sandbox"},
       {listsandboxs, "listsandboxs", "list group sandboxs"},
+      {parseurl, "parseurl", "parse group sandbox url"},
       {getsandbox, "getsandbox", "get group sandbox detail"},
       {joinsandbox, "joinsandbox", "join group sandbox"},
       {addkeytosandbox, "addkeytosandbox", "add key to group sandbox"},
