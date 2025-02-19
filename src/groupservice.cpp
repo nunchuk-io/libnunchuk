@@ -17,10 +17,11 @@
 
 #include "groupservice.h"
 #include <chrono>
+#include <memory>
+#include <mutex>
 #include <thread>
+#include <csignal>
 
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include <utils/httplib.h>
 #include <utils/json.hpp>
 #include <utils/secretbox.h>
 #include <utils/stringutils.hpp>
@@ -28,6 +29,14 @@
 #include <descriptor.h>
 #include <boost/algorithm/string.hpp>
 #include <coreutils.h>
+
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+
+#ifdef MSG_NOSIGNAL
+#define CPPHTTPLIB_SEND_FLAGS MSG_NOSIGNAL
+#endif
+
+#include "utils/httplib.h"
 
 using json = nlohmann::json;
 
@@ -68,7 +77,7 @@ GroupService::GroupService(const std::string& baseUrl,
       deviceToken_(deviceToken),
       uid_(uid) {}
 
-GroupService::~GroupService() { stop_ = true; }
+GroupService::~GroupService() { StopListenEvents(); }
 
 void GroupService::SetEphemeralKey(const std::string& pub,
                                    const std::string priv) {
@@ -698,15 +707,22 @@ std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
   return rs;
 }
 
+void ignore_sigpipe() {
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));  // Zero out the struct
+  sa.sa_handler = SIG_IGN;     // Ignore SIGPIPE
+  sigaction(SIGPIPE, &sa, nullptr);
+}
+
 void GroupService::StartListenEvents(
     std::function<bool(const std::string&)> callback) {
-  std::string auth = (std::string("Bearer ") + accessToken_);
-  httplib::Headers headers = {{"Device-Token", deviceToken_},
-                              {"Authorization", auth},
-                              {"Accept", "text/event-stream"}};
-  httplib::Client client(baseUrl_.c_str());
-  client.enable_server_certificate_verification(false);
-  client.set_read_timeout(std::chrono::hours(24));
+  // `httplib::Client::stop()` may cause SIGPIPE; ignore it here.
+  static std::once_flag ignore_sigpipe_flag;
+  std::call_once(ignore_sigpipe_flag, [] { ignore_sigpipe(); });
+
+  if (!stop_) {
+    StopListenEvents();
+  }
 
   auto handle_event = [&](std::string_view event_data) {
     size_t data_pos = event_data.find("data:");
@@ -725,27 +741,49 @@ void GroupService::StartListenEvents(
     }
   };
 
-  stop_ = false;
-  while (!stop_) {
-    std::string buffer;
-    client.Get("/v1.1/shared-wallets/events/sse", headers,
-               [&](const char* data, size_t data_length) {
-                 buffer.append(data, data_length);
-                 size_t pos;
-                 while ((pos = buffer.find("\n\n")) != std::string::npos) {
-                   std::string_view event_data =
-                       std::string_view(buffer).substr(0, pos);
-                   handle_event(event_data);
-                   buffer.erase(0, pos + 2);
-                 }
-                 return !stop_;
-               });
-    if (stop_) break;
-    std::this_thread::sleep_for(std::chrono::seconds(3));
-  }
+  sse_thread_ = std::make_unique<std::thread>([&] {
+    std::string auth = (std::string("Bearer ") + accessToken_);
+    httplib::Headers headers = {{"Device-Token", deviceToken_},
+                                {"Authorization", auth},
+                                {"Accept", "text/event-stream"}};
+    sse_client_ = std::make_unique<httplib::Client>(baseUrl_.c_str());
+    sse_client_->enable_server_certificate_verification(false);
+    sse_client_->set_read_timeout(std::chrono::hours(24));
+    stop_ = false;
+    while (!stop_) {
+      std::string buffer;
+      sse_client_->Get(
+          "/v1.1/shared-wallets/events/sse", headers,
+          [&](const char* data, size_t data_length) {
+            buffer.append(data, data_length);
+            size_t pos;
+            while ((pos = buffer.find("\n\n")) != std::string::npos) {
+              std::string_view event_data =
+                  std::string_view(buffer).substr(0, pos);
+              handle_event(event_data);
+              buffer.erase(0, pos + 2);
+            }
+            return !stop_;
+          });
+      if (stop_) break;
+      std::this_thread::sleep_for(std::chrono::seconds(3));
+    }
+  });
 }
 
-void GroupService::StopListenEvents() { stop_ = true; }
+void GroupService::StopListenEvents() {
+  stop_ = true;
+  if (sse_client_) {
+    sse_client_->stop();
+  }
+  if (sse_thread_) {
+    sse_thread_->join();
+    sse_thread_.reset();
+  }
+  if (sse_client_) {
+    sse_client_.reset();
+  }
+}
 
 void GroupService::Subscribe(const std::vector<std::string>& groupIds,
                              const std::vector<std::string>& walletIds) {

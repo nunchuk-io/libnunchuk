@@ -19,11 +19,16 @@
 #define NUNCHUK_GROUPSERVICE_H
 
 #include <nunchuk.h>
+#include <thread>
 #include <vector>
 #include <string>
 #include <utils/json.hpp>
 #include <softwaresigner.h>
 #include <atomic>
+
+namespace httplib {
+class Client;
+}
 
 namespace nunchuk {
 
@@ -134,6 +139,8 @@ class GroupService {
   std::string accessToken_;
   std::map<std::string, std::shared_ptr<SoftwareSigner>> walletSigner_{};
   std::map<std::string, std::string> walletGid2Id_{};
+  std::unique_ptr<httplib::Client> sse_client_{};
+  std::unique_ptr<std::thread> sse_thread_{};
 };
 
 }  // namespace nunchuk
