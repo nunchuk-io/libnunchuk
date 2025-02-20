@@ -724,7 +724,8 @@ void GroupService::StartListenEvents(
     StopListenEvents();
   }
 
-  auto handle_event = [&](std::string_view event_data) {
+  auto handle_event = [callback =
+                           std::move(callback)](std::string_view event_data) {
     size_t data_pos = event_data.find("data:");
     if (data_pos == std::string::npos) return;
     size_t data_start = data_pos + 5;
@@ -741,34 +742,35 @@ void GroupService::StartListenEvents(
     }
   };
 
-  sse_thread_ = std::make_unique<std::thread>([&] {
-    std::string auth = (std::string("Bearer ") + accessToken_);
-    httplib::Headers headers = {{"Device-Token", deviceToken_},
-                                {"Authorization", auth},
-                                {"Accept", "text/event-stream"}};
-    sse_client_ = std::make_unique<httplib::Client>(baseUrl_.c_str());
-    sse_client_->enable_server_certificate_verification(false);
-    sse_client_->set_read_timeout(std::chrono::hours(24));
-    stop_ = false;
-    while (!stop_) {
-      std::string buffer;
-      sse_client_->Get(
-          "/v1.1/shared-wallets/events/sse", headers,
-          [&](const char* data, size_t data_length) {
-            buffer.append(data, data_length);
-            size_t pos;
-            while ((pos = buffer.find("\n\n")) != std::string::npos) {
-              std::string_view event_data =
-                  std::string_view(buffer).substr(0, pos);
-              handle_event(event_data);
-              buffer.erase(0, pos + 2);
-            }
-            return !stop_;
-          });
-      if (stop_) break;
-      std::this_thread::sleep_for(std::chrono::seconds(3));
-    }
-  });
+  sse_thread_ = std::make_unique<std::thread>(
+      [&, handle_event = std::move(handle_event)] {
+        std::string auth = (std::string("Bearer ") + accessToken_);
+        httplib::Headers headers = {{"Device-Token", deviceToken_},
+                                    {"Authorization", auth},
+                                    {"Accept", "text/event-stream"}};
+        sse_client_ = std::make_unique<httplib::Client>(baseUrl_.c_str());
+        sse_client_->enable_server_certificate_verification(false);
+        sse_client_->set_read_timeout(std::chrono::hours(24));
+        stop_ = false;
+        while (!stop_) {
+          std::string buffer;
+          sse_client_->Get(
+              "/v1.1/shared-wallets/events/sse", headers,
+              [&](const char* data, size_t data_length) {
+                buffer.append(data, data_length);
+                size_t pos;
+                while ((pos = buffer.find("\n\n")) != std::string::npos) {
+                  std::string_view event_data =
+                      std::string_view(buffer).substr(0, pos);
+                  handle_event(event_data);
+                  buffer.erase(0, pos + 2);
+                }
+                return !stop_;
+              });
+          if (stop_) break;
+          std::this_thread::sleep_for(std::chrono::seconds(3));
+        }
+      });
 }
 
 void GroupService::StopListenEvents() {
