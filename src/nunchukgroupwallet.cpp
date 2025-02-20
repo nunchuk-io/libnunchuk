@@ -249,7 +249,8 @@ GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId,
   return group_service_.UpdateGroup(groupId, name, m, n, addressType);
 }
 
-GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
+GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId,
+                                        const std::set<size_t>& valueKeyset) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
   if (group.get_m() <= 0 || group.get_n() <= 1 ||
@@ -260,14 +261,28 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId) {
     CreateGroupWallet(group);
     throw GroupException(GroupException::SANDBOX_FINALIZED, "Group finalized");
   }
-  auto signers = group.get_signers();
-  signers.resize(group.get_n());
-  for (auto&& signer : signers) {
+  if (group.get_address_type() == AddressType::TAPROOT &&
+      valueKeyset.size() != group.get_m()) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid keyset");
+  }
+  std::vector<SingleSigner> signers{};
+  for (auto&& index : valueKeyset) {
+    if (index >= group.get_signers().size()) {
+      throw GroupException(GroupException::INVALID_PARAMETER, "Invalid index");
+    }
+    signers.push_back(group.get_signers()[index]);
+  }
+  for (int index = 0; index < group.get_signers().size(); index++) {
+    auto signer = group.get_signers()[index];
     if (signer.get_master_fingerprint().empty()) {
       throw GroupException(GroupException::INVALID_PARAMETER,
                            "Invalid signers");
     }
+    if (valueKeyset.find(index) == valueKeyset.end()) {
+      signers.push_back(signer);
+    }
   }
+  signers.resize(group.get_n());
   auto wallet =
       CreateWallet(group.get_name(), group.get_m(), group.get_n(), signers,
                    group.get_address_type(), false, {}, true, {});

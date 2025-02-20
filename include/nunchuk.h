@@ -1594,7 +1594,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupSandbox UpdateGroup(const std::string& groupId,
                                    const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
-  virtual GroupSandbox FinalizeGroup(const std::string& groupId) = 0;
+  virtual GroupSandbox FinalizeGroup(
+      const std::string& groupId, const std::set<size_t>& valueKeyset = {}) = 0;
   virtual void DeleteGroup(const std::string& groupId) = 0;
   virtual std::vector<Wallet> GetGroupWallets() = 0;
   virtual GroupWalletConfig GetGroupWalletConfig(

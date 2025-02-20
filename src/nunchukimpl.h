@@ -588,7 +588,8 @@ class NunchukImpl : public Nunchuk {
                                      int index) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType) override;
-  GroupSandbox FinalizeGroup(const std::string& groupId) override;
+  GroupSandbox FinalizeGroup(const std::string& groupId,
+                             const std::set<size_t>& valueKeyset = {}) override;
   void DeleteGroup(const std::string& groupId) override;
   std::vector<Wallet> GetGroupWallets() override;
   GroupWalletConfig GetGroupWalletConfig(const std::string& walletId) override;
