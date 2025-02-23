@@ -416,7 +416,10 @@ void NunchukImpl::SendGroupMessage(const std::string& walletId,
                                    const std::string& msg,
                                    const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
-  std::string signature = {};  // TODO: sign the msg with signature
+  if (!storage_->HasSigner(chain_, signer)) {
+    throw GroupException(GroupException::SIGNER_NOT_FOUND, "Signer not found");
+  }
+  std::string signature = {};  // TODO: sign the message
   group_service_.SendChatMessage(walletId, msg, signer.get_master_fingerprint(),
                                  signature);
 }
