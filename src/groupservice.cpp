@@ -284,6 +284,10 @@ GroupSandbox GroupService::ParseGroup(const json& group) {
   auto rs = ParseGroupData(group["id"], finalized,
                            finalized ? group["finalize"] : group["init"]);
   rs.set_url(group["url"]);
+  if (group.contains("replace_wallet_id") &&
+      group["replace_wallet_id"] != nullptr) {
+    rs.set_replace_wallet_id(walletGid2Id_[group["replace_wallet_id"]]);
+  }
   return rs;
 }
 
@@ -441,6 +445,48 @@ GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
   return ParseGroup(GetHttpResponseData(rs)["group"]);
 }
 
+GroupSandbox GroupService::CreateReplaceGroup(
+    const std::string& name, int m, int n, AddressType addressType,
+    const std::vector<SingleSigner>& signers, const std::string& walletId) {
+  if (m <= 0 || n <= 1 || m > n) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
+  }
+
+  HasWallet(walletId, true);
+  auto walletSigner = walletSigner_.at(walletId);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url =
+      std::string("/v1.1/shared-wallets/wallets/") + walletGid + "/replace";
+
+  GroupSandbox group("");
+  group.set_name(name);
+  group.set_m(m);
+  group.set_n(n);
+  group.set_address_type(addressType);
+  group.set_signers(signers);
+  group.set_ephemeral_keys({ephemeralPub_});
+  std::string body = GroupToEvent(group);
+  std::string rs = Post(url, {body.begin(), body.end()});
+  return ParseGroup(GetHttpResponseData(rs)["group"]);
+}
+
+std::map<std::string, std::string> GroupService::GetReplaceStatus(
+    const std::string& walletId) {
+  HasWallet(walletId, true);
+  auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid;
+  auto wallet = GetHttpResponseData(Get(url))["wallet"];
+  std::map<std::string, std::string> rs{};
+  if (!wallet.contains("replace_statuses") ||
+      wallet["replace_statuses"] == nullptr) {
+    return rs;
+  }
+  for (auto&& item : wallet["replace_statuses"]) {
+    rs[item["group_id"]] = item["uid"];
+  }
+  return rs;
+}
+
 GroupSandbox GroupService::GetGroup(const std::string& groupId) {
   return ParseGroup(GetGroupJson(groupId));
 }
@@ -459,9 +505,24 @@ std::vector<GroupSandbox> GroupService::GetGroups(
   return rs;
 }
 
-GroupSandbox GroupService::JoinGroup(const std::string& groupId) {
+GroupSandbox GroupService::JoinGroup(const std::string& groupId,
+                                     const std::vector<SingleSigner>& signers) {
   json group = CheckGroupJson(GetGroupJson(groupId), false, false);
   group["init"]["state"][ephemeralPub_] = "";
+  if (!signers.empty()) {
+    int n = group["init"]["pubstate"]["n"];
+    json jsigners = json::array();
+    for (int i = 0; i < n && i < signers.size(); i++) {
+      jsigners.push_back(signers[i].get_descriptor());
+    }
+    json plaintext = {{"signers", jsigners}};
+    json modified{};
+    for (auto& [key, value] : group["init"]["state"].items()) {
+      modified[key] =
+          Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
+    }
+    group["init"]["modified"][ephemeralPub_] = modified;
+  }
   return SendGroupEvent(groupId, group, true);
 }
 
@@ -632,9 +693,9 @@ GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {
   HasWallet(walletId, true);
   auto walletGid = walletSigner_.at(walletId)->GetAddressAtPath(KEYPAIR_PATH);
   std::string url = "/v1.1/shared-wallets/wallets/" + walletGid;
-  auto data = GetHttpResponseData(Get(url));
+  auto wallet = GetHttpResponseData(Get(url))["wallet"];
   GroupWalletConfig rs{};
-  rs.set_chat_retention_days(data["wallet"]["chat_retention_days"]);
+  rs.set_chat_retention_days(wallet["chat_retention_days"]);
   return rs;
 }
 

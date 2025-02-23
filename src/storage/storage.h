@@ -330,6 +330,10 @@ class NunchukStorage {
   std::string GetLastEvent(Chain chain, const std::string &wallet_id);
   void SetReadEvent(Chain chain, const std::string &wallet_id,
                     const std::string &event_id);
+  std::map<std::string, int> GetGroupReplaceStatus(Chain chain);
+  bool SetGroupReplaceStatus(Chain chain, const std::string &group_id,
+                             bool status);
+
   SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
                               bool create_if_not_exist) const;
 

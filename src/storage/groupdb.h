@@ -48,6 +48,9 @@ class NunchukGroupDb : public NunchukDb {
   std::string GetLastEvent(const std::string &group_id) const;
   void SetReadEvent(const std::string &group_id, const std::string &event_id);
 
+  std::map<std::string, int> GetReplaceStatus() const;
+  bool SetReplaceStatus(const std::string &group_id, bool status);
+
  private:
   friend class NunchukStorage;
 };

@@ -56,9 +56,16 @@ class GroupService {
 
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
                            AddressType addressType);
+  GroupSandbox CreateReplaceGroup(const std::string& name, int m, int n,
+                                  AddressType addressType,
+                                  const std::vector<SingleSigner>& signers,
+                                  const std::string& walletId);
+  std::map<std::string, std::string> GetReplaceStatus(
+      const std::string& walletId);
   GroupSandbox GetGroup(const std::string& groupId);
   std::vector<GroupSandbox> GetGroups(const std::vector<std::string>& groupIds);
-  GroupSandbox JoinGroup(const std::string& groupId);
+  GroupSandbox JoinGroup(const std::string& groupId,
+                         const std::vector<SingleSigner>& signers = {});
   GroupSandbox SetOccupied(const std::string& groupId, int index, bool value);
   GroupSandbox SetSigner(const std::string& groupId, const SingleSigner& signer,
                          int index);

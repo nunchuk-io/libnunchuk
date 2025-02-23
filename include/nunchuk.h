@@ -630,6 +630,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string get_wallet_id() const;
   std::string get_pubkey() const;
   const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
+  std::string get_replace_wallet_id() const;
 
   void set_name(const std::string& value);
   void set_url(const std::string& value);
@@ -644,6 +645,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   void set_pubkey(const std::string& value);
   void add_occupied(int index, time_t ts, const std::string& uid);
   void remove_occupied(int index);
+  void set_replace_wallet_id(const std::string& value);
 
  private:
   std::string id_;
@@ -659,6 +661,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string wallet_id_{};
   std::string pubkey_{};
   std::map<int, std::pair<time_t, std::string>> occupied_{};
+  std::string replace_wallet_id_{};
 };
 
 class NUNCHUK_EXPORT GroupMessage {
@@ -1584,6 +1587,13 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual int GetGroupOnline(const std::string& groupId) = 0;
   virtual std::vector<GroupSandbox> GetGroups() = 0;
   virtual GroupSandbox JoinGroup(const std::string& groupId) = 0;
+  virtual GroupSandbox CreateReplaceGroup(const std::string& walletId) = 0;
+  virtual std::map<std::string, bool> GetReplaceGroups(
+      const std::string& walletId) = 0;
+  virtual GroupSandbox AcceptReplaceGroup(const std::string& walletId,
+                                          const std::string& groupId) = 0;
+  virtual void DeclineReplaceGroup(const std::string& walletId,
+                                   const std::string& groupId) = 0;
   virtual GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
                                        bool value) = 0;
   virtual GroupSandbox AddSignerToGroup(const std::string& groupId,

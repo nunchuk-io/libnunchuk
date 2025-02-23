@@ -223,6 +223,74 @@ GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
   return group;
 }
 
+GroupSandbox NunchukImpl::CreateReplaceGroup(const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto wallet = GetWallet(walletId);
+  std::vector<SingleSigner> signers{};
+  for (auto&& signer : wallet.get_signers()) {
+    if (HasSigner(signer)) {
+      signers.push_back(signer);
+    } else {
+      signers.push_back({});
+    }
+  }
+  auto group = group_service_.CreateReplaceGroup(
+      wallet.get_name(), wallet.get_m(), wallet.get_n(),
+      wallet.get_address_type(), signers, walletId);
+  storage_->AddGroupSandboxId(chain_, group.get_id());
+  // BE auto subcribe new groupId for creator, don't need to call Subscribe here
+  return group;
+}
+
+std::map<std::string, bool> NunchukImpl::GetReplaceGroups(
+    const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto replaces = group_service_.GetReplaceStatus(walletId);
+  auto localStatus = storage_->GetGroupReplaceStatus(chain_);
+  auto deviceUid = group_service_.GetDeviceInfo().second;
+  std::map<std::string, bool> rs{};
+  for (auto&& [gid, uid] : replaces) {
+    if (deviceUid == uid) {
+      // User is creator
+      rs[gid] = true;
+    } else if (localStatus[gid] == 1) {
+      // User accepted
+      rs[gid] = true;
+    } else if (localStatus[gid] == -1) {
+      // User declined
+    } else {
+      // User not decided yet
+      rs[gid] = false;
+    }
+  }
+  return rs;
+}
+
+GroupSandbox NunchukImpl::AcceptReplaceGroup(const std::string& walletId,
+                                             const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto wallet = GetWallet(walletId);
+  std::vector<SingleSigner> signers{};
+  for (auto&& signer : wallet.get_signers()) {
+    if (HasSigner(signer)) {
+      signers.push_back(signer);
+    } else {
+      signers.push_back({});
+    }
+  }
+  auto group = group_service_.JoinGroup(groupId);
+  storage_->AddGroupSandboxId(chain_, groupId);
+  storage_->SetGroupReplaceStatus(chain_, groupId, true);
+  // BE auto subcribe groupId, don't need to call Subscribe here
+  return group;
+}
+
+void NunchukImpl::DeclineReplaceGroup(const std::string& walletId,
+                                      const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  storage_->SetGroupReplaceStatus(chain_, groupId, false);
+}
+
 GroupSandbox NunchukImpl::SetSlotOccupied(const std::string& groupId, int index,
                                           bool value) {
   ThrowIfNotEnable(group_wallet_enable_);

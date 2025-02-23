@@ -26,6 +26,11 @@ void NunchukGroupDb::Init() {
                         "GROUPID TEXT PRIMARY KEY NOT NULL,"
                         "EVENTID TEXT             NOT NULL);",
                         NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS REPLACE("
+                        "GROUPID TEXT PRIMARY KEY NOT NULL,"
+                        "STATUS                   INT);",
+                        NULL, 0, NULL));
 }
 
 void NunchukGroupDb::SetDeviceInfo(const std::string &token,
@@ -99,6 +104,34 @@ std::string NunchukGroupDb::GetLastEvent(const std::string &group_id) const {
   }
   SQLCHECK(sqlite3_finalize(stmt));
   return rs;
+}
+
+std::map<std::string, int> NunchukGroupDb::GetReplaceStatus() const {
+  std::map<std::string, int> rs{};
+  sqlite3_stmt *stmt;
+  std::string sql = "SELECT * FROM REPLACE;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    std::string gid = std::string((char *)sqlite3_column_text(stmt, 0));
+    int status = sqlite3_column_int(stmt, 1);
+    rs[gid] = status;
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
+}
+
+bool NunchukGroupDb::SetReplaceStatus(const std::string &group_id,
+                                      bool status) {
+  sqlite3_stmt *stmt;
+  std::string sql =
+      "INSERT INTO REPLACE(GROUPID, STATUS) VALUES (?1, ?2)"
+      "ON CONFLICT(GROUPID) DO UPDATE SET STATUS=excluded.STATUS;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, group_id.c_str(), group_id.size(), NULL);
+  sqlite3_bind_int(stmt, 2, status ? 1 : -1);
+  sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
+  return true;
 }
 
 }  // namespace nunchuk

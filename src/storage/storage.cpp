@@ -2284,10 +2284,23 @@ std::string NunchukStorage::GetLastEvent(Chain chain,
   std::unique_lock<std::shared_mutex> lock(access_);
   return GetGroupDb(chain).GetLastEvent(wallet_id);
 }
+
 void NunchukStorage::SetReadEvent(Chain chain, const std::string& wallet_id,
                                   const std::string& event_id) {
   std::unique_lock<std::shared_mutex> lock(access_);
   return GetGroupDb(chain).SetReadEvent(wallet_id, event_id);
+}
+
+std::map<std::string, int> NunchukStorage::GetGroupReplaceStatus(Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetReplaceStatus();
+}
+
+bool NunchukStorage::SetGroupReplaceStatus(Chain chain,
+                                           const std::string& group_id,
+                                           bool status) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).SetReplaceStatus(group_id, status);
 }
 
 }  // namespace nunchuk
