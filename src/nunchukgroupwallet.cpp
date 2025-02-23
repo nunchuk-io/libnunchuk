@@ -278,7 +278,7 @@ GroupSandbox NunchukImpl::AcceptReplaceGroup(const std::string& walletId,
       signers.push_back({});
     }
   }
-  auto group = group_service_.JoinGroup(groupId);
+  auto group = group_service_.JoinGroup(groupId, signers);
   storage_->AddGroupSandboxId(chain_, groupId);
   storage_->SetGroupReplaceStatus(chain_, groupId, true);
   // BE auto subcribe groupId, don't need to call Subscribe here

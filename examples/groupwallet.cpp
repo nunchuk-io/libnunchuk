@@ -347,6 +347,8 @@ void printGroup(const GroupSandbox& group) {
   std::cout << "- AddressType: " << int(group.get_address_type()) << std::endl;
   std::cout << "- State: " << group.get_state_id() << std::endl;
   std::cout << "- Finalized: " << group.is_finalized() << std::endl;
+  std::cout << "- ReplaceWallet: " << group.get_replace_wallet_id()
+            << std::endl;
   std::cout << "- Signers: " << std::endl;
   for (auto&& signer : group.get_signers()) {
     if (signer.get_name() == "ADDED" &&
@@ -407,6 +409,19 @@ void parseurl() {
 void joinsandbox() {
   auto group_id = input_string("Enter group id");
   auto group = nu.get()->JoinGroup(group_id);
+}
+
+void deletesandbox() {
+  auto groups = nu.get()->GetGroups();
+  if (groups.empty()) {
+    throw std::runtime_error("You don't have any group sandbox");
+  }
+  print_list_sandbox(groups);
+  int group_idx = input_int("Choose sandbox to delete");
+  if (group_idx < 0 || group_idx > groups.size()) {
+    throw std::runtime_error("Invalid group");
+  }
+  nu.get()->DeleteGroup(groups[group_idx].get_id());
 }
 
 void addkeytosandbox() {
@@ -478,6 +493,69 @@ void sendchat() {
   nu.get()->SendGroupMessage(wallet.get_id(), msg);
 }
 
+void replacewallet() {
+  auto wallets = nu.get()->GetGroupWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any group wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose group wallet to replace");
+  if (wallet_idx < 0 || wallet_idx > wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+  auto wallet = wallets[wallet_idx];
+  nu.get()->CreateReplaceGroup(wallet.get_id());
+}
+
+void getreplacestatus() {
+  auto wallets = nu.get()->GetGroupWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any group wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose group wallet");
+  if (wallet_idx < 0 || wallet_idx > wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+  auto wallet = wallets[wallet_idx];
+  auto rs = nu.get()->GetReplaceGroups(wallet.get_id());
+
+  int i = 0;
+  std::cout << std::endl;
+  for (auto&& [group_id, accepted] : rs) {
+    std::cout << i++ << ": " << group_id << " "
+              << (accepted ? "accepted" : "pending") << std::endl;
+  }
+}
+
+void acceptreplace() {
+  auto wallets = nu.get()->GetGroupWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any group wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose group wallet");
+  if (wallet_idx < 0 || wallet_idx > wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+  auto wallet = wallets[wallet_idx];
+  auto rs = nu.get()->GetReplaceGroups(wallet.get_id());
+
+  int i = 0;
+  std::cout << std::endl;
+  std::map<int, std::string> idx_group;
+  for (auto&& [group_id, accepted] : rs) {
+    idx_group[i] = group_id;
+    std::cout << i++ << ": " << group_id << " "
+              << (accepted ? "accepted" : "pending") << std::endl;
+  }
+  int idx = input_int("Choose group sandbox to accept");
+  if (idx < 0 || idx >= i) {
+    throw std::runtime_error("Invalid sandbox");
+  }
+  nu.get()->AcceptReplaceGroup(wallet.get_id(), idx_group[idx]);
+}
+
 void deletetransaction() {
   auto wallets = nu.get()->GetWallets();
   if (wallets.empty()) {
@@ -536,6 +614,7 @@ void groupconfig() {
 
 void init() {
   auto account = input_string("Enter account name");
+  auto token = input_string("Enter token");
 
   AppSettings settings;
   settings.set_chain(Chain::MAIN);
@@ -546,7 +625,7 @@ void init() {
   settings.set_storage_path("/home/bringer/libnunchuk/examples/playground.cpp");
   settings.set_group_server("https://api.nunchuk.io");
   nu = MakeNunchukForAccount(settings, {}, account);
-  nu->EnableGroupWallet("ubuntu", "22.04", "1.0.0", "desktop", account, {});
+  nu->EnableGroupWallet("ubuntu", "22.04", "1.0.0", "desktop", account, token);
 }
 
 void interactive() {
@@ -577,12 +656,16 @@ void interactive() {
       {parseurl, "parseurl", "parse group sandbox url"},
       {getsandbox, "getsandbox", "get group sandbox detail"},
       {joinsandbox, "joinsandbox", "join group sandbox"},
+      {deletesandbox, "deletesandbox", "delete sandbox"},
       {addkeytosandbox, "addkeytosandbox", "add key to group sandbox"},
       {finalizesandbox, "finalizesandbox", "finalize group sandbox"},
       {listgroups, "listgroups", "list group wallets"},
       {sendchat, "sendchat", "send group chat"},
       {deletetransaction, "deletetransaction", "delete transaction"},
       {groupconfig, "setgroupconfig", "set group config"},
+      {replacewallet, "replacewallet", "create replace sandbox"},
+      {getreplacestatus, "getreplacestatus", "get replace sandbox"},
+      {acceptreplace, "acceptreplace", "accept replace sandbox"},
 
       {history, "history", "list transaction history"},
       {send, "send", "create new transaction"}};
