@@ -885,12 +885,6 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
 
 std::vector<Transaction> NunchukImpl::GetTransactionHistory(
     const std::string& wallet_id, int count, int skip) {
-  if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
-    try {
-      SyncGroupTransactions(wallet_id);
-    } catch (...) {
-    }
-  }
   auto txs = storage_->GetTransactions(chain_, wallet_id, count, skip);
   auto removed_iter =
       std::remove_if(txs.begin(), txs.end(), [](const Transaction& tx) -> bool {
