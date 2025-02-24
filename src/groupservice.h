@@ -144,7 +144,7 @@ class GroupService {
   std::shared_ptr<SoftwareSigner> GetWalletSignerFromWalletId(
       const std::string& walletId, bool throwIfNotFound = false);
 
-  std::atomic<bool> stop_{false};
+  std::atomic<bool> stop_{true};
   std::string baseUrl_;
   std::string deviceToken_;
   std::string uid_;
