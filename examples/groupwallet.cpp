@@ -726,6 +726,12 @@ void transactionListener(std::string tx_id, TransactionStatus status,
   std::cout << std::endl;
 }
 
+void replaceLisnter(const std::string& wallet_id, const std::string& group_id) {
+  std::cout << "\n--- Received replace request ";
+  std::cout << "(" << wallet_id << "): " << group_id;
+  std::cout << std::endl;
+}
+
 int main(int argc, char** argv) {
   loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
   init();
@@ -733,6 +739,7 @@ int main(int argc, char** argv) {
   nu->AddGroupUpdateListener(sandboxListener);
   nu->AddGroupMessageListener(messageListener);
   nu->AddTransactionListener(transactionListener);
+  nu->AddReplaceRequestListener(replaceLisnter);
 
   interactive();
   nu->StopConsumeGroupEvent();

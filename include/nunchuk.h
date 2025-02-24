@@ -1630,6 +1630,10 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(const std::string& groupId, int online)> listener) = 0;
   virtual void AddGroupDeleteListener(
       std::function<void(const std::string& groupId)> listener) = 0;
+  virtual void AddReplaceRequestListener(
+      std::function<void(const std::string& walletId,
+                         const std::string& replaceGroupId)>
+          listener) = 0;
 
  protected:
   Nunchuk() = default;

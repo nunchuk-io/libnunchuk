@@ -621,6 +621,10 @@ class NunchukImpl : public Nunchuk {
       override;
   void AddGroupDeleteListener(
       std::function<void(const std::string& groupId)> listener) override;
+  void AddReplaceRequestListener(
+      std::function<void(const std::string& walletId,
+                         const std::string& replaceGroupId)>
+          listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -660,6 +664,8 @@ class NunchukImpl : public Nunchuk {
   boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
   boost::signals2::signal<void(const std::string&, int)> group_online_listener_;
   boost::signals2::signal<void(const std::string&)> group_delete_listener_;
+  boost::signals2::signal<void(const std::string&, const std::string&)>
+      group_replace_listener_;
   std::map<std::string, int> group_online_cache_{};
   std::shared_mutex cache_access_;
 };

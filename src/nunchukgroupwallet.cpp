@@ -162,6 +162,10 @@ void NunchukImpl::StartConsumeGroupEvent() {
     } else if (type == "transaction_deleted") {
       // Do nothing, broadcast transactions will be deleted from server and
       // synced through synchronizer
+    } else if (type == "replace_wallet") {
+      auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
+      auto groupId = data["group_id"];
+      group_replace_listener_(walletId, groupId);
     }
     return true;
   });
@@ -466,6 +470,13 @@ void NunchukImpl::AddGroupOnlineListener(
 void NunchukImpl::AddGroupDeleteListener(
     std::function<void(const std::string& groupId)> listener) {
   group_delete_listener_.connect(listener);
+}
+
+void NunchukImpl::AddReplaceRequestListener(
+    std::function<void(const std::string& walletId,
+                       const std::string& replaceGroupId)>
+        listener) {
+  group_replace_listener_.connect(listener);
 }
 
 void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {
