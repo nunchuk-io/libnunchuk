@@ -19,6 +19,7 @@
 #define NUNCHUK_GROUPSERVICE_H
 
 #include <nunchuk.h>
+#include <shared_mutex>
 #include <thread>
 #include <vector>
 #include <string>
@@ -81,14 +82,15 @@ class GroupService {
                        const std::string& signer, const std::string& signature);
   std::vector<GroupMessage> GetMessages(const std::string& walletId, int page,
                                         int pageSize, bool latest);
-  void StartListenEvents(std::function<bool(const std::string&)> callback);
+  void StartListenEvents(std::function<bool(const nlohmann::json&)> callback);
   void StopListenEvents();
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
-  bool HasWallet(const std::string& walletId, bool throwIfNotFound = false);
+  bool HasWallet(const std::string& walletId);
   void RecoverWallet(const std::string& walletId);
   void DeleteWallet(const std::string& walletId);
-  std::string GetWalletIdFromGid(const std::string& walletGid);
+  std::string GetWalletIdFromGid(const std::string& walletGid,
+                                 bool throwIfNotFound = false);
   std::string GetTxIdFromGid(const std::string& walletId,
                              const std::string& txGid,
                              const std::vector<Transaction>& txs);
@@ -137,6 +139,11 @@ class GroupService {
   GroupSandbox SendGroupEvent(const std::string& groupId, json& group,
                               bool join = false);
 
+  std::pair<std::shared_ptr<SoftwareSigner>, std::string>
+  GetWalletSignerAndWalletIdFromGid(const std::string& walletGid);
+  std::shared_ptr<SoftwareSigner> GetWalletSignerFromWalletId(
+      const std::string& walletId, bool throwIfNotFound = false);
+
   std::atomic<bool> stop_{false};
   std::string baseUrl_;
   std::string deviceToken_;
@@ -144,10 +151,13 @@ class GroupService {
   std::string ephemeralPub_;
   std::string ephemeralPriv_;
   std::string accessToken_;
+
+  mutable std::shared_mutex walletMutex_;
   std::map<std::string, std::shared_ptr<SoftwareSigner>> walletSigner_{};
   std::map<std::string, std::string> walletGid2Id_{};
+
   std::unique_ptr<httplib::Client> sse_client_{};
-  std::unique_ptr<std::thread> sse_thread_{};
+  std::thread sse_thread_;
 };
 
 }  // namespace nunchuk
