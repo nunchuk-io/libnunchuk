@@ -59,7 +59,6 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
                                     const std::string& deviceId,
                                     const std::string& accessToken) {
   group_service_.CheckVersion();
-  group_wallet_enable_ = true;
   group_service_.SetAccessToken(accessToken);
   auto keypair = storage_->GetGroupEphemeralKey(chain_);
   if (keypair.first.empty() || keypair.second.empty()) {
@@ -96,6 +95,7 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   }
 
   StartListenEvents();
+  group_wallet_enable_ = true;
 }
 
 void NunchukImpl::StartListenEvents() {
@@ -446,6 +446,10 @@ void NunchukImpl::RecoverGroupWallet(const std::string& walletId) {
   group_service_.SetupKey(wallet);
   group_service_.RecoverWallet(walletId);
   storage_->AddGroupWalletId(chain_, walletId);
+  try {
+    SyncGroupTransactions(walletId);
+  } catch (...) {
+  }
 }
 
 void NunchukImpl::SendGroupMessage(const std::string& walletId,
