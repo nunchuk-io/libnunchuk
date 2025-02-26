@@ -334,6 +334,10 @@ bfs::path NunchukStorage::GetRoomDir(Chain chain) const {
   return datadir_ / ChainStr(chain) / "room";
 }
 
+bfs::path NunchukStorage::GetGroupDir(Chain chain) const {
+  return datadir_ / ChainStr(chain) / "group";
+}
+
 bfs::path NunchukStorage::GetTapprotocolDir(Chain chain,
                                             const bfs::path& dir) const {
   if (dir.empty()) {
@@ -383,6 +387,14 @@ NunchukLocalDb NunchukStorage::GetLocalDb(Chain chain) {
   bfs::path db_file = GetLocalDir(chain);
   bool is_new = !bfs::exists(db_file);
   auto db = NunchukLocalDb{chain, "", db_file.string(), ""};
+  db.Init();
+  return db;
+}
+
+NunchukGroupDb NunchukStorage::GetGroupDb(Chain chain) {
+  bfs::path db_file = GetGroupDir(chain);
+  bool is_new = !bfs::exists(db_file);
+  auto db = NunchukGroupDb{chain, "", db_file.string(), ""};
   db.Init();
   return db;
 }
@@ -899,10 +911,12 @@ std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
 }
 
 Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
-                                 bool create_signers_if_not_exist) {
+                                 bool create_signers_if_not_exist,
+                                 bool fill_extra) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
   Wallet wallet = wallet_db.GetWallet(false, true);
+  if (!fill_extra) return wallet;
 
   std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {
@@ -2195,6 +2209,98 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
   Wallet true_wallet = wallet;
   true_wallet.set_signers(true_signers);
   return true_wallet;
+}
+
+std::pair<std::string, std::string> NunchukStorage::GetGroupDeviceInfo(
+    Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetDeviceInfo();
+}
+
+bool NunchukStorage::SetGroupDeviceInfo(Chain chain, const std::string& token,
+                                        const std::string& uid) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetGroupDb(chain).SetDeviceInfo(token, uid);
+  return true;
+}
+
+std::pair<std::string, std::string> NunchukStorage::GetGroupEphemeralKey(
+    Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetEphemeralKey();
+}
+
+bool NunchukStorage::SetGroupEphemeralKey(Chain chain, const std::string& pub,
+                                          const std::string& priv) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetGroupDb(chain).SetEphemeralKey(pub, priv);
+  return true;
+}
+
+std::vector<std::string> NunchukStorage::GetGroupSandboxIds(Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetSandboxIds();
+}
+
+std::vector<std::string> NunchukStorage::AddGroupSandboxId(
+    Chain chain, const std::string& id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = GetGroupDb(chain);
+  db.AddSandboxId(id);
+  return db.GetSandboxIds();
+}
+
+std::vector<std::string> NunchukStorage::RemoveGroupSandboxId(
+    Chain chain, const std::string& id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = GetGroupDb(chain);
+  db.RemoveSandboxId(id);
+  return db.GetSandboxIds();
+}
+
+std::vector<std::string> NunchukStorage::GetGroupWalletIds(Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetWalletIds();
+}
+
+std::vector<std::string> NunchukStorage::AddGroupWalletId(
+    Chain chain, const std::string& id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = GetGroupDb(chain);
+  db.AddWalletId(id);
+  return db.GetWalletIds();
+}
+
+std::vector<std::string> NunchukStorage::RemoveGroupWalletId(
+    Chain chain, const std::string& id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = GetGroupDb(chain);
+  db.RemoveWalletId(id);
+  return db.GetWalletIds();
+}
+
+std::string NunchukStorage::GetLastEvent(Chain chain,
+                                         const std::string& wallet_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetLastEvent(wallet_id);
+}
+
+void NunchukStorage::SetReadEvent(Chain chain, const std::string& wallet_id,
+                                  const std::string& event_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).SetReadEvent(wallet_id, event_id);
+}
+
+std::map<std::string, int> NunchukStorage::GetGroupReplaceStatus(Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetReplaceStatus();
+}
+
+bool NunchukStorage::SetGroupReplaceStatus(Chain chain,
+                                           const std::string& group_id,
+                                           bool status) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).SetReplaceStatus(group_id, status);
 }
 
 }  // namespace nunchuk

@@ -20,6 +20,7 @@
 
 #include <descriptor.h>
 #include <hwiservice.h>
+#include <groupservice.h>
 #include <nunchuk.h>
 #include <coreutils.h>
 #include <storage/storage.h>
@@ -116,6 +117,7 @@ class NunchukImpl : public Nunchuk {
                             std::vector<SignerTag> tags = {},
                             bool replace = false) override;
   bool HasSigner(const SingleSigner& signer) override;
+  SingleSigner GetSigner(const SingleSigner& signer) override;
   int GetCurrentIndexFromMasterSigner(const std::string& mastersigner_id,
                                       const WalletType& wallet_type,
                                       const AddressType& address_type) override;
@@ -199,7 +201,8 @@ class NunchukImpl : public Nunchuk {
   Transaction ImportTransaction(const std::string& wallet_id,
                                 const std::string& file_path) override;
   Transaction ImportPsbt(const std::string& wallet_id, const std::string& psbt,
-                         bool throw_if_unchanged = true) override;
+                         bool throw_if_unchanged = true,
+                         bool send_group_event = true) override;
   Transaction SignTransaction(const std::string& wallet_id,
                               const std::string& tx_id,
                               const Device& device) override;
@@ -215,8 +218,8 @@ class NunchukImpl : public Nunchuk {
                              const std::string& tx_id) override;
   std::string GetRawTransaction(const std::string& wallet_id,
                                 const std::string& tx_id) override;
-  bool DeleteTransaction(const std::string& wallet_id,
-                         const std::string& tx_id) override;
+  bool DeleteTransaction(const std::string& wallet_id, const std::string& tx_id,
+                         bool send_group_event = true) override;
 
   Transaction DraftTransaction(const std::string& wallet_id,
                                const std::map<std::string, Amount>& outputs,
@@ -558,6 +561,71 @@ class NunchukImpl : public Nunchuk {
       const std::set<int>& tags, const std::set<int>& collections,
       Amount fee_rate = -1) override;
 
+  // Group Wallet
+  void EnableGroupWallet(const std::string& osName,
+                         const std::string& osVersion,
+                         const std::string& appVersion,
+                         const std::string& deviceClass,
+                         const std::string& deviceId,
+                         const std::string& accessToken) override;
+  std::pair<std::string, std::string> ParseGroupUrl(
+      const std::string& url) override;
+  GroupConfig GetGroupConfig() override;
+  std::string GetGroupDeviceUID() override;
+  void StartConsumeGroupEvent() override;
+  void StopConsumeGroupEvent() override;
+  GroupSandbox CreateGroup(const std::string& name, int m, int n,
+                           AddressType addressType) override;
+  GroupSandbox GetGroup(const std::string& groupId) override;
+  int GetGroupOnline(const std::string& groupId) override;
+  std::vector<GroupSandbox> GetGroups() override;
+  GroupSandbox JoinGroup(const std::string& groupId) override;
+  GroupSandbox CreateReplaceGroup(const std::string& walletId) override;
+  std::map<std::string, bool> GetReplaceGroups(
+      const std::string& walletId) override;
+  GroupSandbox AcceptReplaceGroup(const std::string& walletId,
+                                  const std::string& groupId) override;
+  void DeclineReplaceGroup(const std::string& walletId,
+                           const std::string& groupId) override;
+  GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
+                               bool value) override;
+  GroupSandbox AddSignerToGroup(const std::string& groupId,
+                                const SingleSigner& signer, int index) override;
+  GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                     int index) override;
+  GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
+                           int m, int n, AddressType addressType) override;
+  GroupSandbox FinalizeGroup(const std::string& groupId,
+                             const std::set<size_t>& valueKeyset = {}) override;
+  void DeleteGroup(const std::string& groupId) override;
+  std::vector<Wallet> GetGroupWallets() override;
+  GroupWalletConfig GetGroupWalletConfig(const std::string& walletId) override;
+  void SetGroupWalletConfig(const std::string& walletId,
+                            const GroupWalletConfig& config) override;
+  bool CheckGroupWalletExists(const Wallet& wallet) override;
+  void RecoverGroupWallet(const std::string& walletId) override;
+  void SendGroupMessage(const std::string& walletId, const std::string& msg,
+                        const SingleSigner& signer = {}) override;
+  void SetLastReadMessage(const std::string& walletId,
+                          const std::string& messageId) override;
+  int GetUnreadMessagesCount(const std::string& walletId) override;
+  std::vector<GroupMessage> GetGroupMessages(const std::string& walletId,
+                                             int page, int pageSize,
+                                             bool latest) override;
+  void AddGroupUpdateListener(
+      std::function<void(const GroupSandbox& state)> listener) override;
+  void AddGroupMessageListener(
+      std::function<void(const GroupMessage& msg)> listener) override;
+  void AddGroupOnlineListener(
+      std::function<void(const std::string& groupId, int online)> listener)
+      override;
+  void AddGroupDeleteListener(
+      std::function<void(const std::string& groupId)> listener) override;
+  void AddReplaceRequestListener(
+      std::function<void(const std::string& walletId,
+                         const std::string& replaceGroupId)>
+          listener) override;
+
  private:
   std::string CreatePsbt(const std::string& wallet_id,
                          const std::map<std::string, Amount>& outputs,
@@ -570,6 +638,9 @@ class NunchukImpl : public Nunchuk {
   void RunScanWalletAddress(const std::string& wallet_id);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
+  void SyncGroupTransactions(const std::string& walletId);
+  bool CreateGroupWallet(const GroupSandbox& group);
+  void StartListenEvents();
 
   AppSettings app_settings_;
   std::string account_;
@@ -586,6 +657,18 @@ class NunchukImpl : public Nunchuk {
   time_t estimate_fee_cached_time_[ESTIMATE_FEE_CACHE_SIZE];
   Amount estimate_fee_cached_value_[ESTIMATE_FEE_CACHE_SIZE];
   static std::map<std::string, time_t> last_scan_;
+
+  // Group wallet
+  bool group_wallet_enable_{false};
+  GroupService group_service_;
+  boost::signals2::signal<void(const GroupSandbox&)> group_wallet_listener_;
+  boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
+  boost::signals2::signal<void(const std::string&, int)> group_online_listener_;
+  boost::signals2::signal<void(const std::string&)> group_delete_listener_;
+  boost::signals2::signal<void(const std::string&, const std::string&)>
+      group_replace_listener_;
+  std::map<std::string, int> group_online_cache_{};
+  std::shared_mutex cache_access_;
 };
 
 }  // namespace nunchuk

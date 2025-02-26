@@ -95,6 +95,7 @@ enum class TransactionStatus {
   REPLACED,
   CONFIRMED,
   PENDING_NONCE,  // Musig wallet only
+  DELETED,        // Group wallet only
 };
 
 enum class CoinStatus {
@@ -219,6 +220,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_SIGNATURE = -1027;
   static const int INVALID_RBF = -1028;
   static const int INSUFFICIENT_FEE = -1029;
+  static const int INVALID_STATE = -1030;
   using BaseException::BaseException;
 };
 
@@ -312,6 +314,24 @@ class TapProtocolException : public BaseException {
   explicit TapProtocolException(const tap_protocol::TapProtoException& te)
       : BaseException(TAP_PROTOCOL_ERROR - te.code(),
                       NormalizeErrorMessage(te.what())) {}
+};
+
+class NUNCHUK_EXPORT GroupException : public BaseException {
+ public:
+  static const int NOT_ENABLED = -7000;
+  static const int SERVER_REQUEST_ERROR = -7001;
+  static const int WALLET_NOT_FOUND = -7002;
+  static const int SIGNER_NOT_FOUND = -7003;
+  static const int TOO_MANY_SIGNER = -7004;
+  static const int SIGNER_EXISTS = -7005;
+  static const int INVALID_PARAMETER = -7006;
+  static const int INVALID_SIGNATURE = -7007;
+  static const int GROUP_NOT_FOUND = -7008;
+  static const int VERSION_MISMATCH = -7009;
+  static const int SANDBOX_FINALIZED = -7010;
+  static const int GROUP_NOT_JOINED = -7011;
+  static const int GROUP_JOINED = -7012;
+  using BaseException::BaseException;
 };
 
 class NUNCHUK_EXPORT Device {
@@ -593,6 +613,115 @@ class NUNCHUK_EXPORT UnspentOutput {
   CoinStatus status_;
 };
 
+class NUNCHUK_EXPORT GroupSandbox {
+ public:
+  GroupSandbox(const std::string& id);
+
+  std::string get_id() const;
+  std::string get_name() const;
+  std::string get_url() const;
+  int get_m() const;
+  int get_n() const;
+  AddressType get_address_type() const;
+  const std::vector<SingleSigner>& get_signers() const;
+  bool is_finalized() const;
+  const std::vector<std::string>& get_ephemeral_keys() const;
+  int get_state_id() const;
+  std::string get_wallet_id() const;
+  std::string get_pubkey() const;
+  const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
+  std::string get_replace_wallet_id() const;
+
+  void set_name(const std::string& value);
+  void set_url(const std::string& value);
+  void set_n(int n);
+  void set_m(int m);
+  void set_address_type(AddressType value);
+  void set_signers(std::vector<SingleSigner> signers);
+  void set_finalized(bool value);
+  void set_ephemeral_keys(std::vector<std::string> keys);
+  void set_state_id(int id);
+  void set_wallet_id(const std::string& value);
+  void set_pubkey(const std::string& value);
+  void add_occupied(int index, time_t ts, const std::string& uid);
+  void remove_occupied(int index);
+  void set_replace_wallet_id(const std::string& value);
+
+ private:
+  std::string id_;
+  std::string name_;
+  std::string url_;
+  int m_{0};
+  int n_{0};
+  AddressType address_type_;
+  std::vector<SingleSigner> signers_;
+  bool finalized_{false};
+  std::vector<std::string> keys_;
+  int state_id_{0};
+  std::string wallet_id_{};
+  std::string pubkey_{};
+  std::map<int, std::pair<time_t, std::string>> occupied_{};
+  std::string replace_wallet_id_{};
+};
+
+class NUNCHUK_EXPORT GroupMessage {
+ public:
+  GroupMessage(const std::string& id, const std::string& wallet_id);
+
+  std::string get_id() const;
+  std::string get_wallet_id() const;
+  std::string get_sender() const;
+  std::string get_content() const;
+  std::string get_signer() const;
+  time_t get_ts() const;
+
+  void set_wallet_id(const std::string& value);
+  void set_sender(const std::string& value);
+  void set_content(const std::string& value);
+  void set_signer(const std::string& value);
+  void set_ts(time_t value);
+
+ private:
+  std::string id_;
+  std::string wallet_id_;
+  std::string sender_;
+  std::string content_;
+  std::string signer_;
+  time_t ts_;
+};
+
+class NUNCHUK_EXPORT GroupConfig {
+ public:
+  GroupConfig();
+
+  int get_total() const;
+  int get_remain() const;
+  int get_max_keys(AddressType address_type) const;
+  const std::vector<int>& get_retention_days_options() const;
+
+  void set_total(int value);
+  void set_remain(int value);
+  void set_max_keys(AddressType address_type, int value);
+  void set_retention_days_options(std::vector<int> values);
+
+ private:
+  int total_;
+  int remain_;
+  std::map<AddressType, int> address_key_limits_{};
+  std::vector<int> retention_days_options_{};
+};
+
+class NUNCHUK_EXPORT GroupWalletConfig {
+ public:
+  GroupWalletConfig();
+
+  int get_chat_retention_days() const;
+  void set_chat_retention_days(int value);
+
+ private:
+  int chat_retention_days_{1};
+};
+
 typedef std::map<std::string, bool> KeyStatus;  // xfp-signed map
 typedef std::pair<TransactionStatus, KeyStatus> KeysetStatus;
 
@@ -838,6 +967,7 @@ class NUNCHUK_EXPORT AppSettings {
   int get_corerpc_port() const;
   std::string get_corerpc_username() const;
   std::string get_corerpc_password() const;
+  std::string get_group_server() const;
 
   void set_chain(Chain value);
   void set_backend_type(BackendType value);
@@ -856,6 +986,7 @@ class NUNCHUK_EXPORT AppSettings {
   void set_corerpc_port(int value);
   void set_corerpc_username(const std::string& value);
   void set_corerpc_password(const std::string& value);
+  void set_group_server(const std::string& value);
 
  private:
   Chain chain_;
@@ -875,6 +1006,7 @@ class NUNCHUK_EXPORT AppSettings {
   int corerpc_port_;
   std::string corerpc_username_;
   std::string corerpc_password_;
+  std::string group_server_;
 };
 
 class NUNCHUK_EXPORT Nunchuk {
@@ -953,6 +1085,7 @@ class NUNCHUK_EXPORT Nunchuk {
                                     std::vector<SignerTag> tags = {},
                                     bool replace = false) = 0;
   virtual bool HasSigner(const SingleSigner& signer) = 0;
+  virtual SingleSigner GetSigner(const SingleSigner& signer) = 0;
   virtual int GetCurrentIndexFromMasterSigner(
       const std::string& mastersigner_id, const WalletType& wallet_type,
       const AddressType& address_type) = 0;
@@ -1022,7 +1155,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                         const std::string& file_path) = 0;
   virtual Transaction ImportPsbt(const std::string& wallet_id,
                                  const std::string& psbt,
-                                 bool throw_if_unchanged = true) = 0;
+                                 bool throw_if_unchanged = true,
+                                 bool send_group_event = true) = 0;
   virtual Transaction BroadcastTransaction(const std::string& wallet_id,
                                            const std::string& tx_id) = 0;
   virtual Transaction GetTransaction(const std::string& wallet_id,
@@ -1030,7 +1164,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::string GetRawTransaction(const std::string& wallet_id,
                                         const std::string& tx_id) = 0;
   virtual bool DeleteTransaction(const std::string& wallet_id,
-                                 const std::string& tx_id) = 0;
+                                 const std::string& tx_id,
+                                 bool send_group_event = true) = 0;
 
   virtual Transaction DraftTransaction(
       const std::string& wallet_id,
@@ -1432,6 +1567,73 @@ class NUNCHUK_EXPORT Nunchuk {
                                              const std::string& cvc,
                                              const SingleSigner& signer,
                                              const std::string& message) = 0;
+
+  // Group Wallet
+  virtual void EnableGroupWallet(const std::string& osName,
+                                 const std::string& osVersion,
+                                 const std::string& appVersion,
+                                 const std::string& deviceClass,
+                                 const std::string& deviceId,
+                                 const std::string& accessToken) = 0;
+  virtual std::pair<std::string, std::string> ParseGroupUrl(
+      const std::string& url) = 0;
+  virtual GroupConfig GetGroupConfig() = 0;
+  virtual std::string GetGroupDeviceUID() = 0;
+  virtual void StartConsumeGroupEvent() = 0;
+  virtual void StopConsumeGroupEvent() = 0;
+  virtual GroupSandbox CreateGroup(const std::string& name, int m, int n,
+                                   AddressType addressType) = 0;
+  virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
+  virtual int GetGroupOnline(const std::string& groupId) = 0;
+  virtual std::vector<GroupSandbox> GetGroups() = 0;
+  virtual GroupSandbox JoinGroup(const std::string& groupId) = 0;
+  virtual GroupSandbox CreateReplaceGroup(const std::string& walletId) = 0;
+  virtual std::map<std::string, bool> GetReplaceGroups(
+      const std::string& walletId) = 0;
+  virtual GroupSandbox AcceptReplaceGroup(const std::string& walletId,
+                                          const std::string& groupId) = 0;
+  virtual void DeclineReplaceGroup(const std::string& walletId,
+                                   const std::string& groupId) = 0;
+  virtual GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
+                                       bool value) = 0;
+  virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
+                                        const SingleSigner& signer,
+                                        int index) = 0;
+  virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                             int index) = 0;
+  virtual GroupSandbox UpdateGroup(const std::string& groupId,
+                                   const std::string& name, int m, int n,
+                                   AddressType addressType) = 0;
+  virtual GroupSandbox FinalizeGroup(
+      const std::string& groupId, const std::set<size_t>& valueKeyset = {}) = 0;
+  virtual void DeleteGroup(const std::string& groupId) = 0;
+  virtual std::vector<Wallet> GetGroupWallets() = 0;
+  virtual GroupWalletConfig GetGroupWalletConfig(
+      const std::string& walletId) = 0;
+  virtual void SetGroupWalletConfig(const std::string& walletId,
+                                    const GroupWalletConfig& config) = 0;
+  virtual bool CheckGroupWalletExists(const Wallet& wallet) = 0;
+  virtual void RecoverGroupWallet(const std::string& walletId) = 0;
+  virtual void SendGroupMessage(const std::string& walletId,
+                                const std::string& msg,
+                                const SingleSigner& signer = {}) = 0;
+  virtual void SetLastReadMessage(const std::string& walletId,
+                                  const std::string& messageId) = 0;
+  virtual int GetUnreadMessagesCount(const std::string& walletId) = 0;
+  virtual std::vector<GroupMessage> GetGroupMessages(
+      const std::string& walletId, int page, int pageSize, bool latest) = 0;
+  virtual void AddGroupUpdateListener(
+      std::function<void(const GroupSandbox& state)> listener) = 0;
+  virtual void AddGroupMessageListener(
+      std::function<void(const GroupMessage& msg)> listener) = 0;
+  virtual void AddGroupOnlineListener(
+      std::function<void(const std::string& groupId, int online)> listener) = 0;
+  virtual void AddGroupDeleteListener(
+      std::function<void(const std::string& groupId)> listener) = 0;
+  virtual void AddReplaceRequestListener(
+      std::function<void(const std::string& walletId,
+                         const std::string& replaceGroupId)>
+          listener) = 0;
 
  protected:
   Nunchuk() = default;

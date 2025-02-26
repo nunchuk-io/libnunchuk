@@ -35,12 +35,14 @@ class SoftwareSigner {
 
   SoftwareSigner(const std::string& mnemonic, const std::string& passphrase);
   SoftwareSigner(const std::string& master_xprv);
+  SoftwareSigner(const Wallet& group_wallet);
   CExtKey GetExtKeyAtPath(const std::string& derivation_path) const;
   std::string GetXpubAtPath(const std::string& derivation_path) const;
   std::string GetAddressAtPath(const std::string& derivation_path) const;
   std::string GetMasterFingerprint() const;
   std::string SignTx(const std::string& base64_psbt) const;
-  std::string SignTaprootTx(const NunchukLocalDb& db, const std::string& base64_psbt,
+  std::string SignTaprootTx(const NunchukLocalDb& db,
+                            const std::string& base64_psbt,
                             const std::string& basepath,
                             const std::string& external_desc,
                             const std::string& internal_desc,
@@ -48,11 +50,17 @@ class SoftwareSigner {
   std::string SignMessage(const std::string& message,
                           const std::string& derivation_path) const;
 
+  void SetupBoxKey(const std::string& path);
+  std::string HashMessage(const std::string& message);
+  std::string EncryptMessage(const std::string& plaintext);
+  std::string DecryptMessage(const std::string& ciphertext);
+
  private:
   static std::mutex* mu_;
   CExtKey GetBip32RootKey(const std::string& mnemonic,
                           const std::string& passphrase) const;
   CExtKey bip32rootkey_;
+  std::vector<uint8_t> boxKey_;
 };
 
 }  // namespace nunchuk

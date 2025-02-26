@@ -116,6 +116,12 @@ void Synchronizer::AddBlockchainConnectionListener(
   connection_listener_.connect(listener);
 }
 
+void Synchronizer::NotifyTransactionUpdate(const std::string& wallet_id,
+                                           const std::string& tx_id,
+                                           TransactionStatus status) {
+  transaction_listener_(tx_id, status, wallet_id);
+}
+
 int Synchronizer::GetChainTip() {
   int rs = chain_tip_;
   if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain());

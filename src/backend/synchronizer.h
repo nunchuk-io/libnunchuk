@@ -48,6 +48,9 @@ class Synchronizer {
           listener);
   void AddBlockchainConnectionListener(
       std::function<void(ConnectionStatus, int)> listener);
+  void NotifyTransactionUpdate(const std::string& wallet_id,
+                               const std::string& tx_id,
+                               TransactionStatus status);
 
   virtual void Broadcast(const std::string& raw_tx) = 0;
   virtual Amount EstimateFee(int conf_target) = 0;

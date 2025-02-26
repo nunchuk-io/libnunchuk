@@ -25,6 +25,7 @@
 #include "roomdb.h"
 #include "tapprotocoldb.h"
 #include "localdb.h"
+#include "groupdb.h"
 
 #include <filesystem>
 #include <shared_mutex>
@@ -81,7 +82,8 @@ class NunchukStorage {
   std::vector<std::string> ListMasterSigners(Chain chain);
 
   Wallet GetWallet(Chain chain, const std::string &id,
-                   bool create_signers_if_not_exist = false);
+                   bool create_signers_if_not_exist = false,
+                   bool fill_extra = true);
   bool HasWallet(Chain chain, const std::string &wallet_id);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
   SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);
@@ -310,6 +312,31 @@ class NunchukStorage {
   Wallet CreateDecoyWallet(Chain chain, const Wallet &wallet,
                            const std::string &pin);
 
+  std::pair<std::string, std::string> GetGroupDeviceInfo(Chain chain);
+  bool SetGroupDeviceInfo(Chain chain, const std::string &token,
+                          const std::string &uid);
+  std::pair<std::string, std::string> GetGroupEphemeralKey(Chain chain);
+  bool SetGroupEphemeralKey(Chain chain, const std::string &pub,
+                            const std::string &priv);
+  std::vector<std::string> GetGroupSandboxIds(Chain chain);
+  std::vector<std::string> AddGroupSandboxId(Chain chain,
+                                             const std::string &id);
+  std::vector<std::string> RemoveGroupSandboxId(Chain chain,
+                                                const std::string &id);
+  std::vector<std::string> GetGroupWalletIds(Chain chain);
+  std::vector<std::string> AddGroupWalletId(Chain chain, const std::string &id);
+  std::vector<std::string> RemoveGroupWalletId(Chain chain,
+                                               const std::string &id);
+  std::string GetLastEvent(Chain chain, const std::string &wallet_id);
+  void SetReadEvent(Chain chain, const std::string &wallet_id,
+                    const std::string &event_id);
+  std::map<std::string, int> GetGroupReplaceStatus(Chain chain);
+  bool SetGroupReplaceStatus(Chain chain, const std::string &group_id,
+                             bool status);
+
+  SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
+                              bool create_if_not_exist) const;
+
  private:
   static std::map<std::string, std::shared_ptr<NunchukStorage>> instances_;
   static std::shared_mutex access_;
@@ -318,6 +345,7 @@ class NunchukStorage {
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
+  NunchukGroupDb GetGroupDb(Chain chain);
   NunchukTapprotocolDb GetTaprotocolDb(Chain chain,
                                        const std::filesystem::path &dir = {});
   std::filesystem::path ChainStr(Chain chain) const;
@@ -327,12 +355,11 @@ class NunchukStorage {
   std::filesystem::path GetPrimaryDir(Chain chain) const;
   std::filesystem::path GetLocalDir(Chain chain) const;
   std::filesystem::path GetRoomDir(Chain chain) const;
+  std::filesystem::path GetGroupDir(Chain chain) const;
   std::filesystem::path GetTapprotocolDir(
       Chain chain, const std::filesystem::path &dir = {}) const;
   std::filesystem::path GetDefaultDataDir() const;
   Wallet CreateWallet0(Chain chain, const Wallet &wallet);
-  SingleSigner GetTrueSigner0(Chain chain, const SingleSigner &signer,
-                              bool create_if_not_exist) const;
   std::vector<std::string> ListWallets0(Chain chain);
   std::vector<std::string> ListMasterSigners0(Chain chain);
   SoftwareSigner GetSoftwareSigner0(Chain chain, const std::string &id);
@@ -342,9 +369,9 @@ class NunchukStorage {
   void InitDataDir(const std::filesystem::path &dir);
   std::filesystem::path GetDecoyPath(const std::string &pin) const;
   std::filesystem::path GetWalletDir0(const std::filesystem::path &dir,
-                                        Chain chain, std::string id) const;
+                                      Chain chain, std::string id) const;
   std::filesystem::path GetSignerDir0(const std::filesystem::path &dir,
-                                        Chain chain, std::string id) const;
+                                      Chain chain, std::string id) const;
 
   std::filesystem::path basedatadir_;
   std::filesystem::path datadir_;
