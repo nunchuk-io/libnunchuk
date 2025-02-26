@@ -446,13 +446,13 @@ void NunchukImpl::SendGroupMessage(const std::string& walletId,
                                    const std::string& msg,
                                    const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
-  if (!signer.get_master_fingerprint().empty() &&
-      !storage_->HasSigner(chain_, signer)) {
+  std::string xfp = signer.get_master_fingerprint();
+  if (!xfp.empty() && !storage_->HasSigner(chain_, signer)) {
     throw GroupException(GroupException::SIGNER_NOT_FOUND, "Signer not found");
   }
   std::string signature = {};  // TODO: sign the message
-  group_service_.SendChatMessage(walletId, msg, signer.get_master_fingerprint(),
-                                 signature);
+  if (xfp.empty()) xfp = "Unidentified";
+  group_service_.SendChatMessage(walletId, msg, xfp, signature);
 }
 
 void NunchukImpl::SetLastReadMessage(const std::string& walletId,
