@@ -74,6 +74,7 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   } else {
     group_service_.SetDeviceInfo(deviceInfo.first, deviceInfo.second);
   }
+  group_wallet_enable_ = true;
 
   auto groups = GetGroups();
   for (auto&& group : groups) {
@@ -95,7 +96,6 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
   }
 
   StartListenEvents();
-  group_wallet_enable_ = true;
 }
 
 void NunchukImpl::StartListenEvents() {
