@@ -659,7 +659,7 @@ class NunchukImpl : public Nunchuk {
   static std::map<std::string, time_t> last_scan_;
 
   // Group wallet
-  bool group_wallet_enable_{false};
+  std::atomic<bool> group_wallet_enable_{false};
   GroupService group_service_;
   boost::signals2::signal<void(const GroupSandbox&)> group_wallet_listener_;
   boost::signals2::signal<void(const GroupMessage&)> group_message_listener_;
@@ -669,6 +669,8 @@ class NunchukImpl : public Nunchuk {
       group_replace_listener_;
   std::map<std::string, int> group_online_cache_{};
   std::shared_mutex cache_access_;
+
+  std::future<void> sync_group_tx_;
 };
 
 }  // namespace nunchuk

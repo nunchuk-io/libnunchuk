@@ -5309,7 +5309,7 @@ inline ClientImpl::ClientImpl(const std::string &host, int port,
 inline ClientImpl::~ClientImpl() {
   // Apply this fix https://github.com/yhirose/cpp-httplib/commit/71ba7e7b1b328fe0de6cfbd3e94e5e0ddd4b4073
   // Wait until all the requests in flight are handled.
-  size_t retry_count = 10;
+  size_t retry_count = 1000;
   while (retry_count-- > 0) {
     {
       std::lock_guard<std::mutex> guard(socket_mutex_);

@@ -96,7 +96,12 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
   synchronizer_->Run();
 }
 Nunchuk::~Nunchuk() = default;
-NunchukImpl::~NunchukImpl() {}
+NunchukImpl::~NunchukImpl() {
+  if (group_wallet_enable_) {
+    // Stop all ongoing requests running in other threads
+    group_service_.StopHttpClients();
+  }
+}
 
 void NunchukImpl::SetPassphrase(const std::string& passphrase) {
   storage_->SetPassphrase(chain_, passphrase);

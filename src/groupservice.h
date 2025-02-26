@@ -84,6 +84,7 @@ class GroupService {
                                         int pageSize, bool latest);
   void StartListenEvents(std::function<bool(const nlohmann::json&)> callback);
   void StopListenEvents();
+  void StopHttpClients();
   void Subscribe(const std::vector<std::string>& groupIds,
                  const std::vector<std::string>& walletIds);
   bool HasWallet(const std::string& walletId);
@@ -144,13 +145,19 @@ class GroupService {
   std::shared_ptr<SoftwareSigner> GetWalletSignerFromWalletId(
       const std::string& walletId, bool throwIfNotFound = false);
 
+  std::shared_ptr<httplib::Client> GetClient();
+
+  static constexpr int CLIENT_COUNT = 6;
   std::atomic<bool> stop_{true};
   std::string baseUrl_;
   std::string deviceToken_;
+  std::string accessToken_;
   std::string uid_;
+  std::atomic<int> client_idx_{0};
+  std::array<std::shared_ptr<httplib::Client>, CLIENT_COUNT> http_clients_{};
+
   std::string ephemeralPub_;
   std::string ephemeralPriv_;
-  std::string accessToken_;
 
   mutable std::shared_mutex walletMutex_;
   std::map<std::string, std::shared_ptr<SoftwareSigner>> walletSigner_{};
