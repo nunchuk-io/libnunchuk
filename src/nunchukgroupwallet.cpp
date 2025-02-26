@@ -35,20 +35,10 @@ void ThrowIfNotEnable(bool value) {
 bool NunchukImpl::CreateGroupWallet(const GroupSandbox& group) {
   if (!group.is_finalized() || group.get_wallet_id().empty()) return false;
   if (storage_->HasWallet(chain_, group.get_wallet_id())) return true;
-
-  bool hasSigner = false;
-  for (auto&& signer : group.get_signers()) {
-    if (storage_->HasSigner(chain_, signer)) {
-      hasSigner = true;
-      break;
-    }
-  }
-  if (!hasSigner) return false;
   auto wallet = CreateWallet(group.get_name(), group.get_m(), group.get_n(),
                              group.get_signers(), group.get_address_type(),
                              false, {}, true, {});
   group_service_.SetupKey(wallet);
-
   return true;
 }
 
@@ -456,7 +446,8 @@ void NunchukImpl::SendGroupMessage(const std::string& walletId,
                                    const std::string& msg,
                                    const SingleSigner& signer) {
   ThrowIfNotEnable(group_wallet_enable_);
-  if (!storage_->HasSigner(chain_, signer)) {
+  if (!signer.get_master_fingerprint().empty() &&
+      !storage_->HasSigner(chain_, signer)) {
     throw GroupException(GroupException::SIGNER_NOT_FOUND, "Signer not found");
   }
   std::string signature = {};  // TODO: sign the message
