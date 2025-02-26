@@ -68,7 +68,28 @@ json GetHttpResponseData(const std::string& resp) {
   return parsed["data"];
 }
 
-GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {}
+std::shared_ptr<httplib::Client> MakeClient(const std::string& baseUrl) {
+  auto cli = std::make_shared<httplib::Client>(baseUrl.c_str());
+  cli->enable_server_certificate_verification(false);
+  cli->set_keep_alive(true);
+  return cli;
+}
+
+GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {
+#ifndef _WIN32
+  // `httplib::Client::stop()` may cause SIGPIPE; ignore it here.
+  static std::once_flag ignore_sigpipe_flag;
+  std::call_once(ignore_sigpipe_flag, [] {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));  // Zero out the struct
+    sa.sa_handler = SIG_IGN;     // Ignore SIGPIPE
+    sigaction(SIGPIPE, &sa, nullptr);
+  });
+#endif
+  for (auto& cli : http_clients_) {
+    cli = MakeClient(baseUrl_);
+  }
+}
 
 GroupService::GroupService(const std::string& baseUrl,
                            const std::string& ephemeralPub,
@@ -79,9 +100,16 @@ GroupService::GroupService(const std::string& baseUrl,
       ephemeralPub_(ephemeralPub),
       ephemeralPriv_(ephemeralPriv),
       deviceToken_(deviceToken),
-      uid_(uid) {}
+      uid_(uid) {
+  for (auto& cli : http_clients_) {
+    cli = MakeClient(baseUrl_);
+  }
+}
 
-GroupService::~GroupService() { StopListenEvents(); }
+GroupService::~GroupService() {
+  StopListenEvents();
+  StopHttpClients();
+}
 
 void GroupService::SetEphemeralKey(const std::string& pub,
                                    const std::string priv) {
@@ -104,9 +132,8 @@ std::pair<std::string, std::string> GroupService::GetDeviceInfo() {
 }
 
 void GroupService::CheckVersion() {
-  httplib::Client client(baseUrl_.c_str());
-  client.enable_server_certificate_verification(false);
-  auto res = client.Get("/v1.1/shared-wallets/version");
+  auto cli = GetClient();
+  auto res = cli->Get("/v1.1/shared-wallets/version");
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
                          res ? res->body : "Server error");
@@ -155,10 +182,9 @@ std::pair<std::string, std::string> GroupService::RegisterDevice(
       {"X-NC-APP-VERSION", appVersion}, {"X-NC-DEVICE-CLASS", deviceClass},
       {"X-NC-DEVICE-ID", deviceId},     {"Authorization", auth},
   };
-  httplib::Client client(baseUrl_.c_str());
-  client.enable_server_certificate_verification(false);
-  auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
-                         body.size(), MIME_TYPE.c_str());
+  auto cli = GetClient();
+  auto res = cli->Post(url.c_str(), headers, (const char*)body.data(),
+                       body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
                          res ? res->body : "Server error");
@@ -769,17 +795,6 @@ std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
 
 void GroupService::StartListenEvents(
     std::function<bool(const nlohmann::json&)> callback) {
-#ifndef _WIN32
-  // `httplib::Client::stop()` may cause SIGPIPE; ignore it here.
-  static std::once_flag ignore_sigpipe_flag;
-  std::call_once(ignore_sigpipe_flag, [] {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));  // Zero out the struct
-    sa.sa_handler = SIG_IGN;     // Ignore SIGPIPE
-    sigaction(SIGPIPE, &sa, nullptr);
-  });
-#endif
-
   auto handle_event = [callback =
                            std::move(callback)](std::string_view event_data) {
     size_t data_pos = event_data.find("data:");
@@ -845,6 +860,12 @@ void GroupService::StopListenEvents() {
   }
 }
 
+void GroupService::StopHttpClients() {
+  for (auto& cli : http_clients_) {
+    cli->stop();
+  }
+}
+
 bool GroupService::HasWallet(const std::string& walletId) {
   return GetWalletSignerFromWalletId(walletId, false) != nullptr;
 }
@@ -872,10 +893,9 @@ std::string GroupService::Post(const std::string& url,
   std::string auth = (std::string("Bearer ") + accessToken_);
   httplib::Headers headers = {{"Device-Token", deviceToken_},
                               {"Authorization", auth}};
-  httplib::Client client(baseUrl_.c_str());
-  client.enable_server_certificate_verification(false);
-  auto res = client.Post(url.c_str(), headers, (const char*)body.data(),
-                         body.size(), MIME_TYPE.c_str());
+  auto cli = GetClient();
+  auto res = cli->Post(url.c_str(), headers, (const char*)body.data(),
+                       body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
                          res ? res->body : "Server error");
@@ -887,9 +907,8 @@ std::string GroupService::Get(const std::string& url) {
   std::string auth = (std::string("Bearer ") + accessToken_);
   httplib::Headers headers = {{"Device-Token", deviceToken_},
                               {"Authorization", auth}};
-  httplib::Client client(baseUrl_.c_str());
-  client.enable_server_certificate_verification(false);
-  auto res = client.Get(url.c_str(), headers);
+  auto cli = GetClient();
+  auto res = cli->Get(url.c_str(), headers);
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
                          res ? res->body : "Server error");
@@ -902,12 +921,11 @@ std::string GroupService::Delete(const std::string& url,
   std::string auth = (std::string("Bearer ") + accessToken_);
   httplib::Headers headers = {{"Device-Token", deviceToken_},
                               {"Authorization", auth}};
-  httplib::Client client(baseUrl_.c_str());
-  client.enable_server_certificate_verification(false);
+  auto cli = GetClient();
   auto res = body.empty()
-                 ? client.Delete(url.c_str(), headers)
-                 : client.Delete(url.c_str(), headers, (const char*)body.data(),
-                                 body.size(), MIME_TYPE.c_str());
+                 ? cli->Delete(url.c_str(), headers)
+                 : cli->Delete(url.c_str(), headers, (const char*)body.data(),
+                               body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
                          res ? res->body : "Server error");
@@ -1145,6 +1163,11 @@ std::shared_ptr<SoftwareSigner> GroupService::GetWalletSignerFromWalletId(
     throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
   }
   return nullptr;
+}
+
+
+std::shared_ptr<httplib::Client> GroupService::GetClient() {
+  return http_clients_[client_idx_++ % CLIENT_COUNT];
 }
 
 }  // namespace nunchuk

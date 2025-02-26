@@ -183,15 +183,17 @@ std::string NunchukImpl::GetGroupDeviceUID() {
 
 void NunchukImpl::StartConsumeGroupEvent() {
   ThrowIfNotEnable(group_wallet_enable_);
-  auto wallet_ids = storage_->GetGroupWalletIds(chain_);
-  for (auto&& wallet_id : wallet_ids) {
-    if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
-      try {
-        SyncGroupTransactions(wallet_id);
-      } catch (...) {
+  sync_group_tx_ = std::async(std::launch::async, [&] {
+    auto wallet_ids = storage_->GetGroupWalletIds(chain_);
+    for (auto&& wallet_id : wallet_ids) {
+      if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
+        try {
+          SyncGroupTransactions(wallet_id);
+        } catch (...) {
+        }
       }
     }
-  }
+  });
 }
 
 void NunchukImpl::StopConsumeGroupEvent() {
