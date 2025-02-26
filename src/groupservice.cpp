@@ -71,7 +71,7 @@ json GetHttpResponseData(const std::string& resp) {
 std::shared_ptr<httplib::Client> MakeClient(const std::string& baseUrl) {
   auto cli = std::make_shared<httplib::Client>(baseUrl.c_str());
   cli->enable_server_certificate_verification(false);
-  cli->set_keep_alive(true);
+  //cli->set_keep_alive(true);
   return cli;
 }
 
