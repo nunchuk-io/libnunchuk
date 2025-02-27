@@ -147,6 +147,13 @@ std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
 
 void Wallet::post_update() {
   if (signers_.size() > 0) {
+    if (wallet_template_ == WalletTemplate::DISABLE_KEY_PATH) {
+      std::sort(signers_.begin(), signers_.end(),
+                [](const SingleSigner& a, const SingleSigner& b) {
+                  return a.get_master_fingerprint() <
+                         b.get_master_fingerprint();
+                });
+    }
     id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type(),
                       get_wallet_template());
   }

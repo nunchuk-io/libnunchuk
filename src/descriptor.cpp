@@ -358,23 +358,23 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
     std::string external = has_internal ? descs.substr(0, sep) : descs;
     std::string internal = has_internal ? descs.substr(sep + 1) : "";
 
-    for (auto const& prefix : PREFIX_MATCHER) {
-      if (external.rfind(prefix.first, 0) == 0) {
-        a = std::get<0>(prefix.second);
-        w = std::get<1>(prefix.second);
-        t = std::get<2>(prefix.second);
-        std::string signer_info = external.substr(
-            prefix.first.size(), external.find(")", 0) - prefix.first.size());
+    for (auto&& [prefix, conf] : PREFIX_MATCHER) {
+      if (external.rfind(prefix, 0) == 0) {
+        a = std::get<0>(conf);
+        w = std::get<1>(conf);
+        t = std::get<2>(conf);
         if (w == WalletType::SINGLE_SIG) {
           m = n = 1;
+          std::string signer_info = external.substr(
+              prefix.size(), external.find(")", 0) - prefix.size());
           if (a == AddressType::TAPROOT) signer_info = "[" + signer_info;
           signers.push_back(ParseSignerString(signer_info));
         } else if (a == AddressType::TAPROOT) {
           if (t == WalletTemplate::DISABLE_KEY_PATH) {
             std::vector<std::string> parts;
             std::string scriptpath = external.substr(
-                prefix.first.size(), external.size() - prefix.first.size());
-            boost::split(parts, scriptpath, boost::is_any_of("{}"),
+                prefix.size(), external.size() - prefix.size() - 1);
+            boost::split(parts, scriptpath, boost::is_any_of("{}()"),
                          boost::token_compress_off);
             for (unsigned i = 0; i < parts.size(); ++i) {
               if (parts[i].size() < 20) continue;
@@ -386,7 +386,9 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
             }
           } else {
             std::vector<std::string> parts;
-            boost::split(parts, signer_info, boost::is_any_of(","),
+            std::string musig_inner = external.substr(
+                prefix.size(), external.find(")", 0) - prefix.size());
+            boost::split(parts, musig_inner, boost::is_any_of(","),
                          boost::token_compress_off);
             m = parts.size();
           }
@@ -405,7 +407,9 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
           n = signers.size();
         } else {
           std::vector<std::string> parts;
-          boost::split(parts, signer_info, boost::is_any_of(","),
+          std::string multi_inner = external.substr(
+              prefix.size(), external.find(")", 0) - prefix.size());
+          boost::split(parts, multi_inner, boost::is_any_of(","),
                        boost::token_compress_off);
           m = std::stoi(parts[0]);
           n = parts.size() - 1;
@@ -416,7 +420,10 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
           }
         }
 
-        return true;
+        Wallet wallet{"", "wallet", m, n, signers, a, w, 0};
+        wallet.set_wallet_template(t);
+        signers = wallet.get_signers();
+        return wallet.get_descriptor(DescriptorPath::ANY) == external;
       }
     }
   } catch (...) {
