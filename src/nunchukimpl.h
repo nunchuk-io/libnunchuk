@@ -640,6 +640,8 @@ class NunchukImpl : public Nunchuk {
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
   void SyncGroupTransactions(const std::string& walletId);
   bool CreateGroupWallet(const GroupSandbox& group);
+  void SubscribeGroups(const std::vector<std::string>& groupIds,
+                       const std::vector<std::string>& walletIds);
   void StartListenEvents();
 
   AppSettings app_settings_;

@@ -52,7 +52,7 @@ static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/45'/0'/0'/1/0";
 
 json GetHttpResponseData(const std::string& resp) {
-  // std::cout << "resp " << resp << std::endl;
+  std::cout << "resp " << resp << std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
     std::string msg = parsed["error"]["message"];
@@ -71,7 +71,7 @@ json GetHttpResponseData(const std::string& resp) {
 std::shared_ptr<httplib::Client> MakeClient(const std::string& baseUrl) {
   auto cli = std::make_shared<httplib::Client>(baseUrl.c_str());
   cli->enable_server_certificate_verification(false);
-  //cli->set_keep_alive(true);
+  // cli->set_keep_alive(true);
   return cli;
 }
 
@@ -870,8 +870,9 @@ bool GroupService::HasWallet(const std::string& walletId) {
   return GetWalletSignerFromWalletId(walletId, false) != nullptr;
 }
 
-void GroupService::Subscribe(const std::vector<std::string>& groupIds,
-                             const std::vector<std::string>& walletIds) {
+std::pair<std::vector<std::string>, std::vector<std::string>>
+GroupService::Subscribe(const std::vector<std::string>& groupIds,
+                        const std::vector<std::string>& walletIds) {
   std::string url = "/v1.1/shared-wallets/events/subscribe";
   json ids = json::array();
   for (auto&& id : groupIds) {
@@ -885,7 +886,21 @@ void GroupService::Subscribe(const std::vector<std::string>& groupIds,
   }
   json sub = {{"sub", ids}};
   std::string body = sub.dump();
-  GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+  json data = GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+  std::vector<std::string> rejectedGroupIds{};
+  if (data["rejected_group_ids"] != nullptr) {
+    for (auto&& id : data["rejected_group_ids"]) {
+      rejectedGroupIds.push_back(id);
+    }
+  }
+  std::vector<std::string> rejectedWalletIds{};
+  if (data["rejected_wallet_ids"] != nullptr) {
+    for (auto&& gid : data["rejected_wallet_ids"]) {
+      auto walletId = GetWalletIdFromGid(gid);
+      if (!walletId.empty()) rejectedWalletIds.push_back(walletId);
+    }
+  }
+  return {rejectedGroupIds, rejectedWalletIds};
 }
 
 std::string GroupService::Post(const std::string& url,
@@ -1164,7 +1179,6 @@ std::shared_ptr<SoftwareSigner> GroupService::GetWalletSignerFromWalletId(
   }
   return nullptr;
 }
-
 
 std::shared_ptr<httplib::Client> GroupService::GetClient() {
   return http_clients_[client_idx_++ % CLIENT_COUNT];

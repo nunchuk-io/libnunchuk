@@ -85,8 +85,9 @@ class GroupService {
   void StartListenEvents(std::function<bool(const nlohmann::json&)> callback);
   void StopListenEvents();
   void StopHttpClients();
-  void Subscribe(const std::vector<std::string>& groupIds,
-                 const std::vector<std::string>& walletIds);
+  std::pair<std::vector<std::string>, std::vector<std::string>> Subscribe(
+      const std::vector<std::string>& groupIds,
+      const std::vector<std::string>& walletIds);
   bool HasWallet(const std::string& walletId);
   void RecoverWallet(const std::string& walletId);
   void DeleteWallet(const std::string& walletId);
