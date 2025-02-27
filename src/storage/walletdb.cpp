@@ -94,6 +94,7 @@ void NunchukWalletDb::InitWallet(const Wallet& wallet) {
                          {"n", wallet.get_n()},
                          {"address_type", wallet.get_address_type()},
                          {"wallet_type", wallet.get_wallet_type()},
+                         {"wallet_template", wallet.get_wallet_template()},
                          {"create_date", wallet.get_create_date()}};
   PutString(DbKeys::IMMUTABLE_DATA, immutable_data.dump());
   for (auto&& signer : wallet.get_signers()) {
@@ -194,16 +195,24 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   WalletType wallet_type = WalletType::MULTI_SIG;
   if (immutable_data["wallet_type"] != nullptr) {
     wallet_type = immutable_data["wallet_type"];
-  } else { // backward compatible
+  } else {  // backward compatible
     bool is_escrow = immutable_data["is_escrow"];
-    wallet_type = is_escrow ? WalletType::ESCROW : (n == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG);
+    wallet_type =
+        is_escrow ? WalletType::ESCROW
+                  : (n == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG);
+  }
+  WalletTemplate wallet_template = WalletTemplate::DEFAULT;
+  if (immutable_data["wallet_template"] != nullptr) {
+    wallet_template = immutable_data["wallet_template"];
   }
 
-  Wallet wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(), address_type, wallet_type, create_date);
+  Wallet wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(), address_type,
+                wallet_type, create_date);
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
   wallet.set_gap_limit(gap_limit <= 0 ? DEFAULT_ADDRESS_LOOK_AHEAD : gap_limit);
   wallet.set_need_backup(GetInt(DbKeys::NEED_BACKUP) == 1 ? true : false);
+  wallet.set_wallet_template(wallet_template);
   if (!skip_provider) {
     GetAllAddressData(false);  // update range to max address index
     auto desc = GetDescriptorsImportString(wallet);
@@ -1093,7 +1102,8 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
     if (extra_json["signers"] != nullptr &&
         (tx.get_height() >= 0 || !tx.get_raw().empty())) {
       for (auto&& signer : tx.get_signers()) {
-        if (!signer.second) tx.set_signer(signer.first, extra_json["signers"][signer.first]);
+        if (!signer.second)
+          tx.set_signer(signer.first, extra_json["signers"][signer.first]);
       }
     }
     if (extra_json["outputs"] != nullptr) {
@@ -2245,7 +2255,8 @@ RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
         auto amountIn = input.witness_utxo.nValue;
         CScript scriptCode = input.witness_script;
         const CMutableTransaction& tx = *dummyPsbt.tx;
-        MutableTransactionSignatureCreator creator(tx, 0, amountIn, SIGHASH_DEFAULT);
+        MutableTransactionSignatureCreator creator(tx, 0, amountIn,
+                                                   SIGHASH_DEFAULT);
 
         auto pair = split(token, '.');
         for (const auto& key : input.hd_keypaths) {
@@ -2321,7 +2332,8 @@ std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
 
-    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
+    auto tx =
+        GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
     tx.set_change_index(-1);
@@ -2358,7 +2370,8 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
     std::string stoken = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string ltoken = std::string((char*)sqlite3_column_text(stmt, 3));
 
-    auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
+    auto tx =
+        GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
     tx.set_change_index(-1);

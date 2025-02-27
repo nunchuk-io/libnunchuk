@@ -341,8 +341,9 @@ std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
 }
 
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
-  AddressType address_type;
-  WalletType wallet_type;
+  AddressType a;
+  WalletType w;
+  WalletTemplate t = WalletTemplate::DEFAULT;
   int m;
   int n;
   std::vector<SingleSigner> signers;
@@ -350,16 +351,15 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
 
   // Try all possible formats: BSMS, Descriptors, JSON with `descriptor` key,
   // Multisig config
-  if (ParseDescriptorRecord(descs, address_type, wallet_type, m, n, signers) ||
-      ParseDescriptors(descs, address_type, wallet_type, m, n, signers) ||
-      ParseJSONDescriptors(descs, name, address_type, wallet_type, m, n,
-                           signers) ||
-      ParseUnchainedWallet(descs, name, address_type, wallet_type, m, n,
-                           signers) ||
-      ParseConfig(Utils::GetChain(), descs, name, address_type, wallet_type, m,
-                  n, signers)) {
-    std::string id = GetWalletId(signers, m, address_type, wallet_type);
-    return Wallet{id, name, m, n, signers, address_type, wallet_type, std::time(0)};
+  if (ParseDescriptorRecord(descs, a, w, t, m, n, signers) ||
+      ParseDescriptors(descs, a, w, t, m, n, signers) ||
+      ParseJSONDescriptors(descs, name, a, w, t, m, n, signers) ||
+      ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
+      ParseConfig(Utils::GetChain(), descs, name, a, w, m, n, signers)) {
+    std::string id = GetWalletId(signers, m, a, w, t);
+    Wallet wallet{id, name, m, n, signers, a, w, std::time(0)};
+    wallet.set_wallet_template(t);
+    return wallet;
   }
 
   throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -382,8 +382,9 @@ static Wallet parseBCR2Wallet(Chain chain,
   auto i = cbor.begin();
   auto end = cbor.end();
   std::string name;
-  AddressType address_type;
-  WalletType wallet_type;
+  AddressType a;
+  WalletType w;
+  WalletTemplate t = WalletTemplate::DEFAULT;
   int m;
   int n;
   std::vector<SingleSigner> signers;
@@ -392,8 +393,8 @@ static Wallet parseBCR2Wallet(Chain chain,
     CryptoOutput output{};
     decodeCryptoOutput(i, end, output);
 
-    address_type = output.addressType;
-    wallet_type = output.walletType;
+    a = output.addressType;
+    w = output.walletType;
     m = output.threshold;
     n = output.outputDescriptors.size();
     std::stringstream s;
@@ -411,14 +412,15 @@ static Wallet parseBCR2Wallet(Chain chain,
     CborLite::decodeBytes(i, end, config);
     std::string config_str(config.begin(), config.end());
 
-    if (!ParseConfig(chain, config_str, name, address_type, wallet_type, m, n,
-                     signers)) {
+    if (!ParseConfig(chain, config_str, name, a, w, m, n, signers)) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Could not parse multisig config");
     }
   }
-  std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  return {id, name, m, n, signers, address_type, wallet_type, std::time(0)};
+  std::string id = GetWalletId(signers, m, a, w, t);
+  Wallet rs{id, name, m, n, signers, a, w, std::time(0)};
+  rs.set_wallet_template(t);
+  return rs;
 }
 
 static Wallet parseBBQRWallet(Chain chain,
@@ -508,18 +510,20 @@ BtcUri Utils::ParseBtcUri(const std::string& value) {
 
 Wallet Utils::ParseWalletConfig(Chain chain, const std::string& config) {
   std::string name;
-  AddressType address_type;
-  WalletType wallet_type;
+  AddressType a;
+  WalletType w;
+  WalletTemplate t = WalletTemplate::DEFAULT;
   int m;
   int n;
   std::vector<SingleSigner> signers;
-  if (!ParseConfig(chain, config, name, address_type, wallet_type, m, n,
-                   signers)) {
+  if (!ParseConfig(chain, config, name, a, w, m, n, signers)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Could not parse multisig config");
   }
-  std::string id = GetWalletId(signers, m, address_type, wallet_type);
-  return {id, name, m, n, signers, address_type, wallet_type, std::time(0)};
+  std::string id = GetWalletId(signers, m, a, w, t);
+  Wallet rs{id, name, m, n, signers, a, w, std::time(0)};
+  rs.set_wallet_template(t);
+  return rs;
 }
 
 BSMSData Utils::ParseBSMSData(const std::string& bsms) {
@@ -559,8 +563,8 @@ std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
           {}, derivation_path, xfp, std::time(nullptr), {}, false,
           signer_type));
 
-      Wallet wallet({}, tmp_name, 1, 1, {std::move(signer)}, address_type, WalletType::SINGLE_SIG,
-                    std::time(0));
+      Wallet wallet({}, tmp_name, 1, 1, {std::move(signer)}, address_type,
+                    WalletType::SINGLE_SIG, std::time(0));
       result.emplace_back(std::move(wallet));
     }
     return result;
@@ -733,7 +737,8 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
       boost::starts_with(psbt, "psbt")
           ? EncodeBase64(MakeUCharSpan(boost::trim_copy(psbt)))
           : boost::trim_copy(psbt);
-  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(base64_psbt), wallet);
+  auto tx = GetTransactionFromPartiallySignedTransaction(
+      DecodePsbt(base64_psbt), wallet);
   tx.set_fee(150);
   tx.set_sub_amount(10000);
   tx.set_change_index(-1);
@@ -746,7 +751,8 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
 Transaction Utils::DecodeTx(const Wallet& wallet, const std::string& psbt,
                             const Amount& sub_amount, const Amount& fee,
                             const Amount& fee_rate) {
-  auto tx = GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
+  auto tx =
+      GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
   tx.set_sub_amount(sub_amount);
   tx.set_fee(fee);
   tx.set_fee_rate(fee_rate);

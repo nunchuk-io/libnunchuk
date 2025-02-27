@@ -79,6 +79,11 @@ enum class WalletType {
   ESCROW,
 };
 
+enum class WalletTemplate {
+  DEFAULT,
+  DISABLE_KEY_PATH,  // Taproot wallet only
+};
+
 enum class HealthStatus {
   SUCCESS,
   FINGERPRINT_NOT_MATCHED,
@@ -482,6 +487,7 @@ class NUNCHUK_EXPORT Wallet {
   const std::vector<SingleSigner>& get_signers() const;
   AddressType get_address_type() const;
   WalletType get_wallet_type() const;
+  WalletTemplate get_wallet_template() const;
   bool is_escrow() const;
   Amount get_balance() const;
   Amount get_unconfirmed_balance() const;
@@ -500,6 +506,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_signers(std::vector<SingleSigner> signers);
   void set_address_type(AddressType value);
   void set_wallet_type(WalletType value);
+  void set_wallet_template(WalletTemplate value);
   void set_balance(const Amount& value);
   void set_unconfirmed_balance(const Amount& value);
   void set_description(const std::string& value);
@@ -517,6 +524,7 @@ class NUNCHUK_EXPORT Wallet {
   std::vector<SingleSigner> signers_;
   AddressType address_type_;
   WalletType wallet_type_;
+  WalletTemplate wallet_template_{WalletTemplate::DEFAULT};
   Amount balance_{0};
   Amount unconfirmed_balance_{0};
   time_t create_date_{std::time(0)};
@@ -1017,18 +1025,18 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual ~Nunchuk();
 
   virtual void SetPassphrase(const std::string& passphrase) = 0;
-  virtual Wallet CreateWallet(const std::string& name, int m, int n,
-                              const std::vector<SingleSigner>& signers,
-                              AddressType address_type, bool is_escrow,
-                              const std::string& description = {},
-                              bool allow_used_signer = false,
-                              const std::string& decoy_pin = {}) = 0;
-  virtual Wallet CreateWallet(const std::string& name, int m, int n,
-                              const std::vector<SingleSigner>& signers,
-                              AddressType address_type, WalletType wallet_type,
-                              const std::string& description = {},
-                              bool allow_used_signer = false,
-                              const std::string& decoy_pin = {}) = 0;
+  virtual Wallet CreateWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      bool is_escrow, const std::string& description = {},
+      bool allow_used_signer = false, const std::string& decoy_pin = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) = 0;
+  virtual Wallet CreateWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      WalletType wallet_type, const std::string& description = {},
+      bool allow_used_signer = false, const std::string& decoy_pin = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) = 0;
   virtual Wallet CreateWallet(const Wallet& wallet,
                               bool allow_used_signer = false,
                               const std::string& decoy_pin = {}) = 0;
@@ -1040,15 +1048,16 @@ class NUNCHUK_EXPORT Nunchuk {
                                  bool replace = true) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
-  virtual std::string DraftWallet(const std::string& name, int m, int n,
-                                  const std::vector<SingleSigner>& signers,
-                                  AddressType address_type, bool is_escrow,
-                                  const std::string& description = {}) = 0;
-  virtual std::string DraftWallet(const std::string& name, int m, int n,
-                                  const std::vector<SingleSigner>& signers,
-                                  AddressType address_type,
-                                  WalletType wallet_type,
-                                  const std::string& description = {}) = 0;
+  virtual std::string DraftWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      bool is_escrow, const std::string& description = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) = 0;
+  virtual std::string DraftWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      WalletType wallet_type, const std::string& description = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) = 0;
   virtual std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
                                              OrderBy::OLDEST_FIRST}) = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;

@@ -41,18 +41,18 @@ class NunchukImpl : public Nunchuk {
   ~NunchukImpl() override;
 
   void SetPassphrase(const std::string& passphrase) override;
-  Wallet CreateWallet(const std::string& name, int m, int n,
-                      const std::vector<SingleSigner>& signers,
-                      AddressType address_type, bool is_escrow,
-                      const std::string& description = {},
-                      bool allow_used_signer = false,
-                      const std::string& decoy_pin = {}) override;
-  Wallet CreateWallet(const std::string& name, int m, int n,
-                      const std::vector<SingleSigner>& signers,
-                      AddressType address_type, WalletType wallet_type,
-                      const std::string& description = {},
-                      bool allow_used_signer = false,
-                      const std::string& decoy_pin = {}) override;
+  Wallet CreateWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      bool is_escrow, const std::string& description = {},
+      bool allow_used_signer = false, const std::string& decoy_pin = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) override;
+  Wallet CreateWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      WalletType wallet_type, const std::string& description = {},
+      bool allow_used_signer = false, const std::string& decoy_pin = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) override;
   Wallet CreateWallet(const Wallet& wallet, bool allow_used_signer = false,
                       const std::string& decoy_pin = {}) override;
   Wallet CloneWallet(const std::string& wallet_id,
@@ -62,14 +62,16 @@ class NunchukImpl : public Nunchuk {
                          bool need_backup = true, bool replace = true) override;
   std::string GetHotWalletMnemonic(const std::string& wallet_id,
                                    const std::string& passphrase = {}) override;
-  std::string DraftWallet(const std::string& name, int m, int n,
-                          const std::vector<SingleSigner>& signers,
-                          AddressType address_type, bool is_escrow,
-                          const std::string& desc = {}) override;
-  std::string DraftWallet(const std::string& name, int m, int n,
-                          const std::vector<SingleSigner>& signers,
-                          AddressType address_type, WalletType wallet_type,
-                          const std::string& desc = {}) override;
+  std::string DraftWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      bool is_escrow, const std::string& desc = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) override;
+  std::string DraftWallet(
+      const std::string& name, int m, int n,
+      const std::vector<SingleSigner>& signers, AddressType address_type,
+      WalletType wallet_type, const std::string& desc = {},
+      WalletTemplate wallet_template = WalletTemplate::DEFAULT) override;
   std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
                                      OrderBy::OLDEST_FIRST}) override;
   Wallet GetWallet(const std::string& wallet_id) override;

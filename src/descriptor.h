@@ -33,7 +33,8 @@ std::string FormalizePath(const std::string& path);
 std::string GetDerivationPathView(std::string path);
 
 std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
-                        AddressType address_type, WalletType wallet_type);
+                        AddressType address_type, WalletType wallet_type,
+                        WalletTemplate wallet_template);
 
 /**
  * @param external External descriptor to import
@@ -52,7 +53,8 @@ std::string GetDescriptorForSigners(
     const std::vector<SingleSigner>& signers, int m,
     DescriptorPath path = DescriptorPath::EXTERNAL_ALL,
     AddressType address_type = AddressType::LEGACY,
-    WalletType wallet_type = WalletType::MULTI_SIG, int index = -1,
+    WalletType wallet_type = WalletType::MULTI_SIG,
+    WalletTemplate wallet_template = WalletTemplate::DEFAULT, int index = -1,
     bool sorted = true);
 
 std::string GetPkhDescriptor(const std::string& address);
@@ -62,12 +64,13 @@ std::string GetDescriptor(const SingleSigner& signer, AddressType address_type);
 SingleSigner ParseSignerString(const std::string& signer_str);
 
 bool ParseDescriptors(const std::string& descs, AddressType& address_type,
-                      WalletType& wallet_type, int& m, int& n,
-                      std::vector<SingleSigner>& signers);
+                      WalletType& wallet_type, WalletTemplate& wallet_template,
+                      int& m, int& n, std::vector<SingleSigner>& signers);
 
 bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
                           AddressType& address_type, WalletType& wallet_type,
-                          int& m, int& n, std::vector<SingleSigner>& signers);
+                          WalletTemplate& wallet_template, int& m, int& n,
+                          std::vector<SingleSigner>& signers);
 
 std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
                                             const std::string& prefix = {});

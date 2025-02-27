@@ -932,6 +932,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_last_used(wallet.get_last_used());
   true_wallet.set_gap_limit(wallet.get_gap_limit());
   true_wallet.set_need_backup(wallet.need_backup());
+  true_wallet.set_wallet_template(wallet.get_wallet_template());
   return true_wallet;
 }
 

@@ -112,11 +112,13 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  AddressType address_type, bool is_escrow,
                                  const std::string& description,
                                  bool allow_used_signer,
-                                 const std::string& decoy_pin) {
+                                 const std::string& decoy_pin,
+                                 WalletTemplate wallet_template) {
   Wallet wallet("", m, n, signers, address_type, is_escrow, 0);
   wallet.set_name(name);
   wallet.set_description(description);
   wallet.set_create_date(std::time(0));
+  wallet.set_wallet_template(wallet_template);
   return CreateWallet(wallet, allow_used_signer, decoy_pin);
 }
 
@@ -126,10 +128,12 @@ Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  WalletType wallet_type,
                                  const std::string& description,
                                  bool allow_used_signer,
-                                 const std::string& decoy_pin) {
+                                 const std::string& decoy_pin,
+                                 WalletTemplate wallet_template) {
   Wallet wallet("", name, m, n, signers, address_type, wallet_type, 0);
   wallet.set_description(description);
   wallet.set_create_date(std::time(0));
+  wallet.set_wallet_template(wallet_template);
   return CreateWallet(wallet, allow_used_signer, decoy_pin);
 }
 
@@ -192,9 +196,11 @@ std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type, bool is_escrow,
-                                     const std::string& description) {
+                                     const std::string& description,
+                                     WalletTemplate wallet_template) {
   Wallet wallet("", m, n, Utils::SanitizeSingleSigners(signers), address_type,
                 is_escrow, 0);
+  wallet.set_wallet_template(wallet_template);
   return wallet.get_descriptor(DescriptorPath::ANY);
 }
 
@@ -202,9 +208,11 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
                                      const std::vector<SingleSigner>& signers,
                                      AddressType address_type,
                                      WalletType wallet_type,
-                                     const std::string& description) {
+                                     const std::string& description,
+                                     WalletTemplate wallet_template) {
   Wallet wallet("", name, m, n, Utils::SanitizeSingleSigners(signers),
                 address_type, wallet_type, 0);
+  wallet.set_wallet_template(wallet_template);
   return wallet.get_descriptor(DescriptorPath::ANY);
 }
 

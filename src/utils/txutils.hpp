@@ -109,8 +109,7 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
 }
 
 inline nunchuk::Transaction ParseCMutableTransaction(
-    const CMutableTransaction& mtx,
-    const nunchuk::Wallet& wallet, int height) {
+    const CMutableTransaction& mtx, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
 
   Transaction tx{};
@@ -124,8 +123,9 @@ inline nunchuk::Transaction ParseCMutableTransaction(
     tx.add_output({address, output.nValue});
   }
   auto signers = wallet.get_signers();
-  if (wallet.get_wallet_type() == WalletType::MULTI_SIG && wallet.get_address_type() == AddressType::TAPROOT) {
-    if (mtx.vin[0].scriptWitness.stack.size() < 2) { // value keyset
+  if (wallet.get_wallet_type() == WalletType::MULTI_SIG &&
+      wallet.get_address_type() == AddressType::TAPROOT) {
+    if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
       for (int i = 0; i < wallet.get_n(); i++) {
         tx.set_signer(signers[i].get_master_fingerprint(), i < wallet.get_m());
       }
@@ -137,7 +137,8 @@ inline nunchuk::Transaction ParseCMutableTransaction(
       agg.erase(agg.begin());
       agg.pop_back();
 
-      auto maxIdx = SigningProviderCache::getInstance().GetMaxIndex(wallet.get_id());
+      auto maxIdx =
+          SigningProviderCache::getInstance().GetMaxIndex(wallet.get_id());
       FlatSigningProvider provider;
       std::string error;
       std::vector<CScript> output_scripts;
@@ -155,14 +156,15 @@ inline nunchuk::Transaction ParseCMutableTransaction(
         if (HexStr(agg_pubkeys.first).substr(2) == HexStr(agg)) {
           for (auto&& pubkey : agg_pubkeys.second) {
             auto s = provider.origins[pubkey.GetID()];
-            tx.set_signer(strprintf("%08x", ReadBE32(s.second.fingerprint)), true);
+            tx.set_signer(strprintf("%08x", ReadBE32(s.second.fingerprint)),
+                          true);
           }
           break;
         }
       }
     }
 
-  } else {  
+  } else {
     for (auto&& signer : signers) {
       tx.set_signer(signer.get_master_fingerprint(), true);
     }
@@ -181,12 +183,10 @@ inline nunchuk::Transaction ParseCMutableTransaction(
 }
 
 inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
-    const PartiallySignedTransaction& psbtx,
-    const nunchuk::Wallet& wallet
-) {
+    const PartiallySignedTransaction& psbtx, const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
   const PSBTInput& input = psbtx.inputs[0];
-  auto getXfp = [&input](const CPubKey &pub) -> std::string {
+  auto getXfp = [&input](const CPubKey& pub) -> std::string {
     auto leaf_origin = input.m_tap_bip32_paths.at(XOnlyPubKey(pub));
     const auto& [leaf_hashes, origin] = leaf_origin;
     return strprintf("%08x", ReadBE32(origin.fingerprint));
@@ -203,6 +203,8 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
   std::vector<bool> v(n);
   std::fill(v.begin(), v.begin() + wallet.get_m(), true);
   std::string valuekeyset{};
+  bool enableValueKeyset =
+      wallet.get_wallet_template() != WalletTemplate::DISABLE_KEY_PATH;
   do {
     KeyStatus status{};
     std::vector<std::string> xfps{};
@@ -212,8 +214,9 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
         xfps.push_back(signers[i].get_master_fingerprint());
       }
     }
-    if (valuekeyset.empty()) valuekeyset = getName(xfps);
-    keysets.insert({getName(xfps),{TransactionStatus::PENDING_NONCE, std::move(status)}});
+    if (enableValueKeyset && valuekeyset.empty()) valuekeyset = getName(xfps);
+    keysets.insert(
+        {getName(xfps), {TransactionStatus::PENDING_NONCE, std::move(status)}});
   } while (std::prev_permutation(v.begin(), v.end()));
 
   // mapping aggkey to name
@@ -229,7 +232,8 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
   // check pubnonces
   for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
     if (part_pubnonce.size() == wallet.get_m()) {
-      keysets[keysetname[agg_lh.first]].first = TransactionStatus::PENDING_SIGNATURES;
+      keysets[keysetname[agg_lh.first]].first =
+          TransactionStatus::PENDING_SIGNATURES;
     } else {
       for (const auto& [part, pubnonce] : part_pubnonce) {
         keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
@@ -240,7 +244,8 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
   // check partial sigs
   for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
     if (part_psig.size() == wallet.get_m()) {
-      keysets[keysetname[agg_lh.first]].first = TransactionStatus::READY_TO_BROADCAST;
+      keysets[keysetname[agg_lh.first]].first =
+          TransactionStatus::READY_TO_BROADCAST;
     } else {
       for (const auto& [part, psig] : part_psig) {
         keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
@@ -264,7 +269,8 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const nunchuk::Wallet& wallet = {}) {
   using namespace nunchuk;
   auto signers = wallet.get_signers();
-  auto tx = GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
+  auto tx =
+      GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
   tx.set_m(wallet.get_m());
 
   for (auto&& signer : signers) {
@@ -318,7 +324,8 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     return tx;
   }
 
-  if (wallet.get_wallet_type() == WalletType::MULTI_SIG && wallet.get_address_type() == AddressType::TAPROOT) {
+  if (wallet.get_wallet_type() == WalletType::MULTI_SIG &&
+      wallet.get_address_type() == AddressType::TAPROOT) {
     tx.set_keyset_status(GetKeysetStatus(psbtx, wallet));
     tx.set_status(TransactionStatus::PENDING_SIGNATURES);
     for (const auto& keyset : tx.get_keyset_status()) {
@@ -382,14 +389,15 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
   return tx;
 }
 inline std::pair<nunchuk::Transaction, bool /* is hex_tx */>
-GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet, int height) {
+GetTransactionFromStr(const std::string& str, const nunchuk::Wallet& wallet,
+                      int height) {
   using namespace nunchuk;
   using namespace boost::algorithm;
 
   if (height == -1) {
     constexpr auto is_hex_tx = [](const std::string& str) {
       return boost::starts_with(str, "01000000") ||
-            boost::starts_with(str, "02000000");
+             boost::starts_with(str, "02000000");
     };
     PartiallySignedTransaction psbtx;
     std::string error;

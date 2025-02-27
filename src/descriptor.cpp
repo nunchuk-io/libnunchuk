@@ -34,6 +34,9 @@
 using json = nlohmann::json;
 namespace nunchuk {
 
+static const std::string H_POINT =
+    "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
+
 std::string AddChecksum(const std::string& str) {
   return str + "#" + GetDescriptorChecksum(str);
 }
@@ -127,7 +130,8 @@ std::string GetScriptpathDescriptor(const std::vector<std::string>& nodes) {
 };
 
 std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
-                               const std::string& keypath) {
+                               const std::string& keypath,
+                               bool disableValueKeyset) {
   int n = keys.size();
 
   std::vector<bool> v(n);
@@ -151,10 +155,14 @@ std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
   };
 
   std::stringstream desc;
-  desc << "tr(" << musig();  // keypath
-  if (n == m) {
-    desc << ")";
-    return desc.str();
+  if (disableValueKeyset) {
+    desc << "tr(" << H_POINT;  // keypath
+  } else {
+    desc << "tr(" << musig();  // keypath
+    if (n == m) {
+      desc << ")";
+      return desc.str();
+    }
   }
   desc << ",";
 
@@ -172,7 +180,8 @@ std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
 std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
                                     int m, DescriptorPath key_path,
                                     AddressType address_type,
-                                    WalletType wallet_type, int index,
+                                    WalletType wallet_type,
+                                    WalletTemplate wallet_template, int index,
                                     bool sorted) {
   std::string keypath = GetKeyPath(key_path, index);
   std::vector<std::string> keys{};
@@ -221,14 +230,20 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
   } else if (address_type == AddressType::TAPROOT) {
     if (keys.size() <= 5 || keys.size() == m) {
-      desc << GetMusigDescriptor(keys, m, keypath);
+      desc << GetMusigDescriptor(
+          keys, m, keypath,
+          wallet_template == WalletTemplate::DISABLE_KEY_PATH);
     } else {
-      desc << "tr(musig(";
-      for (int i = 0; i < m; i++) {
-        if (i > 0) desc << ",";
-        desc << keys[i];
+      if (wallet_template == WalletTemplate::DISABLE_KEY_PATH) {
+        desc << "tr(" << H_POINT << ",";
+      } else {
+        desc << "tr(musig(";
+        for (int i = 0; i < m; i++) {
+          if (i > 0) desc << ",";
+          desc << keys[i];
+        }
+        desc << "),";
       }
-      desc << "),";
       desc << (sorted ? "sortedmulti_a(" : "multi_a(") << m;
       for (auto&& key : keys) {
         desc << "," << key;
@@ -257,9 +272,9 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
 }
 
 std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
-                        AddressType address_type, WalletType wallet_type) {
+                        AddressType a, WalletType w, WalletTemplate t) {
   auto external_desc = GetDescriptorForSigners(
-      signers, m, DescriptorPath::EXTERNAL_ALL, address_type, wallet_type);
+      signers, m, DescriptorPath::EXTERNAL_ALL, a, w, t);
   return GetDescriptorChecksum(external_desc);
 }
 
@@ -288,19 +303,35 @@ std::string GetDescriptor(const SingleSigner& signer,
 
 static std::regex SIGNER_REGEX("\\[([0-9a-fA-F]{8})(.+)\\](.+?)(/.*\\*)?\n?");
 
-static std::map<std::string, std::pair<AddressType, WalletType>>
+static std::map<std::string,
+                std::tuple<AddressType, WalletType, WalletTemplate>>
     PREFIX_MATCHER = {
         {"wsh(sortedmulti(",
-         {AddressType::NATIVE_SEGWIT, WalletType::MULTI_SIG}},
+         {AddressType::NATIVE_SEGWIT, WalletType::MULTI_SIG,
+          WalletTemplate::DEFAULT}},
         {"sh(wsh(sortedmulti(",
-         {AddressType::NESTED_SEGWIT, WalletType::MULTI_SIG}},
-        {"sh(sortedmulti(", {AddressType::LEGACY, WalletType::MULTI_SIG}},
-        {"wpkh(", {AddressType::NATIVE_SEGWIT, WalletType::SINGLE_SIG}},
-        {"sh(wpkh(", {AddressType::NESTED_SEGWIT, WalletType::SINGLE_SIG}},
-        {"pkh(", {AddressType::LEGACY, WalletType::SINGLE_SIG}},
-        {"tr(50929b", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
-        {"tr(musig(", {AddressType::TAPROOT, WalletType::MULTI_SIG}},
-        {"tr([", {AddressType::TAPROOT, WalletType::SINGLE_SIG}}};
+         {AddressType::NESTED_SEGWIT, WalletType::MULTI_SIG,
+          WalletTemplate::DEFAULT}},
+        {"sh(sortedmulti(",
+         {AddressType::LEGACY, WalletType::MULTI_SIG, WalletTemplate::DEFAULT}},
+        {"wpkh(",
+         {AddressType::NATIVE_SEGWIT, WalletType::SINGLE_SIG,
+          WalletTemplate::DEFAULT}},
+        {"sh(wpkh(",
+         {AddressType::NESTED_SEGWIT, WalletType::SINGLE_SIG,
+          WalletTemplate::DEFAULT}},
+        {"pkh(",
+         {AddressType::LEGACY, WalletType::SINGLE_SIG,
+          WalletTemplate::DEFAULT}},
+        {"tr(50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0,",
+         {AddressType::TAPROOT, WalletType::MULTI_SIG,
+          WalletTemplate::DISABLE_KEY_PATH}},
+        {"tr(musig(",
+         {AddressType::TAPROOT, WalletType::MULTI_SIG,
+          WalletTemplate::DEFAULT}},
+        {"tr([",
+         {AddressType::TAPROOT, WalletType::SINGLE_SIG,
+          WalletTemplate::DEFAULT}}};
 
 SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
@@ -319,7 +350,8 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
 }
 
 bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
-                      int& m, int& n, std::vector<SingleSigner>& signers) {
+                      WalletTemplate& t, int& m, int& n,
+                      std::vector<SingleSigner>& signers) {
   try {
     auto sep = descs.find('\n', 0);
     bool has_internal = sep != std::string::npos;
@@ -328,8 +360,9 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
 
     for (auto const& prefix : PREFIX_MATCHER) {
       if (external.rfind(prefix.first, 0) == 0) {
-        a = prefix.second.first;
-        w = prefix.second.second;
+        a = std::get<0>(prefix.second);
+        w = std::get<1>(prefix.second);
+        t = std::get<2>(prefix.second);
         std::string signer_info = external.substr(
             prefix.first.size(), external.find(")", 0) - prefix.first.size());
         if (w == WalletType::SINGLE_SIG) {
@@ -337,14 +370,32 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
           if (a == AddressType::TAPROOT) signer_info = "[" + signer_info;
           signers.push_back(ParseSignerString(signer_info));
         } else if (a == AddressType::TAPROOT) {
+          if (t == WalletTemplate::DISABLE_KEY_PATH) {
+            std::vector<std::string> parts;
+            std::string scriptpath = external.substr(
+                prefix.first.size(), external.size() - prefix.first.size());
+            boost::split(parts, scriptpath, boost::is_any_of("{}"),
+                         boost::token_compress_off);
+            for (unsigned i = 0; i < parts.size(); ++i) {
+              if (parts[i].size() < 20) continue;
+              std::vector<std::string> keys;
+              boost::split(keys, parts[i], boost::is_any_of(","),
+                           boost::token_compress_off);
+              m = keys.size();
+              break;
+            }
+          } else {
+            std::vector<std::string> parts;
+            boost::split(parts, signer_info, boost::is_any_of(","),
+                         boost::token_compress_off);
+            m = parts.size();
+          }
           std::vector<std::string> parts;
-          boost::split(parts, signer_info, boost::is_any_of(","),
-                       boost::token_compress_off);
-          m = parts.size();
           boost::split(parts, external, boost::is_any_of(",{}()"),
                        boost::token_compress_off);
           std::set<std::string> signerStr{};
           for (unsigned i = 0; i < parts.size(); ++i) {
+            if (parts[i] == H_POINT) continue;
             if (parts[i].size() < 20) continue;
             if (signerStr.count(parts[i])) continue;
             auto signer = ParseSignerString(parts[i]);
@@ -375,7 +426,8 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
 
 bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
                           AddressType& address_type, WalletType& wallet_type,
-                          int& m, int& n, std::vector<SingleSigner>& signers) {
+                          WalletTemplate& wallet_template, int& m, int& n,
+                          std::vector<SingleSigner>& signers) {
   try {
     const auto json_descs = json::parse(json_str);
     if (auto name_iter = json_descs.find("label");
@@ -384,8 +436,8 @@ bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
     }
     if (auto desc_iter = json_descs.find("descriptor");
         desc_iter != json_descs.end()) {
-      return ParseDescriptors(*desc_iter, address_type, wallet_type, m, n,
-                              signers);
+      return ParseDescriptors(*desc_iter, address_type, wallet_type,
+                              wallet_template, m, n, signers);
     }
     return false;
   } catch (...) {

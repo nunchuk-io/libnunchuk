@@ -56,7 +56,9 @@ Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
       create_date_(create_date),
       strict_(strict) {
   if (strict_) check_valid();
-  if (id_.empty()) id_ = GetWalletId(signers_, m_, address_type, wallet_type);
+  if (id_.empty())
+    id_ = GetWalletId(signers_, m_, address_type_, wallet_type_,
+                      wallet_template_);
   name_ = name;
 };
 
@@ -69,6 +71,7 @@ const std::vector<SingleSigner>& Wallet::get_signers() const {
 }
 AddressType Wallet::get_address_type() const { return address_type_; }
 WalletType Wallet::get_wallet_type() const { return wallet_type_; }
+WalletTemplate Wallet::get_wallet_template() const { return wallet_template_; }
 bool Wallet::is_escrow() const { return wallet_type_ == WalletType::ESCROW; }
 Amount Wallet::get_balance() const { return balance_; }
 Amount Wallet::get_unconfirmed_balance() const { return unconfirmed_balance_; }
@@ -90,11 +93,14 @@ void Wallet::check_valid() const {
   if (n_ != signers_.size())
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: n and signers are not match");
-  if (n_ == 1 && is_escrow()) {
+  if (n_ == 1 && is_escrow())
     throw NunchukException(
         NunchukException::INVALID_PARAMETER,
         "Invalid parameter: can not create single sig escrow wallet");
-  }
+  if (address_type_ != AddressType::TAPROOT &&
+      wallet_template_ == WalletTemplate::DISABLE_KEY_PATH)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: template is not supported");
   // TODO: need to call get_descriptor() for bitcoin core validation?
 }
 void Wallet::set_name(const std::string& value) { name_ = value; }
@@ -118,6 +124,10 @@ void Wallet::set_wallet_type(WalletType value) {
   wallet_type_ = value;
   post_update();
 };
+void Wallet::set_wallet_template(WalletTemplate value) {
+  wallet_template_ = value;
+  post_update();
+}
 void Wallet::set_balance(const Amount& value) { balance_ = value; }
 void Wallet::set_unconfirmed_balance(const Amount& value) {
   unconfirmed_balance_ = value;
@@ -130,14 +140,15 @@ void Wallet::set_need_backup(bool value) { need_backup_ = value; }
 
 std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
                                    bool sorted) const {
-  return GetDescriptorForSigners(get_signers(), get_m(), key_path,
-                                 get_address_type(), get_wallet_type(),
-                                 is_escrow() ? -1 : index, sorted);
+  return GetDescriptorForSigners(
+      get_signers(), get_m(), key_path, get_address_type(), get_wallet_type(),
+      get_wallet_template(), is_escrow() ? -1 : index, sorted);
 }
 
 void Wallet::post_update() {
   if (signers_.size() > 0) {
-    id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type());
+    id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type(),
+                      get_wallet_template());
   }
   if (strict_) {
     check_valid();
