@@ -631,6 +631,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   int get_m() const;
   int get_n() const;
   AddressType get_address_type() const;
+  WalletTemplate get_wallet_template() const;
   const std::vector<SingleSigner>& get_signers() const;
   bool is_finalized() const;
   const std::vector<std::string>& get_ephemeral_keys() const;
@@ -645,6 +646,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   void set_n(int n);
   void set_m(int m);
   void set_address_type(AddressType value);
+  void set_wallet_template(WalletTemplate value);
   void set_signers(std::vector<SingleSigner> signers);
   void set_finalized(bool value);
   void set_ephemeral_keys(std::vector<std::string> keys);
@@ -662,6 +664,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   int m_{0};
   int n_{0};
   AddressType address_type_;
+  WalletTemplate wallet_template_{WalletTemplate::DEFAULT};
   std::vector<SingleSigner> signers_;
   bool finalized_{false};
   std::vector<std::string> keys_;

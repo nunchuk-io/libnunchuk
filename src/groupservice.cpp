@@ -211,6 +211,9 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   rs.set_m(config["m"]);
   rs.set_n(config["n"]);
   rs.set_address_type(AddressType(config["addressType"]));
+  if (config["walletTemplate"] != nullptr) {
+    rs.set_wallet_template(WalletTemplate(config["walletTemplate"]));
+  }
 
   bool need_broadcast = false;
   json state = nullptr;
@@ -355,6 +358,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group) {
       {"m", group.get_m()},
       {"n", group.get_n()},
       {"addressType", group.get_address_type()},
+      {"walletTemplate", group.get_wallet_template()},
       {"name", group.get_name()},
       {"occupied", occupied},
       {"added", added},

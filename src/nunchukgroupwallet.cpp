@@ -364,9 +364,12 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId,
                     storage_->GetGroupWalletIds(chain_));
     throw GroupException(GroupException::SANDBOX_FINALIZED, "Group finalized");
   }
-  if (group.get_address_type() == AddressType::TAPROOT &&
-      valueKeyset.size() != group.get_m()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid keyset");
+  if (group.get_address_type() == AddressType::TAPROOT) {
+    if (valueKeyset.empty()) {
+      group.set_wallet_template(WalletTemplate::DISABLE_KEY_PATH);
+    } else if (valueKeyset.size() != group.get_m()) {
+      throw GroupException(GroupException::INVALID_PARAMETER, "Invalid keyset");
+    }
   }
   std::vector<SingleSigner> signers{};
   for (auto&& index : valueKeyset) {

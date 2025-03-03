@@ -32,6 +32,9 @@ const std::vector<SingleSigner>& GroupSandbox::get_signers() const {
   return signers_;
 }
 AddressType GroupSandbox::get_address_type() const { return address_type_; }
+WalletTemplate GroupSandbox::get_wallet_template() const {
+  return wallet_template_;
+}
 bool GroupSandbox::is_finalized() const { return finalized_; }
 int GroupSandbox::get_state_id() const { return state_id_; }
 const std::vector<std::string>& GroupSandbox::get_ephemeral_keys() const {
@@ -56,6 +59,9 @@ void GroupSandbox::set_signers(std::vector<SingleSigner> signers) {
 }
 void GroupSandbox::set_address_type(AddressType value) {
   address_type_ = value;
+}
+void GroupSandbox::set_wallet_template(WalletTemplate value) {
+  wallet_template_ = value;
 }
 void GroupSandbox::set_finalized(bool value) { finalized_ = value; }
 void GroupSandbox::set_ephemeral_keys(std::vector<std::string> keys) {
