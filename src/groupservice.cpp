@@ -52,7 +52,7 @@ static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/45'/0'/0'/1/0";
 
 json GetHttpResponseData(const std::string& resp) {
-  std::cout << "resp " << resp << std::endl;
+  // std::cout << "resp " << resp << std::endl;
   json parsed = json::parse(resp);
   if (parsed["error"] != nullptr) {
     std::string msg = parsed["error"]["message"];
@@ -200,6 +200,15 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   GroupSandbox rs(groupId);
   rs.set_finalized(finalized);
   rs.set_state_id(info["stateId"]);
+  if (auto extra = info.find("extra");
+      extra != info.end() && (*extra) != nullptr) {
+    rs.set_url((*extra)["url"]);
+    if (auto replace_wallet_id = (*extra).find("replace_wallet_id");
+        replace_wallet_id != (*extra).end() &&
+        (*replace_wallet_id) != nullptr) {
+      rs.set_replace_wallet_id(GetWalletIdFromGid(*replace_wallet_id));
+    }
+  }
 
   auto config = info["pubstate"];
   if (config["occupied"] != nullptr) {
