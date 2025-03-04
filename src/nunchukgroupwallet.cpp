@@ -491,6 +491,18 @@ std::vector<GroupMessage> NunchukImpl::GetGroupMessages(
   return group_service_.GetMessages(walletId, page, pageSize, latest);
 }
 
+std::string NunchukImpl::DecryptGroupWalletId(const std::string& walletGid) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetWalletIdFromGid(walletGid);
+}
+
+std::string NunchukImpl::DecryptGroupTxId(const std::string& walletId,
+                                          const std::string& txGid) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto txpair = group_service_.GetTransaction(walletId, txGid);
+  return txpair.second;
+}
+
 void NunchukImpl::AddGroupUpdateListener(
     std::function<void(const GroupSandbox& state)> listener) {
   group_wallet_listener_.connect(listener);

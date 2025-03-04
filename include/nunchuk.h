@@ -1634,6 +1634,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual int GetUnreadMessagesCount(const std::string& walletId) = 0;
   virtual std::vector<GroupMessage> GetGroupMessages(
       const std::string& walletId, int page, int pageSize, bool latest) = 0;
+  virtual std::string DecryptGroupWalletId(const std::string& walletGid) = 0;
+  virtual std::string DecryptGroupTxId(const std::string& walletId,
+                                       const std::string& txGid) = 0;
   virtual void AddGroupUpdateListener(
       std::function<void(const GroupSandbox& state)> listener) = 0;
   virtual void AddGroupMessageListener(

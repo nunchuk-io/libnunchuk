@@ -614,6 +614,10 @@ class NunchukImpl : public Nunchuk {
   std::vector<GroupMessage> GetGroupMessages(const std::string& walletId,
                                              int page, int pageSize,
                                              bool latest) override;
+  std::string DecryptGroupWalletId(const std::string& walletGid) override;
+  std::string DecryptGroupTxId(const std::string& walletId,
+                               const std::string& txGid) override;
+
   void AddGroupUpdateListener(
       std::function<void(const GroupSandbox& state)> listener) override;
   void AddGroupMessageListener(
