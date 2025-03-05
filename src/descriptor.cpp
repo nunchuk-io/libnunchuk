@@ -423,7 +423,8 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
         Wallet wallet{"", "wallet", m, n, signers, a, w, 0};
         wallet.set_wallet_template(t);
         signers = wallet.get_signers();
-        return wallet.get_descriptor(DescriptorPath::ANY) == external;
+        return wallet.get_descriptor(DescriptorPath::ANY) == external ||
+               wallet.get_descriptor(DescriptorPath::TEMPLATE) == external;
       }
     }
   } catch (...) {
