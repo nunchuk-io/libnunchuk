@@ -601,6 +601,7 @@ class NunchukImpl : public Nunchuk {
                              const std::set<size_t>& valueKeyset = {}) override;
   void DeleteGroup(const std::string& groupId) override;
   std::vector<Wallet> GetGroupWallets() override;
+  std::vector<std::string> GetDeprecatedGroupWallets() override;
   GroupWalletConfig GetGroupWalletConfig(const std::string& walletId) override;
   void SetGroupWalletConfig(const std::string& walletId,
                             const GroupWalletConfig& config) override;

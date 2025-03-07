@@ -2280,6 +2280,28 @@ std::vector<std::string> NunchukStorage::RemoveGroupWalletId(
   return db.GetWalletIds();
 }
 
+std::vector<std::string> NunchukStorage::GetDeprecatedGroupWalletIds(
+    Chain chain) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetGroupDb(chain).GetDeprecatedIds();
+}
+
+std::vector<std::string> NunchukStorage::AddDeprecatedGroupWalletId(
+    Chain chain, const std::string& id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = GetGroupDb(chain);
+  db.AddDeprecatedId(id);
+  return db.GetDeprecatedIds();
+}
+
+std::vector<std::string> NunchukStorage::RemoveDeprecatedGroupWalletId(
+    Chain chain, const std::string& id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = GetGroupDb(chain);
+  db.RemoveDeprecatedId(id);
+  return db.GetDeprecatedIds();
+}
+
 std::string NunchukStorage::GetLastEvent(Chain chain,
                                          const std::string& wallet_id) {
   std::unique_lock<std::shared_mutex> lock(access_);

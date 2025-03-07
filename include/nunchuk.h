@@ -1620,6 +1620,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& groupId, const std::set<size_t>& valueKeyset = {}) = 0;
   virtual void DeleteGroup(const std::string& groupId) = 0;
   virtual std::vector<Wallet> GetGroupWallets() = 0;
+  virtual std::vector<std::string> GetDeprecatedGroupWallets() = 0;
   virtual GroupWalletConfig GetGroupWalletConfig(
       const std::string& walletId) = 0;
   virtual void SetGroupWalletConfig(const std::string& walletId,

@@ -327,6 +327,11 @@ class NunchukStorage {
   std::vector<std::string> AddGroupWalletId(Chain chain, const std::string &id);
   std::vector<std::string> RemoveGroupWalletId(Chain chain,
                                                const std::string &id);
+  std::vector<std::string> GetDeprecatedGroupWalletIds(Chain chain);
+  std::vector<std::string> AddDeprecatedGroupWalletId(Chain chain,
+                                                      const std::string &id);
+  std::vector<std::string> RemoveDeprecatedGroupWalletId(Chain chain,
+                                                         const std::string &id);
   std::string GetLastEvent(Chain chain, const std::string &wallet_id);
   void SetReadEvent(Chain chain, const std::string &wallet_id,
                     const std::string &event_id);

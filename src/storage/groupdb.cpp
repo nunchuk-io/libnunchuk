@@ -79,6 +79,17 @@ bool NunchukGroupDb::RemoveWalletId(const std::string &id) {
   return RemoveFromListStr(DbKeys::GROUP_WALLET_LIST, id);
 }
 
+std::vector<std::string> NunchukGroupDb::GetDeprecatedIds() const {
+  return GetListStr(DbKeys::GROUP_DEPRECATED_LIST);
+}
+
+bool NunchukGroupDb::AddDeprecatedId(const std::string &id) {
+  return AddToListStr(DbKeys::GROUP_DEPRECATED_LIST, id);
+}
+
+bool NunchukGroupDb::RemoveDeprecatedId(const std::string &id) {
+  return RemoveFromListStr(DbKeys::GROUP_DEPRECATED_LIST, id);
+}
 void NunchukGroupDb::SetReadEvent(const std::string &group_id,
                                   const std::string &event_id) {
   sqlite3_stmt *stmt;

@@ -45,11 +45,15 @@ void NunchukImpl::SubscribeGroups(const std::vector<std::string>& groupIds,
 
 bool NunchukImpl::CreateGroupWallet(const GroupSandbox& group) {
   if (!group.is_finalized() || group.get_wallet_id().empty()) return false;
-  if (storage_->HasWallet(chain_, group.get_wallet_id())) return true;
-  auto wallet = CreateWallet(group.get_name(), group.get_m(), group.get_n(),
-                             group.get_signers(), group.get_address_type(),
-                             false, {}, true, {});
-  group_service_.SetupKey(wallet);
+  if (!storage_->HasWallet(chain_, group.get_wallet_id())) {
+    auto wallet = CreateWallet(group.get_name(), group.get_m(), group.get_n(),
+                               group.get_signers(), group.get_address_type(),
+                               false, {}, true, {});
+    group_service_.SetupKey(wallet);
+  }
+  if (!group.get_replace_wallet_id().empty()) {
+    storage_->AddDeprecatedGroupWalletId(chain_, group.get_replace_wallet_id());
+  }
   return true;
 }
 
@@ -400,6 +404,9 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId,
   auto walletIds = storage_->AddGroupWalletId(chain_, wallet.get_id());
   auto groupIds = storage_->RemoveGroupSandboxId(chain_, groupId);
   SubscribeGroups(groupIds, walletIds);
+  if (!group.get_replace_wallet_id().empty()) {
+    storage_->AddDeprecatedGroupWalletId(chain_, group.get_replace_wallet_id());
+  }
   return rs;
 }
 
@@ -420,6 +427,10 @@ std::vector<Wallet> NunchukImpl::GetGroupWallets() {
     }
   }
   return rs;
+}
+
+std::vector<std::string> NunchukImpl::GetDeprecatedGroupWallets() {
+  return storage_->GetDeprecatedGroupWalletIds(chain_);
 }
 
 GroupWalletConfig NunchukImpl::GetGroupWalletConfig(

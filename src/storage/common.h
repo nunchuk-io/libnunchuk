@@ -73,6 +73,7 @@ const int GROUP_EPHEMERAL_PUB = 30;
 const int GROUP_EPHEMERAL_PRIV = 31;
 const int GROUP_SANDBOX_LIST = 32;
 const int GROUP_WALLET_LIST = 33;
+const int GROUP_DEPRECATED_LIST = 34;
 }  // namespace DbKeys
 
 }  // namespace nunchuk
