@@ -210,6 +210,7 @@ int NunchukSignerDb::GetCachedIndex(const WalletType& wallet_type,
 bool NunchukSignerDb::SetName(const std::string& value) {
   return PutString(DbKeys::NAME, value);
 }
+
 bool NunchukSignerDb::SetTags(const std::vector<SignerTag>& value) {
   json json_tags = json::array();
   for (SignerTag tag : value) {
@@ -228,6 +229,10 @@ bool NunchukSignerDb::SetLastHealthCheck(time_t value) {
 
 bool NunchukSignerDb::SetSignerType(SignerType value) {
   return PutString(DbKeys::SIGNER_TYPE, SignerTypeToStr(value));
+}
+
+bool NunchukSignerDb::SetNeedBackup(bool value) {
+  return PutInt(DbKeys::NEED_BACKUP, value ? 1 : 0);
 }
 
 std::string NunchukSignerDb::GetFingerprint() const {
@@ -586,6 +591,10 @@ bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
     return true;
   }
   return false;
+}
+
+bool NunchukSignerDb::IsNeedBackup() const {
+  return GetInt(DbKeys::NEED_BACKUP) == 1;
 }
 
 }  // namespace nunchuk

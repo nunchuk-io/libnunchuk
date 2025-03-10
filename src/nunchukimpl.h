@@ -62,6 +62,8 @@ class NunchukImpl : public Nunchuk {
                          bool need_backup = true, bool replace = true) override;
   std::string GetHotWalletMnemonic(const std::string& wallet_id,
                                    const std::string& passphrase = {}) override;
+  std::string GetHotKeyMnemonic(const std::string& signer_id,
+                                const std::string& passphrase = {}) override;
   std::string DraftWallet(
       const std::string& name, int m, int n,
       const std::vector<SingleSigner>& signers, AddressType address_type,

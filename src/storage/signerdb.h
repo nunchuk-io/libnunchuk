@@ -42,6 +42,7 @@ class NunchukSignerDb : public NunchukDb {
   bool SetVisible(bool value);
   bool SetLastHealthCheck(time_t value);
   bool SetSignerType(SignerType value);
+  bool SetNeedBackup(bool value);
   bool AddXPub(const std::string &path, const std::string &xpub,
                const std::string &type);
   bool AddXPub(const WalletType &wallet_type, const AddressType &address_type,
@@ -57,6 +58,7 @@ class NunchukSignerDb : public NunchukDb {
                        const AddressType &address_type);
   int GetCachedIndex(const WalletType &wallet_type,
                      const AddressType &address_type);
+  bool IsNeedBackup() const;
   std::string GetFingerprint() const;
   std::string GetDeviceModel() const;
   std::string GetDeviceType() const;

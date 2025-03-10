@@ -434,9 +434,12 @@ class NUNCHUK_EXPORT MasterSigner {
   bool is_visible() const;
   SignerType get_type() const;
   bool is_support_taproot() const;
+  bool need_backup() const;
+
   void set_name(const std::string& value);
   void set_tags(std::vector<SignerTag> tags);
   void set_visible(bool value);
+  void set_need_backup(bool value);
 
  private:
   std::string id_;
@@ -446,6 +449,7 @@ class NUNCHUK_EXPORT MasterSigner {
   SignerType type_;
   std::vector<SignerTag> tags_;
   bool visible_{true};
+  bool need_backup_{false};
 };
 
 class NUNCHUK_EXPORT PrimaryKey {
@@ -1051,6 +1055,8 @@ class NUNCHUK_EXPORT Nunchuk {
                                  bool replace = true) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
+  virtual std::string GetHotKeyMnemonic(const std::string& signer_id,
+                                        const std::string& passphrase = {}) = 0;
   virtual std::string DraftWallet(
       const std::string& name, int m, int n,
       const std::vector<SingleSigner>& signers, AddressType address_type,

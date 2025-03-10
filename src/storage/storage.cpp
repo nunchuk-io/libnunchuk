@@ -959,6 +959,9 @@ MasterSigner NunchukStorage::GetMasterSigner(Chain chain,
   signer.set_name(signer_db.GetName());
   signer.set_tags(signer_db.GetTags());
   signer.set_visible(signer_db.IsVisible());
+  if (signer_type == SignerType::SOFTWARE) {
+    signer.set_need_backup(signer_db.IsNeedBackup());
+  }
   return signer;
 }
 
@@ -1003,7 +1006,8 @@ bool NunchukStorage::UpdateMasterSigner(Chain chain,
   auto signer_db = GetSignerDb(chain, signer.get_id());
   return signer_db.SetName(signer.get_name()) &&
          signer_db.SetTags(signer.get_tags()) &&
-         signer_db.SetVisible(signer.is_visible());
+         signer_db.SetVisible(signer.is_visible()) &&
+         signer_db.SetNeedBackup(signer.need_backup());
 }
 
 bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {

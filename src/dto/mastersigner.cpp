@@ -40,6 +40,7 @@ bool MasterSigner::is_software() const {
   return type_ == SignerType::SOFTWARE || type_ == SignerType::FOREIGN_SOFTWARE;
 }
 SignerType MasterSigner::get_type() const { return type_; }
+bool MasterSigner::need_backup() const { return need_backup_; }
 
 void MasterSigner::set_name(const std::string& value) { name_ = value; }
 void MasterSigner::set_tags(std::vector<SignerTag> tags) {
@@ -50,6 +51,9 @@ void MasterSigner::set_tags(std::vector<SignerTag> tags) {
 void MasterSigner::set_visible(bool value) { visible_ = value; }
 bool MasterSigner::is_nfc() const { return type_ == SignerType::NFC; }
 bool MasterSigner::is_visible() const { return visible_; }
-bool MasterSigner::is_support_taproot() const { return type_ == SignerType::SOFTWARE; }
+bool MasterSigner::is_support_taproot() const {
+  return type_ == SignerType::SOFTWARE;
+}
+void MasterSigner::set_need_backup(bool value) { need_backup_ = value; }
 
 }  // namespace nunchuk

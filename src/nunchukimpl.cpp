@@ -185,11 +185,22 @@ Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
 std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
                                               const std::string& passphrase) {
   auto wallet = storage_->GetWallet(chain_, wallet_id, false);
-  if (wallet.get_wallet_type() != WalletType::SINGLE_SIG) {
+  if (wallet.get_wallet_type() != WalletType::SINGLE_SIG ||
+      !wallet.need_backup()) {
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                            "Invalid wallet type");
   }
   std::string signer_id = wallet.get_signers()[0].get_master_fingerprint();
+  return storage_->GetMnemonic(chain_, signer_id, passphrase);
+}
+
+std::string NunchukImpl::GetHotKeyMnemonic(const std::string& signer_id,
+                                           const std::string& passphrase) {
+  auto signer = storage_->GetMasterSigner(chain_, signer_id);
+  if (signer.get_type() != SignerType::SOFTWARE || !signer.need_backup()) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "Invalid signer type");
+  }
   return storage_->GetMnemonic(chain_, signer_id, passphrase);
 }
 
