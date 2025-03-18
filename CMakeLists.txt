@@ -151,6 +151,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/nunchukmatriximpl.cpp
     src/nunchuktapprotocol.cpp
     src/nunchukgroupwallet.cpp
+    src/compiler.cpp
     src/backend/synchronizer.cpp
     src/backend/electrum/client.cpp
     src/backend/electrum/synchronizer.cpp
@@ -193,6 +194,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/utils/tweetnacl.c
+    src/utils/spanparsing.cpp
 )
 
 set(PROJECT_LIBRARIES
