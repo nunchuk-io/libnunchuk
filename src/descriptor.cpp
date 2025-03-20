@@ -155,8 +155,12 @@ std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
   };
 
   std::stringstream desc;
+  std::vector<std::string> leaves{};
   if (disableValueKeyset) {
     desc << "tr(" << H_POINT;  // keypath
+    std::stringstream pkmusig;
+    pkmusig << "pk(" << musig() << ")";
+    leaves.push_back(pkmusig.str());
   } else {
     desc << "tr(" << musig();  // keypath
     if (n == m) {
@@ -166,7 +170,6 @@ std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
   }
   desc << ",";
 
-  std::vector<std::string> leaves{};
   while (std::prev_permutation(v.begin(), v.end())) {
     std::stringstream pkmusig;
     pkmusig << "pk(" << musig() << ")";
