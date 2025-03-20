@@ -46,9 +46,10 @@ void NunchukImpl::SubscribeGroups(const std::vector<std::string>& groupIds,
 bool NunchukImpl::CreateGroupWallet(const GroupSandbox& group) {
   if (!group.is_finalized() || group.get_wallet_id().empty()) return false;
   if (!storage_->HasWallet(chain_, group.get_wallet_id())) {
-    auto wallet = CreateWallet(group.get_name(), group.get_m(), group.get_n(),
-                               group.get_signers(), group.get_address_type(),
-                               false, {}, true, {});
+    auto wallet =
+        CreateWallet(group.get_name(), group.get_m(), group.get_n(),
+                     group.get_signers(), group.get_address_type(), false, {},
+                     true, {}, group.get_wallet_template());
     group_service_.SetupKey(wallet);
   }
   if (!group.get_replace_wallet_id().empty()) {
@@ -393,9 +394,9 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId,
     }
   }
   signers.resize(group.get_n());
-  auto wallet =
-      CreateWallet(group.get_name(), group.get_m(), group.get_n(), signers,
-                   group.get_address_type(), false, {}, true, {});
+  auto wallet = CreateWallet(group.get_name(), group.get_m(), group.get_n(),
+                             signers, group.get_address_type(), false, {}, true,
+                             {}, group.get_wallet_template());
   group.set_signers(signers);
   group.set_finalized(true);
   group.set_wallet_id(wallet.get_id());
