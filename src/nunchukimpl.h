@@ -531,6 +531,8 @@ class NunchukImpl : public Nunchuk {
 
   bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
               Amount& package_fee_rate) override;
+  Amount GetScriptPathFeeRate(const std::string& wallet_id,
+                              const Transaction& tx) override;
 
   // Dummy transaction
   std::pair<std::string, Transaction> ImportDummyTx(

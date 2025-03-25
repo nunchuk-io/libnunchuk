@@ -24,8 +24,12 @@ static bool IsSegwit(const Descriptor& desc) {
  */
 static std::optional<int64_t> MaxInputWeight(const Descriptor& desc,
                                              const bool tx_is_segwit,
-                                             const bool can_grind_r) {
-  if (const auto sat_weight = desc.MaxSatisfactionWeight(!can_grind_r)) {
+                                             const bool can_grind_r,
+                                             int64_t max_sat_weight = -1) {
+  const std::optional<int64_t> sat_weight =
+      max_sat_weight > 0 ? std::optional<int64_t>{max_sat_weight}
+                         : desc.MaxSatisfactionWeight(!can_grind_r);
+  if (sat_weight) {
     if (const auto elems_count = desc.MaxSatisfactionElems()) {
       const bool is_segwit = IsSegwit(desc);
       // Account for the size of the scriptsig and the number of elements on the
@@ -108,17 +112,10 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
   return result;
 }
 
-/** Infer the maximum size of this input after it will be signed. */
-static std::optional<int64_t> GetSignedTxinWeight(const Descriptor& desc,
-                                                  const CTxIn& txin,
-                                                  const bool tx_is_segwit,
-                                                  const bool can_grind_r) {
-  return MaxInputWeight(desc, tx_is_segwit, can_grind_r);
-}
-
 // txouts needs to be in the order of tx.vin
 TxSize CalculateMaximumSignedTxSize(const CTransaction& tx,
-                                    const Descriptor& desc) {
+                                    const Descriptor& desc,
+                                    int64_t sat_weight = -1) {
   // nVersion + nLockTime + input count + output count
   int64_t weight = (4 + 4 + GetSizeOfCompactSize(tx.vin.size()) +
                     GetSizeOfCompactSize(tx.vout.size())) *
@@ -136,8 +133,7 @@ TxSize CalculateMaximumSignedTxSize(const CTransaction& tx,
 
   // Add the size of the transaction inputs as if they were signed.
   for (uint32_t i = 0; i < tx.vin.size(); i++) {
-    const auto txin_weight =
-        GetSignedTxinWeight(desc, tx.vin[i], is_segwit, false);
+    const auto txin_weight = MaxInputWeight(desc, is_segwit, false, sat_weight);
     if (!txin_weight) return TxSize{-1, -1};
     assert(*txin_weight > -1);
     weight += *txin_weight;
@@ -163,8 +159,8 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     if (!error.empty()) {
       throw NunchukException(NunchukException::INVALID_ADDRESS, error);
     }
-    vecSend.push_back({std::move(dest), recipient.second,
-                       substract_fee_from_amount});
+    vecSend.push_back(
+        {std::move(dest), recipient.second, substract_fee_from_amount});
   }
 
   FlatSigningProvider provider;
@@ -430,6 +426,38 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   FeeCalculation feeCalc;
   change_pos = nChangePosInOut;
   return CreatedTransactionResult(tx, current_fee, nChangePosInOut, feeCalc);
-}  // namespace wallet
+}
+
+int EstimateScriptPathVSize(const std::vector<std::string>& descriptors,
+                            const CTransaction ctx) {
+  FlatSigningProvider provider;
+  std::string error;
+  std::vector<std::unique_ptr<Descriptor>> desc;
+  std::vector<CScript> output_scripts;
+
+  for (auto&& descriptor : descriptors) {
+    for (auto&& parsed : Parse(descriptor, provider, error, true)) {
+      parsed->Expand(0, provider, output_scripts, provider);
+      desc.emplace_back(std::move(parsed));
+    }
+  }
+  if (provider.tr_trees.empty()) {
+    return CalculateMaximumSignedTxSize(ctx, *desc.front()).vsize;
+  }
+
+  auto spendData = provider.tr_trees.begin()->second.GetSpendData();
+  size_t max_control_block_size = 0;
+  for (const auto& [leaf_script, control_blocks] : spendData.scripts) {
+    for (const auto& control_block : control_blocks) {
+      if (max_control_block_size < control_block.size()) {
+        max_control_block_size = control_block.size();
+      }
+    }
+  }
+  int64_t sat_weight = 1 + 1 + 65 + 1 + 33 +
+                       GetSizeOfCompactSize(max_control_block_size) +
+                       max_control_block_size;
+  return CalculateMaximumSignedTxSize(ctx, *desc.front(), sat_weight).vsize;
+}
 
 }  // namespace wallet

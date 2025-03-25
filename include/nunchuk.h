@@ -1479,6 +1479,8 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual bool IsCPFP(const std::string& wallet_id, const Transaction& tx,
                       Amount& package_fee_rate) = 0;
+  virtual Amount GetScriptPathFeeRate(const std::string& wallet_id,
+                                      const Transaction& tx) = 0;
 
   virtual int EstimateRollOverTransactionCount(
       const std::string& wallet_id, const std::set<int>& tags,

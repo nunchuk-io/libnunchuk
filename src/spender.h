@@ -36,6 +36,9 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     const std::string& change_address, const Amount fee_rate, int& change_pos,
     int& signedVSize);
 
+int EstimateScriptPathVSize(const std::vector<std::string>& descriptors,
+                            const CTransaction ctx);
+
 }  // namespace wallet
 
 #endif  // NUNCHUK_SPENDER_H

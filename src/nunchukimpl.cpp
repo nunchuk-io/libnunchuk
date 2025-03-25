@@ -1544,6 +1544,7 @@ Transaction NunchukImpl::DraftTransaction(
   tx.set_fee_rate(fee_rate);
   tx.set_subtract_fee_from_amount(subtract_fee_from_amount);
   tx.set_vsize(vsize);
+  tx.set_psbt(psbt);
   return tx;
 }
 
@@ -2399,6 +2400,29 @@ bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,
   }
   package_fee_rate = std::floor(1000.0 * package_fee / package_size);
   return rs;
+}
+
+Amount NunchukImpl::GetScriptPathFeeRate(const std::string& wallet_id,
+                                         const Transaction& tx) {
+  Wallet wallet = GetWallet(wallet_id);
+  if (wallet.get_wallet_type() != WalletType::MULTI_SIG) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Invalid wallet type");
+  }
+  if (wallet.get_address_type() != AddressType::TAPROOT) {
+    throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
+                           "Invalid address type");
+  }
+
+  try {
+    auto psbtx = DecodePsbt(tx.get_psbt());
+    auto vsize = wallet::EstimateScriptPathVSize(
+        {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)},
+        CTransaction(*psbtx.tx));
+    if (vsize > 0) return std::floor(1000.0 * tx.get_fee() / vsize);
+  } catch (...) {
+  }
+  return tx.get_fee_rate();
 }
 
 std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
