@@ -1049,6 +1049,49 @@ class NUNCHUK_EXPORT AppSettings {
   std::string group_server_;
 };
 
+struct Policy {
+    enum class Type {
+        NONE,
+
+        PK_K,
+        OLDER,
+        AFTER,
+        HASH160,
+        HASH256,
+        RIPEMD160,
+        SHA256,
+        AND,
+        OR,
+        THRESH
+    };
+
+    Type node_type = Type::NONE;
+    std::vector<Policy> sub;
+    std::vector<unsigned char> data;
+    std::vector<std::string> keys;
+    std::vector<uint32_t> prob;
+    uint32_t k = 0;
+
+    ~Policy() = default;
+    Policy(const Policy& x) = delete;
+    Policy& operator=(const Policy& x) = delete;
+    Policy& operator=(Policy&& x) = default;
+    Policy(Policy&& x) = default;
+
+    Policy() {}
+    Policy(Type nt) : node_type(nt) {}
+    Policy(Type nt, uint32_t kv) : node_type(nt), k(kv) {}
+    Policy(Type nt, std::vector<unsigned char>&& dat) : node_type(nt), data(std::move(dat)) {}
+    Policy(Type nt, std::vector<unsigned char>&& dat, uint32_t kv) : node_type(nt), data(std::move(dat)), k(kv) {}
+    Policy(Type nt, std::vector<Policy>&& subs) : node_type(nt), sub(std::move(subs)) {}
+    Policy(Type nt, std::vector<std::string>&& key) : node_type(nt), keys(std::move(key)) {}
+    Policy(Type nt, std::vector<Policy>&& subs, std::vector<uint32_t>&& probs) : node_type(nt), sub(std::move(subs)), prob(std::move(probs)) {}
+    Policy(Type nt, std::vector<Policy>&& subs, uint32_t kv) : node_type(nt), sub(std::move(subs)), k(kv) {}
+    Policy(Type nt, std::vector<std::string>&& key, uint32_t kv) : node_type(nt), keys(std::move(key)), k(kv) {}
+
+    bool operator()() const { return node_type != Type::NONE; }
+};
+
 class NUNCHUK_EXPORT Nunchuk {
  public:
   Nunchuk(const Nunchuk&) = delete;

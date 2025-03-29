@@ -194,7 +194,6 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/utils/tweetnacl.c
-    src/utils/spanparsing.cpp
 )
 
 set(PROJECT_LIBRARIES

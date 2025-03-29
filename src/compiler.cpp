@@ -2,13 +2,13 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <nunchuk.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <script/script.h>
 #include <script/miniscript.h>
-#include <span.h>
-#include <utils/spanparsing.h>
+#include <script/parsing.h>
 #include <util/strencodings.h>
 
 #include "compiler.h"
@@ -22,52 +22,10 @@ namespace {
 using Node = miniscript::NodeRef<CompilerContext::Key>;
 using Fragment = miniscript::Fragment;
 using miniscript::operator"" _mst;
+using namespace nunchuk;
 
 template<typename... Args>
 Node MakeNode(Args&&... args) { return miniscript::MakeNodeRef<CompilerContext::Key>(miniscript::internal::NoDupCheck{}, miniscript::MiniscriptContext::P2WSH, std::forward<Args>(args)...); }
-
-struct Policy {
-    enum class Type {
-        NONE,
-
-        PK_K,
-        OLDER,
-        AFTER,
-        HASH160,
-        HASH256,
-        RIPEMD160,
-        SHA256,
-        AND,
-        OR,
-        THRESH
-    };
-
-    Type node_type = Type::NONE;
-    std::vector<Policy> sub;
-    std::vector<unsigned char> data;
-    std::vector<CompilerContext::Key> keys;
-    std::vector<uint32_t> prob;
-    uint32_t k = 0;
-
-    ~Policy() = default;
-    Policy(const Policy& x) = delete;
-    Policy& operator=(const Policy& x) = delete;
-    Policy& operator=(Policy&& x) = default;
-    Policy(Policy&& x) = default;
-
-    Policy() {}
-    Policy(Type nt) : node_type(nt) {}
-    Policy(Type nt, uint32_t kv) : node_type(nt), k(kv) {}
-    Policy(Type nt, std::vector<unsigned char>&& dat) : node_type(nt), data(std::move(dat)) {}
-    Policy(Type nt, std::vector<unsigned char>&& dat, uint32_t kv) : node_type(nt), data(std::move(dat)), k(kv) {}
-    Policy(Type nt, std::vector<Policy>&& subs) : node_type(nt), sub(std::move(subs)) {}
-    Policy(Type nt, std::vector<CompilerContext::Key>&& key) : node_type(nt), keys(std::move(key)) {}
-    Policy(Type nt, std::vector<Policy>&& subs, std::vector<uint32_t>&& probs) : node_type(nt), sub(std::move(subs)), prob(std::move(probs)) {}
-    Policy(Type nt, std::vector<Policy>&& subs, uint32_t kv) : node_type(nt), sub(std::move(subs)), k(kv) {}
-    Policy(Type nt, std::vector<CompilerContext::Key>&& key, uint32_t kv) : node_type(nt), keys(std::move(key)), k(kv) {}
-
-    bool operator()() const { return node_type != Type::NONE; }
-};
 
 std::vector<unsigned char> Hash2(const Span<const char>& in, size_t len)
 {
@@ -94,7 +52,7 @@ Policy ParseProb(Span<const char>& in, uint32_t& prob) {
 }
 
 Policy Parse(Span<const char>& in) {
-    using namespace spanparsing;
+    using namespace script;
     auto expr = Expr(in);
     if (Func("pk", expr)) {
         auto key = COMPILER_CTX.FromString(expr.begin(), expr.end());
