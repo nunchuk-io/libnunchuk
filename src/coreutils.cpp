@@ -120,7 +120,8 @@ std::string CoreUtils::DecodeRawTransaction(const std::string &raw_tx) {
 }
 
 std::string CoreUtils::CreatePsbt(const std::vector<TxInput> &vin,
-                                  const std::vector<TxOutput> &vout) {
+                                  const std::vector<TxOutput> &vout,
+                                  int locktime) {
   json input = json::array();
   for (auto &el : vin) {
     input.push_back({{"txid", el.first}, {"vout", el.second}});
@@ -129,10 +130,10 @@ std::string CoreUtils::CreatePsbt(const std::vector<TxInput> &vin,
   for (auto &el : vout) {
     output.push_back({{el.first, Utils::ValueFromAmount(el.second)}});
   }
-  json params = json::array({input,   // inputs
-                             output,  // ouputs
-                             0,       // locktime
-                             true});  // replaceable
+  json params = json::array({input,     // inputs
+                             output,    // ouputs
+                             locktime,  // locktime
+                             true});    // replaceable
   json req = {
       {"method", "createpsbt"}, {"params", params}, {"id", "placeholder"}};
   std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());

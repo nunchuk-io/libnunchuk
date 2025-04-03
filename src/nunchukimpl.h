@@ -199,7 +199,8 @@ class NunchukImpl : public Nunchuk {
                                 const std::vector<UnspentOutput>& inputs = {},
                                 Amount fee_rate = -1,
                                 bool subtract_fee_from_amount = false,
-                                const std::string& replace_txid = {}) override;
+                                const std::string& replace_txid = {},
+                                bool anti_fee_sniping = false) override;
   bool ExportTransaction(const std::string& wallet_id, const std::string& tx_id,
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
@@ -232,8 +233,8 @@ class NunchukImpl : public Nunchuk {
                                bool subtract_fee_from_amount = false,
                                const std::string& replace_txid = {}) override;
   Transaction ReplaceTransaction(const std::string& wallet_id,
-                                 const std::string& tx_id,
-                                 Amount new_fee_rate) override;
+                                 const std::string& tx_id, Amount new_fee_rate,
+                                 bool anti_fee_sniping = false) override;
   bool ReplaceTransactionId(const std::string& wallet_id,
                             const std::string& txid,
                             const std::string& replace_txid) override;
@@ -565,7 +566,7 @@ class NunchukImpl : public Nunchuk {
   std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
-      Amount fee_rate = -1) override;
+      Amount fee_rate = -1, bool anti_fee_sniping = false) override;
 
   // Group Wallet
   void EnableGroupWallet(const std::string& osName,
@@ -643,7 +644,7 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput>& inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& vsize,
-                         int& change_pos);
+                         int& change_pos, bool anti_fee_sniping);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
   void RunScanWalletAddress(const std::string& wallet_id);

@@ -1009,7 +1009,7 @@ Transaction NunchukImpl::CreateTransaction(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
     const std::string& memo, const std::vector<UnspentOutput>& inputs,
     Amount fee_rate, bool subtract_fee_from_amount,
-    const std::string& replace_txid) {
+    const std::string& replace_txid, bool anti_fee_sniping) {
   Amount origin_fee{0};
   if (!replace_txid.empty()) {
     auto origin_tx = storage_->GetTransaction(chain_, wallet_id, replace_txid);
@@ -1048,7 +1048,7 @@ Transaction NunchukImpl::CreateTransaction(
   if (fee_rate <= 0) fee_rate = EstimateFee();
   auto psbt =
       CreatePsbt(wallet_id, outputs, inputs, fee_rate, subtract_fee_from_amount,
-                 true, fee, vsize, change_pos);
+                 true, fee, vsize, change_pos, anti_fee_sniping);
   if (!replace_txid.empty() &&
       fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
     throw NunchukException(
@@ -1511,9 +1511,9 @@ Transaction NunchukImpl::DraftTransaction(
   int vsize = 0;
   int change_pos = -1;
   if (fee_rate <= 0) fee_rate = EstimateFee();
-  auto psbt =
-      CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
-                 subtract_fee_from_amount, false, fee, vsize, change_pos);
+  auto psbt = CreatePsbt(wallet_id, m_outputs, inputs, fee_rate,
+                         subtract_fee_from_amount, false, fee, vsize,
+                         change_pos, false);
   if (!replace_txid.empty() &&
       fee <= origin_fee + (synchronizer_->RelayFee() * vsize / 1000)) {
     throw NunchukException(
@@ -1550,7 +1550,8 @@ Transaction NunchukImpl::DraftTransaction(
 
 Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
                                             const std::string& tx_id,
-                                            Amount new_fee_rate) {
+                                            Amount new_fee_rate,
+                                            bool anti_fee_sniping) {
   auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
   if (new_fee_rate < tx.get_fee_rate()) {
     throw NunchukException(
@@ -1577,9 +1578,9 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   Amount fee = 0;
   int vsize = 0;
   int change_pos = -1;
-  auto psbt =
-      CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
-                 tx.subtract_fee_from_amount(), true, fee, vsize, change_pos);
+  auto psbt = CreatePsbt(wallet_id, outputs, inputs, new_fee_rate,
+                         tx.subtract_fee_from_amount(), true, fee, vsize,
+                         change_pos, anti_fee_sniping);
   auto rs = storage_->CreatePsbt(chain_, wallet_id, psbt, fee, tx.get_memo(),
                                  change_pos, outputs, new_fee_rate,
                                  tx.subtract_fee_from_amount(), tx.get_txid());
@@ -2148,7 +2149,7 @@ std::string NunchukImpl::CreatePsbt(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
     const std::vector<UnspentOutput>& inputs, Amount fee_rate,
     bool subtract_fee_from_amount, bool utxo_update_psbt, Amount& fee,
-    int& vsize, int& change_pos) {
+    int& vsize, int& change_pos, bool anti_fee_sniping) {
   Wallet wallet = GetWallet(wallet_id);
   std::vector<UnspentOutput> utxos = inputs;
   if (utxos.empty()) {
@@ -2202,7 +2203,9 @@ std::string NunchukImpl::CreatePsbt(
     new_outputs.push_back({EncodeDestination(address), txout.nValue});
   }
 
-  auto psbt = CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs);
+  int locktime = anti_fee_sniping ? 0 : GetChainTip();
+  auto psbt =
+      CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs, locktime);
   if (!utxo_update_psbt) return psbt;
   return storage_->FillPsbt(chain_, wallet_id, psbt);
 }
@@ -2539,7 +2542,7 @@ NunchukImpl::DraftRollOverTransactions(const std::string& old_wallet_id,
 std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
     const std::string& old_wallet_id, const std::string& new_wallet_id,
     const std::set<int>& tags, const std::set<int>& collections,
-    Amount fee_rate) {
+    Amount fee_rate, bool anti_fee_sniping) {
   auto utxos = storage_->GetUtxos(chain_, old_wallet_id);
   auto utxoGroups = groupUtxos(utxos, tags, collections);
 
@@ -2556,7 +2559,8 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
     std::string address = CoreUtils::getInstance().DeriveAddress(desc, index++);
     try {
       auto tx = CreateTransaction(old_wallet_id, {{address, amount}}, {},
-                                  groups.second, fee_rate, true);
+                                  groups.second, fee_rate, true, {},
+                                  anti_fee_sniping);
       rs.push_back(tx);
       std::string coin = strprintf("%s:%d", tx.get_txid(), 0);
       for (auto tag : groups.first.first) coinTags[tag].push_back(coin);
