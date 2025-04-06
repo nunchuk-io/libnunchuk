@@ -300,7 +300,7 @@ MasterSigner NunchukImpl::CreateTapsignerMasterSigner(
 
     if (!replace && storage_->HasSigner(chain_, id)) {
       throw StorageException(StorageException::SIGNER_EXISTS,
-                             strprintf("Signer exists id = '%s'", id));
+                             strprintf("Signer already exists id = '%s'", id));
     }
     if (name.empty()) {
       name = id;
@@ -361,14 +361,25 @@ Transaction NunchukImpl::SignTapsignerTransaction(
            ", psbt='%s'",
            psbt.c_str());
     auto master_signer_id = hwi_tapsigner_->GetMasterFingerprint();
-
     auto mastersigner = GetMasterSigner(master_signer_id);
+
     if (mastersigner.get_type() != SignerType::NFC) {
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              strprintf("Only for NFC wallet_id = '%s' tx_id = "
                                        "'%s' master_signer_id = '%s'",
                                        wallet_id, tx_id, master_signer_id));
     }
+
+    auto wallet = GetWallet(wallet_id);
+    if (std::none_of(wallet.get_signers().begin(), wallet.get_signers().end(),
+                     [&](const SingleSigner& signer) {
+                       return master_signer_id ==
+                              signer.get_master_fingerprint();
+                     })) {
+      throw NunchukException(TapProtocolException::INVALID_DEVICE,
+                             "Key is not part of wallet.");
+    }
+
     std::string signed_psbt = hwi_tapsigner_->SignTx(psbt);
 
     DLOG_F(INFO,

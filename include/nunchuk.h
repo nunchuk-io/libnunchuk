@@ -316,9 +316,21 @@ class TapProtocolException : public BaseException {
   static const int RATE_LIMIT = TAP_PROTOCOL_ERROR - 429;
   static const int TAG_LOST = TAP_PROTOCOL_ERROR - 499;
 
+  static std::string GetErrorMessage(int code, const std::string& message) {
+    switch (code) {
+      case BAD_AUTH:
+        return "Invalid PIN.";
+      case RATE_LIMIT:
+        return "Rate-limited. Please enter the correct PIN and tap for 15 "
+               "seconds to unlock.";
+    }
+    return NormalizeErrorMessage(message);
+  }
+
   explicit TapProtocolException(const tap_protocol::TapProtoException& te)
-      : BaseException(TAP_PROTOCOL_ERROR - te.code(),
-                      NormalizeErrorMessage(te.what())) {}
+      : BaseException(
+            TAP_PROTOCOL_ERROR - te.code(),
+            GetErrorMessage(TAP_PROTOCOL_ERROR - te.code(), te.what())) {}
 };
 
 class NUNCHUK_EXPORT GroupException : public BaseException {
