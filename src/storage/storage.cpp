@@ -206,7 +206,7 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
   auto wallet_file = GetWalletDir(chain, id);
   if (bfs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
-                           strprintf("Wallet existed! id = '%s'", id));
+                           strprintf("Wallet already exists! id = '%s'", id));
   }
   wallet_db.EncryptDb(wallet_file.string(), passphrase_);
   return id;
@@ -295,7 +295,7 @@ bfs::path NunchukStorage::GetWalletDir0(const bfs::path& dir, Chain chain,
                                         std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
-                           "Wallet id can not empty!");
+                           "Wallet id cannot be empty!");
   }
   return dir / ChainStr(chain) / "wallets" / id;
 }
@@ -308,7 +308,7 @@ bfs::path NunchukStorage::GetSignerDir0(const bfs::path& dir, Chain chain,
                                         std::string id) const {
   if (id.empty()) {
     throw StorageException(StorageException::SIGNER_NOT_FOUND,
-                           "Signer id can not empty!");
+                           "Signer id cannot be empty!");
   }
   std::string lowercase_id = ba::to_lower_copy(id);
   bfs::path path = dir;
@@ -352,7 +352,7 @@ NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
   bfs::path db_file = GetWalletDir(chain, id);
   if (!bfs::exists(db_file)) {
     throw StorageException(StorageException::WALLET_NOT_FOUND,
-                           strprintf("Wallet not exists! id = '%s'", id));
+                           strprintf("Wallet doesn't exist! id = '%s'", id));
   }
   return NunchukWalletDb{chain, id, db_file.string(), passphrase_};
 }
@@ -362,7 +362,7 @@ NunchukSignerDb NunchukStorage::GetSignerDb(Chain chain,
   bfs::path db_file = GetSignerDir(chain, id);
   if (!bfs::exists(db_file)) {
     throw StorageException(StorageException::MASTERSIGNER_NOT_FOUND,
-                           strprintf("Signer not exists! id = '%s'", id));
+                           strprintf("Key doesn't exist! id = '%s'", id));
   }
   return NunchukSignerDb{chain, id, db_file.string(), passphrase_};
 }
@@ -469,7 +469,7 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
   bfs::path wallet_file = GetWalletDir(chain, id);
   if (bfs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
-                           strprintf("Wallet existed! id = '%s'", id));
+                           strprintf("Wallet already exists! id = '%s'", id));
   }
   std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {
@@ -568,7 +568,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
       }
     } else {
       throw StorageException(StorageException::SIGNER_EXISTS,
-                             strprintf("Signer exists id = '%s'", id));
+                             strprintf("Signer already exists id = '%s'", id));
     }
   }
   if (signer_type == SignerType::SOFTWARE) {
@@ -577,7 +577,7 @@ SingleSigner NunchukStorage::CreateSingleSigner(
   if (!signer_db.AddRemote(name, xpub, public_key, derivation_path, false,
                            signer_type, tags)) {
     throw StorageException(StorageException::SIGNER_EXISTS,
-                           strprintf("Signer exists id = '%s'", id));
+                           strprintf("Signer already exists id = '%s'", id));
   }
 
   if (replace) {
@@ -677,7 +677,7 @@ SingleSigner NunchukStorage::AddSignerToMasterSigner(
   if (!xpub.empty()) {
     throw StorageException(
         StorageException::SIGNER_EXISTS,
-        strprintf("Signer exists id = '%s'", mastersigner_id));
+        strprintf("Signer already exists id = '%s'", mastersigner_id));
   }
 
   signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
@@ -2173,7 +2173,7 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
   bfs::path wallet_file = GetWalletDir0(db_folder, chain, id);
   if (bfs::exists(wallet_file)) {
     throw StorageException(StorageException::WALLET_EXISTED,
-                           strprintf("Wallet existed! id = '%s'", id));
+                           strprintf("Wallet already exists! id = '%s'", id));
   }
   auto taprotocol_db = GetTaprotocolDb(chain, db_folder);
   auto true_taprotocol_db = GetTaprotocolDb(chain);

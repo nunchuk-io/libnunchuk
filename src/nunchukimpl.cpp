@@ -510,7 +510,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   std::string id = to_lower_copy(signer.GetMasterFingerprint());
   if (storage_->HasSigner(chain_, id) && !replace) {
     throw StorageException(StorageException::SIGNER_EXISTS,
-                           strprintf("Signer exists id = '%s'", id));
+                           strprintf("Signer already exists id = '%s'", id));
   }
 
   if (is_primary) {
@@ -542,7 +542,7 @@ MasterSigner NunchukImpl::CreateSoftwareSignerFromMasterXprv(
   std::string id = to_lower_copy(signer.GetMasterFingerprint());
   if (storage_->HasSigner(chain_, id) && !replace) {
     throw StorageException(StorageException::SIGNER_EXISTS,
-                           strprintf("Signer exists id = '%s'", id));
+                           strprintf("Signer already exists id = '%s'", id));
   }
 
   if (is_primary) {
@@ -924,8 +924,13 @@ bool NunchukImpl::ExportTransactionHistory(const std::string& wallet_id,
   if (format != ExportFormat::CSV) return false;
   std::stringstream value;
   auto txs = GetTransactionHistory(wallet_id, 10000, 0);
+  std::sort(txs.begin(), txs.end(),
+            [](const Transaction& lhs, const Transaction& rhs) {
+              return std::make_pair(lhs.get_status(), lhs.get_height()) <
+                     std::make_pair(rhs.get_status(), rhs.get_height());
+            });
   value << "txid,fee,amount,height,memo" << std::endl;
-  for (auto tx : txs) {
+  for (auto&& tx : txs) {
     value << tx.get_txid() << "," << tx.get_fee() << ","
           << ((tx.is_receive() ? 1 : -1) * tx.get_sub_amount()) << ","
           << tx.get_height() << "," << quoted(tx.get_memo()) << std::endl;
