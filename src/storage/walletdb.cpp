@@ -180,6 +180,10 @@ bool NunchukWalletDb::SetNeedBackup(bool value) {
   return PutInt(DbKeys::NEED_BACKUP, value ? 1 : 0);
 }
 
+bool NunchukWalletDb::SetArchived(bool value) {
+  return PutInt(DbKeys::ARCHIVED, value ? 1 : 0);
+}
+
 Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   auto data = GetString(DbKeys::IMMUTABLE_DATA);
   if (data.empty())
@@ -212,6 +216,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
   wallet.set_gap_limit(gap_limit <= 0 ? DEFAULT_ADDRESS_LOOK_AHEAD : gap_limit);
   wallet.set_need_backup(GetInt(DbKeys::NEED_BACKUP) == 1);
+  wallet.set_archived(GetInt(DbKeys::ARCHIVED) == 1);
   wallet.set_wallet_template(wallet_template);
   if (!skip_provider) {
     GetAllAddressData(false);  // update range to max address index

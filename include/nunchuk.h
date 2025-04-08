@@ -515,6 +515,7 @@ class NUNCHUK_EXPORT Wallet {
   int get_gap_limit() const;
   void check_valid() const;
   bool need_backup() const;
+  bool is_archived() const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -530,6 +531,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_last_used(const time_t value);
   void set_gap_limit(int value);
   void set_need_backup(bool value);
+  void set_archived(bool value);
 
  private:
   void post_update();
@@ -549,6 +551,7 @@ class NUNCHUK_EXPORT Wallet {
   time_t last_used_{0};
   int gap_limit_{20};
   bool need_backup_{false};
+  bool archived_{false};
 };
 
 class NUNCHUK_EXPORT CoinTag {

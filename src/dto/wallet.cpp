@@ -80,6 +80,7 @@ std::string Wallet::get_description() const { return description_; }
 time_t Wallet::get_last_used() const { return last_used_; }
 int Wallet::get_gap_limit() const { return gap_limit_; }
 bool Wallet::need_backup() const { return need_backup_; }
+bool Wallet::is_archived() const { return archived_; }
 void Wallet::check_valid() const {
   if (n_ <= 0)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -137,7 +138,7 @@ void Wallet::set_create_date(const time_t value) { create_date_ = value; }
 void Wallet::set_last_used(const time_t value) { last_used_ = value; }
 void Wallet::set_gap_limit(int value) { gap_limit_ = value; }
 void Wallet::set_need_backup(bool value) { need_backup_ = value; }
-
+void Wallet::set_archived(bool value) { archived_ = value; }
 std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
                                    bool sorted) const {
   return GetDescriptorForSigners(
