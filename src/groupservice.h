@@ -133,8 +133,7 @@ class GroupService {
 
   json GetGroupJson(const std::string& groupId);
   json GetModifiedSigners(const json& modified, int n);
-  json CheckGroupJson(const json& group, bool joined, bool finalized,
-                      int index = -1);
+  json CheckGroupSandboxJson(const json& group, bool joined, int index = -1);
   json UpdateSignersJson(const json& signers, SingleSigner signer, int index,
                          int n);
   json UpdateOccupiedJson(const json& occupied, bool value, int index);

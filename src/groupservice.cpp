@@ -546,7 +546,7 @@ std::vector<GroupSandbox> GroupService::GetGroups(
 
 GroupSandbox GroupService::JoinGroup(const std::string& groupId,
                                      const std::vector<SingleSigner>& signers) {
-  json group = CheckGroupJson(GetGroupJson(groupId), false, false);
+  json group = CheckGroupSandboxJson(GetGroupJson(groupId), false);
   group["init"]["state"][ephemeralPub_] = "";
   if (!signers.empty()) {
     int n = group["init"]["pubstate"]["n"];
@@ -567,7 +567,7 @@ GroupSandbox GroupService::JoinGroup(const std::string& groupId,
 
 GroupSandbox GroupService::SetOccupied(const std::string& groupId, int index,
                                        bool value) {
-  json group = CheckGroupJson(GetGroupJson(groupId), true, false, index);
+  json group = CheckGroupSandboxJson(GetGroupJson(groupId), true, index);
   group["init"]["pubstate"]["occupied"] =
       UpdateOccupiedJson(group["init"]["pubstate"]["occupied"], value, index);
   return SendGroupEvent(groupId, group);
@@ -575,7 +575,7 @@ GroupSandbox GroupService::SetOccupied(const std::string& groupId, int index,
 
 GroupSandbox GroupService::SetSigner(const std::string& groupId,
                                      const SingleSigner& signer, int index) {
-  json group = CheckGroupJson(GetGroupJson(groupId), true, false, index);
+  json group = CheckGroupSandboxJson(GetGroupJson(groupId), true, index);
   int n = group["init"]["pubstate"]["n"];
   std::string ciphertext = group["init"]["state"][ephemeralPub_];
   if (!ciphertext.empty()) {
@@ -632,7 +632,7 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
   if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
-  json group = CheckGroupJson(GetGroupJson(groupId), true, false);
+  json group = CheckGroupSandboxJson(GetGroupJson(groupId), true);
 
   auto curAt = AddressType(group["init"]["pubstate"]["addressType"]);
   int curN = group["init"]["pubstate"]["n"];
@@ -1084,15 +1084,14 @@ json GroupService::GetGroupJson(const std::string& groupId) {
   return GetHttpResponseData(Get(url))["group"];
 }
 
-json GroupService::CheckGroupJson(const json& group, bool joined,
-                                  bool finalized, int index) {
+json GroupService::CheckGroupSandboxJson(const json& group, bool joined, int index) {
+  if (group["status"].get<std::string>() == "ACTIVE") {
+    throw GroupException(GroupException::SANDBOX_FINALIZED, "Group finalized");
+  }
   if (joined && !group["init"]["state"].contains(ephemeralPub_)) {
     throw GroupException(GroupException::GROUP_NOT_JOINED, "Not joined group");
   } else if (!joined && group["init"]["state"].contains(ephemeralPub_)) {
     throw GroupException(GroupException::GROUP_JOINED, "Already joined");
-  }
-  if (finalized && group["status"].get<std::string>() == "ACTIVE") {
-    throw GroupException(GroupException::SANDBOX_FINALIZED, "Group finalized");
   }
   int n = group["init"]["pubstate"]["n"];
   if (index >= n) {
