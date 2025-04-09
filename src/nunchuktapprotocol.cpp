@@ -40,6 +40,13 @@
 using namespace boost::algorithm;
 
 namespace nunchuk {
+static std::string GetTapsignerCardIDShort(const std::string& card_id) {
+  if (card_id.size() > 5) {
+    return "••" + card_id.substr(card_id.size() - 5);
+  }
+  return card_id;
+}
+
 MasterSigner NunchukImpl::ImportTapsignerMasterSigner(
     const std::string& file_path, const std::string& backup_key,
     const std::string& raw_name, std::function<bool(int)> progress,
@@ -406,9 +413,8 @@ std::string NunchukImpl::SignTapsignerMessage(
   if (st.get_card_ident() != tapsigner->GetIdent()) {
     throw NunchukException(
         TapProtocolException::INVALID_DEVICE,
-        strprintf(
-            "Invalid device: key fingerprint does not match. Expected '%s'.",
-            master_signer_id));
+        strprintf("Card ID does not match. Expected '%s'.",
+                  GetTapsignerCardIDShort(st.get_card_ident())));
   }
 
   try {
@@ -429,10 +435,10 @@ bool NunchukImpl::ChangeTapsignerCVC(tap_protocol::Tapsigner* tapsigner,
         auto st = storage_->GetTapsignerStatusFromMasterSigner(
             chain_, master_signer_id);
         if (st.get_card_ident() != tapsigner->GetIdent()) {
-          throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                                 strprintf("Invalid device: key fingerprint "
-                                           "does not match. Expected '%s'.",
-                                           master_signer_id));
+          throw NunchukException(
+              TapProtocolException::INVALID_DEVICE,
+              strprintf("Card ID does not match. Expected '%s'.",
+                        GetTapsignerCardIDShort(st.get_card_ident())));
         }
       } catch (StorageException& se) {
         if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
@@ -460,10 +466,10 @@ TapsignerStatus NunchukImpl::BackupTapsigner(
         auto st = storage_->GetTapsignerStatusFromMasterSigner(
             chain_, master_signer_id);
         if (st.get_card_ident() != tapsigner->GetIdent()) {
-          throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                                 strprintf("Invalid device: key fingerprint "
-                                           "does not match. Expected '%s'.",
-                                           master_signer_id));
+          throw NunchukException(
+              TapProtocolException::INVALID_DEVICE,
+              strprintf("Card ID does not match. Expected '%s'.",
+                        GetTapsignerCardIDShort(st.get_card_ident())));
         }
       } catch (StorageException& se) {
         if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
@@ -502,9 +508,8 @@ HealthStatus NunchukImpl::HealthCheckTapsignerMasterSigner(
   if (st.get_card_ident() != tapsigner->GetIdent()) {
     throw NunchukException(
         TapProtocolException::INVALID_DEVICE,
-        strprintf(
-            "Invalid device: key fingerprint does not match. Expected '%s'.",
-            master_signer_id));
+        strprintf("Card ID does not match. Expected '%s'.",
+                  GetTapsignerCardIDShort(st.get_card_ident())));
   }
   path = chain_ == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                                : TESTNET_HEALTH_CHECK_PATH;
@@ -548,9 +553,8 @@ SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
   if (st.get_card_ident() != tapsigner->GetIdent()) {
     throw NunchukException(
         TapProtocolException::INVALID_DEVICE,
-        strprintf(
-            "Invalid device: key fingerprint does not match. Expected '%s'.",
-            master_signer_id));
+        strprintf("Card ID does not match. Expected '%s'.",
+                  GetTapsignerCardIDShort(st.get_card_ident())));
   }
 
   try {
@@ -580,25 +584,12 @@ std::string NunchukImpl::SignHealthCheckMessage(
     tap_protocol::Tapsigner* tapsigner, const std::string& cvc,
     const SingleSigner& signer, const std::string& message) {
   std::string id = signer.get_master_fingerprint();
-  try {
-    auto st = storage_->GetTapsignerStatusFromMasterSigner(chain_, id);
-    if (st.get_card_ident() != tapsigner->GetIdent()) {
-      throw NunchukException(
-          TapProtocolException::INVALID_DEVICE,
-          strprintf(
-              "Invalid device: key fingerprint does not match. Expected '%s'.",
-              id));
-    }
-  } catch (StorageException& se) {
-    if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
-      if (id.empty()) {
-        throw NunchukException(TapProtocolException::INVALID_DEVICE,
-                               strprintf("Invalid device: key fingerprint does "
-                                         "not match. Expected '%s'.",
-                                         id));
-      }
-    }
-    throw;
+  auto st = storage_->GetTapsignerStatusFromMasterSigner(chain_, id);
+  if (st.get_card_ident() != tapsigner->GetIdent()) {
+    throw NunchukException(
+        TapProtocolException::INVALID_DEVICE,
+        strprintf("Card ID does not match. Expected '%s'.",
+                  GetTapsignerCardIDShort(st.get_card_ident())));
   }
 
   bool isPsbt = message.size() != 64;
@@ -657,9 +648,8 @@ void NunchukImpl::CacheTapsignerMasterSignerXPub(
     if (st.get_card_ident() != tapsigner->GetIdent()) {
       throw NunchukException(
           TapProtocolException::INVALID_DEVICE,
-          strprintf(
-              "Invalid device: key fingerprint does not match. Expected '%s'.",
-              master_signer_id));
+          strprintf("Card ID does not match. Expected '%s'.",
+                    GetTapsignerCardIDShort(st.get_card_ident())));
     }
     auto mastersigner = GetMasterSigner(master_signer_id);
     if (mastersigner.get_type() != SignerType::NFC) {
@@ -701,9 +691,8 @@ void NunchukImpl::CacheDefaultTapsignerMasterSignerXPub(
     if (st.get_card_ident() != tapsigner->GetIdent()) {
       throw NunchukException(
           TapProtocolException::INVALID_DEVICE,
-          strprintf(
-              "Invalid device: key fingerprint does not match. Expected '%s'.",
-              master_signer_id));
+          strprintf("Card ID does not match. Expected '%s'.",
+                    GetTapsignerCardIDShort(st.get_card_ident())));
     }
     auto mastersigner = GetMasterSigner(master_signer_id);
     if (mastersigner.get_type() != SignerType::NFC) {

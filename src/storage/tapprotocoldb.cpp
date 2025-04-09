@@ -16,6 +16,7 @@
  */
 
 #include "tapprotocoldb.h"
+#include "tinyformat.h"
 
 namespace nunchuk {
 
@@ -81,7 +82,7 @@ TapsignerStatus NunchukTapprotocolDb::GetTapsignerStatusFromMasterSigner(
   } else {
     SQLCHECK(sqlite3_finalize(stmt));
     throw StorageException(StorageException::MASTERSIGNER_NOT_FOUND,
-                           "Signer not found!");
+                           strprintf("Key doesn't exist! id = '%s'", master_signer_id));
   }
   return status;
 }

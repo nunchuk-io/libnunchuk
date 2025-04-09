@@ -17,6 +17,7 @@
 
 #include "groupservice.h"
 #include <chrono>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -51,9 +52,26 @@ static const std::string MIME_TYPE = "application/json";
 static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/45'/0'/0'/1/0";
 
+static json TryParse(const std::string& resp) {
+  try {
+    return json::parse(resp);
+  } catch (json::exception& e) {
+    try {
+      return json::parse(resp.begin(), std::prev(resp.end()));
+    } catch (...) {
+    }
+    throw GroupException(
+        GroupException::SERVER_REQUEST_ERROR,
+        strprintf(
+            "Something went wrong. Please try again.\nError: %s\nResponse: %s",
+            e.what(), resp.substr(0, 200)));
+  }
+}
+
 json GetHttpResponseData(const std::string& resp) {
   // std::cout << "resp " << resp << std::endl;
-  json parsed = json::parse(resp);
+  json parsed = TryParse(resp);
+
   if (parsed["error"] != nullptr) {
     std::string msg = parsed["error"]["message"];
     if (parsed["error"]["code"] == 5404) {
