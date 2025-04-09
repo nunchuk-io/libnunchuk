@@ -57,7 +57,8 @@ static json TryParse(const std::string& resp) {
     return json::parse(resp);
   } catch (json::exception& e) {
     try {
-      return json::parse(resp.begin(), std::prev(resp.end()));
+      auto pos = resp.find_last_of("}");
+      if (pos != std::string::npos) return json::parse(resp.substr(0, pos + 1));
     } catch (...) {
     }
     throw GroupException(
@@ -1102,7 +1103,8 @@ json GroupService::GetGroupJson(const std::string& groupId) {
   return GetHttpResponseData(Get(url))["group"];
 }
 
-json GroupService::CheckGroupSandboxJson(const json& group, bool joined, int index) {
+json GroupService::CheckGroupSandboxJson(const json& group, bool joined,
+                                         int index) {
   if (group["status"].get<std::string>() == "ACTIVE") {
     throw GroupException(GroupException::SANDBOX_FINALIZED, "Group finalized");
   }
