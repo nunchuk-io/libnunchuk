@@ -60,14 +60,15 @@ static std::optional<int64_t> MaxInputWeight(const Descriptor& desc,
 util::Result<PreSelectedInputs> FetchSelectedInputs(
     const std::vector<std::unique_ptr<Descriptor>>& desc,
     const std::vector<UnspentOutput>& listSelected,
-    bool substract_fee_from_amount, CFeeRate feerate) {
+    bool substract_fee_from_amount, CFeeRate feerate, int64_t max_sat_weight) {
   PreSelectedInputs result;
   const bool can_grind_r = false;
   for (const UnspentOutput& coin : listSelected) {
     COutPoint outpoint(Txid::FromUint256(*uint256::FromHex(coin.get_txid())),
                        coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
-    auto input_weight = MaxInputWeight(*desc.front(), true, can_grind_r);
+    auto input_weight =
+        MaxInputWeight(*desc.front(), true, can_grind_r, max_sat_weight);
     int input_bytes =
         static_cast<int>(GetVirtualTransactionSize(*input_weight, 0, 0));
 
@@ -85,7 +86,7 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(
 CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
                            const std::vector<UnspentOutput>& coins,
                            const std::vector<UnspentOutput>& listSelected,
-                           CFeeRate feerate) {
+                           CFeeRate feerate, int64_t max_sat_weight) {
   CoinsResult result;
   const bool can_grind_r = false;
   auto isSelected = [&](const UnspentOutput& coin) {
@@ -101,7 +102,8 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
     COutPoint outpoint(Txid::FromUint256(*uint256::FromHex(coin.get_txid())),
                        coin.get_vout());
     CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
-    auto input_weight = MaxInputWeight(*desc.front(), true, can_grind_r);
+    auto input_weight =
+        MaxInputWeight(*desc.front(), true, can_grind_r, max_sat_weight);
     int input_bytes =
         static_cast<int>(GetVirtualTransactionSize(*input_weight, 0, 0));
 
@@ -151,7 +153,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     const bool substract_fee_from_amount,
     const std::vector<std::string>& descriptors,
     const std::string& change_address, const Amount fee_rate, int& change_pos,
-    int& signedVSize) {
+    int& signedVSize, bool use_script_path) {
   std::vector<CRecipient> vecSend;
   for (const auto& recipient : recipients) {
     std::string error;
@@ -166,11 +168,29 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   FlatSigningProvider provider;
   std::string error;
   std::vector<std::unique_ptr<Descriptor>> desc;
+  std::vector<CScript> output_scripts;
 
   for (auto&& descriptor : descriptors) {
     for (auto&& parsed : Parse(descriptor, provider, error, true)) {
+      parsed->Expand(0, provider, output_scripts, provider);
       desc.emplace_back(std::move(parsed));
     }
+  }
+
+  int64_t sat_weight = -1;
+  if (use_script_path && !provider.tr_trees.empty()) {
+    auto spendData = provider.tr_trees.begin()->second.GetSpendData();
+    size_t max_control_block_size = 0;
+    for (const auto& [leaf_script, control_blocks] : spendData.scripts) {
+      for (const auto& control_block : control_blocks) {
+        if (max_control_block_size < control_block.size()) {
+          max_control_block_size = control_block.size();
+        }
+      }
+    }
+    sat_weight = 1 + 1 + 65 + 1 + 33 +
+                 GetSizeOfCompactSize(max_control_block_size) +
+                 max_control_block_size;
   }
 
   // out variables, to be packed into returned result structure
@@ -273,9 +293,9 @@ util::Result<CreatedTransactionResult> CreateTransaction(
 
   // Fetch manually selected coins
   PreSelectedInputs preset_inputs;  // TODO: preset_inputs
-  auto res_fetch_inputs =
-      FetchSelectedInputs(desc, listSelected, substract_fee_from_amount,
-                          coin_selection_params.m_effective_feerate);
+  auto res_fetch_inputs = FetchSelectedInputs(
+      desc, listSelected, substract_fee_from_amount,
+      coin_selection_params.m_effective_feerate, sat_weight);
   if (!res_fetch_inputs)
     return util::Error{util::ErrorString(res_fetch_inputs)};
   preset_inputs = *res_fetch_inputs;
@@ -284,8 +304,9 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // allowed (coins automatically selected by the wallet)
   CoinsResult available_coins;  // TODO: available_coins
   if (coin_control.m_allow_other_inputs) {
-    available_coins = AvailableCoins(desc, coins, listSelected,
-                                     coin_selection_params.m_effective_feerate);
+    available_coins =
+        AvailableCoins(desc, coins, listSelected,
+                       coin_selection_params.m_effective_feerate, sat_weight);
   }
 
   // Choose coins to use
@@ -336,8 +357,8 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // Calculate the transaction fee
   // TODO: CalculateMaximumSignedTxSize(CTransaction(txNew), &wallet,
   // &coin_control);
-  TxSize tx_sizes =
-      CalculateMaximumSignedTxSize(CTransaction(txNew), *desc.front());
+  TxSize tx_sizes = CalculateMaximumSignedTxSize(CTransaction(txNew),
+                                                 *desc.front(), sat_weight);
   signedVSize = tx_sizes.vsize;
 
   int nBytes = tx_sizes.vsize;

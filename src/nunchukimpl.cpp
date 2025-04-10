@@ -2187,7 +2187,8 @@ std::string NunchukImpl::CreatePsbt(
       utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
       subtract_fee_from_amount,
       {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)}, change_address,
-      fee_rate, change_pos, vsize);
+      fee_rate, change_pos, vsize,
+      wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH);
   if (!res) {
     std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR,

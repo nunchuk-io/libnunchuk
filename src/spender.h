@@ -34,7 +34,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     const bool substract_fee_from_amount,
     const std::vector<std::string>& descriptors,
     const std::string& change_address, const Amount fee_rate, int& change_pos,
-    int& signedVSize);
+    int& signedVSize, bool use_script_path);
 
 int EstimateScriptPathVSize(const std::vector<std::string>& descriptors,
                             const CTransaction ctx);
