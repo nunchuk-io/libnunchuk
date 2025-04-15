@@ -500,7 +500,7 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 MasterSigner NunchukImpl::CreateSoftwareSigner(
     const std::string& raw_name, const std::string& mnemonic,
     const std::string& passphrase, std::function<bool(int)> progress,
-    bool is_primary, bool replace) {
+    bool is_primary, bool replace, std::string primary_decoy_pin) {
   if (!Utils::CheckMnemonic(mnemonic)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid mnemonic");
@@ -516,6 +516,7 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
   if (is_primary) {
     std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
     PrimaryKey key{name, id, account_, address};
+    key.set_decoy_pin(primary_decoy_pin);
     if (!storage_->AddPrimaryKey(chain_, key)) {
       throw StorageException(StorageException::SQL_ERROR,
                              "Create primary key failed");
@@ -536,7 +537,8 @@ MasterSigner NunchukImpl::CreateSoftwareSigner(
 
 MasterSigner NunchukImpl::CreateSoftwareSignerFromMasterXprv(
     const std::string& raw_name, const std::string& master_xprv,
-    std::function<bool(int)> progress, bool is_primary, bool replace) {
+    std::function<bool(int)> progress, bool is_primary, bool replace,
+    std::string primary_decoy_pin) {
   SoftwareSigner signer{master_xprv};
   std::string name = trim_copy(raw_name);
   std::string id = to_lower_copy(signer.GetMasterFingerprint());
@@ -548,6 +550,7 @@ MasterSigner NunchukImpl::CreateSoftwareSignerFromMasterXprv(
   if (is_primary) {
     std::string address = signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
     PrimaryKey key{name, id, account_, address};
+    key.set_decoy_pin(primary_decoy_pin);
     if (!storage_->AddPrimaryKey(chain_, key)) {
       throw StorageException(StorageException::SQL_ERROR,
                              "Create primary key failed");

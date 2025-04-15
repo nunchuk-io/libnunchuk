@@ -474,13 +474,16 @@ class NUNCHUK_EXPORT PrimaryKey {
   std::string get_master_fingerprint() const;
   std::string get_account() const;
   std::string get_address() const;
+  std::string get_decoy_pin() const;
   void set_name(const std::string& value);
+  void set_decoy_pin(const std::string& value);
 
  private:
   std::string name_;
   std::string master_fingerprint_;
   std::string account_;
   std::string address_;
+  std::string decoy_pin_;
 };
 
 class NUNCHUK_EXPORT Wallet {
@@ -1421,11 +1424,13 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false, bool replace = true) = 0;
+      bool is_primary = false, bool replace = true,
+      std::string primary_decoy_pin = "") = 0;
   virtual MasterSigner CreateSoftwareSignerFromMasterXprv(
       const std::string& name, const std::string& master_xprv,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false, bool replace = true) = 0;
+      bool is_primary = false, bool replace = true,
+      std::string primary_decoy_pin = "") = 0;
   virtual std::string SignLoginMessage(const std::string& mastersigner_id,
                                        const std::string& message) = 0;
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,

@@ -98,11 +98,13 @@ class NunchukImpl : public Nunchuk {
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false, bool replace = true) override;
+      bool is_primary = false, bool replace = true,
+      std::string primary_decoy_pin = "") override;
   MasterSigner CreateSoftwareSignerFromMasterXprv(
       const std::string& name, const std::string& master_xprv,
       std::function<bool /* stop */ (int /* percent */)> progress,
-      bool is_primary = false, bool replace = true) override;
+      bool is_primary = false, bool replace = true,
+      std::string primary_decoy_pin = "") override;
   bool DeletePrimaryKey() override;
   std::string SignLoginMessage(const std::string& mastersigner_id,
                                const std::string& message) override;

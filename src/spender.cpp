@@ -481,4 +481,18 @@ int EstimateScriptPathVSize(const std::vector<std::string>& descriptors,
   return CalculateMaximumSignedTxSize(ctx, *desc.front(), sat_weight).vsize;
 }
 
+int EstimateKeyPathVSize(const std::vector<std::string>& descriptors,
+                         const CTransaction ctx) {
+  FlatSigningProvider provider;
+  std::string error;
+  std::vector<std::unique_ptr<Descriptor>> desc;
+
+  for (auto&& descriptor : descriptors) {
+    for (auto&& parsed : Parse(descriptor, provider, error, true)) {
+      desc.emplace_back(std::move(parsed));
+    }
+  }
+  return CalculateMaximumSignedTxSize(ctx, *desc.front()).vsize;
+}
+
 }  // namespace wallet

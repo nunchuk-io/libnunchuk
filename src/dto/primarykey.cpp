@@ -35,7 +35,9 @@ std::string PrimaryKey::get_master_fingerprint() const {
 }
 std::string PrimaryKey::get_account() const { return account_; }
 std::string PrimaryKey::get_address() const { return address_; }
+std::string PrimaryKey::get_decoy_pin() const { return decoy_pin_; }
 
 void PrimaryKey::set_name(const std::string& value) { name_ = value; }
+void PrimaryKey::set_decoy_pin(const std::string& value) { decoy_pin_ = value; }
 
 }  // namespace nunchuk

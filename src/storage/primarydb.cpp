@@ -32,7 +32,7 @@ void NunchukPrimaryDb::Init() {
 
 bool NunchukPrimaryDb::AddPrimaryKey(const PrimaryKey& key) {
   std::string account = key.get_account();
-  std::string xfp = key.get_master_fingerprint();
+  std::string xfp = key.get_master_fingerprint() + "-" + key.get_decoy_pin();
   std::string address = key.get_address();
   std::string name = key.get_name();
   sqlite3_stmt* stmt;
@@ -74,7 +74,10 @@ std::vector<PrimaryKey> NunchukPrimaryDb::GetPrimaryKeys() const {
     std::string xfp = std::string((char*)sqlite3_column_text(stmt, 1));
     std::string address = std::string((char*)sqlite3_column_text(stmt, 2));
     std::string name = std::string((char*)sqlite3_column_text(stmt, 3));
-    PrimaryKey key{name, xfp, account, address};
+    PrimaryKey key{name, xfp.substr(0, 8), account, address};
+    if (xfp.size() > 9) {
+      key.set_decoy_pin(xfp.substr(9));
+    }
     keys.push_back(key);
     sqlite3_step(stmt);
   }
