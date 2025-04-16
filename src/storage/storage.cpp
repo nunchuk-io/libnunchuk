@@ -734,10 +734,22 @@ void NunchukStorage::CacheMasterSignerXPub(
       if (w == WalletType::ESCROW) return 0;
       if (w == WalletType::MULTI_SIG && a == AddressType::LEGACY) return 0;
     }
-    if (first) return 1;
+    if (first) {
+      if (w == WalletType::MULTI_SIG) {
+        if (a == AddressType::NATIVE_SEGWIT) return 1;
+        if (a == AddressType::NESTED_SEGWIT) return 1;
+        if (a == AddressType::TAPROOT) return 1;
+      }
+      if (w == WalletType::SINGLE_SIG) {
+        if (a == AddressType::NATIVE_SEGWIT) return 1;
+        if (a == AddressType::TAPROOT) return 1;
+      }
+      return 0;
+    }
     if (w == WalletType::ESCROW) return ESCROW_CACHE_NUMBER;
     if (w == WalletType::MULTI_SIG) {
       if (a == AddressType::NATIVE_SEGWIT) return MULTISIG_BIP48_2_CACHE_NUMBER;
+      if (a == AddressType::TAPROOT) return MUSIG_BIP87_CACHE_NUMBER;
       if (a == AddressType::NESTED_SEGWIT) return MULTISIG_BIP48_1_CACHE_NUMBER;
       if (a == AddressType::LEGACY) return MULTISIG_BIP45_CACHE_NUMBER;
     }

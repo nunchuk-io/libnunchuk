@@ -32,12 +32,12 @@ namespace {
 
 static const int SINGLESIG_BIP44_CACHE_NUMBER = 1;
 static const int SINGLESIG_BIP49_CACHE_NUMBER = 1;
-static const int SINGLESIG_BIP84_CACHE_NUMBER = 3;
-static const int SINGLESIG_BIP86_CACHE_NUMBER = 3;
+static const int SINGLESIG_BIP84_CACHE_NUMBER = 1;
+static const int SINGLESIG_BIP86_CACHE_NUMBER = 1;
 static const int MULTISIG_BIP45_CACHE_NUMBER = 1;
 static const int MULTISIG_BIP48_1_CACHE_NUMBER = 1;
-static const int MULTISIG_BIP48_2_CACHE_NUMBER = 3;
-static const int MUSIG_BIP87_CACHE_NUMBER = 3;
+static const int MULTISIG_BIP48_2_CACHE_NUMBER = 1;
+static const int MUSIG_BIP87_CACHE_NUMBER = 1;
 static const int ESCROW_CACHE_NUMBER = 1;
 static const int TOTAL_CACHE_NUMBER =
     SINGLESIG_BIP44_CACHE_NUMBER + SINGLESIG_BIP49_CACHE_NUMBER +
