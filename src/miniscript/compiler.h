@@ -5,7 +5,8 @@
 #ifndef _BITCOIN_SCRIPT_MINISCRIPT_COMPILER_H_
 #define _BITCOIN_SCRIPT_MINISCRIPT_COMPILER_H_
 
-#include <script/miniscript.h>
+#include <nunchuk.h>
+#include <miniscript/miniscript.h>
 
 #include <string>
 
@@ -41,11 +42,14 @@ struct CompilerContext {
 
 extern const CompilerContext COMPILER_CTX;
 
-bool Compile(const std::string& policy, miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost);
+bool Compile(const std::string& policy, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost);
 
 std::string Expand(std::string str);
 std::string Abbreviate(std::string str);
 
 std::string Disassemble(const CScript& script);
+
+nunchuk::Policy ParsePolicy(const std::string& policy);
+bool CompilePolicy(const nunchuk::Policy& policy, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost);
 
 #endif

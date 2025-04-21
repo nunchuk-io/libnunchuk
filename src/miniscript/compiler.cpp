@@ -2,12 +2,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <nunchuk.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <script/script.h>
-#include <script/miniscript.h>
+#include <miniscript/miniscript.h>
 #include <script/parsing.h>
 #include <util/strencodings.h>
 
@@ -19,13 +18,13 @@ const CompilerContext COMPILER_CTX;
 
 namespace {
 
-using Node = miniscript::NodeRef<CompilerContext::Key>;
-using Fragment = miniscript::Fragment;
-using miniscript::operator"" _mst;
 using namespace nunchuk;
+using Node = nunchuk::miniscript::NodeRef<CompilerContext::Key>;
+using Fragment = nunchuk::miniscript::Fragment;
+using nunchuk::miniscript::operator"" _mst;
 
 template<typename... Args>
-Node MakeNode(Args&&... args) { return miniscript::MakeNodeRef<CompilerContext::Key>(miniscript::internal::NoDupCheck{}, miniscript::MiniscriptContext::P2WSH, std::forward<Args>(args)...); }
+Node MakeNode(Args&&... args) { return nunchuk::miniscript::MakeNodeRef<CompilerContext::Key>(nunchuk::miniscript::internal::NoDupCheck{}, nunchuk::miniscript::MiniscriptContext::P2WSH, std::forward<Args>(args)...); }
 
 std::vector<unsigned char> Hash2(const Span<const char>& in, size_t len)
 {
@@ -339,7 +338,7 @@ double inline Mul(double coef, double val) {
     return coef * val;
 }
 
-typedef std::pair<miniscript::Type, miniscript::Type> TypeFilter; // First element is required type properties; second one is which one we care about
+typedef std::pair<nunchuk::miniscript::Type, nunchuk::miniscript::Type> TypeFilter; // First element is required type properties; second one is which one we care about
 
 consteval TypeFilter ParseFilter(const char *c, size_t len, size_t split) {
     return c[split] == '/' ? TypeFilter{operator"" _mst(c, split), operator"" _mst(c + split + 1, len - split - 1)} :
@@ -391,7 +390,7 @@ struct Compilation {
     void Add(const CostPair& pair, X&&... args) { Add(pair, MakeNode(std::forward<X>(args)...)); }
 
     std::vector<Result> Query(const TypeFilter typ) const {
-        std::map<miniscript::Type, Result> rm;
+        std::map<nunchuk::miniscript::Type, Result> rm;
         for (const Result& x : results) {
             if (x.node->GetType() << typ.first) {
                 auto masked = x.node->GetType() & typ.second;
@@ -893,8 +892,11 @@ void PrintCompilationResult(int level, const Result& res) {
 
 } // namespace
 
-bool Compile(const std::string& policy, miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost) {
-    Policy pol = Parse(policy);
+Policy ParsePolicy(const std::string& policy) {
+    return Parse(policy);
+}
+
+bool CompilePolicy(const Policy& pol, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost) {
     if (!pol()) return false;
 
     const Strat* strat;
@@ -920,6 +922,11 @@ bool Compile(const std::string& policy, miniscript::NodeRef<CompilerContext::Key
     }
 
     return ok;
+}
+
+bool Compile(const std::string& policy, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost) {
+    Policy pol = Parse(policy);
+    return CompilePolicy(pol, ret, avgcost);
 }
 
 std::string Expand(std::string str) {
