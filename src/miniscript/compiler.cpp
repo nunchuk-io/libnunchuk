@@ -986,3 +986,38 @@ std::string Disassemble(const CScript& script) {
     auto it = script.begin();
     return Disassembler(it, script.end());
 }
+
+std::string PolicyToString(const Policy& node) {
+  switch (node.node_type) {
+    case Policy::Type::PK_K:
+      return "pk(" + node.keys[0] + ")";
+    case Policy::Type::AFTER:
+      return "after(" + std::to_string(node.k) + ")";
+    case Policy::Type::OLDER:
+      return "older(" + std::to_string(node.k) + ")";
+    case Policy::Type::HASH160:
+      return "hash160(" + HexStr(node.data) + ")";
+    case Policy::Type::HASH256:
+      return "hash256(" + HexStr(node.data) + ")";
+    case Policy::Type::RIPEMD160:
+      return "ripemd160(" + HexStr(node.data) + ")";
+    case Policy::Type::SHA256:
+      return "sha256(" + HexStr(node.data) + ")";
+    case Policy::Type::AND:
+      return "and(" + PolicyToString(node.sub[0]) + "," +
+             PolicyToString(node.sub[1]) + ")";
+    case Policy::Type::OR:
+      return "or(" + PolicyToString(node.sub[0]) + "," +
+             PolicyToString(node.sub[1]) + ")";
+    case Policy::Type::THRESH:
+      std::stringstream ss;
+      ss << "thresh(" << node.k;
+      for (int i = 0; i < node.sub.size(); i++) {
+        ss << "," << PolicyToString(node.sub[i]);
+      }
+      ss << ")";
+      return ss.str();
+  }
+  assert(false);
+  return "";
+}

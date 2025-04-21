@@ -50,6 +50,7 @@ std::string Abbreviate(std::string str);
 std::string Disassemble(const CScript& script);
 
 nunchuk::Policy ParsePolicy(const std::string& policy);
+std::string PolicyToString(const nunchuk::Policy& node);
 bool CompilePolicy(const nunchuk::Policy& policy, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost);
 
 #endif
