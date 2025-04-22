@@ -1026,7 +1026,9 @@ std::string PolicyToMiniscript(const Policy& node, const std::map<std::string, s
   Policy policy = node.Clone();
   std::function<void(Policy&)> configure = [&](Policy& node) -> void {
     if (node.node_type == Policy::Type::OLDER || node.node_type == Policy::Type::AFTER) {
-      node.k = std::stoi(config.at(node.keys[0]));
+      if (node.keys.size() == 1) {
+        node.k = std::stoi(config.at(node.keys[0]));
+      }
     } else {
       for (int i = 0; i < node.keys.size(); i++) {
         node.keys[i] = config.at(node.keys[i]);

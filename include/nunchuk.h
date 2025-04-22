@@ -1926,6 +1926,12 @@ class NUNCHUK_EXPORT Utils {
                              const std::string& new_pin);
   static std::vector<std::string> ListDecoyPin(const std::string& storage_path);
   static bool CheckElectrumServer(const std::string& server, int timeout = 1);
+  static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
+                                           Policy::Type hashType);
+  static std::string RevealPreimage(const std::string& psbt,
+                                    Policy::Type hashType,
+                                    const std::vector<uint8_t>& hash,
+                                    const std::vector<uint8_t>& preimage);
 
  private:
   Utils() {}
