@@ -52,5 +52,6 @@ std::string Disassemble(const CScript& script);
 nunchuk::Policy ParsePolicy(const std::string& policy);
 std::string PolicyToString(const nunchuk::Policy& node);
 bool CompilePolicy(const nunchuk::Policy& policy, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost);
+std::string PolicyToMiniscript(const nunchuk::Policy& policy, const std::map<std::string, std::string>& config);
 
 #endif

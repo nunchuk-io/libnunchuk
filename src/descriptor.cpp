@@ -183,6 +183,35 @@ std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
   return desc.str();
 }
 
+std::string GetDescriptorForSigner(const SingleSigner& signer,
+                                   DescriptorPath key_path, int index) {
+  std::string keypath = GetKeyPath(key_path, index);
+  std::stringstream key;
+  key << "[" << signer.get_master_fingerprint();
+  if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
+      key_path == DescriptorPath::INTERNAL_PUBKEY) {
+    std::stringstream p;
+    p << signer.get_derivation_path() << keypath;
+    std::string path = FormalizePath(p.str());
+    auto xpub = DecodeExtPubKey(signer.get_xpub());
+    if (!xpub.Derive(xpub,
+                     (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid path");
+    }
+    if (!xpub.Derive(xpub, index)) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid path");
+    }
+    std::string pubkey = HexStr(xpub.pubkey);
+    key << path << "]" << pubkey;
+  } else {
+    key << FormalizePath(signer.get_derivation_path()) << "]"
+        << signer.get_xpub() << keypath;
+  }
+  return key.str();
+}
+
 std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
                                     int m, DescriptorPath key_path,
                                     AddressType address_type,
@@ -277,11 +306,35 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   return desc_with_checksum;
 }
 
+std::string GetDescriptorForMiniscript(const std::string& miniscript,
+                                       AddressType address_type) {
+  std::stringstream desc;
+  if (address_type == AddressType::NATIVE_SEGWIT) {
+    desc << "wsh(" << miniscript << ")";
+  } else {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid address type");
+  }
+  return AddChecksum(desc.str());
+}
+
 std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
                         AddressType a, WalletType w, WalletTemplate t) {
   auto external_desc = GetDescriptorForSigners(
       signers, m, DescriptorPath::EXTERNAL_ALL, a, w, t);
   return GetDescriptorChecksum(external_desc);
+}
+
+std::string GetWalletId(const std::string& miniscript,
+                        AddressType address_type) {
+  std::stringstream desc;
+  if (address_type == AddressType::NATIVE_SEGWIT) {
+    desc << "wsh(" << miniscript << ")";
+  } else {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid address type");
+  }
+  return GetDescriptorChecksum(desc.str());
 }
 
 std::string GetPkhDescriptor(const std::string& address) {

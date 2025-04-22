@@ -1021,3 +1021,26 @@ std::string PolicyToString(const Policy& node) {
   assert(false);
   return "";
 }
+
+std::string PolicyToMiniscript(const Policy& node, const std::map<std::string, std::string>& config) {
+  Policy policy = node.Clone();
+  std::function<void(Policy&)> configure = [&](Policy& node) -> void {
+    if (node.node_type == Policy::Type::OLDER || node.node_type == Policy::Type::AFTER) {
+      node.k = std::stoi(config.at(node.keys[0]));
+    } else {
+      for (int i = 0; i < node.keys.size(); i++) {
+        node.keys[i] = config.at(node.keys[i]);
+      }
+    }
+    for (int i = 0; i < node.sub.size(); i++) {
+        configure(node.sub[i]);
+    }
+  };
+  configure(policy);
+
+  double avgcost;
+  miniscript::NodeRef<std::string> ret;
+  bool rs = CompilePolicy(policy, ret, avgcost);
+  if (!rs) return "";
+  return Abbreviate(*(ret->ToString<CompilerContext>(COMPILER_CTX)));
+}

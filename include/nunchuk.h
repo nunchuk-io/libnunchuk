@@ -77,6 +77,7 @@ enum class WalletType {
   SINGLE_SIG,
   MULTI_SIG,
   ESCROW,
+  MINISCRIPT,
 };
 
 enum class WalletTemplate {
@@ -227,6 +228,8 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_RBF = -1028;
   static const int INSUFFICIENT_FEE = -1029;
   static const int INVALID_STATE = -1030;
+  static const int INVALID_WALLET_POLICY = -1031;
+  static const int INVALID_WALLET_CONFIG = -1032;
   using BaseException::BaseException;
 };
 
@@ -499,6 +502,8 @@ class NUNCHUK_EXPORT Wallet {
   Wallet(const std::string& id, const std::string& name, int m, int n,
          const std::vector<SingleSigner>& signers, AddressType address_type,
          WalletType wallet_type, time_t create_date, bool strict = true);
+  Wallet(const std::string& miniscript,
+         const std::vector<SingleSigner>& signers, AddressType address_type);
 
   std::string get_id() const;
   std::string get_name() const;
@@ -520,6 +525,7 @@ class NUNCHUK_EXPORT Wallet {
   void check_valid() const;
   bool need_backup() const;
   bool is_archived() const;
+  std::string get_miniscript(DescriptorPath key_path, int index = -1) const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -536,6 +542,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_gap_limit(int value);
   void set_need_backup(bool value);
   void set_archived(bool value);
+  void set_miniscript(const std::string& value);
 
  private:
   void post_update();
@@ -556,6 +563,7 @@ class NUNCHUK_EXPORT Wallet {
   int gap_limit_{20};
   bool need_backup_{false};
   bool archived_{false};
+  std::string miniscript_;
 };
 
 class NUNCHUK_EXPORT CoinTag {
@@ -1050,46 +1058,71 @@ class NUNCHUK_EXPORT AppSettings {
 };
 
 struct Policy {
-    enum class Type {
-        NONE,
+  enum class Type {
+    NONE,
 
-        PK_K,
-        OLDER,
-        AFTER,
-        HASH160,
-        HASH256,
-        RIPEMD160,
-        SHA256,
-        AND,
-        OR,
-        THRESH
-    };
+    PK_K,
+    OLDER,
+    AFTER,
+    HASH160,
+    HASH256,
+    RIPEMD160,
+    SHA256,
+    AND,
+    OR,
+    THRESH
+  };
 
-    Type node_type = Type::NONE;
-    std::vector<Policy> sub;
-    std::vector<unsigned char> data;
-    std::vector<std::string> keys;
-    std::vector<uint32_t> prob;
-    uint32_t k = 0;
+  Type node_type = Type::NONE;
+  std::vector<Policy> sub;
+  std::vector<unsigned char> data;
+  std::vector<std::string> keys;
+  std::vector<uint32_t> prob;
+  uint32_t k = 0;
 
-    ~Policy() = default;
-    Policy(const Policy& x) = delete;
-    Policy& operator=(const Policy& x) = delete;
-    Policy& operator=(Policy&& x) = default;
-    Policy(Policy&& x) = default;
+  ~Policy() = default;
+  Policy(const Policy& x) = delete;
+  Policy& operator=(const Policy& x) = delete;
+  Policy& operator=(Policy&& x) = default;
+  Policy(Policy&& x) = default;
 
-    Policy() {}
-    Policy(Type nt) : node_type(nt) {}
-    Policy(Type nt, uint32_t kv) : node_type(nt), k(kv) {}
-    Policy(Type nt, std::vector<unsigned char>&& dat) : node_type(nt), data(std::move(dat)) {}
-    Policy(Type nt, std::vector<unsigned char>&& dat, uint32_t kv) : node_type(nt), data(std::move(dat)), k(kv) {}
-    Policy(Type nt, std::vector<Policy>&& subs) : node_type(nt), sub(std::move(subs)) {}
-    Policy(Type nt, std::vector<std::string>&& key) : node_type(nt), keys(std::move(key)) {}
-    Policy(Type nt, std::vector<Policy>&& subs, std::vector<uint32_t>&& probs) : node_type(nt), sub(std::move(subs)), prob(std::move(probs)) {}
-    Policy(Type nt, std::vector<Policy>&& subs, uint32_t kv) : node_type(nt), sub(std::move(subs)), k(kv) {}
-    Policy(Type nt, std::vector<std::string>&& key, uint32_t kv) : node_type(nt), keys(std::move(key)), k(kv) {}
+  Policy() {}
+  Policy(Type nt) : node_type(nt) {}
+  Policy(Type nt, uint32_t kv) : node_type(nt), k(kv) {}
+  Policy(Type nt, std::vector<unsigned char>&& dat)
+      : node_type(nt), data(std::move(dat)) {}
+  Policy(Type nt, std::vector<unsigned char>&& dat, uint32_t kv)
+      : node_type(nt), data(std::move(dat)), k(kv) {}
+  Policy(Type nt, std::vector<Policy>&& subs)
+      : node_type(nt), sub(std::move(subs)) {}
+  Policy(Type nt, std::vector<std::string>&& key)
+      : node_type(nt), keys(std::move(key)) {}
+  Policy(Type nt, std::vector<Policy>&& subs, std::vector<uint32_t>&& probs)
+      : node_type(nt), sub(std::move(subs)), prob(std::move(probs)) {}
+  Policy(Type nt, std::vector<Policy>&& subs, uint32_t kv)
+      : node_type(nt), sub(std::move(subs)), k(kv) {}
+  Policy(Type nt, std::vector<std::string>&& key, uint32_t kv)
+      : node_type(nt), keys(std::move(key)), k(kv) {}
 
-    bool operator()() const { return node_type != Type::NONE; }
+  bool operator()() const { return node_type != Type::NONE; }
+
+  Policy Clone() const {
+    Policy result;
+    result.node_type = node_type;
+    result.k = k;
+
+    // Deep copy vectors
+    result.sub.reserve(sub.size());
+    for (const auto& s : sub) {
+      result.sub.push_back(s.Clone());
+    }
+
+    result.data = data;
+    result.keys = keys;
+    result.prob = prob;
+
+    return result;
+  }
 };
 
 class NUNCHUK_EXPORT Nunchuk {
