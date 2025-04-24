@@ -52,8 +52,6 @@ elseif(IOS)
     include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios/libevent/include")
     include_directories("${PROJECT_BINARY_DIR}/contrib/bitcoin/depends/ios/libevent/include")
     set(BUILD_CLI OFF)
-elseif(APPLE OR LINUX)
-    set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/contrib/openssl/lib")
 endif()
 
 find_package(OpenSSL REQUIRED)
