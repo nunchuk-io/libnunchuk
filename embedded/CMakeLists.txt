@@ -58,9 +58,6 @@ else()
         bitcoin_wallet
         bitcoin_consensus
         bitcoin_crypto
-        bitcoin_crypto_x86_shani
-        bitcoin_crypto_sse41
-        bitcoin_crypto_avx2
         secp256k1
         univalue
     )
