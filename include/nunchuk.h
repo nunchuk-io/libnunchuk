@@ -179,6 +179,13 @@ enum class SignerTag {
   KEEPKEY,
 };
 
+enum class PreimageHashType {
+  SHA256,
+  RIPEMD160,
+  HASH160,
+  HASH256,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -1927,9 +1934,9 @@ class NUNCHUK_EXPORT Utils {
   static std::vector<std::string> ListDecoyPin(const std::string& storage_path);
   static bool CheckElectrumServer(const std::string& server, int timeout = 1);
   static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
-                                           Policy::Type hashType);
+                                           PreimageHashType hashType);
   static std::string RevealPreimage(const std::string& psbt,
-                                    Policy::Type hashType,
+                                    PreimageHashType hashType,
                                     const std::vector<uint8_t>& hash,
                                     const std::vector<uint8_t>& preimage);
 

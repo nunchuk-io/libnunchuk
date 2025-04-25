@@ -38,6 +38,10 @@ struct CompilerContext {
     bool KeyCompare(const Key& a, const Key& b) const {
         return a < b;
     }
+
+    nunchuk::miniscript::MiniscriptContext MsContext() const {
+        return nunchuk::miniscript::MiniscriptContext::P2WSH;
+    }
 };
 
 extern const CompilerContext COMPILER_CTX;
@@ -53,5 +57,7 @@ nunchuk::Policy ParsePolicy(const std::string& policy);
 std::string PolicyToString(const nunchuk::Policy& node);
 bool CompilePolicy(const nunchuk::Policy& policy, nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret, double& avgcost);
 std::string PolicyToMiniscript(const nunchuk::Policy& policy, const std::map<std::string, std::string>& config);
+nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(const std::string& script);
+std::string MiniscriptToString(const nunchuk::miniscript::NodeRef<std::string>& node);
 
 #endif

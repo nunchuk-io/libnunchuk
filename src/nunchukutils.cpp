@@ -1130,22 +1130,22 @@ bool Utils::CheckElectrumServer(const std::string& server, int timeout) {
   return result;
 }
 std::vector<uint8_t> Utils::HashPreimage(const std::vector<uint8_t>& data,
-                                         Policy::Type hashType) {
+                                         PreimageHashType hashType) {
   std::vector<uint8_t> hash;
   switch (hashType) {
-    case Policy::Type::SHA256:
+    case PreimageHashType::SHA256:
       hash.resize(32);
       CSHA256().Write(data.data(), data.size()).Finalize(hash.data());
       break;
-    case Policy::Type::HASH256:
+    case PreimageHashType::HASH256:
       hash.resize(32);
       CHash256().Write(data).Finalize(hash);
       break;
-    case Policy::Type::RIPEMD160:
+    case PreimageHashType::RIPEMD160:
       hash.resize(20);
       CRIPEMD160().Write(data.data(), data.size()).Finalize(hash.data());
       break;
-    case Policy::Type::HASH160:
+    case PreimageHashType::HASH160:
       hash.resize(20);
       CHash160().Write(data).Finalize(hash);
       break;
@@ -1157,7 +1157,7 @@ std::vector<uint8_t> Utils::HashPreimage(const std::vector<uint8_t>& data,
 }
 
 std::string Utils::RevealPreimage(const std::string& psbt,
-                                  Policy::Type hashType,
+                                  PreimageHashType hashType,
                                   const std::vector<uint8_t>& hash,
                                   const std::vector<uint8_t>& preimage) {
   auto psbtx = DecodePsbt(psbt);
@@ -1165,13 +1165,13 @@ std::string Utils::RevealPreimage(const std::string& psbt,
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid hash");
   }
   for (int i = 0; i < psbtx.inputs.size(); i++) {
-    if (hashType == Policy::Type::SHA256) {
+    if (hashType == PreimageHashType::SHA256) {
       psbtx.inputs[i].sha256_preimages.emplace(hash, preimage);
-    } else if (hashType == Policy::Type::HASH256) {
+    } else if (hashType == PreimageHashType::HASH256) {
       psbtx.inputs[i].hash256_preimages.emplace(hash, preimage);
-    } else if (hashType == Policy::Type::HASH160) {
+    } else if (hashType == PreimageHashType::HASH160) {
       psbtx.inputs[i].hash160_preimages.emplace(hash, preimage);
-    } else if (hashType == Policy::Type::RIPEMD160) {
+    } else if (hashType == PreimageHashType::RIPEMD160) {
       psbtx.inputs[i].ripemd160_preimages.emplace(hash, preimage);
     }
   }

@@ -1046,3 +1046,11 @@ std::string PolicyToMiniscript(const Policy& node, const std::map<std::string, s
   if (!rs) return "";
   return Abbreviate(*(ret->ToString<CompilerContext>(COMPILER_CTX)));
 }
+
+nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(const std::string& script) {
+  return nunchuk::miniscript::FromString<CompilerContext>(script, COMPILER_CTX);
+}
+
+std::string MiniscriptToString(const nunchuk::miniscript::NodeRef<std::string>& node) {
+  return *(node->ToString<CompilerContext>(COMPILER_CTX));
+}
