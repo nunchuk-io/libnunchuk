@@ -1064,11 +1064,12 @@ class NUNCHUK_EXPORT AppSettings {
   std::string group_server_;
 };
 
-struct Policy {
+class NUNCHUK_EXPORT ScriptNode {
+ public:
   enum class Type {
     NONE,
 
-    PK_K,
+    PK,
     OLDER,
     AFTER,
     HASH160,
@@ -1077,59 +1078,41 @@ struct Policy {
     SHA256,
     AND,
     OR,
-    THRESH
+    ANDOR,
+    THRESH,
+    MULTI,
   };
 
-  Type node_type = Type::NONE;
-  std::vector<Policy> sub;
-  std::vector<unsigned char> data;
-  std::vector<std::string> keys;
-  std::vector<uint32_t> prob;
-  uint32_t k = 0;
+  ~ScriptNode() = default;
+  ScriptNode(const ScriptNode& x) = delete;
+  ScriptNode& operator=(const ScriptNode& x) = delete;
+  ScriptNode& operator=(ScriptNode&& x) = default;
+  ScriptNode(ScriptNode&& x) = default;
 
-  ~Policy() = default;
-  Policy(const Policy& x) = delete;
-  Policy& operator=(const Policy& x) = delete;
-  Policy& operator=(Policy&& x) = default;
-  Policy(Policy&& x) = default;
-
-  Policy() {}
-  Policy(Type nt) : node_type(nt) {}
-  Policy(Type nt, uint32_t kv) : node_type(nt), k(kv) {}
-  Policy(Type nt, std::vector<unsigned char>&& dat)
-      : node_type(nt), data(std::move(dat)) {}
-  Policy(Type nt, std::vector<unsigned char>&& dat, uint32_t kv)
-      : node_type(nt), data(std::move(dat)), k(kv) {}
-  Policy(Type nt, std::vector<Policy>&& subs)
-      : node_type(nt), sub(std::move(subs)) {}
-  Policy(Type nt, std::vector<std::string>&& key)
-      : node_type(nt), keys(std::move(key)) {}
-  Policy(Type nt, std::vector<Policy>&& subs, std::vector<uint32_t>&& probs)
-      : node_type(nt), sub(std::move(subs)), prob(std::move(probs)) {}
-  Policy(Type nt, std::vector<Policy>&& subs, uint32_t kv)
-      : node_type(nt), sub(std::move(subs)), k(kv) {}
-  Policy(Type nt, std::vector<std::string>&& key, uint32_t kv)
-      : node_type(nt), keys(std::move(key)), k(kv) {}
+  ScriptNode() {}
+  ScriptNode(Type nt, std::vector<ScriptNode>&& subs,
+             std::vector<std::string>&& key, std::vector<unsigned char>&& dat,
+             uint32_t kv)
+      : node_type(nt),
+        sub(std::move(subs)),
+        keys(std::move(key)),
+        data(std::move(dat)),
+        k(kv) {}
 
   bool operator()() const { return node_type != Type::NONE; }
 
-  Policy Clone() const {
-    Policy result;
-    result.node_type = node_type;
-    result.k = k;
+  Type GetType() const { return node_type; }
+  const std::vector<std::string>& GetKeys() const { return keys; }
+  const std::vector<unsigned char>& GetData() const { return data; }
+  const std::vector<ScriptNode>& GetSubs() const { return sub; }
+  uint32_t GetK() const { return k; }
 
-    // Deep copy vectors
-    result.sub.reserve(sub.size());
-    for (const auto& s : sub) {
-      result.sub.push_back(s.Clone());
-    }
-
-    result.data = data;
-    result.keys = keys;
-    result.prob = prob;
-
-    return result;
-  }
+ private:
+  Type node_type{Type::NONE};
+  std::vector<ScriptNode> sub;
+  std::vector<std::string> keys;
+  std::vector<unsigned char> data;
+  uint32_t k{0};
 };
 
 class NUNCHUK_EXPORT Nunchuk {

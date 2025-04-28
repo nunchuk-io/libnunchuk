@@ -1054,3 +1054,119 @@ nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(const std::string& scr
 std::string MiniscriptToString(const nunchuk::miniscript::NodeRef<std::string>& node) {
   return *(node->ToString<CompilerContext>(COMPILER_CTX));
 }
+
+ScriptNode MiniscriptToScriptNode(const miniscript::NodeRef<std::string>& node) {
+    if (!node) return ScriptNode();
+
+    std::vector<ScriptNode> subs;
+    for (const auto& sub : node->subs) {
+        subs.push_back(MiniscriptToScriptNode(sub));
+    }
+
+    switch (node->fragment) {
+        case miniscript::Fragment::PK_K:
+        case miniscript::Fragment::PK_H:
+            return ScriptNode(ScriptNode::Type::PK, std::move(subs), std::vector<std::string>(node->keys.begin(), node->keys.end()), {}, node->k);
+        case miniscript::Fragment::OLDER:
+            return ScriptNode(ScriptNode::Type::OLDER, std::move(subs), {}, {}, node->k);
+        case miniscript::Fragment::AFTER:
+            return ScriptNode(ScriptNode::Type::AFTER, std::move(subs), {}, {}, node->k);
+        case miniscript::Fragment::HASH160:
+            return ScriptNode(ScriptNode::Type::HASH160, std::move(subs), {}, std::vector<unsigned char>(node->data.begin(), node->data.end()), node->k);
+        case miniscript::Fragment::HASH256:
+            return ScriptNode(ScriptNode::Type::HASH256, std::move(subs), {}, std::vector<unsigned char>(node->data.begin(), node->data.end()), node->k);
+        case miniscript::Fragment::RIPEMD160:
+            return ScriptNode(ScriptNode::Type::RIPEMD160, std::move(subs), {}, std::vector<unsigned char>(node->data.begin(), node->data.end()), node->k);
+        case miniscript::Fragment::SHA256:
+            return ScriptNode(ScriptNode::Type::SHA256, std::move(subs), {}, std::vector<unsigned char>(node->data.begin(), node->data.end()), node->k);
+        case miniscript::Fragment::AND_V:
+            if (node->subs[1]->fragment == nunchuk::miniscript::Fragment::JUST_1) {
+                return std::move(subs[0]);
+            }
+        case miniscript::Fragment::AND_B:
+            return ScriptNode(ScriptNode::Type::AND, std::move(subs), {}, {}, node->k);
+        case miniscript::Fragment::OR_I:
+            if (node->subs[0]->fragment == nunchuk::miniscript::Fragment::JUST_0) {
+                return std::move(subs[1]);
+            } else if (node->subs[1]->fragment == nunchuk::miniscript::Fragment::JUST_0) {
+                return std::move(subs[0]);
+            }
+        case miniscript::Fragment::OR_B:
+        case miniscript::Fragment::OR_C:
+        case miniscript::Fragment::OR_D:
+            return ScriptNode(ScriptNode::Type::OR, std::move(subs), {}, {}, node->k);
+        case miniscript::Fragment::ANDOR:
+            if (node->subs[2]->fragment == nunchuk::miniscript::Fragment::JUST_0) {
+                return ScriptNode(ScriptNode::Type::AND, std::move(subs), {}, {}, node->k);
+            }
+            return ScriptNode(ScriptNode::Type::ANDOR, std::move(subs), {}, {}, node->k);
+        case miniscript::Fragment::THRESH:
+            return ScriptNode(ScriptNode::Type::THRESH, std::move(subs), std::vector<std::string>(node->keys.begin(), node->keys.end()), {}, node->k);
+        case miniscript::Fragment::MULTI:
+        case miniscript::Fragment::MULTI_A:
+            return ScriptNode(ScriptNode::Type::MULTI, std::move(subs), std::vector<std::string>(node->keys.begin(), node->keys.end()), {}, node->k);
+        case miniscript::Fragment::WRAP_A:
+        case miniscript::Fragment::WRAP_S:
+        case miniscript::Fragment::WRAP_C:
+        case miniscript::Fragment::WRAP_D:
+        case miniscript::Fragment::WRAP_V:
+        case miniscript::Fragment::WRAP_J:
+        case miniscript::Fragment::WRAP_N:
+            if (!subs.empty()) {
+                return std::move(subs[0]);
+            }
+            return ScriptNode();
+        default:
+            return ScriptNode();
+    }
+}
+
+std::string ScriptNodeToString(const ScriptNode& node) {
+  switch (node.GetType()) {
+    case ScriptNode::Type::PK:
+      return "pk(" + node.GetKeys()[0] + ")";
+    case ScriptNode::Type::AFTER:
+      return "after(" + std::to_string(node.GetK()) + ")";
+    case ScriptNode::Type::OLDER:
+      return "older(" + std::to_string(node.GetK()) + ")";
+    case ScriptNode::Type::HASH160:
+      return "hash160(" + HexStr(node.GetData()) + ")";
+    case ScriptNode::Type::HASH256:
+      return "hash256(" + HexStr(node.GetData()) + ")";
+    case ScriptNode::Type::RIPEMD160:
+      return "ripemd160(" + HexStr(node.GetData()) + ")";
+    case ScriptNode::Type::SHA256:
+      return "sha256(" + HexStr(node.GetData()) + ")";
+    case ScriptNode::Type::AND:
+      return "and(" + ScriptNodeToString(node.GetSubs()[0]) + "," +
+             ScriptNodeToString(node.GetSubs()[1]) + ")";
+    case ScriptNode::Type::OR:
+      return "or(" + ScriptNodeToString(node.GetSubs()[0]) + "," +
+             ScriptNodeToString(node.GetSubs()[1]) + ")";
+    case ScriptNode::Type::ANDOR:
+      return "andor(" + ScriptNodeToString(node.GetSubs()[0]) + "," +
+             ScriptNodeToString(node.GetSubs()[1]) + "," +
+             ScriptNodeToString(node.GetSubs()[2]) + ")";
+    case ScriptNode::Type::THRESH: {
+      std::stringstream ss;
+      ss << "thresh(" << node.GetK();
+      for (int i = 0; i < node.GetSubs().size(); i++) {
+        ss << "," << ScriptNodeToString(node.GetSubs()[i]);
+      }
+      ss << ")";
+      return ss.str();
+    }
+    case ScriptNode::Type::MULTI:
+      {
+      std::stringstream ss;
+      ss << "multi(" << node.GetK();
+      for (int i = 0; i < node.GetKeys().size(); i++) {
+        ss << "," << node.GetKeys()[i];
+      }
+      ss << ")";
+      return ss.str();
+    }
+  }
+  assert(false);
+  return "";
+}
