@@ -61,7 +61,7 @@
 #include "utils/httplib.h"
 
 #include <bbqr/bbqr.hpp>
-
+#include <miniscript/compiler.h>
 using namespace boost::algorithm;
 using namespace nunchuk::bcr2;
 
@@ -1177,5 +1177,59 @@ std::string Utils::RevealPreimage(const std::string& psbt,
   }
   return EncodePsbt(psbtx);
 }
+
+bool Utils::IsValidPolicy(const std::string& policy) {
+  return ::ParsePolicy(policy)();
+}
+
+std::string Utils::PolicyToMiniscript(
+    const std::string& policy,
+    const std::map<std::string, SingleSigner>& signers) {
+  auto policy_node = ::ParsePolicy(policy);
+  if (!policy_node()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid policy");
+  }
+  std::map<std::string, std::string> config;
+  for (const auto& signer : signers) {
+    config[signer.first] =
+        GetDescriptorForSigner(signer.second, DescriptorPath::ANY);
+  }
+  return ::PolicyToMiniscript(policy_node, config);
+}
+
+bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript) {
+  return ::ParseMiniscript(miniscript)->IsValidTopLevel();
+}
+
+struct TemplateContext {
+  typedef std::string Key;
+  const std::map<std::string, SingleSigner>& signers;
+  TemplateContext(const std::map<std::string, SingleSigner>& signers)
+      : signers(signers) {}
+  std::optional<std::string> ToString(const Key& key) const {
+    return GetDescriptorForSigner(signers.at(key), DescriptorPath::ANY);
+  }
+};
+
+std::string Utils::MiniscriptTemplateToMiniscript(
+    const std::string& miniscript_template,
+    const std::map<std::string, SingleSigner>& signers) {
+  auto node = ::ParseMiniscript(miniscript_template);
+  if (!node->IsValidTopLevel()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid miniscript template");
+  }
+
+  return ::Abbreviate(
+      *(node->ToString<TemplateContext>(TemplateContext(signers))));
+}
+
+ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
+  return ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
+}
+
+ScriptNode Utils::GetPsbtStatus(const std::string& miniscript,
+                                const std::string& psbt, int height) {}
 
 }  // namespace nunchuk

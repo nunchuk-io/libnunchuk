@@ -532,7 +532,8 @@ class NUNCHUK_EXPORT Wallet {
   void check_valid() const;
   bool need_backup() const;
   bool is_archived() const;
-  std::string get_miniscript(DescriptorPath key_path, int index = -1) const;
+  std::string get_miniscript(DescriptorPath key_path = DescriptorPath::ANY,
+                             int index = -1) const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -1093,26 +1094,29 @@ class NUNCHUK_EXPORT ScriptNode {
   ScriptNode(Type nt, std::vector<ScriptNode>&& subs,
              std::vector<std::string>&& key, std::vector<unsigned char>&& dat,
              uint32_t kv)
-      : node_type(nt),
-        sub(std::move(subs)),
-        keys(std::move(key)),
-        data(std::move(dat)),
-        k(kv) {}
+      : node_type_(nt),
+        sub_(std::move(subs)),
+        keys_(std::move(key)),
+        data_(std::move(dat)),
+        k_(kv) {}
 
-  bool operator()() const { return node_type != Type::NONE; }
+  bool operator()() const { return node_type_ != Type::NONE; }
 
-  Type GetType() const { return node_type; }
-  const std::vector<std::string>& GetKeys() const { return keys; }
-  const std::vector<unsigned char>& GetData() const { return data; }
-  const std::vector<ScriptNode>& GetSubs() const { return sub; }
-  uint32_t GetK() const { return k; }
+  Type get_type() const { return node_type_; }
+  const std::vector<std::string>& get_keys() const { return keys_; }
+  const std::vector<unsigned char>& get_data() const { return data_; }
+  const std::vector<ScriptNode>& get_subs() const { return sub_; }
+  uint32_t get_k() const { return k_; }
+  bool is_ready() const { return ready_; }
+  void set_ready(bool value) { ready_ = value; }
 
  private:
-  Type node_type{Type::NONE};
-  std::vector<ScriptNode> sub;
-  std::vector<std::string> keys;
-  std::vector<unsigned char> data;
-  uint32_t k{0};
+  Type node_type_{Type::NONE};
+  std::vector<ScriptNode> sub_;
+  std::vector<std::string> keys_;
+  std::vector<unsigned char> data_;
+  uint32_t k_{0};
+  bool ready_{false};
 };
 
 class NUNCHUK_EXPORT Nunchuk {
@@ -1144,6 +1148,12 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& passphrase = {},
                                  bool need_backup = true,
                                  bool replace = true) = 0;
+  virtual Wallet CreateMiniscriptWallet(const std::string& name,
+                                        const std::string& miniscript,
+                                        AddressType address_type,
+                                        const std::string& description = {},
+                                        bool allow_used_signer = false,
+                                        const std::string& decoy_pin = {}) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string GetHotKeyMnemonic(const std::string& signer_id,
@@ -1663,6 +1673,10 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction SignTransaction(const Wallet& wallet,
                                       const Transaction& tx,
                                       const Device& device) = 0;
+  virtual bool RevealPreimage(const std::string& wallet_id,
+                              const std::string& tx_id,
+                              const std::vector<uint8_t>& hash,
+                              const std::vector<uint8_t>& preimage) = 0;
   virtual void SetPreferScriptPath(const Wallet& wallet,
                                    const std::string& tx_id, bool value) = 0;
   virtual bool IsPreferScriptPath(const Wallet& wallet,
@@ -1916,6 +1930,17 @@ class NUNCHUK_EXPORT Utils {
                              const std::string& new_pin);
   static std::vector<std::string> ListDecoyPin(const std::string& storage_path);
   static bool CheckElectrumServer(const std::string& server, int timeout = 1);
+  static bool IsValidPolicy(const std::string& policy);
+  static std::string PolicyToMiniscript(
+      const std::string& policy,
+      const std::map<std::string, SingleSigner>& signers);
+  static bool IsValidMiniscriptTemplate(const std::string& miniscript_template);
+  static std::string MiniscriptTemplateToMiniscript(
+      const std::string& miniscript_template,
+      const std::map<std::string, SingleSigner>& signers);
+  static ScriptNode MiniscriptToScriptNode(const std::string& miniscript);
+  static ScriptNode GetPsbtStatus(const std::string& miniscript,
+                                  const std::string& psbt, int height = 0);
   static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
                                            PreimageHashType hashType);
   static std::string RevealPreimage(const std::string& psbt,

@@ -502,7 +502,7 @@ struct Node {
     //! The k parameter (time for OLDER/AFTER, threshold for THRESH(_M))
     const uint32_t k = 0;
     //! The keys used by this expression (only for PK_K/PK_H/MULTI)
-    const std::vector<Key> keys;
+    std::vector<Key> keys;
     //! The data bytes in this expression (only for HASH160/HASH256/SHA256/RIPEMD10).
     const std::vector<unsigned char> data;
     //! Subexpressions (for WRAP_*/AND_*/OR_*/ANDOR/THRESH)

@@ -49,6 +49,7 @@
 #include <regex>
 #include <charconv>
 #include <base58.h>
+#include <miniscript/compiler.h>
 
 using json = nlohmann::json;
 using namespace boost::algorithm;
@@ -1193,7 +1194,8 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
       auto software_signer =
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
       auto wallet = GetWallet(wallet_id);
-      if (wallet.get_address_type() == AddressType::TAPROOT) {
+      if (wallet.get_address_type() == AddressType::TAPROOT ||
+          wallet.get_wallet_type() == WalletType::MINISCRIPT) {
         std::string basepath;
         for (auto&& signer : wallet.get_signers()) {
           if (signer.get_master_fingerprint() == mastersigner_id) {
@@ -1272,7 +1274,8 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
     case SignerType::SOFTWARE: {
       auto software_signer =
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
-      if (wallet.get_address_type() == AddressType::TAPROOT) {
+      if (wallet.get_address_type() == AddressType::TAPROOT ||
+          wallet.get_wallet_type() == WalletType::MINISCRIPT) {
         std::string basepath;
         for (auto&& signer : wallet.get_signers()) {
           if (signer.get_master_fingerprint() == mastersigner_id) {
@@ -2633,6 +2636,68 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
                                   true);
 
   return rs;
+}
+
+Wallet NunchukImpl::CreateMiniscriptWallet(const std::string& name,
+                                           const std::string& miniscript,
+                                           AddressType address_type,
+                                           const std::string& description,
+                                           bool allow_used_signer,
+                                           const std::string& decoy_pin) {
+  std::set<std::string> keys{};
+  auto node = ::ParseMiniscript(miniscript);
+  if (!node->IsValidTopLevel()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid miniscript");
+  }
+  std::function<void(miniscript::NodeRef<std::string>&)> getKeys =
+      [&](miniscript::NodeRef<std::string>& node) -> void {
+    for (int i = 0; i < node->keys.size(); i++) keys.insert(node->keys[i]);
+    for (int i = 0; i < node->subs.size(); i++) getKeys(node->subs[i]);
+  };
+  getKeys(node);
+
+  std::vector<SingleSigner> signers{};
+  for (auto&& key : keys) {
+    signers.push_back(ParseSignerString(key));
+  }
+  Wallet wallet(miniscript, signers, address_type);
+  wallet.set_name(name);
+  wallet.set_description(description);
+  wallet.set_create_date(std::time(0));
+  wallet.set_wallet_template(WalletTemplate::DEFAULT);
+  return CreateWallet(wallet, allow_used_signer, decoy_pin);
+}
+
+bool NunchukImpl::RevealPreimage(const std::string& wallet_id,
+                                 const std::string& tx_id,
+                                 const std::vector<uint8_t>& hash,
+                                 const std::vector<uint8_t>& preimage) {
+  std::string psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
+  if (psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
+  DLOG_F(INFO, "NunchukImpl::RevealPreimage(), psbt='%s'", psbt.c_str());
+  std::string signed_psbt;
+  // maybe we should get wallet miniscript and check hash type
+  for (auto&& hashType :
+       {PreimageHashType::SHA256, PreimageHashType::HASH256,
+        PreimageHashType::HASH160, PreimageHashType::RIPEMD160}) {
+    if (hash == Utils::HashPreimage(preimage, hashType)) {
+      signed_psbt = Utils::RevealPreimage(psbt, hashType, hash, preimage);
+      break;
+    }
+  }
+  if (signed_psbt.empty()) return false;
+
+  DLOG_F(INFO, "NunchukImpl::RevealPreimage(), signed_psbt='%s'",
+         signed_psbt.c_str());
+  storage_->UpdatePsbt(chain_, wallet_id, signed_psbt);
+  storage_listener_();
+  if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
+    group_service_.UpdateTransaction(wallet_id, tx_id, signed_psbt);
+  }
+  return true;
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,

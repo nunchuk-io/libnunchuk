@@ -1122,36 +1122,36 @@ ScriptNode MiniscriptToScriptNode(const miniscript::NodeRef<std::string>& node) 
 }
 
 std::string ScriptNodeToString(const ScriptNode& node) {
-  switch (node.GetType()) {
+  switch (node.get_type()) {
     case ScriptNode::Type::PK:
-      return "pk(" + node.GetKeys()[0] + ")";
+      return "pk(" + node.get_keys()[0] + ")";
     case ScriptNode::Type::AFTER:
-      return "after(" + std::to_string(node.GetK()) + ")";
+      return "after(" + std::to_string(node.get_k()) + ")";
     case ScriptNode::Type::OLDER:
-      return "older(" + std::to_string(node.GetK()) + ")";
+      return "older(" + std::to_string(node.get_k()) + ")";
     case ScriptNode::Type::HASH160:
-      return "hash160(" + HexStr(node.GetData()) + ")";
+      return "hash160(" + HexStr(node.get_data()) + ")";
     case ScriptNode::Type::HASH256:
-      return "hash256(" + HexStr(node.GetData()) + ")";
+      return "hash256(" + HexStr(node.get_data()) + ")";
     case ScriptNode::Type::RIPEMD160:
-      return "ripemd160(" + HexStr(node.GetData()) + ")";
+      return "ripemd160(" + HexStr(node.get_data()) + ")";
     case ScriptNode::Type::SHA256:
-      return "sha256(" + HexStr(node.GetData()) + ")";
+      return "sha256(" + HexStr(node.get_data()) + ")";
     case ScriptNode::Type::AND:
-      return "and(" + ScriptNodeToString(node.GetSubs()[0]) + "," +
-             ScriptNodeToString(node.GetSubs()[1]) + ")";
+      return "and(" + ScriptNodeToString(node.get_subs()[0]) + "," +
+             ScriptNodeToString(node.get_subs()[1]) + ")";
     case ScriptNode::Type::OR:
-      return "or(" + ScriptNodeToString(node.GetSubs()[0]) + "," +
-             ScriptNodeToString(node.GetSubs()[1]) + ")";
+      return "or(" + ScriptNodeToString(node.get_subs()[0]) + "," +
+             ScriptNodeToString(node.get_subs()[1]) + ")";
     case ScriptNode::Type::ANDOR:
-      return "andor(" + ScriptNodeToString(node.GetSubs()[0]) + "," +
-             ScriptNodeToString(node.GetSubs()[1]) + "," +
-             ScriptNodeToString(node.GetSubs()[2]) + ")";
+      return "andor(" + ScriptNodeToString(node.get_subs()[0]) + "," +
+             ScriptNodeToString(node.get_subs()[1]) + "," +
+             ScriptNodeToString(node.get_subs()[2]) + ")";
     case ScriptNode::Type::THRESH: {
       std::stringstream ss;
-      ss << "thresh(" << node.GetK();
-      for (int i = 0; i < node.GetSubs().size(); i++) {
-        ss << "," << ScriptNodeToString(node.GetSubs()[i]);
+      ss << "thresh(" << node.get_k();
+      for (int i = 0; i < node.get_subs().size(); i++) {
+        ss << "," << ScriptNodeToString(node.get_subs()[i]);
       }
       ss << ")";
       return ss.str();
@@ -1159,9 +1159,9 @@ std::string ScriptNodeToString(const ScriptNode& node) {
     case ScriptNode::Type::MULTI:
       {
       std::stringstream ss;
-      ss << "multi(" << node.GetK();
-      for (int i = 0; i < node.GetKeys().size(); i++) {
-        ss << "," << node.GetKeys()[i];
+      ss << "multi(" << node.get_k();
+      for (int i = 0; i < node.get_keys().size(); i++) {
+        ss << "," << node.get_keys()[i];
       }
       ss << ")";
       return ss.str();

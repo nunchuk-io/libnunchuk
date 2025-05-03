@@ -60,6 +60,12 @@ class NunchukImpl : public Nunchuk {
   Wallet CreateHotWallet(const std::string& mnemonic = {},
                          const std::string& passphrase = {},
                          bool need_backup = true, bool replace = true) override;
+  Wallet CreateMiniscriptWallet(const std::string& name,
+                                const std::string& miniscript,
+                                AddressType address_type,
+                                const std::string& description = {},
+                                bool allow_used_signer = false,
+                                const std::string& decoy_pin = {}) override;
   std::string GetHotWalletMnemonic(const std::string& wallet_id,
                                    const std::string& passphrase = {}) override;
   std::string GetHotKeyMnemonic(const std::string& signer_id,
@@ -216,6 +222,9 @@ class NunchukImpl : public Nunchuk {
                               const Device& device) override;
   Transaction SignTransaction(const Wallet& wallet, const Transaction& tx,
                               const Device& device) override;
+  bool RevealPreimage(const std::string& wallet_id, const std::string& tx_id,
+                      const std::vector<uint8_t>& hash,
+                      const std::vector<uint8_t>& preimage) override;
   void SetPreferScriptPath(const Wallet& wallet, const std::string& tx_id,
                            bool value) override;
   bool IsPreferScriptPath(const Wallet& wallet,
