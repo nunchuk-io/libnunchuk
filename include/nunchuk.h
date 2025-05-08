@@ -1747,11 +1747,15 @@ class NUNCHUK_EXPORT Utils {
                                           const std::string& passphrase);
   static std::string GetPrimaryKeyAddress(tap_protocol::Tapsigner* tapsigner,
                                           const std::string& cvc);
+  static std::string GetPrimaryKeyAddressFromMasterXprv(
+      const std::string& master_xprv);
 
   static std::string GetMasterFingerprint(const std::string& mnemonic,
                                           const std::string& passphrase);
   static std::string GetMasterFingerprint(tap_protocol::Tapsigner* tapsigner,
                                           const std::string& cvc);
+  static std::string GetMasterFingerprintFromMasterXprv(
+      const std::string& master_xprv);
 
   static std::string SignLoginMessage(const std::string& mnemonic,
                                       const std::string& passphrase,
@@ -1759,6 +1763,8 @@ class NUNCHUK_EXPORT Utils {
   static std::string SignLoginMessage(tap_protocol::Tapsigner* tapsigner,
                                       const std::string& cvc,
                                       const std::string& message);
+  static std::string SignLoginMessageWithMasterXprv(
+      const std::string& master_xprv, const std::string& message);
 
   static std::vector<Device> GetDevices(const std::string& hwi_path);
 

@@ -269,6 +269,12 @@ std::string Utils::GetPrimaryKeyAddress(tap_protocol::Tapsigner* tapsigner,
   }
 }
 
+std::string Utils::GetPrimaryKeyAddressFromMasterXprv(
+    const std::string& master_xprv) {
+  SoftwareSigner signer{master_xprv};
+  return signer.GetAddressAtPath(LOGIN_SIGNING_PATH);
+}
+
 std::string Utils::GetMasterFingerprint(const std::string& mnemonic,
                                         const std::string& passphrase) {
   SoftwareSigner signer{mnemonic, passphrase};
@@ -282,6 +288,12 @@ std::string Utils::GetMasterFingerprint(tap_protocol::Tapsigner* tapsigner,
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
+}
+
+std::string Utils::GetMasterFingerprintFromMasterXprv(
+    const std::string& master_xprv) {
+  SoftwareSigner signer{master_xprv};
+  return signer.GetMasterFingerprint();
 }
 
 std::string Utils::SignLoginMessage(const std::string& mnemonic,
@@ -300,6 +312,12 @@ std::string Utils::SignLoginMessage(tap_protocol::Tapsigner* tapsigner,
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
+}
+
+std::string Utils::SignLoginMessageWithMasterXprv(
+    const std::string& master_xprv, const std::string& message) {
+  SoftwareSigner signer{master_xprv};
+  return signer.SignMessage(message, LOGIN_SIGNING_PATH);
 }
 
 std::vector<Device> Utils::GetDevices(const std::string& hwi_path) {
