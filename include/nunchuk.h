@@ -1183,7 +1183,8 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& memo = {},
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false,
-      const std::string& replace_txid = {}, bool anti_fee_sniping = false) = 0;
+      const std::string& replace_txid = {}, bool anti_fee_sniping = false,
+      bool use_script_path = false) = 0;
   virtual bool ExportTransaction(const std::string& wallet_id,
                                  const std::string& tx_id,
                                  const std::string& file_path) = 0;
@@ -1208,11 +1209,12 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::map<std::string, Amount>& outputs,
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false,
-      const std::string& replace_txid = {}) = 0;
+      const std::string& replace_txid = {}, bool use_script_path = false) = 0;
   virtual Transaction ReplaceTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
                                          Amount new_fee_rate,
-                                         bool anti_fee_sniping = false) = 0;
+                                         bool anti_fee_sniping = false,
+                                         bool use_script_path = false) = 0;
   virtual bool ReplaceTransactionId(const std::string& wallet_id,
                                     const std::string& txid,
                                     const std::string& replace_txid) = 0;
@@ -1510,8 +1512,8 @@ class NUNCHUK_EXPORT Nunchuk {
   EstimateRollOverAmount(const std::string& old_wallet_id,
                          const std::string& new_wallet_id,
                          const std::set<int>& tags,
-                         const std::set<int>& collections,
-                         Amount fee_rate = -1) = 0;
+                         const std::set<int>& collections, Amount fee_rate = -1,
+                         bool use_script_path = false) = 0;
   virtual std::map<
       std::pair<std::set<int> /* tags */, std::set<int> /* collections */>,
       Transaction>
@@ -1519,11 +1521,13 @@ class NUNCHUK_EXPORT Nunchuk {
                             const std::string& new_wallet_id,
                             const std::set<int>& tags,
                             const std::set<int>& collections,
-                            Amount fee_rate = -1) = 0;
+                            Amount fee_rate = -1,
+                            bool use_script_path = false) = 0;
   virtual std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
-      Amount fee_rate = -1, bool anti_fee_sniping = false) = 0;
+      Amount fee_rate = -1, bool anti_fee_sniping = false,
+      bool use_script_path = false) = 0;
 
   // Dummy transaction
   virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(

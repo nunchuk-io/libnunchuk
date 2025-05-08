@@ -202,7 +202,8 @@ class NunchukImpl : public Nunchuk {
                                 Amount fee_rate = -1,
                                 bool subtract_fee_from_amount = false,
                                 const std::string& replace_txid = {},
-                                bool anti_fee_sniping = false) override;
+                                bool anti_fee_sniping = false,
+                                bool use_script_path = false) override;
   bool ExportTransaction(const std::string& wallet_id, const std::string& tx_id,
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
@@ -233,10 +234,12 @@ class NunchukImpl : public Nunchuk {
                                const std::vector<UnspentOutput>& inputs = {},
                                Amount fee_rate = -1,
                                bool subtract_fee_from_amount = false,
-                               const std::string& replace_txid = {}) override;
+                               const std::string& replace_txid = {},
+                               bool use_script_path = false) override;
   Transaction ReplaceTransaction(const std::string& wallet_id,
                                  const std::string& tx_id, Amount new_fee_rate,
-                                 bool anti_fee_sniping = false) override;
+                                 bool anti_fee_sniping = false,
+                                 bool use_script_path = false) override;
   bool ReplaceTransactionId(const std::string& wallet_id,
                             const std::string& txid,
                             const std::string& replace_txid) override;
@@ -558,17 +561,19 @@ class NunchukImpl : public Nunchuk {
   std::pair<Amount, Amount> EstimateRollOverAmount(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
-      Amount fee_rate = -1) override;
+      Amount fee_rate = -1, bool use_script_path = false) override;
   std::map<std::pair<std::set<int>, std::set<int>>, Transaction>
   DraftRollOverTransactions(const std::string& old_wallet_id,
                             const std::string& new_wallet_id,
                             const std::set<int>& tags,
                             const std::set<int>& collections,
-                            Amount fee_rate = -1) override;
+                            Amount fee_rate = -1,
+                            bool use_script_path = false) override;
   std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
-      Amount fee_rate = -1, bool anti_fee_sniping = false) override;
+      Amount fee_rate = -1, bool anti_fee_sniping = false,
+      bool use_script_path = false) override;
 
   // Group Wallet
   void EnableGroupWallet(const std::string& osName,
@@ -646,7 +651,8 @@ class NunchukImpl : public Nunchuk {
                          const std::vector<UnspentOutput>& inputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& vsize,
-                         int& change_pos, bool anti_fee_sniping);
+                         int& change_pos, bool anti_fee_sniping,
+                         bool use_script_path);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
   void RunScanWalletAddress(const std::string& wallet_id);
