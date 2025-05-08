@@ -195,6 +195,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/tweetnacl.c
     src/miniscript/compiler.cpp
     src/miniscript/miniscript.cpp
+    src/miniscript/timeline.cpp
 )
 
 set(PROJECT_LIBRARIES

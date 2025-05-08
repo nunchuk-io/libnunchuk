@@ -1107,8 +1107,6 @@ class NUNCHUK_EXPORT ScriptNode {
   const std::vector<unsigned char>& get_data() const { return data_; }
   const std::vector<ScriptNode>& get_subs() const { return sub_; }
   uint32_t get_k() const { return k_; }
-  bool is_ready() const { return ready_; }
-  void set_ready(bool value) { ready_ = value; }
 
  private:
   Type node_type_{Type::NONE};
@@ -1116,7 +1114,6 @@ class NUNCHUK_EXPORT ScriptNode {
   std::vector<std::string> keys_;
   std::vector<unsigned char> data_;
   uint32_t k_{0};
-  bool ready_{false};
 };
 
 class NUNCHUK_EXPORT Nunchuk {
@@ -1939,8 +1936,6 @@ class NUNCHUK_EXPORT Utils {
       const std::string& miniscript_template,
       const std::map<std::string, SingleSigner>& signers);
   static ScriptNode MiniscriptToScriptNode(const std::string& miniscript);
-  static ScriptNode GetPsbtStatus(const std::string& miniscript,
-                                  const std::string& psbt, int height = 0);
   static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
                                            PreimageHashType hashType);
   static std::string RevealPreimage(const std::string& psbt,

@@ -1229,7 +1229,4 @@ ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
   return ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
 }
 
-ScriptNode Utils::GetPsbtStatus(const std::string& miniscript,
-                                const std::string& psbt, int height) {}
-
 }  // namespace nunchuk
