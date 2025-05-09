@@ -40,6 +40,12 @@ std::vector<int> const& UnspentOutput::get_collections() const {
 time_t UnspentOutput::get_blocktime() const { return blocktime_; }
 time_t UnspentOutput::get_schedule_time() const { return schedule_time_; }
 CoinStatus UnspentOutput::get_status() const { return status_; }
+std::vector<int64_t> const& UnspentOutput::get_timelocks() const {
+  return timelocks_;
+}
+bool UnspentOutput::is_heightlock() const {
+  return timelocks_.size() == 1 && timelocks_[0] < 500000000;
+}
 
 void UnspentOutput::set_txid(const std::string& value) { txid_ = value; }
 void UnspentOutput::set_vout(int value) { vout_ = value; }
@@ -58,5 +64,8 @@ void UnspentOutput::set_collections(std::vector<int> value) {
 void UnspentOutput::set_blocktime(time_t value) { blocktime_ = value; }
 void UnspentOutput::set_schedule_time(time_t value) { schedule_time_ = value; }
 void UnspentOutput::set_status(CoinStatus value) { status_ = value; }
+void UnspentOutput::set_timelocks(std::vector<int64_t> value) {
+  timelocks_ = std::move(value);
+}
 
 }  // namespace nunchuk

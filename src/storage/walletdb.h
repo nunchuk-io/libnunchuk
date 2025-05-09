@@ -141,6 +141,8 @@ class NunchukWalletDb : public NunchukDb {
   std::map<std::string, Transaction> GetDummyTxs();
   Transaction GetDummyTx(const std::string &id);
 
+  std::string GetMiniscript();
+
  private:
   void CreateCoinControlTable();
   void CreateDummyTxTable();

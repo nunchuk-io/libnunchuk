@@ -42,6 +42,8 @@
 #include <policy/policy.h>
 #include <crypto/sha256.h>
 
+#include <miniscript/timeline.h>
+
 #ifdef _WIN32
 #include <shlobj.h>
 #endif
@@ -1262,6 +1264,13 @@ std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
     coin.set_collections(
         wallet.GetAddedCollections(coin.get_txid(), coin.get_vout()));
     utxos.push_back(coin);
+  }
+  auto miniscript = wallet.GetMiniscript();
+  if (!miniscript.empty()) {
+    MiniscriptTimeline timeline(miniscript);
+    for (auto&& utxo : utxos) {
+      utxo.set_timelocks(timeline.get_locks(utxo));
+    }
   }
   return utxos;
 }

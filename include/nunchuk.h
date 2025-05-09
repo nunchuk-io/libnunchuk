@@ -629,6 +629,8 @@ class NUNCHUK_EXPORT UnspentOutput {
   time_t get_blocktime() const;
   time_t get_schedule_time() const;
   CoinStatus get_status() const;
+  std::vector<int64_t> const& get_timelocks() const;
+  bool is_heightlock() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
@@ -643,6 +645,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_blocktime(time_t value);
   void set_schedule_time(time_t value);
   void set_status(CoinStatus value);
+  void set_timelocks(std::vector<int64_t> value);
 
  private:
   std::string txid_;
@@ -658,6 +661,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   time_t blocktime_;
   time_t schedule_time_;
   CoinStatus status_;
+  std::vector<int64_t> timelocks_;
 };
 
 class NUNCHUK_EXPORT GroupSandbox {

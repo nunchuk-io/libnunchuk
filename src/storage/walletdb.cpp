@@ -2433,4 +2433,8 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
   }
 }
 
+std::string NunchukWalletDb::GetMiniscript() {
+  return GetString(DbKeys::MINISCRIPT);
+}
+
 }  // namespace nunchuk
