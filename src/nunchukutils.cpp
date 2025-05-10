@@ -1229,4 +1229,59 @@ ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
   return ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
 }
 
+std::string Utils::ExpandingMultisigMiniscriptTemplate(int m, int n, int new_m,
+                                                       int64_t expand_time,
+                                                       bool relative_time) {
+  std::stringstream temp;
+  temp << "andor(ln:";
+  if (relative_time) {
+    temp << "older(" << expand_time << ")";
+  } else {
+    temp << "after(" << expand_time << ")";
+  }
+  temp << ",multi(" << m;
+  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  temp << "),multi(" << new_m;
+  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  temp << "))";
+  return temp.str();
+}
+
+std::string Utils::DecayingMultisigMiniscriptTemplate(int m, int n, int new_n,
+                                                      int64_t decay_time,
+                                                      bool relative_time) {
+  std::stringstream temp;
+  temp << "andor(ln:";
+  if (relative_time) {
+    temp << "older(" << decay_time << ")";
+  } else {
+    temp << "after(" << decay_time << ")";
+  }
+  temp << ",multi(" << m;
+  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  temp << "),multi(" << m;
+  for (int i = 0; i < new_n; i++) temp << ",key_" << i;
+  temp << "))";
+  return temp.str();
+}
+
+std::string Utils::FlexibleMultisigMiniscriptTemplate(int m, int n, int new_m,
+                                                      int new_n,
+                                                      int64_t update_time,
+                                                      bool relative_time) {
+  std::stringstream temp;
+  temp << "andor(ln:";
+  if (relative_time) {
+    temp << "older(" << update_time << ")";
+  } else {
+    temp << "after(" << update_time << ")";
+  }
+  temp << ",multi(" << m;
+  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  temp << "),multi(" << new_m;
+  for (int i = n; i < n + new_n; i++) temp << ",key_" << i;
+  temp << "))";
+  return temp.str();
+}
+
 }  // namespace nunchuk

@@ -18,7 +18,7 @@
 #ifndef NUNCHUK_MINISCRIPT_TIMELINE_H
 #define NUNCHUK_MINISCRIPT_TIMELINE_H
 
-
+#include <nunchuk.h>
 #include <miniscript/compiler.h>
 #include <vector>
 #include <stdexcept>
@@ -27,12 +27,6 @@ namespace nunchuk {
 
 class MiniscriptTimeline {
 public:
-    enum class LockType {
-        NONE,
-        TIME_LOCK,
-        HEIGHT_LOCK,
-    };
-
     explicit MiniscriptTimeline(const std::string& miniscript);
     LockType get_lock_type() const { return lock_type_; }
     std::vector<int64_t> get_absolute_locks() const { return absolute_locks_; }

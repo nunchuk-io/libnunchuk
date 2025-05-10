@@ -186,6 +186,12 @@ enum class PreimageHashType {
   HASH256,
 };
 
+enum class LockType {
+  NONE,
+  TIME_LOCK,
+  HEIGHT_LOCK,
+};
+
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -630,7 +636,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   time_t get_schedule_time() const;
   CoinStatus get_status() const;
   std::vector<int64_t> const& get_timelocks() const;
-  bool is_heightlock() const;
+  LockType get_lock_type() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
@@ -1946,6 +1952,17 @@ class NUNCHUK_EXPORT Utils {
                                     PreimageHashType hashType,
                                     const std::vector<uint8_t>& hash,
                                     const std::vector<uint8_t>& preimage);
+  static std::string ExpandingMultisigMiniscriptTemplate(int m, int n,
+                                                         int new_m,
+                                                         int64_t expand_time,
+                                                         bool relative_time);
+  static std::string DecayingMultisigMiniscriptTemplate(int m, int n, int new_n,
+                                                        int64_t decay_time,
+                                                        bool relative_time);
+  static std::string FlexibleMultisigMiniscriptTemplate(int m, int n, int new_m,
+                                                        int new_n,
+                                                        int64_t update_time,
+                                                        bool relative_time);
 
  private:
   Utils() {}
