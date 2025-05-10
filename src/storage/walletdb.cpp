@@ -874,7 +874,7 @@ std::string NunchukWalletDb::GetPsbt(const std::string& tx_id) const {
 std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
     const std::string& tx_id) const {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT VALUE FROM VTX WHERE ID = ? AND HEIGHT = -1;";
+  std::string sql = "SELECT VALUE FROM VTX WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
