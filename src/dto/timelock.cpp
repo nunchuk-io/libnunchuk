@@ -34,10 +34,10 @@ int64_t Timelock::value() const { return value_; }
 
 int64_t Timelock::k() const {
   if (type_ == Type::ABSOLUTE) {
-    if (value_ >= LOCKTIME_THRESHOLD && based_ != Based::TIME_LOCK) {
+    if (value_ < LOCKTIME_THRESHOLD && based_ == Based::TIME_LOCK) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid time value");
-    } else if (value_ < LOCKTIME_THRESHOLD && based_ != Based::HEIGHT_LOCK) {
+    } else if (value_ >= LOCKTIME_THRESHOLD && based_ == Based::HEIGHT_LOCK) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid height value");
     }

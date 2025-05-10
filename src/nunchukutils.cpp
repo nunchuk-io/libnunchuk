@@ -62,6 +62,7 @@
 
 #include <bbqr/bbqr.hpp>
 #include <miniscript/compiler.h>
+#include <miniscript/timeline.h>
 using namespace boost::algorithm;
 using namespace nunchuk::bcr2;
 
@@ -1271,6 +1272,40 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
 
 std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     const std::string& miniscript, const std::vector<UnspentOutput>& coins,
-    Timelock& timelock) {}
+    int64_t& max_lock_value, int chain_tip) {
+  auto node = ::ParseMiniscript(miniscript);
+  MiniscriptTimeline timeline{miniscript};
+  if (timeline.get_lock_type() == Timelock::Based::NONE) return {};
+
+  std::vector<UnspentOutput> rs{};
+  int64_t current_value = timeline.get_lock_type() == Timelock::Based::TIME_LOCK
+                              ? std::time(0)
+                              : chain_tip;
+  for (auto&& coin : coins) {
+    if (!node->IsSatisfiable([&](const miniscript::Node<std::string>& node) {
+          int64_t value = 0;
+          if (node.fragment == miniscript::Fragment::AFTER) {
+            value = node.k;
+          } else if (node.fragment == miniscript::Fragment::OLDER) {
+            if (timeline.get_lock_type() == Timelock::Based::TIME_LOCK)
+              value = coin.get_blocktime() +
+                      (int64_t)((node.k & CTxIn::SEQUENCE_LOCKTIME_MASK)
+                                << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY) -
+                      1;
+            else
+              value = coin.get_height() +
+                      (int)(node.k & CTxIn::SEQUENCE_LOCKTIME_MASK) - 1;
+          } else {
+            return true;
+          }
+          if (value > current_value && value > max_lock_value)
+            max_lock_value = value;
+          return value <= current_value;
+        })) {
+      rs.emplace_back(coin);
+    }
+  }
+  return rs;
+}
 
 }  // namespace nunchuk

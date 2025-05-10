@@ -1980,7 +1980,7 @@ class NUNCHUK_EXPORT Utils {
       int m, int n, int new_m, int new_n, const Timelock& timelock);
   static std::vector<UnspentOutput> GetTimelockedCoins(
       const std::string& miniscript, const std::vector<UnspentOutput>& coins,
-      Timelock& timelock);
+      int64_t& max_lock_value, int chain_tip);
 
  private:
   Utils() {}
