@@ -186,12 +186,6 @@ enum class PreimageHashType {
   HASH256,
 };
 
-enum class LockType {
-  NONE,
-  TIME_LOCK,
-  HEIGHT_LOCK,
-};
-
 class NUNCHUK_EXPORT BaseException : public std::exception {
  public:
   explicit BaseException(int code, const char* message)
@@ -617,6 +611,32 @@ class NUNCHUK_EXPORT CoinCollection {
   std::vector<int> add_tags_;
 };
 
+class NUNCHUK_EXPORT Timelock {
+ public:
+  enum class Based {
+    NONE,
+    TIME_LOCK,
+    HEIGHT_LOCK,
+  };
+
+  enum class Type {
+    ABSOLUTE,
+    RELATIVE,
+  };
+
+  Timelock(Based based, Type type, int64_t value);
+  Based based() const;
+  Type type() const;
+  int64_t value() const;
+  int64_t k() const;
+  std::string to_miniscript() const;
+
+ private:
+  Based based_;
+  Type type_;
+  int64_t value_;
+};
+
 // Class that represents an Unspent Transaction Output (UTXO)
 class NUNCHUK_EXPORT UnspentOutput {
  public:
@@ -636,7 +656,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   time_t get_schedule_time() const;
   CoinStatus get_status() const;
   std::vector<int64_t> const& get_timelocks() const;
-  LockType get_lock_type() const;
+  Timelock::Based get_lock_based() const;
 
   void set_txid(const std::string& value);
   void set_vout(int value);
@@ -1952,17 +1972,15 @@ class NUNCHUK_EXPORT Utils {
                                     PreimageHashType hashType,
                                     const std::vector<uint8_t>& hash,
                                     const std::vector<uint8_t>& preimage);
-  static std::string ExpandingMultisigMiniscriptTemplate(int m, int n,
-                                                         int new_m,
-                                                         int64_t expand_time,
-                                                         bool relative_time);
-  static std::string DecayingMultisigMiniscriptTemplate(int m, int n, int new_n,
-                                                        int64_t decay_time,
-                                                        bool relative_time);
-  static std::string FlexibleMultisigMiniscriptTemplate(int m, int n, int new_m,
-                                                        int new_n,
-                                                        int64_t update_time,
-                                                        bool relative_time);
+  static std::string ExpandingMultisigMiniscriptTemplate(
+      int m, int n, int new_m, const Timelock& timelock);
+  static std::string DecayingMultisigMiniscriptTemplate(
+      int m, int n, int new_n, const Timelock& timelock);
+  static std::string FlexibleMultisigMiniscriptTemplate(
+      int m, int n, int new_m, int new_n, const Timelock& timelock);
+  static std::vector<UnspentOutput> GetTimelockedCoins(
+      const std::string& miniscript, const std::vector<UnspentOutput>& coins,
+      Timelock& timelock);
 
  private:
   Utils() {}

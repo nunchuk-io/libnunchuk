@@ -43,10 +43,10 @@ CoinStatus UnspentOutput::get_status() const { return status_; }
 std::vector<int64_t> const& UnspentOutput::get_timelocks() const {
   return timelocks_;
 }
-LockType UnspentOutput::get_lock_type() const {
-  if (timelocks_.empty()) return LockType::NONE;
-  return timelocks_[0] < 500000000 ? LockType::HEIGHT_LOCK
-                                   : LockType::TIME_LOCK;
+Timelock::Based UnspentOutput::get_lock_based() const {
+  if (timelocks_.empty()) return Timelock::Based::NONE;
+  return timelocks_[0] < 500000000 ? Timelock::Based::HEIGHT_LOCK
+                                   : Timelock::Based::TIME_LOCK;
 }
 
 void UnspentOutput::set_txid(const std::string& value) { txid_ = value; }

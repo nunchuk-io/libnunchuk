@@ -28,16 +28,16 @@ namespace nunchuk {
 class MiniscriptTimeline {
 public:
     explicit MiniscriptTimeline(const std::string& miniscript);
-    LockType get_lock_type() const { return lock_type_; }
+    Timelock::Based get_lock_type() const { return lock_type_; }
     std::vector<int64_t> get_absolute_locks() const { return absolute_locks_; }
     std::vector<int64_t> get_relative_locks() const { return relative_locks_; }
     std::vector<int64_t> get_locks(const UnspentOutput& utxo);
 
 private:
     void add_node(const miniscript::NodeRef<std::string>& node);
-    void detect_timelock_mixing(LockType new_type);
+    void detect_timelock_mixing(Timelock::Based new_type);
 
-    LockType lock_type_{LockType::NONE};
+    Timelock::Based lock_type_{Timelock::Based::NONE};
     std::vector<int64_t> absolute_locks_;
     std::vector<int64_t> relative_locks_;
 };

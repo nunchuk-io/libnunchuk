@@ -1131,6 +1131,10 @@ bool Utils::CheckElectrumServer(const std::string& server, int timeout) {
 }
 std::vector<uint8_t> Utils::HashPreimage(const std::vector<uint8_t>& data,
                                          PreimageHashType hashType) {
+  if (data.size() != 32) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid preimage size");
+  }
   std::vector<uint8_t> hash;
   switch (hashType) {
     case PreimageHashType::SHA256:
@@ -1229,16 +1233,10 @@ ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
   return ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
 }
 
-std::string Utils::ExpandingMultisigMiniscriptTemplate(int m, int n, int new_m,
-                                                       int64_t expand_time,
-                                                       bool relative_time) {
+std::string Utils::ExpandingMultisigMiniscriptTemplate(
+    int m, int n, int new_m, const Timelock& timelock) {
   std::stringstream temp;
-  temp << "andor(ln:";
-  if (relative_time) {
-    temp << "older(" << expand_time << ")";
-  } else {
-    temp << "after(" << expand_time << ")";
-  }
+  temp << "andor(ln:" << timelock.to_miniscript();
   temp << ",multi(" << m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << "),multi(" << new_m;
@@ -1247,16 +1245,10 @@ std::string Utils::ExpandingMultisigMiniscriptTemplate(int m, int n, int new_m,
   return temp.str();
 }
 
-std::string Utils::DecayingMultisigMiniscriptTemplate(int m, int n, int new_n,
-                                                      int64_t decay_time,
-                                                      bool relative_time) {
+std::string Utils::DecayingMultisigMiniscriptTemplate(
+    int m, int n, int new_n, const Timelock& timelock) {
   std::stringstream temp;
-  temp << "andor(ln:";
-  if (relative_time) {
-    temp << "older(" << decay_time << ")";
-  } else {
-    temp << "after(" << decay_time << ")";
-  }
+  temp << "andor(ln:" << timelock.to_miniscript();
   temp << ",multi(" << m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << "),multi(" << m;
@@ -1265,17 +1257,10 @@ std::string Utils::DecayingMultisigMiniscriptTemplate(int m, int n, int new_n,
   return temp.str();
 }
 
-std::string Utils::FlexibleMultisigMiniscriptTemplate(int m, int n, int new_m,
-                                                      int new_n,
-                                                      int64_t update_time,
-                                                      bool relative_time) {
+std::string Utils::FlexibleMultisigMiniscriptTemplate(
+    int m, int n, int new_m, int new_n, const Timelock& timelock) {
   std::stringstream temp;
-  temp << "andor(ln:";
-  if (relative_time) {
-    temp << "older(" << update_time << ")";
-  } else {
-    temp << "after(" << update_time << ")";
-  }
+  temp << "andor(ln:" << timelock.to_miniscript();
   temp << ",multi(" << m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << "),multi(" << new_m;
@@ -1283,5 +1268,9 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(int m, int n, int new_m,
   temp << "))";
   return temp.str();
 }
+
+std::vector<UnspentOutput> Utils::GetTimelockedCoins(
+    const std::string& miniscript, const std::vector<UnspentOutput>& coins,
+    Timelock& timelock) {}
 
 }  // namespace nunchuk
