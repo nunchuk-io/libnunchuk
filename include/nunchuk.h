@@ -1099,7 +1099,6 @@ class NUNCHUK_EXPORT ScriptNode {
  public:
   enum class Type {
     NONE,
-
     PK,
     OLDER,
     AFTER,
@@ -1114,32 +1113,32 @@ class NUNCHUK_EXPORT ScriptNode {
     MULTI,
   };
 
+  static std::string type_to_string(Type type);
+
   ~ScriptNode() = default;
   ScriptNode(const ScriptNode& x) = delete;
   ScriptNode& operator=(const ScriptNode& x) = delete;
   ScriptNode& operator=(ScriptNode&& x) = default;
   ScriptNode(ScriptNode&& x) = default;
 
-  ScriptNode() {}
+  ScriptNode();
   ScriptNode(Type nt, std::vector<ScriptNode>&& subs,
              std::vector<std::string>&& key, std::vector<unsigned char>&& dat,
-             uint32_t kv)
-      : node_type_(nt),
-        sub_(std::move(subs)),
-        keys_(std::move(key)),
-        data_(std::move(dat)),
-        k_(kv) {}
+             uint32_t kv);
 
-  bool operator()() const { return node_type_ != Type::NONE; }
+  bool operator()() const;
+  void set_id(std::vector<size_t>&& id);
 
-  Type get_type() const { return node_type_; }
-  const std::vector<std::string>& get_keys() const { return keys_; }
-  const std::vector<unsigned char>& get_data() const { return data_; }
-  const std::vector<ScriptNode>& get_subs() const { return sub_; }
-  uint32_t get_k() const { return k_; }
+  Type get_type() const;
+  const std::vector<size_t>& get_id() const;
+  const std::vector<std::string>& get_keys() const;
+  const std::vector<unsigned char>& get_data() const;
+  const std::vector<ScriptNode>& get_subs() const;
+  uint32_t get_k() const;
 
  private:
   Type node_type_{Type::NONE};
+  std::vector<size_t> id_;
   std::vector<ScriptNode> sub_;
   std::vector<std::string> keys_;
   std::vector<unsigned char> data_;
@@ -1829,7 +1828,7 @@ struct BSMSData {
   std::string first_address;
 };
 
-typedef std::pair<int64_t, int64_t> TimeRange;      // from-to pair
+typedef std::pair<int64_t, int64_t> TimeRange;  // from-to pair
 typedef std::pair<std::vector<UnspentOutput>, TimeRange> CoinsGroup;
 
 class NUNCHUK_EXPORT Utils {

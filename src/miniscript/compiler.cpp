@@ -1059,12 +1059,12 @@ ScriptNode MiniscriptToScriptNode(const miniscript::NodeRef<std::string>& node) 
     if (!node) return ScriptNode();
 
     std::vector<ScriptNode> subs;
-    for (const auto& sub : node->subs) {
+    for (auto& sub : node->subs) {
         subs.push_back(MiniscriptToScriptNode(sub));
     }
 
     switch (node->fragment) {
-        case miniscript::Fragment::PK_K:
+        case miniscript::Fragment::PK_K:    
         case miniscript::Fragment::PK_H:
             return ScriptNode(ScriptNode::Type::PK, std::move(subs), std::vector<std::string>(node->keys.begin(), node->keys.end()), {}, node->k);
         case miniscript::Fragment::OLDER:

@@ -1245,7 +1245,9 @@ std::string Utils::MiniscriptTemplateToMiniscript(
 }
 
 ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
-  return ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
+  auto node = ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
+  node.set_id({1});
+  return node;
 }
 
 std::string Utils::ExpandingMultisigMiniscriptTemplate(
@@ -1374,7 +1376,8 @@ std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
       return true;
     }
 
-    if (value > current_value && value > rs[i].second.first) rs[i].second.first = value;
+    if (value > current_value && value > rs[i].second.first)
+      rs[i].second.first = value;
     return value <= current_value;
   };
 
