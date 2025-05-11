@@ -1972,6 +1972,8 @@ class NUNCHUK_EXPORT Utils {
                                     PreimageHashType hashType,
                                     const std::vector<uint8_t>& hash,
                                     const std::vector<uint8_t>& preimage);
+  static bool IsPreimageRevealed(const std::string& psbt,
+                                 const std::vector<uint8_t>& hash);
   static std::string ExpandingMultisigMiniscriptTemplate(
       int m, int n, int new_m, const Timelock& timelock);
   static std::string DecayingMultisigMiniscriptTemplate(

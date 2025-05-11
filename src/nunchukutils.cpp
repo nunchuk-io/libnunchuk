@@ -1183,6 +1183,20 @@ std::string Utils::RevealPreimage(const std::string& psbt,
   return EncodePsbt(psbtx);
 }
 
+bool Utils::IsPreimageRevealed(const std::string& psbt,
+                               const std::vector<uint8_t>& hash) {
+  auto psbtx = DecodePsbt(psbt);
+  for (int i = 0; i < psbtx.inputs.size(); i++) {
+    if (psbtx.inputs[i].sha256_preimages.contains(uint256(hash)) ||
+        psbtx.inputs[i].hash256_preimages.contains(uint256(hash)) ||
+        psbtx.inputs[i].hash160_preimages.contains(uint160(hash)) ||
+        psbtx.inputs[i].ripemd160_preimages.contains(uint160(hash))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool Utils::IsValidPolicy(const std::string& policy) {
   return ::ParsePolicy(policy)();
 }
