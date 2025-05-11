@@ -1322,4 +1322,70 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
   return rs;
 }
 
+std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
+    const ScriptNode& script_node, const std::vector<UnspentOutput>& coins,
+    int chain_tip) {
+  if (script_node.get_type() != ScriptNode::Type::ANDOR &&
+      script_node.get_type() != ScriptNode::Type::OR &&
+      script_node.get_type() != ScriptNode::Type::THRESH) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid script node");
+  }
+  std::vector<CoinsGroup> rs{};
+  for (int i = 0; i < script_node.get_subs().size(); i++) {
+    rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
+  }
+
+  int64_t current_value =
+      coins[0].get_lock_based() == Timelock::Based::TIME_LOCK ? std::time(0)
+                                                              : chain_tip;
+  std::function<bool(const ScriptNode&, const UnspentOutput&, int)>
+      isSatisfiable = [&](const ScriptNode& node, const UnspentOutput& coin,
+                          int i) -> bool {
+    int64_t value = 0;
+    if (node.get_type() == ScriptNode::Type::AFTER) {
+      value = node.get_k();
+    } else if (node.get_type() == ScriptNode::Type::OLDER) {
+      if (coin.get_lock_based() == Timelock::Based::TIME_LOCK)
+        value = coin.get_blocktime() +
+                (int64_t)((node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK)
+                          << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY) -
+                1;
+      else
+        value = coin.get_height() +
+                (int)(node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK) - 1;
+    } else if (node.get_type() == ScriptNode::Type::ANDOR) {
+      return (isSatisfiable(node.get_subs()[0], coin, i) &&
+              isSatisfiable(node.get_subs()[1], coin, i)) ||
+             isSatisfiable(node.get_subs()[2], coin, i);
+    } else if (node.get_type() == ScriptNode::Type::OR) {
+      return isSatisfiable(node.get_subs()[0], coin, i) ||
+             isSatisfiable(node.get_subs()[1], coin, i);
+    } else if (node.get_type() == ScriptNode::Type::AND) {
+      return isSatisfiable(node.get_subs()[0], coin, i) &&
+             isSatisfiable(node.get_subs()[1], coin, i);
+    } else if (node.get_type() == ScriptNode::Type::THRESH) {
+      int count = 0;
+      for (int j = 0; j < node.get_subs().size(); j++) {
+        if (isSatisfiable(node.get_subs()[j], coin, i)) count++;
+      }
+      return count >= node.get_k();
+    } else {
+      return true;
+    }
+
+    if (value > current_value && value > rs[i].second.first) rs[i].second.first = value;
+    return value <= current_value;
+  };
+
+  for (auto&& coin : coins) {
+    for (int i = 0; i < script_node.get_subs().size(); i++) {
+      if (isSatisfiable(script_node.get_subs()[i], coin, i)) {
+        rs[i].first.emplace_back(coin);
+      }
+    }
+  }
+  return rs;
+}
+
 }  // namespace nunchuk

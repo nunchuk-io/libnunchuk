@@ -1829,6 +1829,9 @@ struct BSMSData {
   std::string first_address;
 };
 
+typedef std::pair<int64_t, int64_t> TimeRange;      // from-to pair
+typedef std::pair<std::vector<UnspentOutput>, TimeRange> CoinsGroup;
+
 class NUNCHUK_EXPORT Utils {
  public:
   static void SetChain(Chain chain);
@@ -1983,6 +1986,9 @@ class NUNCHUK_EXPORT Utils {
   static std::vector<UnspentOutput> GetTimelockedCoins(
       const std::string& miniscript, const std::vector<UnspentOutput>& coins,
       int64_t& max_lock_value, int chain_tip);
+  static std::vector<CoinsGroup> GetCoinsGroupedBySubPolicies(
+      const ScriptNode& script_node, const std::vector<UnspentOutput>& coins,
+      int chain_tip);
 
  private:
   Utils() {}
