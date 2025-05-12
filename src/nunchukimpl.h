@@ -245,6 +245,13 @@ class NunchukImpl : public Nunchuk {
                                bool subtract_fee_from_amount = false,
                                const std::string& replace_txid = {},
                                bool use_script_path = false) override;
+  std::vector<std::pair<SigningPath, Amount>> EstimateFeeForSigningPaths(
+      const std::string& wallet_id,
+      const std::map<std::string, Amount>& outputs,
+      const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
+      bool subtract_fee_from_amount = false,
+      const std::string& replace_txid = {}) override;
+
   Transaction ReplaceTransaction(const std::string& wallet_id,
                                  const std::string& tx_id, Amount new_fee_rate,
                                  bool anti_fee_sniping = false,

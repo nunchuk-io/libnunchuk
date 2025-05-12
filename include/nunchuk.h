@@ -52,6 +52,8 @@ typedef int64_t Amount;
 typedef std::pair<std::string, int> TxInput;        // txid-vout pair
 typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair
 typedef std::map<std::string, bool> RequestTokens;  // token-sent map
+typedef std::vector<size_t> ScriptNodeId;
+typedef std::vector<ScriptNodeId> SigningPath;
 
 enum class AddressType {
   ANY,
@@ -1127,10 +1129,10 @@ class NUNCHUK_EXPORT ScriptNode {
              uint32_t kv);
 
   bool operator()() const;
-  void set_id(std::vector<size_t>&& id);
+  void set_id(ScriptNodeId&& id);
 
   Type get_type() const;
-  const std::vector<size_t>& get_id() const;
+  const ScriptNodeId& get_id() const;
   const std::vector<std::string>& get_keys() const;
   const std::vector<unsigned char>& get_data() const;
   const std::vector<ScriptNode>& get_subs() const;
@@ -1138,7 +1140,7 @@ class NUNCHUK_EXPORT ScriptNode {
 
  private:
   Type node_type_{Type::NONE};
-  std::vector<size_t> id_;
+  ScriptNodeId id_;
   std::vector<ScriptNode> sub_;
   std::vector<std::string> keys_;
   std::vector<unsigned char> data_;
@@ -1319,6 +1321,14 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false,
       const std::string& replace_txid = {}, bool use_script_path = false) = 0;
+  virtual std::vector<std::pair<SigningPath, Amount>>
+  EstimateFeeForSigningPaths(const std::string& wallet_id,
+                             const std::map<std::string, Amount>& outputs,
+                             const std::vector<UnspentOutput>& inputs = {},
+                             Amount fee_rate = -1,
+                             bool subtract_fee_from_amount = false,
+                             const std::string& replace_txid = {}) = 0;
+
   virtual Transaction ReplaceTransaction(const std::string& wallet_id,
                                          const std::string& tx_id,
                                          Amount new_fee_rate,

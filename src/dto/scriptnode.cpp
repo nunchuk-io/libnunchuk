@@ -32,7 +32,7 @@ ScriptNode::ScriptNode(Type nt, std::vector<ScriptNode>&& subs,
 
 bool ScriptNode::operator()() const { return node_type_ != Type::NONE; }
 
-void ScriptNode::set_id(std::vector<size_t>&& id) {
+void ScriptNode::set_id(ScriptNodeId&& id) {
   for (size_t i = 0; i < sub_.size(); i++) {
     auto sub_id = id;
     sub_id.push_back(i + 1);
@@ -42,7 +42,7 @@ void ScriptNode::set_id(std::vector<size_t>&& id) {
 }
 
 ScriptNode::Type ScriptNode::get_type() const { return node_type_; }
-const std::vector<size_t>& ScriptNode::get_id() const { return id_; }
+const ScriptNodeId& ScriptNode::get_id() const { return id_; }
 const std::vector<std::string>& ScriptNode::get_keys() const { return keys_; }
 const std::vector<unsigned char>& ScriptNode::get_data() const { return data_; }
 const std::vector<ScriptNode>& ScriptNode::get_subs() const { return sub_; }
