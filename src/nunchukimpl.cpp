@@ -2216,7 +2216,7 @@ std::string NunchukImpl::CreatePsbt(
     new_outputs.push_back({EncodeDestination(address), txout.nValue});
   }
 
-  int locktime = anti_fee_sniping ? 0 : GetChainTip();
+  int locktime = anti_fee_sniping ? GetChainTip() : 0;
   auto psbt =
       CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs, locktime);
   if (!utxo_update_psbt) return psbt;
