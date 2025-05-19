@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.18)
 project(nunchuk VERSION 0.1.0)
 
 configure_file(src/config.h.in nunchuk-config.h)
@@ -6,7 +6,6 @@ configure_file(src/config.h.in nunchuk-config.h)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(Boost_USE_STATIC_LIBS ON)
@@ -21,7 +20,7 @@ if(ANDROID)
         set(ANDROID_TARGET "armv7a-linux-androideabi")
     endif()
 
-    set(CMAKE_FIND_ROOT_PATH 
+    set(CMAKE_FIND_ROOT_PATH
         "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}"
         "${PROJECT_SOURCE_DIR}/contrib/openssl/${ANDROID_TARGET}"
     )
@@ -34,13 +33,13 @@ if(ANDROID)
     set(EVENT__DISABLE_SAMPLES ON)
     add_definitions(-D_GNU_SOURCE)
     add_subdirectory("contrib/bitcoin/depends/${ANDROID_TARGET}/libevent")
-    include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/include")
-    include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/libevent/include")
-    include_directories("${PROJECT_BINARY_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/libevent/include")
+    add_library(libevent::libevent ALIAS event_extra_static)
+    add_library(libevent::pthreads ALIAS event_pthreads_static)
 elseif(IOS)
-    set(CMAKE_FIND_ROOT_PATH 
+    set(CMAKE_FIND_ROOT_PATH
         "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios"
-        "${PROJECT_SOURCE_DIR}/contrib/openssl/${PLATFORM}")
+        "${PROJECT_SOURCE_DIR}/contrib/openssl/${PLATFORM}"
+    )
     set(EVENT__DISABLE_OPENSSL ON)
     set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Override library type for libevent")
     set(EVENT__DISABLE_TESTS ON)
@@ -48,32 +47,34 @@ elseif(IOS)
     set(EVENT__DISABLE_REGRESS ON)
     set(EVENT__DISABLE_SAMPLES ON)
     add_subdirectory("contrib/bitcoin/depends/ios/libevent")
-    include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios/include")
-    include_directories("${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/ios/libevent/include")
-    include_directories("${PROJECT_BINARY_DIR}/contrib/bitcoin/depends/ios/libevent/include")
-    set(BUILD_CLI OFF)
-elseif(APPLE OR LINUX)
-    set(CMAKE_FIND_ROOT_PATH "${PROJECT_SOURCE_DIR}/contrib/openssl/lib")
+    add_library(libevent::libevent ALIAS event_extra_static)
+    add_library(libevent::pthreads ALIAS event_pthreads_static)
+else()
+    find_library(event_lib NAMES libevent.a event REQUIRED)
+    add_library(libevent::libevent STATIC IMPORTED)
+    set_target_properties(libevent::libevent PROPERTIES IMPORTED_LOCATION ${event_lib})
+
+  if (NOT WIN32)
+    find_library(event_pthreads_lib NAMES libevent_pthreads.a event_pthreads REQUIRED)
+    add_library(libevent::pthreads STATIC IMPORTED)
+    set_target_properties(libevent::pthreads PROPERTIES IMPORTED_LOCATION ${event_pthreads_lib})
+  endif()
 endif()
 
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
-if(WIN32)
-    string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus")
-    find_package(sqlcipher CONFIG REQUIRED)
-else()
-    add_subdirectory(contrib/sqlite)
-    add_library(SQLite::SQLite3 ALIAS sqlcipher)
-    set(SQLite3_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/contrib/sqlite/sqlcipher)
-    set(SQLite3_LIBRARY sqlcipher)
-endif()
+add_subdirectory(contrib/sqlite)
+add_library(SQLite::SQLite3 ALIAS sqlcipher)
+set(SQLite3_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/contrib/sqlite/sqlcipher)
+set(SQLite3_LIBRARY sqlcipher)
 
 set(BUILD_DAEMON OFF)
 set(BUILD_TESTS OFF)
 set(HAVE_IFADDRS_H FALSE)
 cmake_policy(SET CMP0077 NEW)
 set(SECP256K1_ENABLE_MODULE_ECDH ON)
+set(BUILD_CLI OFF)
 add_subdirectory(contrib/bitcoin)
 
 add_subdirectory(embedded)
@@ -133,7 +134,6 @@ find_package(Boost 1.47.0 REQUIRED)
 
 target_include_directories(ur-2 PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/bc-ur-2/src"
-    ${Boost_INCLUDE_DIRS}
     "${PROJECT_SOURCE_DIR}/contrib/bitcoin/depends/${ANDROID_TARGET}/include"
 )
 
@@ -203,9 +203,11 @@ set(PROJECT_LIBRARIES
 )
 
 if(WIN32)
+    if(MSVC)
     target_compile_options("${PROJECT_NAME}" PUBLIC /MT)
     target_link_options("${PROJECT_NAME}" PUBLIC /INCREMENTAL:NO /NODEFAULTLIB:MSVCRT)
-    set(PROJECT_LIBRARIES sqlcipher::sqlcipher ${PROJECT_LIBRARIES} crypt32 ws2_32)
+  endif()
+    set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES} crypt32 ws2_32)
 elseif(APPLE)
     set(PROJECT_LIBRARIES sqlcipher ${PROJECT_LIBRARIES})
 elseif(UNIX)
