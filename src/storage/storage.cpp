@@ -241,6 +241,33 @@ void NunchukStorage::Init(const std::string& datadir,
   InitDataDir(datadir_);
 }
 
+static bfs::path rename_file_with_retry(const bfs::path& path) {
+  bfs::path temp = path;
+  temp += ".rename.tmp";
+
+  const int MAX_RETRIES = 100;
+  const int SLEEP_MS = 100;
+  std::error_code ec;
+  for (int i = 0; i < MAX_RETRIES; ++i) {
+    bfs::rename(path, temp, ec);
+    if (!ec) {
+      return temp;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_MS));
+  }
+  throw std::runtime_error("Failed to rename file: " + path.string() + " - " + ec.message());
+}
+
+static void safe_copy_file(const bfs::path& source, const bfs::path& destination) {
+    bfs::path temp = destination;
+    temp += ".copy.tmp";
+    if (bfs::copy_file(source, temp, bfs::copy_options::overwrite_existing)) {
+        bfs::rename(temp, destination);
+    } else {
+        throw std::runtime_error("Failed to copy file: " + source.string());
+    }
+}
+
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   std::unique_lock<std::shared_mutex> lock(access_);
   if (value == passphrase_) {
@@ -249,16 +276,34 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
   }
   auto rekey = [&](const bfs::path& old_file, const std::string& id) {
     auto new_file = datadir_ / "tmp" / id;
-    NunchukDb db{chain, id, old_file.string(), passphrase_};
-    if (value.empty()) {
-      db.DecryptDb(new_file.string());
-    } else if (passphrase_.empty()) {
-      db.EncryptDb(new_file.string(), value);
-    } else {
-      return db.ReKey(value);
+    if (bfs::exists(new_file)) {
+      bfs::remove(new_file);
     }
-    bfs::copy_file(new_file, old_file, bfs::copy_options::overwrite_existing);
+    {
+      NunchukDb db{chain, id, old_file.string(), passphrase_};
+      if (value.empty()) {
+        db.DecryptDb(new_file.string());
+      } else if (passphrase_.empty()) {
+        db.EncryptDb(new_file.string(), value);
+      } else {
+        return db.ReKey(value);
+      }
+    }
+#ifdef _WIN32
+    // Workaround https://github.com/msys2/MSYS2-packages/issues/1937
+    bfs::path temp = rename_file_with_retry(old_file);
+    try {
+      safe_copy_file(new_file, old_file);
+    } catch (...) {    
+      bfs::rename(temp, old_file);
+      throw;
+    }
     bfs::remove(new_file);
+    bfs::remove(temp);
+#else
+    safe_copy_file(new_file, old_file);
+    bfs::remove(new_file);
+#endif
   };
 
   auto wallets = ListWallets0(chain);
