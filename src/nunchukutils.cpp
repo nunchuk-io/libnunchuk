@@ -1255,20 +1255,6 @@ ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
 }
 
 std::string Utils::ExpandingMultisigMiniscriptTemplate(
-    int m, int n, int new_m, const Timelock& timelock,
-    AddressType address_type) {
-  std::stringstream temp;
-  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
-  temp << "andor(ln:" << timelock.to_miniscript();
-  temp << "," << multi_str << m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i;
-  temp << ")," << multi_str << new_m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i;
-  temp << "))";
-  return temp.str();
-}
-
-std::string Utils::DecayingMultisigMiniscriptTemplate(
     int m, int n, int new_n, const Timelock& timelock,
     AddressType address_type) {
   std::stringstream temp;
@@ -1278,6 +1264,20 @@ std::string Utils::DecayingMultisigMiniscriptTemplate(
   for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << ")," << multi_str << m;
   for (int i = 0; i < new_n; i++) temp << ",key_" << i;
+  temp << "))";
+  return temp.str();
+}
+
+std::string Utils::DecayingMultisigMiniscriptTemplate(
+    int m, int n, int new_m, const Timelock& timelock,
+    AddressType address_type) {
+  std::stringstream temp;
+  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
+  temp << "andor(ln:" << timelock.to_miniscript();
+  temp << "," << multi_str << m;
+  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  temp << ")," << multi_str << new_m;
+  for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << "))";
   return temp.str();
 }
