@@ -107,9 +107,27 @@ struct CompilerContext {
   }
 
   bool KeyCompare(const Key& a, const Key& b) const { return a < b; }
+};
+
+struct ParseContext {
+  typedef std::string Key;
+
+  nunchuk::miniscript::MiniscriptContext ms_context;
+
+  ParseContext(nunchuk::miniscript::MiniscriptContext ms_context_)
+      : ms_context(ms_context_) {}
+
+  template <typename I>
+  std::optional<Key> FromString(I first, I last) const {
+    if (std::distance(first, last) == 0 || std::distance(first, last) > 17)
+      return {};
+    return std::string(first, last);
+  }
+
+  bool KeyCompare(const Key& a, const Key& b) const { return a < b; }
 
   nunchuk::miniscript::MiniscriptContext MsContext() const {
-    return nunchuk::miniscript::MiniscriptContext::P2WSH;
+    return ms_context;
   }
 };
 
@@ -129,11 +147,11 @@ std::string PolicyToString(const nunchuk::Policy& node);
 bool CompilePolicy(const nunchuk::Policy& policy,
                    nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret,
                    double& avgcost);
-std::string PolicyToMiniscript(
-    const nunchuk::Policy& policy,
-    const std::map<std::string, std::string>& config);
+std::string PolicyToMiniscript(const nunchuk::Policy& policy,
+                               const std::map<std::string, std::string>& config,
+                               nunchuk::AddressType address_type);
 nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(
-    const std::string& script);
+    const std::string& script, nunchuk::AddressType address_type);
 std::string MiniscriptToString(
     const nunchuk::miniscript::NodeRef<std::string>& node);
 nunchuk::ScriptNode MiniscriptToScriptNode(

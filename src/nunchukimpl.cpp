@@ -2745,7 +2745,7 @@ Wallet NunchukImpl::CreateMiniscriptWallet(const std::string& name,
                                            bool allow_used_signer,
                                            const std::string& decoy_pin) {
   std::set<std::string> keys{};
-  auto node = ::ParseMiniscript(miniscript);
+  auto node = ::ParseMiniscript(miniscript, address_type);
   if (!node->IsValidTopLevel()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid miniscript");

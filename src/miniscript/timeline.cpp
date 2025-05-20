@@ -5,7 +5,7 @@
 namespace nunchuk {
 
 MiniscriptTimeline::MiniscriptTimeline(const std::string& miniscript) {
-    add_node(ParseMiniscript(miniscript));
+    add_node(ParseMiniscript(miniscript, AddressType::ANY));
 }
 
 void MiniscriptTimeline::add_node(const miniscript::NodeRef<std::string>& node) {

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <regex>
 #include <script/script.h>
 #include <miniscript/miniscript.h>
 #include <script/parsing.h>
@@ -1022,7 +1023,7 @@ std::string PolicyToString(const Policy& node) {
   return "";
 }
 
-std::string PolicyToMiniscript(const Policy& node, const std::map<std::string, std::string>& config) {
+std::string PolicyToMiniscript(const Policy& node, const std::map<std::string, std::string>& config, AddressType address_type) {
   Policy policy = node.Clone();
   std::function<void(Policy&)> configure = [&](Policy& node) -> void {
     if (node.node_type == Policy::Type::OLDER || node.node_type == Policy::Type::AFTER) {
@@ -1042,13 +1043,21 @@ std::string PolicyToMiniscript(const Policy& node, const std::map<std::string, s
 
   double avgcost;
   miniscript::NodeRef<std::string> ret;
-  bool rs = CompilePolicy(policy, ret, avgcost);
-  if (!rs) return "";
-  return Abbreviate(*(ret->ToString<CompilerContext>(COMPILER_CTX)));
+  if (!CompilePolicy(policy, ret, avgcost)) return "";
+  std::string miniscript = Abbreviate(*(ret->ToString<CompilerContext>(COMPILER_CTX)));
+  if (address_type == AddressType::TAPROOT) {
+    miniscript = std::regex_replace(miniscript, std::regex("multi\\("), "multi_a(");
+  } 
+  return miniscript;
 }
 
-nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(const std::string& script) {
-  return nunchuk::miniscript::FromString<CompilerContext>(script, COMPILER_CTX);
+nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(const std::string& script, AddressType address_type) {
+  ParseContext ctx{nunchuk::miniscript::MiniscriptContext::P2WSH};
+  if (address_type == AddressType::TAPROOT || 
+     (address_type == AddressType::ANY && script.find("multi_a(") != std::string::npos)) {
+    ctx.ms_context = nunchuk::miniscript::MiniscriptContext::TAPSCRIPT;
+  }
+  return nunchuk::miniscript::FromString<ParseContext>(script, ctx);
 }
 
 std::string MiniscriptToString(const nunchuk::miniscript::NodeRef<std::string>& node) {

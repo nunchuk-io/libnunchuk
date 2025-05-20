@@ -1973,8 +1973,10 @@ class NUNCHUK_EXPORT Utils {
   static bool IsValidPolicy(const std::string& policy);
   static std::string PolicyToMiniscript(
       const std::string& policy,
-      const std::map<std::string, SingleSigner>& signers);
-  static bool IsValidMiniscriptTemplate(const std::string& miniscript_template);
+      const std::map<std::string, SingleSigner>& signers,
+      AddressType address_type);
+  static bool IsValidMiniscriptTemplate(const std::string& miniscript_template,
+                                        AddressType address_type);
   static std::string MiniscriptTemplateToMiniscript(
       const std::string& miniscript_template,
       const std::map<std::string, SingleSigner>& signers);
@@ -1988,11 +1990,14 @@ class NUNCHUK_EXPORT Utils {
   static bool IsPreimageRevealed(const std::string& psbt,
                                  const std::vector<uint8_t>& hash);
   static std::string ExpandingMultisigMiniscriptTemplate(
-      int m, int n, int new_m, const Timelock& timelock);
+      int m, int n, int new_m, const Timelock& timelock,
+      AddressType address_type);
   static std::string DecayingMultisigMiniscriptTemplate(
-      int m, int n, int new_n, const Timelock& timelock);
+      int m, int n, int new_n, const Timelock& timelock,
+      AddressType address_type);
   static std::string FlexibleMultisigMiniscriptTemplate(
-      int m, int n, int new_m, int new_n, const Timelock& timelock);
+      int m, int n, int new_m, int new_n, bool reuse_signers,
+      const Timelock& timelock, AddressType address_type);
   static std::vector<UnspentOutput> GetTimelockedCoins(
       const std::string& miniscript, const std::vector<UnspentOutput>& coins,
       int64_t& max_lock_value, int chain_tip);

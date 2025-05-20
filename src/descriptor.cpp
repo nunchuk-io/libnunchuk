@@ -311,6 +311,8 @@ std::string GetDescriptorForMiniscript(const std::string& miniscript,
   std::stringstream desc;
   if (address_type == AddressType::NATIVE_SEGWIT) {
     desc << "wsh(" << miniscript << ")";
+  } else if (address_type == AddressType::TAPROOT) {
+    desc << "tr(" << H_POINT << "," << miniscript << ")";
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid address type");
@@ -330,6 +332,8 @@ std::string GetWalletId(const std::string& miniscript,
   std::stringstream desc;
   if (address_type == AddressType::NATIVE_SEGWIT) {
     desc << "wsh(" << miniscript << ")";
+  } else if (address_type == AddressType::TAPROOT) {
+    desc << "tr(" << H_POINT << "," << miniscript << ")";
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid address type");

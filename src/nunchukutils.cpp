@@ -1203,7 +1203,8 @@ bool Utils::IsValidPolicy(const std::string& policy) {
 
 std::string Utils::PolicyToMiniscript(
     const std::string& policy,
-    const std::map<std::string, SingleSigner>& signers) {
+    const std::map<std::string, SingleSigner>& signers,
+    AddressType address_type) {
   auto policy_node = ::ParsePolicy(policy);
   if (!policy_node()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -1214,11 +1215,13 @@ std::string Utils::PolicyToMiniscript(
     config[signer.first] =
         GetDescriptorForSigner(signer.second, DescriptorPath::ANY);
   }
-  return ::PolicyToMiniscript(policy_node, config);
+  return ::PolicyToMiniscript(policy_node, config, address_type);
 }
 
-bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript) {
-  return ::ParseMiniscript(miniscript)->IsValidTopLevel();
+bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
+                                      AddressType address_type) {
+  return ::ParseMiniscript(miniscript_template, address_type)
+      ->IsValidTopLevel();
 }
 
 struct TemplateContext {
@@ -1234,7 +1237,7 @@ struct TemplateContext {
 std::string Utils::MiniscriptTemplateToMiniscript(
     const std::string& miniscript_template,
     const std::map<std::string, SingleSigner>& signers) {
-  auto node = ::ParseMiniscript(miniscript_template);
+  auto node = ::ParseMiniscript(miniscript_template, AddressType::ANY);
   if (!node->IsValidTopLevel()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid miniscript template");
@@ -1245,43 +1248,52 @@ std::string Utils::MiniscriptTemplateToMiniscript(
 }
 
 ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
-  auto node = ::MiniscriptToScriptNode(::ParseMiniscript(miniscript));
+  auto node =
+      ::MiniscriptToScriptNode(::ParseMiniscript(miniscript, AddressType::ANY));
   node.set_id({1});
   return node;
 }
 
 std::string Utils::ExpandingMultisigMiniscriptTemplate(
-    int m, int n, int new_m, const Timelock& timelock) {
+    int m, int n, int new_m, const Timelock& timelock,
+    AddressType address_type) {
   std::stringstream temp;
+  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
   temp << "andor(ln:" << timelock.to_miniscript();
-  temp << ",multi(" << m;
+  temp << "," << multi_str << m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
-  temp << "),multi(" << new_m;
+  temp << ")," << multi_str << new_m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << "))";
   return temp.str();
 }
 
 std::string Utils::DecayingMultisigMiniscriptTemplate(
-    int m, int n, int new_n, const Timelock& timelock) {
+    int m, int n, int new_n, const Timelock& timelock,
+    AddressType address_type) {
   std::stringstream temp;
+  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
   temp << "andor(ln:" << timelock.to_miniscript();
-  temp << ",multi(" << m;
+  temp << "," << multi_str << m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
-  temp << "),multi(" << m;
+  temp << ")," << multi_str << m;
   for (int i = 0; i < new_n; i++) temp << ",key_" << i;
   temp << "))";
   return temp.str();
 }
 
 std::string Utils::FlexibleMultisigMiniscriptTemplate(
-    int m, int n, int new_m, int new_n, const Timelock& timelock) {
+    int m, int n, int new_m, int new_n, bool reuse_signers,
+    const Timelock& timelock, AddressType address_type) {
   std::stringstream temp;
+  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
   temp << "andor(ln:" << timelock.to_miniscript();
-  temp << ",multi(" << m;
+  temp << "," << multi_str << m;
   for (int i = 0; i < n; i++) temp << ",key_" << i;
-  temp << "),multi(" << new_m;
-  for (int i = n; i < n + new_n; i++) temp << ",key_" << i;
+  temp << ")," << multi_str << new_m;
+
+  int start_index = reuse_signers ? n : 0;
+  for (int i = start_index; i < start_index + new_n; i++) temp << ",key_" << i;
   temp << "))";
   return temp.str();
 }
@@ -1289,7 +1301,7 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
 std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     const std::string& miniscript, const std::vector<UnspentOutput>& coins,
     int64_t& max_lock_value, int chain_tip) {
-  auto node = ::ParseMiniscript(miniscript);
+  auto node = ::ParseMiniscript(miniscript, AddressType::ANY);
   MiniscriptTimeline timeline{miniscript};
   if (timeline.get_lock_type() == Timelock::Based::NONE) return {};
 
