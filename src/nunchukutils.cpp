@@ -1292,7 +1292,7 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
   for (int i = 0; i < n; i++) temp << ",key_" << i;
   temp << ")," << multi_str << new_m;
 
-  int start_index = reuse_signers ? n : 0;
+  int start_index = reuse_signers ? 0 : n;
   for (int i = start_index; i < start_index + new_n; i++) temp << ",key_" << i;
   temp << "))";
   return temp.str();
