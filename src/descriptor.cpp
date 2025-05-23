@@ -110,6 +110,9 @@ std::string GetKeyPath(DescriptorPath path, int index) {
     case DescriptorPath::TEMPLATE:
       keypath << "/**";
       break;
+    case DescriptorPath::EXTERNAL_INTERNAL:
+      keypath << "/<0;1>/*";
+      break;
   }
   return keypath.str();
 }
@@ -352,6 +355,12 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
                          "is required for XPUB");
 }
 
+std::string GetDescriptorWithoutChecksum(const std::string& desc) {
+  std::string rs = split(desc, '#')[0];
+  std::replace(rs.begin(), rs.end(), '\'', 'h');
+  return rs;
+}
+
 bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
                       WalletTemplate& t, int& m, int& n,
                       std::vector<SingleSigner>& signers) {
@@ -426,8 +435,16 @@ bool ParseDescriptors(const std::string& descs, AddressType& a, WalletType& w,
         Wallet wallet{"", "wallet", m, n, signers, a, w, 0};
         wallet.set_wallet_template(t);
         signers = wallet.get_signers();
-        return wallet.get_descriptor(DescriptorPath::ANY) == external ||
-               wallet.get_descriptor(DescriptorPath::TEMPLATE) == external;
+
+        std::string in = GetDescriptorWithoutChecksum(external);
+        return GetDescriptorWithoutChecksum(
+                   wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)) == in ||
+               GetDescriptorWithoutChecksum(wallet.get_descriptor(
+                   DescriptorPath::EXTERNAL_INTERNAL)) == in ||
+               GetDescriptorWithoutChecksum(
+                   wallet.get_descriptor(DescriptorPath::ANY)) == in ||
+               GetDescriptorWithoutChecksum(
+                   wallet.get_descriptor(DescriptorPath::TEMPLATE)) == in;
       }
     }
   } catch (...) {
