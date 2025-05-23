@@ -119,7 +119,7 @@ struct ParseContext {
 
   template <typename I>
   std::optional<Key> FromString(I first, I last) const {
-    if (std::distance(first, last) == 0 || std::distance(first, last) > 17)
+    if (std::distance(first, last) == 0 || std::distance(first, last) > 200)
       return {};
     return std::string(first, last);
   }
