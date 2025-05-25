@@ -79,6 +79,7 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
                                  "Invalid address type");
       }
     case WalletType::MULTI_SIG:
+    case WalletType::MINISCRIPT:
       if (index == ESCROW_ACCOUNT_INDEX)
         throw NunchukException(
             NunchukException::INVALID_PARAMETER,
@@ -152,6 +153,7 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
                                  "Invalid address type");
       }
     case WalletType::MULTI_SIG:
+    case WalletType::MINISCRIPT:
       switch (address_type) {
         case AddressType::LEGACY:
           return "bip45";
@@ -175,7 +177,8 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
 inline int GetIndexFromPath(const nunchuk::WalletType& wallet_type,
                             const nunchuk::AddressType& address_type,
                             const std::string& path) {
-  if (wallet_type == nunchuk::WalletType::MULTI_SIG) {
+  if (wallet_type == nunchuk::WalletType::MULTI_SIG ||
+      wallet_type == nunchuk::WalletType::MINISCRIPT) {
     if (address_type == nunchuk::AddressType::LEGACY) return 0;
     if (path.size() <= 9) return 0;
     return std::stoi(path.substr(9, path.size() - 3));

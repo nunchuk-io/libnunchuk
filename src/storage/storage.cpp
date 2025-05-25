@@ -257,17 +257,19 @@ static bfs::path rename_file_with_retry(const bfs::path& path) {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_MS));
   }
-  throw std::runtime_error("Failed to rename file: " + path.string() + " - " + ec.message());
+  throw std::runtime_error("Failed to rename file: " + path.string() + " - " +
+                           ec.message());
 }
 
-static void safe_copy_file(const bfs::path& source, const bfs::path& destination) {
-    bfs::path temp = destination;
-    temp += ".copy.tmp";
-    if (bfs::copy_file(source, temp, bfs::copy_options::overwrite_existing)) {
-        bfs::rename(temp, destination);
-    } else {
-        throw std::runtime_error("Failed to copy file: " + source.string());
-    }
+static void safe_copy_file(const bfs::path& source,
+                           const bfs::path& destination) {
+  bfs::path temp = destination;
+  temp += ".copy.tmp";
+  if (bfs::copy_file(source, temp, bfs::copy_options::overwrite_existing)) {
+    bfs::rename(temp, destination);
+  } else {
+    throw std::runtime_error("Failed to copy file: " + source.string());
+  }
 }
 
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
@@ -296,7 +298,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     bfs::path temp = rename_file_with_retry(old_file);
     try {
       safe_copy_file(new_file, old_file);
-    } catch (...) {    
+    } catch (...) {
       bfs::rename(temp, old_file);
       throw;
     }
@@ -984,9 +986,17 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     true_signers.push_back(
         GetTrueSigner0(chain, signer, create_signers_if_not_exist));
   }
-  Wallet true_wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(),
-                     true_signers, wallet.get_address_type(),
-                     wallet.get_wallet_type(), wallet.get_create_date());
+
+  Wallet true_wallet;
+  if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+    true_wallet = Wallet(wallet.get_miniscript(), true_signers,
+                         wallet.get_address_type());
+    true_wallet.set_create_date(wallet.get_create_date());
+  } else {
+    true_wallet = Wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(),
+                         true_signers, wallet.get_address_type(),
+                         wallet.get_wallet_type(), wallet.get_create_date());
+  }
   true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
   true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());

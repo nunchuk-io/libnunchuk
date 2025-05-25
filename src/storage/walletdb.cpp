@@ -211,14 +211,19 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
     wallet_template = immutable_data["wallet_template"];
   }
 
-  Wallet wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(), address_type,
-                wallet_type, create_date);
+  Wallet wallet;
+  if (wallet_type == WalletType::MINISCRIPT) {
+    wallet = Wallet(GetString(DbKeys::MINISCRIPT), GetSigners(), address_type);
+    wallet.set_create_date(create_date);
+  } else {
+    wallet = Wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(),
+                    address_type, wallet_type, create_date);
+  }
   wallet.set_description(GetString(DbKeys::DESCRIPTION));
   wallet.set_last_used(GetInt(DbKeys::LAST_USED));
   wallet.set_gap_limit(gap_limit <= 0 ? DEFAULT_ADDRESS_LOOK_AHEAD : gap_limit);
   wallet.set_need_backup(GetInt(DbKeys::NEED_BACKUP) == 1);
   wallet.set_archived(GetInt(DbKeys::ARCHIVED) == 1);
-  wallet.set_miniscript(GetString(DbKeys::MINISCRIPT));
   wallet.set_wallet_template(wallet_template);
   if (!skip_provider) {
     GetAllAddressData(false);  // update range to max address index
