@@ -1240,7 +1240,7 @@ std::string Utils::MiniscriptTemplateToMiniscript(
     const std::string& miniscript_template,
     const std::map<std::string, SingleSigner>& signers) {
   auto node = ::ParseMiniscript(miniscript_template, AddressType::ANY);
-  if (!node->IsValidTopLevel()) {
+  if (!node->IsValidTopLevel() || !node->IsSane() || node->IsNotSatisfiable()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid miniscript template");
   }
