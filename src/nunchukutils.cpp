@@ -1198,7 +1198,9 @@ bool Utils::IsPreimageRevealed(const std::string& psbt,
 }
 
 bool Utils::IsValidPolicy(const std::string& policy) {
-  return ::ParsePolicy(policy)();
+  miniscript::NodeRef<std::string> ret;
+  double avgcost;
+  return ::Compile(policy, ret, avgcost);
 }
 
 std::string Utils::PolicyToMiniscript(
@@ -1220,8 +1222,8 @@ std::string Utils::PolicyToMiniscript(
 
 bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
                                       AddressType address_type) {
-  return ::ParseMiniscript(miniscript_template, address_type)
-      ->IsValidTopLevel();
+  auto node = ::ParseMiniscript(miniscript_template, address_type);
+  return node->IsValidTopLevel() && node->IsSane() && !node->IsNotSatisfiable();
 }
 
 struct TemplateContext {
@@ -1257,13 +1259,23 @@ ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
 std::string Utils::ExpandingMultisigMiniscriptTemplate(
     int m, int n, int new_n, const Timelock& timelock,
     AddressType address_type) {
+  if (m > n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m must be less than or equal to n");
+  }
+  if (n >= new_n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "n must be less than new n");
+  }
   std::stringstream temp;
-  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
+  std::string multi_str =
+      address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
   temp << "andor(ln:" << timelock.to_miniscript();
   temp << "," << multi_str << m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
   temp << ")," << multi_str << m;
-  for (int i = 0; i < new_n; i++) temp << ",key_" << i;
+  for (int i = 0; i < new_n; i++)
+    temp << ",key_" << i << (i >= n ? "_0" : "_1");
   temp << "))";
   return temp.str();
 }
@@ -1271,13 +1283,22 @@ std::string Utils::ExpandingMultisigMiniscriptTemplate(
 std::string Utils::DecayingMultisigMiniscriptTemplate(
     int m, int n, int new_m, const Timelock& timelock,
     AddressType address_type) {
+  if (m > n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m must be less than or equal to n");
+  }
+  if (m <= new_m) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m must be less than new m");
+  }
   std::stringstream temp;
-  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
+  std::string multi_str =
+      address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
   temp << "andor(ln:" << timelock.to_miniscript();
   temp << "," << multi_str << m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
   temp << ")," << multi_str << new_m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  for (int i = 0; i < n; i++) temp << ",key_" << i << "_1";
   temp << "))";
   return temp.str();
 }
@@ -1285,15 +1306,25 @@ std::string Utils::DecayingMultisigMiniscriptTemplate(
 std::string Utils::FlexibleMultisigMiniscriptTemplate(
     int m, int n, int new_m, int new_n, bool reuse_signers,
     const Timelock& timelock, AddressType address_type) {
+  if (m > n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m must be less than or equal to n");
+  }
+  if (new_m > new_n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "new m must be less than or equal to new n");
+  }
   std::stringstream temp;
-  std::string multi_str = address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
+  std::string multi_str =
+      address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
   temp << "andor(ln:" << timelock.to_miniscript();
   temp << "," << multi_str << m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i;
+  for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
   temp << ")," << multi_str << new_m;
 
   int start_index = reuse_signers ? 0 : n;
-  for (int i = start_index; i < start_index + new_n; i++) temp << ",key_" << i;
+  for (int i = start_index; i < start_index + new_n; i++)
+    temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
   temp << "))";
   return temp.str();
 }
