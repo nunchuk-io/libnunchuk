@@ -214,6 +214,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   Wallet wallet;
   if (wallet_type == WalletType::MINISCRIPT) {
     wallet = Wallet(GetString(DbKeys::MINISCRIPT), GetSigners(), address_type);
+    wallet.set_name(GetString(DbKeys::NAME));
     wallet.set_create_date(create_date);
   } else {
     wallet = Wallet(id_, GetString(DbKeys::NAME), m, n, GetSigners(),
