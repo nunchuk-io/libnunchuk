@@ -216,7 +216,7 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
 
 std::string SoftwareSigner::SignTaprootTx(
     const NunchukLocalDb& db, const std::string& base64_psbt,
-    const std::string& basepath, const std::string& external_desc,
+    const std::set<std::string>& basepaths, const std::string& external_desc,
     const std::string& internal_desc, int external_index, int internal_index) {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
@@ -253,7 +253,9 @@ std::string SoftwareSigner::SignTaprootTx(
   for (int i = 0; i <= external_index; i++) {
     if (!input_addr.contains(external_addr[i])) continue;
     desc0.front()->Expand(i, provider, output_scripts, provider);
-    addPath(basepath + "/0/" + std::to_string(i));
+    for (auto&& basepath : basepaths) {
+      addPath(basepath + "/0/" + std::to_string(i));
+    }
   }
   auto desc1 = Parse(internal_desc, provider, error, true);
   auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
@@ -261,7 +263,9 @@ std::string SoftwareSigner::SignTaprootTx(
   for (int i = 0; i <= internal_index; i++) {
     if (!input_addr.contains(internal_addr[i])) continue;
     desc1.front()->Expand(i, provider, output_scripts, provider);
-    addPath(basepath + "/1/" + std::to_string(i));
+    for (auto&& basepath : basepaths) {
+      addPath(basepath + "/1/" + std::to_string(i));
+    }
   }
 
   std::map<uint256, MuSig2SecNonce> musig2_secnonces{};
