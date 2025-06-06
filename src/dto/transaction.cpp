@@ -35,6 +35,8 @@ std::vector<TxOutput> const& Transaction::get_receive_outputs() const {
 }
 int Transaction::get_change_index() const { return change_index_; }
 int Transaction::get_m() const { return m_; }
+WalletType Transaction::get_wallet_type() const { return wallet_type_; }
+AddressType Transaction::get_address_type() const { return address_type_; }
 std::map<std::string, bool> const& Transaction::get_signers() const {
   return signers_;
 }
@@ -75,6 +77,8 @@ void Transaction::add_receive_output(const TxOutput& value) {
 }
 void Transaction::set_change_index(int value) { change_index_ = value; }
 void Transaction::set_m(int value) { m_ = value; }
+void Transaction::set_wallet_type(WalletType value) { wallet_type_ = value; }
+void Transaction::set_address_type(AddressType value) { address_type_ = value; }
 void Transaction::set_signer(const std::string& signer_id, bool has_signature) {
   signers_[signer_id] = has_signature;
 }

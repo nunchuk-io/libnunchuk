@@ -79,8 +79,7 @@ inline CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
 }
 
 inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
-    const CMutableTransaction& mtx,
-    const std::vector<nunchuk::SingleSigner>& signers, int height) {
+    const CMutableTransaction& mtx, int height) {
   using namespace nunchuk;
 
   Transaction tx{};
@@ -92,9 +91,6 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   for (auto& output : mtx.vout) {
     std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
     tx.add_output({address, output.nValue});
-  }
-  for (auto&& signer : signers) {
-    tx.set_signer(signer.get_master_fingerprint(), true);
   }
   if (height == 0) {
     tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
@@ -269,8 +265,7 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     const nunchuk::Wallet& wallet = {}) {
   using namespace nunchuk;
   auto signers = wallet.get_signers();
-  auto tx =
-      GetTransactionFromCMutableTransaction(psbtx.tx.value(), signers, -1);
+  auto tx = GetTransactionFromCMutableTransaction(psbtx.tx.value(), -1);
   tx.set_m(wallet.get_m());
 
   for (auto&& signer : signers) {

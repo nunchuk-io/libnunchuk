@@ -910,6 +910,8 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
     auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
     tx.set_txid(tx_id);
     tx.set_m(wallet.get_m());
+    tx.set_wallet_type(wallet.get_wallet_type());
+    tx.set_address_type(wallet.get_address_type());
     tx.set_fee(Amount(fee));
     tx.set_fee_rate(0);
     tx.set_change_index(change_pos);
@@ -1005,6 +1007,8 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
       auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
       tx.set_txid(tx_id);
       tx.set_m(wallet.get_m());
+      tx.set_wallet_type(wallet.get_wallet_type());
+      tx.set_address_type(wallet.get_address_type());
       tx.set_fee(Amount(fee));
       tx.set_fee_rate(0);
       tx.set_change_index(change_pos);
@@ -1155,10 +1159,36 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
 
   Amount total_amount = 0;
   bool is_send_tx = false;
-  for (auto&& input : tx.get_inputs()) {
+  bool extract_signers = false;
+  for (size_t i = 0; i < tx.get_inputs().size(); i++) {
+    auto input = tx.get_inputs()[i];
     TxOutput prev_out;
     try {
-      prev_out = GetTransaction(input.first).get_outputs()[input.second];
+      auto prev_tx = GetTransaction(input.first);
+      prev_out = prev_tx.get_outputs()[input.second];
+      if (!extract_signers && tx.get_wallet_type() == WalletType::MULTI_SIG &&
+          tx.get_address_type() != AddressType::TAPROOT &&
+          !tx.get_raw().empty() && !prev_tx.get_raw().empty()) {
+        try {
+          for (auto&& signer : tx.get_signers()) {
+            tx.set_signer(signer.first, false);
+          }
+          auto mtx = DecodeRawTransaction(tx.get_raw());
+          auto vout =
+              DecodeRawTransaction(prev_tx.get_raw()).vout[input.second];
+          auto extract = DataFromTransaction(mtx, i, vout);
+          for (auto&& sig : extract.signatures) {
+            KeyOriginInfo info;
+            if (SigningProviderCache::getInstance().GetKeyOrigin(sig.first,
+                                                                 info)) {
+              tx.set_signer(strprintf("%08x", ReadBE32(info.fingerprint)),
+                            true);
+            }
+          }
+          extract_signers = true;
+        } catch (...) {
+        }
+      }
     } catch (StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) throw;
     }

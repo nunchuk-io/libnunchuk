@@ -772,6 +772,8 @@ class Transaction {
   std::vector<TxOutput> const& get_receive_outputs() const;
   int get_change_index() const;
   int get_m() const;
+  AddressType get_address_type() const;
+  WalletType get_wallet_type() const;
   std::map<std::string, bool> const& get_signers() const;
   std::string get_memo() const;
   TransactionStatus get_status() const;
@@ -798,6 +800,8 @@ class Transaction {
   void add_receive_output(const TxOutput& value);
   void set_change_index(int value);
   void set_m(int value);
+  void set_wallet_type(WalletType value);
+  void set_address_type(AddressType value);
   void set_signer(const std::string& signer_id, bool has_signature);
   void set_memo(const std::string& value);
   void set_status(TransactionStatus value);
@@ -825,6 +829,8 @@ class Transaction {
   std::vector<TxOutput> receive_output_;
   int change_index_;
   int m_;
+  WalletType wallet_type_;
+  AddressType address_type_;
   std::map<std::string, bool> signers_;
   std::string memo_;
   TransactionStatus status_;

@@ -35,7 +35,7 @@ TEST_CASE("testing transaction utils") {
       "31365b5b32da3be61a6121029b5b93270321264110e8893c49458a21b666644bcb1eafa4"
       "dc01ef405f8d0ea452ae00000000";
   CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
-  nunchuk::Transaction tx = GetTransactionFromCMutableTransaction(mtx, {}, 0);
+  nunchuk::Transaction tx = GetTransactionFromCMutableTransaction(mtx, 0);
   CHECK(tx.get_txid() ==
         "27574e539fdf228179d53dd34ee1f68818bfbf4e6ea25871a9cc381710ac53b9");
   CHECK(tx.get_status() == nunchuk::TransactionStatus::PENDING_CONFIRMATION);

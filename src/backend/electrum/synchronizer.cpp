@@ -662,7 +662,7 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
   std::string raw = client_->blockchain_transaction_get(tx_id);
   auto cmutx = DecodeRawTransaction(raw);
   auto getHeight = [&]() {
-    auto tx = GetTransactionFromCMutableTransaction(cmutx, {}, 0);
+    auto tx = GetTransactionFromCMutableTransaction(cmutx, 0);
     std::string scripthash = AddressToScriptHash(tx.get_outputs()[0].first);
     json history = client_->blockchain_scripthash_get_history(scripthash);
     for (auto item : history) {
@@ -675,7 +675,7 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
   int height = getHeight();
   time_t time =
       height <= 0 ? 0 : GetBlockTime(client_->blockchain_block_header(height));
-  auto tx = GetTransactionFromCMutableTransaction(cmutx, {}, height);
+  auto tx = GetTransactionFromCMutableTransaction(cmutx, height);
 
   Amount total_input = 0;
   for (auto&& [txin_id, vout] : tx.get_inputs()) {
