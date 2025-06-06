@@ -1497,7 +1497,8 @@ Transaction NunchukImpl::DraftTransaction(
     }
     if (!include_origin_input) {
       throw NunchukException(NunchukException::INVALID_RBF,
-                             "Tx not include any input of origin tx!");
+                             "The new transaction must include at least one "
+                             "input from the original transaction.");
     }
 
     if (m_outputs.empty()) {
