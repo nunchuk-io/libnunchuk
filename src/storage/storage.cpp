@@ -923,7 +923,9 @@ std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
     try {
       auto wallet_db = GetWalletDb(chain, id);
       auto wallet = wallet_db.GetWallet(true, true);
-      last_used_map.insert({id, wallet.get_last_used()});
+      if (!wallet.is_archived()) {
+        last_used_map.insert({id, wallet.get_last_used()});
+      }
     } catch (...) {
     }
   }

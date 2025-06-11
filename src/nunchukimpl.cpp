@@ -307,7 +307,9 @@ bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
   wallet.check_valid();
 
   bool rs = storage_->UpdateWallet(chain_, wallet);
-  ScanWalletAddress(wallet.get_id(), true);
+  if (!wallet.is_archived()) {
+    ScanWalletAddress(wallet.get_id(), true);
+  }
   storage_listener_();
   return rs;
 }
@@ -1989,6 +1991,7 @@ bool NunchukImpl::SyncWithBackup(const std::string& data,
   }
   return rs;
 }
+
 std::vector<SingleSigner> NunchukImpl::ParseJSONSigners(
     const std::string& json_str, SignerType signer_type) {
   std::vector<SingleSigner> signers;
