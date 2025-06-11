@@ -1223,7 +1223,8 @@ std::string Utils::PolicyToMiniscript(
 bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
                                       AddressType address_type) {
   auto node = ::ParseMiniscript(miniscript_template, address_type);
-  return node->IsValidTopLevel() && node->IsSane() && !node->IsNotSatisfiable();
+  return node && node->IsValidTopLevel() && node->IsSane() &&
+         !node->IsNotSatisfiable();
 }
 
 struct TemplateContext {
@@ -1240,7 +1241,8 @@ std::string Utils::MiniscriptTemplateToMiniscript(
     const std::string& miniscript_template,
     const std::map<std::string, SingleSigner>& signers) {
   auto node = ::ParseMiniscript(miniscript_template, AddressType::ANY);
-  if (!node->IsValidTopLevel() || !node->IsSane() || node->IsNotSatisfiable()) {
+  if (!node || !node->IsValidTopLevel() || !node->IsSane() ||
+      node->IsNotSatisfiable()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid miniscript template");
   }
