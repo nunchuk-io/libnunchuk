@@ -22,8 +22,8 @@ namespace nunchuk {
 ScriptNode::ScriptNode() {}
 
 ScriptNode::ScriptNode(Type nt, std::vector<ScriptNode>&& subs,
-                      std::vector<std::string>&& key, std::vector<unsigned char>&& dat,
-                      uint32_t kv)
+                       std::vector<std::string>&& key,
+                       std::vector<unsigned char>&& dat, uint32_t kv)
     : node_type_(nt),
       sub_(std::move(subs)),
       keys_(std::move(key)),
@@ -50,21 +50,37 @@ uint32_t ScriptNode::get_k() const { return k_; }
 
 std::string ScriptNode::type_to_string(ScriptNode::Type type) {
   switch (type) {
-    case ScriptNode::Type::NONE: return "NONE";
-    case ScriptNode::Type::PK: return "PK";
-    case ScriptNode::Type::OLDER: return "OLDER";
-    case ScriptNode::Type::AFTER: return "AFTER";
-    case ScriptNode::Type::HASH160: return "HASH160";
-    case ScriptNode::Type::HASH256: return "HASH256";
-    case ScriptNode::Type::RIPEMD160: return "RIPEMD160";
-    case ScriptNode::Type::SHA256: return "SHA256";
-    case ScriptNode::Type::AND: return "AND";
-    case ScriptNode::Type::OR: return "OR";
-    case ScriptNode::Type::ANDOR: return "ANDOR";
-    case ScriptNode::Type::THRESH: return "THRESH";
-    case ScriptNode::Type::MULTI: return "MULTI";
-    default: return "UNKNOWN";
+    case ScriptNode::Type::NONE:
+      return "NONE";
+    case ScriptNode::Type::PK:
+      return "PK";
+    case ScriptNode::Type::OLDER:
+      return "OLDER";
+    case ScriptNode::Type::AFTER:
+      return "AFTER";
+    case ScriptNode::Type::HASH160:
+      return "HASH160";
+    case ScriptNode::Type::HASH256:
+      return "HASH256";
+    case ScriptNode::Type::RIPEMD160:
+      return "RIPEMD160";
+    case ScriptNode::Type::SHA256:
+      return "SHA256";
+    case ScriptNode::Type::AND:
+      return "AND";
+    case ScriptNode::Type::OR:
+      return "OR";
+    case ScriptNode::Type::ANDOR:
+      return "ANDOR";
+    case ScriptNode::Type::THRESH:
+      return "THRESH";
+    case ScriptNode::Type::MULTI:
+      return "MULTI";
+    case ScriptNode::Type::OR_TAPROOT:
+      return "OR_TAPROOT";
+    default:
+      return "UNKNOWN";
   }
 }
 
-} // namespace nunchuk 
+}  // namespace nunchuk

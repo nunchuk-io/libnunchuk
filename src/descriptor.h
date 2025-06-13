@@ -37,7 +37,7 @@ std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
                         WalletTemplate wallet_template);
 
 std::string GetWalletId(const std::string& miniscript,
-                        AddressType address_type);
+                        const std::string& keypath, AddressType address_type);
 
 /**
  * @param external External descriptor to import
@@ -64,6 +64,7 @@ std::string GetDescriptorForSigner(const SingleSigner& signer,
                                    DescriptorPath key_path, int index = -1);
 
 std::string GetDescriptorForMiniscript(const std::string& miniscript,
+                                       const std::string& keypath,
                                        AddressType address_type);
 
 std::string GetPkhDescriptor(const std::string& address);

@@ -1227,6 +1227,24 @@ bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
          !node->IsNotSatisfiable();
 }
 
+bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
+                                     std::string& error) {
+  std::string keypath;
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts, depths,
+                              error)) {
+    return false;
+  }
+  for (auto& subscript : subscripts) {
+    if (!IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
+      error = strprintf("invalid miniscript template: '%s'", subscript);
+      return false;
+    }
+  }
+  return true;
+}
+
 struct TemplateContext {
   typedef std::string Key;
   const std::map<std::string, SingleSigner>& signers;
@@ -1251,7 +1269,38 @@ std::string Utils::MiniscriptTemplateToMiniscript(
       *(node->ToString<TemplateContext>(TemplateContext(signers))));
 }
 
+std::string Utils::TapscriptTemplateToTapscript(
+    const std::string& tapscript_template,
+    const std::map<std::string, SingleSigner>& signers, std::string& keypath) {
+  std::vector<std::string> subscripts_tmpl;
+  std::vector<int> depths;
+  std::string error;
+  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts_tmpl,
+                              depths, error)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, error);
+  }
+
+  std::vector<std::string> subscripts;
+  for (auto& subscript : subscripts_tmpl) {
+    subscripts.push_back(MiniscriptTemplateToMiniscript(subscript, signers));
+  }
+
+  std::string ret;
+  SubScriptsToString(subscripts, depths, ret);
+  return ret;
+}
+
 ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
+  std::string keypath;
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+  std::string error;
+  if (ParseTapscriptTemplate(miniscript, keypath, subscripts, depths, error)) {
+    auto node = SubScriptsToScriptNode(subscripts, depths);
+    node.set_id({1});
+    return node;
+  }
+
   auto node =
       ::MiniscriptToScriptNode(::ParseMiniscript(miniscript, AddressType::ANY));
   node.set_id({1});

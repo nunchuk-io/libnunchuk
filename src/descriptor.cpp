@@ -307,12 +307,14 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
 }
 
 std::string GetDescriptorForMiniscript(const std::string& miniscript,
+                                       const std::string& keypath,
                                        AddressType address_type) {
   std::stringstream desc;
   if (address_type == AddressType::NATIVE_SEGWIT) {
     desc << "wsh(" << miniscript << ")";
   } else if (address_type == AddressType::TAPROOT) {
-    desc << "tr(" << H_POINT << "," << miniscript << ")";
+    desc << "tr(" << (keypath.empty() ? H_POINT : keypath) << "," << miniscript
+         << ")";
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid address type");
@@ -328,12 +330,13 @@ std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
 }
 
 std::string GetWalletId(const std::string& miniscript,
-                        AddressType address_type) {
+                        const std::string& keypath, AddressType address_type) {
   std::stringstream desc;
   if (address_type == AddressType::NATIVE_SEGWIT) {
     desc << "wsh(" << miniscript << ")";
   } else if (address_type == AddressType::TAPROOT) {
-    desc << "tr(" << H_POINT << "," << miniscript << ")";
+    desc << "tr(" << (keypath.empty() ? H_POINT : keypath) << "," << miniscript
+         << ")";
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid address type");

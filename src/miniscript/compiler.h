@@ -157,5 +157,13 @@ std::string MiniscriptToString(
 nunchuk::ScriptNode MiniscriptToScriptNode(
     const nunchuk::miniscript::NodeRef<std::string>& node);
 std::string ScriptNodeToString(const nunchuk::ScriptNode& node);
+bool ParseTapscriptTemplate(const std::string& tapscript_template,
+                            std::string& keypath,
+                            std::vector<std::string>& subscripts,
+                            std::vector<int>& depths, std::string& error);
+bool SubScriptsToString(const std::vector<std::string>& subscripts,
+                        const std::vector<int>& depths, std::string& ret);
+nunchuk::ScriptNode SubScriptsToScriptNode(
+    const std::vector<std::string>& subscripts, const std::vector<int>& depths);
 
 #endif

@@ -60,12 +60,12 @@ class NunchukImpl : public Nunchuk {
   Wallet CreateHotWallet(const std::string& mnemonic = {},
                          const std::string& passphrase = {},
                          bool need_backup = true, bool replace = true) override;
-  Wallet CreateMiniscriptWallet(const std::string& name,
-                                const std::string& miniscript,
-                                AddressType address_type,
-                                const std::string& description = {},
-                                bool allow_used_signer = false,
-                                const std::string& decoy_pin = {}) override;
+  Wallet CreateMiniscriptWallet(
+      const std::string& name, const std::string& script_template,
+      const std::map<std::string, SingleSigner>& signers,
+      AddressType address_type, const std::string& description = {},
+      bool allow_used_signer = false,
+      const std::string& decoy_pin = {}) override;
   std::string GetHotWalletMnemonic(const std::string& wallet_id,
                                    const std::string& passphrase = {}) override;
   std::string GetHotKeyMnemonic(const std::string& signer_id,

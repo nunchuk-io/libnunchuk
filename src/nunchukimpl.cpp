@@ -1589,7 +1589,8 @@ void combinations(const std::vector<std::vector<SigningPath>>& lists,
 std::vector<SigningPath> get_all_paths(const ScriptNode& node) {
   if (node.get_type() != ScriptNode::Type::ANDOR &&
       node.get_type() != ScriptNode::Type::THRESH &&
-      node.get_type() != ScriptNode::Type::OR) {
+      node.get_type() != ScriptNode::Type::OR &&
+      node.get_type() != ScriptNode::Type::OR_TAPROOT) {
     return {{node.get_id()}};
   }
   std::vector<SigningPath> paths;
@@ -1632,7 +1633,8 @@ std::vector<SigningPath> get_all_paths(const ScriptNode& node) {
       }
     } while (std::prev_permutation(v.begin(), v.end()));
 
-  } else if (node.get_type() == ScriptNode::Type::OR) {
+  } else if (node.get_type() == ScriptNode::Type::OR ||
+             node.get_type() == ScriptNode::Type::OR_TAPROOT) {
     for (size_t i = 0; i <= 1; i++) {
       auto sub_paths = get_all_paths(node.get_subs()[i]);
       for (auto&& sub_path : sub_paths) {
@@ -2738,35 +2740,53 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
   return rs;
 }
 
-Wallet NunchukImpl::CreateMiniscriptWallet(const std::string& name,
-                                           const std::string& miniscript,
-                                           AddressType address_type,
-                                           const std::string& description,
-                                           bool allow_used_signer,
-                                           const std::string& decoy_pin) {
-  std::set<std::string> keys{};
-  auto node = ::ParseMiniscript(miniscript, address_type);
-  if (!node || !node->IsValidTopLevel() || !node->IsSane() ||
-      node->IsNotSatisfiable()) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid miniscript");
-  }
-  std::function<void(miniscript::NodeRef<std::string>&)> getKeys =
-      [&](miniscript::NodeRef<std::string>& node) -> void {
-    for (int i = 0; i < node->keys.size(); i++) keys.insert(node->keys[i]);
-    for (int i = 0; i < node->subs.size(); i++) getKeys(node->subs[i]);
-  };
-  getKeys(node);
+Wallet NunchukImpl::CreateMiniscriptWallet(
+    const std::string& name, const std::string& tmpl,
+    const std::map<std::string, SingleSigner>& signers,
+    AddressType address_type, const std::string& description,
+    bool allow_used_signer, const std::string& decoy_pin) {
+  std::string script;
+  std::string error;
+  WalletTemplate wallet_template{WalletTemplate::DEFAULT};
+  std::vector<SingleSigner> used_signers{};
 
-  std::vector<SingleSigner> signers{};
-  for (auto&& key : keys) {
-    signers.push_back(ParseSignerString(key));
+  if (Utils::IsValidMiniscriptTemplate(tmpl, address_type)) {
+    script = Utils::MiniscriptTemplateToMiniscript(tmpl, signers);
+  } else if (Utils::IsValidPolicy(tmpl)) {
+    script = Utils::PolicyToMiniscript(tmpl, signers, address_type);
+  } else if (address_type == AddressType::TAPROOT &&
+             Utils::IsValidTapscriptTemplate(tmpl, error)) {
+    std::string keypath;
+    script = Utils::TapscriptTemplateToTapscript(tmpl, signers, keypath);
+    if (keypath.empty()) {
+      wallet_template = WalletTemplate::DISABLE_KEY_PATH;
+    } else {
+      if (!signers.count(keypath)) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid keypath");
+      }
+      used_signers.push_back(signers.at(keypath));
+    }
+  } else {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid miniscript " + error);
   }
-  Wallet wallet(miniscript, signers, address_type);
+
+  for (auto&& key : signers) {
+    auto desc = key.second.get_descriptor();
+    if (std::find_if(used_signers.begin(), used_signers.end(),
+                     [&](const SingleSigner& signer) {
+                       return signer.get_descriptor() == desc;
+                     }) == used_signers.end()) {
+      used_signers.push_back(key.second);
+    }
+  }
+
+  Wallet wallet(script, used_signers, address_type);
   wallet.set_name(name);
   wallet.set_description(description);
   wallet.set_create_date(std::time(0));
-  wallet.set_wallet_template(WalletTemplate::DEFAULT);
+  wallet.set_wallet_template(wallet_template);
   return CreateWallet(wallet, allow_used_signer, decoy_pin);
 }
 

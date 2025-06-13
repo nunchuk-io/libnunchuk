@@ -1113,6 +1113,7 @@ class NUNCHUK_EXPORT ScriptNode {
     ANDOR,
     THRESH,
     MULTI,
+    OR_TAPROOT,
   };
 
   static std::string type_to_string(Type type);
@@ -1176,12 +1177,11 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& passphrase = {},
                                  bool need_backup = true,
                                  bool replace = true) = 0;
-  virtual Wallet CreateMiniscriptWallet(const std::string& name,
-                                        const std::string& miniscript,
-                                        AddressType address_type,
-                                        const std::string& description = {},
-                                        bool allow_used_signer = false,
-                                        const std::string& decoy_pin = {}) = 0;
+  virtual Wallet CreateMiniscriptWallet(
+      const std::string& name, const std::string& script_template,
+      const std::map<std::string, SingleSigner>& signers,
+      AddressType address_type, const std::string& description = {},
+      bool allow_used_signer = false, const std::string& decoy_pin = {}) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string GetHotKeyMnemonic(const std::string& signer_id,
@@ -1977,9 +1977,14 @@ class NUNCHUK_EXPORT Utils {
       AddressType address_type);
   static bool IsValidMiniscriptTemplate(const std::string& miniscript_template,
                                         AddressType address_type);
+  static bool IsValidTapscriptTemplate(const std::string& tapscript_template,
+                                       std::string& error);
   static std::string MiniscriptTemplateToMiniscript(
       const std::string& miniscript_template,
       const std::map<std::string, SingleSigner>& signers);
+  static std::string TapscriptTemplateToTapscript(
+      const std::string& tapscript_template,
+      const std::map<std::string, SingleSigner>& signers, std::string& keypath);
   static ScriptNode MiniscriptToScriptNode(const std::string& miniscript);
   static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
                                            PreimageHashType hashType);

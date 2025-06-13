@@ -1165,8 +1165,7 @@ std::string ScriptNodeToString(const ScriptNode& node) {
       ss << ")";
       return ss.str();
     }
-    case ScriptNode::Type::MULTI:
-      {
+    case ScriptNode::Type::MULTI: {
       std::stringstream ss;
       ss << "multi(" << node.get_k();
       for (int i = 0; i < node.get_keys().size(); i++) {
@@ -1175,7 +1174,159 @@ std::string ScriptNodeToString(const ScriptNode& node) {
       ss << ")";
       return ss.str();
     }
+    case ScriptNode::Type::OR_TAPROOT:
+      return "{" + ScriptNodeToString(node.get_subs()[0]) + "," +
+             ScriptNodeToString(node.get_subs()[1]) + "}";
   }
   assert(false);
   return "";
+}
+
+bool ParseTapscriptTemplate(const std::string& tapscript_template,
+                            std::string& keypath,
+                            std::vector<std::string>& subscripts,
+                            std::vector<int>& depths, std::string& error) {
+  using namespace script;
+  Span<const char> expr{tapscript_template};
+  if (Func("tr", expr)) {
+    auto a = Expr(expr);
+    keypath = std::string(a.begin(), a.end());
+    if (!Const(",", expr)) {
+      error = strprintf("tr: expected ',', got '%c'", expr[0]);
+      return false;
+    }
+  }
+
+  /** The path from the top of the tree to what we're currently processing.
+   * branches[i] == false: left branch in the i'th step from the top; true:
+   * right branch.
+   */
+  std::vector<bool> branches;
+  // Loop over all provided scripts. In every iteration exactly one script
+  // will be processed. Use a do-loop because inside this if-branch we expect
+  // at least one script.
+  do {
+    // First process all open braces.
+    while (Const("{", expr)) {
+      branches.push_back(false);  // new left branch
+      if (branches.size() > TAPROOT_CONTROL_MAX_NODE_COUNT) {
+        error = strprintf("tr() supports at most %i nesting levels",
+                          TAPROOT_CONTROL_MAX_NODE_COUNT);
+        return false;
+      }
+    }
+    // Process the actual script expression.
+    auto sarg = Expr(expr);
+    subscripts.push_back(std::string(sarg.begin(), sarg.end()));
+    depths.push_back(branches.size());
+    // Process closing braces
+    while (branches.size() && branches.back()) {
+      if (!Const("}", expr)) {
+        error = strprintf("tr(): expected '}' after script expression");
+        return false;
+      }
+      branches.pop_back();  // move up one level after encountering '}'
+    }
+    // If after that, we're at the end of a left branch, expect a comma.
+    if (branches.size() && !branches.back()) {
+      if (!Const(",", expr)) {
+        error = strprintf("tr(): expected ',' after script expression");
+        return false;
+      }
+      branches.back() = true;  // And now we're in a right branch.
+    }
+  } while (branches.size());
+  // After we've explored a whole tree, we must be at the end of the expr.
+  if (expr.size()) {
+    error = strprintf("tr(): expected ')' after script expression");
+    return false;
+  }
+  return true;
+}
+
+bool SubScriptsToString(const std::vector<std::string>& subscripts,
+                        const std::vector<int>& depths, std::string& ret) {
+  if (depths.empty()) return true;
+  std::vector<bool> path;
+  for (size_t pos = 0; pos < depths.size(); ++pos) {
+    if (pos) ret += ',';
+    while ((int)path.size() <= depths[pos]) {
+      if (path.size()) ret += '{';
+      path.push_back(false);
+    }
+    ret += subscripts[pos];
+    while (!path.empty() && path.back()) {
+      if (path.size() > 1) ret += '}';
+      path.pop_back();
+    }
+    if (!path.empty()) path.back() = true;
+  }
+  return true;
+}
+
+struct TreeNode {
+  std::string value;
+  TreeNode* left;
+  TreeNode* right;
+  bool isLeaf;
+
+  TreeNode(const std::string& val = "", bool leaf = false)
+      : value(val), left(nullptr), right(nullptr), isLeaf(leaf) {}
+};
+
+ScriptNode TreeToScriptNode(TreeNode* root) {
+  if (root->isLeaf) return MiniscriptToScriptNode(ParseMiniscript(root->value, AddressType::ANY));
+  std::vector<ScriptNode> subs;
+  subs.push_back(TreeToScriptNode(root->left));
+  subs.push_back(TreeToScriptNode(root->right));
+  return ScriptNode{ScriptNode::Type::OR_TAPROOT, std::move(subs), {}, {}, 0};
+}
+
+ScriptNode SubScriptsToScriptNode(const std::vector<std::string>& subscripts,
+                     const std::vector<int>& depths) {
+  TreeNode* root = new TreeNode("", false);
+  std::vector<TreeNode*> stack;
+  stack.push_back(root);
+
+  std::vector<bool> path;
+  for (size_t pos = 0; pos < depths.size(); ++pos) {
+    while ((int)path.size() <= depths[pos]) {
+      if (path.size()) {
+        TreeNode* node = new TreeNode("", false);
+        if (stack.back()->left == nullptr) {
+          stack.back()->left = node;
+        } else {
+          stack.back()->right = node;
+        }
+        stack.push_back(node);
+      }
+      path.push_back(false);
+    }
+
+    if (stack.back()->left == nullptr) {
+      stack.back()->left = new TreeNode(subscripts[pos], true);
+    } else {
+      stack.back()->right = new TreeNode(subscripts[pos], true);
+    }
+    while (!path.empty() && path.back()) {
+      if (path.size() > 1) stack.pop_back();
+      path.pop_back();
+    }
+    if (!path.empty()) path.back() = true;
+  }
+  auto rs = TreeToScriptNode(root->left);
+
+  // delete tree
+  while (!stack.empty()) {
+    TreeNode* current = stack.back();
+    stack.pop_back();
+    if (current->left != nullptr) {
+      stack.push_back(current->left);
+    }
+    if (current->right != nullptr) {
+      stack.push_back(current->right);
+    }
+    delete current;
+  }
+  return rs;
 }
