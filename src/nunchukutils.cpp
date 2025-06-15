@@ -1290,19 +1290,19 @@ std::string Utils::TapscriptTemplateToTapscript(
   return ret;
 }
 
-ScriptNode Utils::MiniscriptToScriptNode(const std::string& miniscript) {
-  std::string keypath;
+ScriptNode Utils::GetScriptNode(const std::string& script,
+                                std::string& keypath) {
   std::vector<std::string> subscripts;
   std::vector<int> depths;
   std::string error;
-  if (ParseTapscriptTemplate(miniscript, keypath, subscripts, depths, error)) {
+  if (ParseTapscriptTemplate(script, keypath, subscripts, depths, error)) {
     auto node = SubScriptsToScriptNode(subscripts, depths);
     node.set_id({1});
     return node;
   }
 
   auto node =
-      ::MiniscriptToScriptNode(::ParseMiniscript(miniscript, AddressType::ANY));
+      ::MiniscriptToScriptNode(::ParseMiniscript(script, AddressType::ANY));
   node.set_id({1});
   return node;
 }

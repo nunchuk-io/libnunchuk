@@ -1658,8 +1658,9 @@ NunchukImpl::EstimateFeeForSigningPaths(
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                            "Wallet is not a miniscript wallet!");
   }
-  auto script_node = Utils::MiniscriptToScriptNode(wallet.get_miniscript());
-  auto paths = get_all_paths(script_node);
+  std::string keypath;
+  auto node = Utils::GetScriptNode(wallet.get_miniscript(), keypath);
+  auto paths = get_all_paths(node);
   std::vector<std::pair<SigningPath, Amount>> rs;
   for (auto&& path : paths) {
     rs.push_back({path, tx.get_fee()});

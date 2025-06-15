@@ -1985,7 +1985,8 @@ class NUNCHUK_EXPORT Utils {
   static std::string TapscriptTemplateToTapscript(
       const std::string& tapscript_template,
       const std::map<std::string, SingleSigner>& signers, std::string& keypath);
-  static ScriptNode MiniscriptToScriptNode(const std::string& miniscript);
+  static ScriptNode GetScriptNode(const std::string& script,
+                                  std::string& keypath);
   static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
                                            PreimageHashType hashType);
   static std::string RevealPreimage(const std::string& psbt,

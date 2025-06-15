@@ -658,7 +658,8 @@ void newminiscriptwallet() {
   }
 
   std::map<std::string, SingleSigner> keys{};
-  auto node = Utils::MiniscriptToScriptNode(miniscript_template);
+  std::string keypath;
+  auto node = Utils::GetScriptNode(miniscript_template, keypath);
   std::function<void(const ScriptNode&)> getKeys =
       [&](const ScriptNode& node) -> void {
     for (int i = 0; i < node.get_keys().size(); i++) {
