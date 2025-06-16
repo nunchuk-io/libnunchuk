@@ -26,22 +26,22 @@
 namespace nunchuk {
 
 class MiniscriptTimeline {
-public:
-    explicit MiniscriptTimeline(const std::string& miniscript);
-    Timelock::Based get_lock_type() const { return lock_type_; }
-    std::vector<int64_t> get_absolute_locks() const { return absolute_locks_; }
-    std::vector<int64_t> get_relative_locks() const { return relative_locks_; }
-    std::vector<int64_t> get_locks(const UnspentOutput& utxo);
+ public:
+  explicit MiniscriptTimeline(const std::string& miniscript);
+  Timelock::Based get_lock_type() const { return lock_type_; }
+  std::vector<int64_t> get_absolute_locks() const { return absolute_locks_; }
+  std::vector<int64_t> get_relative_locks() const { return relative_locks_; }
+  std::vector<int64_t> get_locks(const UnspentOutput& utxo);
 
-private:
-    void add_node(const miniscript::NodeRef<std::string>& node);
-    void detect_timelock_mixing(Timelock::Based new_type);
+ private:
+  void add_node(const miniscript::NodeRef<std::string>& node);
+  void detect_timelock_mixing(Timelock::Based new_type);
 
-    Timelock::Based lock_type_{Timelock::Based::NONE};
-    std::vector<int64_t> absolute_locks_;
-    std::vector<int64_t> relative_locks_;
+  Timelock::Based lock_type_{Timelock::Based::NONE};
+  std::vector<int64_t> absolute_locks_;
+  std::vector<int64_t> relative_locks_;
 };
 
-} // namespace nunchuk 
+}  // namespace nunchuk
 
-#endif // NUNCHUK_MINISCRIPT_TIMELINE_H
+#endif  // NUNCHUK_MINISCRIPT_TIMELINE_H
