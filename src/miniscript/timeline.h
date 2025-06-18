@@ -34,9 +34,10 @@ class MiniscriptTimeline {
   std::vector<int64_t> get_locks(const UnspentOutput& utxo);
 
  private:
-  void add_node(const miniscript::NodeRef<std::string>& node);
+  void add_node(const ScriptNode& node);
   void detect_timelock_mixing(Timelock::Based new_type);
 
+  ScriptNode node_;
   Timelock::Based lock_type_{Timelock::Based::NONE};
   std::vector<int64_t> absolute_locks_;
   std::vector<int64_t> relative_locks_;

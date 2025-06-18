@@ -5,31 +5,32 @@
 namespace nunchuk {
 
 MiniscriptTimeline::MiniscriptTimeline(const std::string& miniscript) {
-  add_node(ParseMiniscript(miniscript, AddressType::ANY));
+  std::string keypath;
+  node_ = Utils::GetScriptNode(miniscript, keypath);
+  add_node(node_);
 }
 
-void MiniscriptTimeline::add_node(
-    const miniscript::NodeRef<std::string>& node) {
-  if (node->fragment == miniscript::Fragment::AFTER) {
-    detect_timelock_mixing(node->k >= LOCKTIME_THRESHOLD
+void MiniscriptTimeline::add_node(const ScriptNode& node) {
+  if (node.get_type() == ScriptNode::Type::AFTER) {
+    detect_timelock_mixing(node.get_k() >= LOCKTIME_THRESHOLD
                                ? Timelock::Based::TIME_LOCK
                                : Timelock::Based::HEIGHT_LOCK);
-    absolute_locks_.push_back(node->k);
-  } else if (node->fragment == miniscript::Fragment::OLDER) {
+    absolute_locks_.push_back(node.get_k());
+  } else if (node.get_type() == ScriptNode::Type::OLDER) {
     int64_t value;
-    if (node->k & CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG) {
+    if (node.get_k() & CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG) {
       detect_timelock_mixing(Timelock::Based::TIME_LOCK);
-      value = (int64_t)((node->k & CTxIn::SEQUENCE_LOCKTIME_MASK)
+      value = (int64_t)((node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK)
                         << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY);
     } else {
       detect_timelock_mixing(Timelock::Based::HEIGHT_LOCK);
-      value = (int)(node->k & CTxIn::SEQUENCE_LOCKTIME_MASK);
+      value = (int)(node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK);
     }
     relative_locks_.push_back(value);
   }
 
-  for (int i = 0; i < node->subs.size(); i++) {
-    add_node(node->subs[i]);
+  for (int i = 0; i < node.get_subs().size(); i++) {
+    add_node(node.get_subs()[i]);
   }
 }
 
