@@ -456,8 +456,8 @@ class NunchukImpl : public Nunchuk {
                                bool is_primary = false) override;
 
   void RescanBlockchain(int start_height, int stop_height = -1) override;
-  void ScanWalletAddress(const std::string& wallet_id,
-                         bool force = false) override;
+  void ScanWalletAddress(const std::string& wallet_id, bool force = false,
+                         bool from_start = false) override;
 
   void AddBalanceListener(
       std::function<void(std::string, Amount)> listener) override;
@@ -655,7 +655,7 @@ class NunchukImpl : public Nunchuk {
                          bool use_script_path);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
-  void RunScanWalletAddress(const std::string& wallet_id);
+  void RunScanWalletAddress(const std::string& wallet_id, bool from_start);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
   void SyncGroupTransactions(const std::string& walletId);

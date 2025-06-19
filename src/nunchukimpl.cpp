@@ -308,7 +308,7 @@ bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
 
   bool rs = storage_->UpdateWallet(chain_, wallet);
   if (!wallet.is_archived()) {
-    ScanWalletAddress(wallet.get_id(), true);
+    ScanWalletAddress(wallet.get_id(), true, true);
   }
   storage_listener_();
   return rs;
@@ -364,17 +364,20 @@ void NunchukImpl::ForceRefreshWallet(const std::string& wallet_id) {
   ScanWalletAddress(wallet_id, true);
 }
 
-void NunchukImpl::ScanWalletAddress(const std::string& wallet_id, bool force) {
+void NunchukImpl::ScanWalletAddress(const std::string& wallet_id, bool force,
+                                    bool from_start) {
   if (wallet_id.empty()) return;
   time_t current = std::time(0);
   if (!force && current - last_scan_[wallet_id] < 600) return;
   last_scan_[wallet_id] = current;
-  scan_wallet_.push_back(std::async(std::launch::async, [this, wallet_id] {
-    RunScanWalletAddress(wallet_id);
-  }));
+  scan_wallet_.push_back(
+      std::async(std::launch::async, [this, wallet_id, from_start] {
+        RunScanWalletAddress(wallet_id, from_start);
+      }));
 }
 
-void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
+void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id,
+                                       bool from_start) {
   auto wallet = GetWallet(wallet_id);
   int index = -1;
   std::string address;
@@ -384,12 +387,16 @@ void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id) {
     synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
   } else {
     // scan internal address
-    index = storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
+    index = from_start
+                ? 0
+                : storage_->GetCurrentAddressIndex(chain_, wallet_id, true);
     if (index < 0) index = 0;
     address = GetUnusedAddress(wallet, index, true);
     storage_->AddAddress(chain_, wallet_id, address, index, true);
     // scan external address
-    index = storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
+    index = from_start
+                ? 0
+                : storage_->GetCurrentAddressIndex(chain_, wallet_id, false);
     if (index < 0) index = 0;
     address = GetUnusedAddress(wallet, index, false);
   }

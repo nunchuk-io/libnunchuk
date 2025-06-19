@@ -1428,7 +1428,8 @@ class NUNCHUK_EXPORT Nunchuk {
 
   virtual void RescanBlockchain(int start_height, int stop_height = -1) = 0;
   virtual void ScanWalletAddress(const std::string& wallet_id,
-                                 bool force = false) = 0;
+                                 bool force = false,
+                                 bool from_start = false) = 0;
   virtual MasterSigner CreateSoftwareSigner(
       const std::string& name, const std::string& mnemonic,
       const std::string& passphrase,
