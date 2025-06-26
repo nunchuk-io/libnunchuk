@@ -47,6 +47,41 @@ const std::vector<std::string>& ScriptNode::get_keys() const { return keys_; }
 const std::vector<unsigned char>& ScriptNode::get_data() const { return data_; }
 const std::vector<ScriptNode>& ScriptNode::get_subs() const { return sub_; }
 uint32_t ScriptNode::get_k() const { return k_; }
+bool ScriptNode::is_satisfiable(const UnspentOutput& coin,
+                                int64_t current_value,
+                                int64_t& max_value) const {
+  int64_t value = 0;
+  if (node_type_ == ScriptNode::Type::AFTER) {
+    value = k_;
+  } else if (node_type_ == ScriptNode::Type::OLDER) {
+    Timelock timelock = Timelock::FromK(false, k_);
+    value = timelock.based() == Timelock::Based::TIME_LOCK
+                ? coin.get_blocktime() + timelock.value()
+                : coin.get_height() + timelock.value();
+  } else if (node_type_ == ScriptNode::Type::ANDOR) {
+    return (sub_.at(0).is_satisfiable(coin, current_value, max_value) &&
+            sub_.at(1).is_satisfiable(coin, current_value, max_value)) ||
+           sub_.at(2).is_satisfiable(coin, current_value, max_value);
+  } else if (node_type_ == ScriptNode::Type::OR ||
+             node_type_ == ScriptNode::Type::OR_TAPROOT) {
+    return sub_.at(0).is_satisfiable(coin, current_value, max_value) ||
+           sub_.at(1).is_satisfiable(coin, current_value, max_value);
+  } else if (node_type_ == ScriptNode::Type::AND) {
+    return sub_.at(0).is_satisfiable(coin, current_value, max_value) &&
+           sub_.at(1).is_satisfiable(coin, current_value, max_value);
+  } else if (node_type_ == ScriptNode::Type::THRESH) {
+    int count = 0;
+    for (int j = 0; j < sub_.size(); j++) {
+      if (sub_.at(j).is_satisfiable(coin, current_value, max_value)) count++;
+    }
+    return count >= k_;
+  } else {
+    return true;
+  }
+
+  if (value > current_value && value > max_value) max_value = value;
+  return value <= current_value;
+}
 
 std::string ScriptNode::type_to_string(ScriptNode::Type type) {
   switch (type) {

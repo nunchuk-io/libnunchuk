@@ -1161,6 +1161,8 @@ class NUNCHUK_EXPORT ScriptNode {
   const std::vector<unsigned char>& get_data() const;
   const std::vector<ScriptNode>& get_subs() const;
   uint32_t get_k() const;
+  bool is_satisfiable(const UnspentOutput& coin, int64_t current_value,
+                      int64_t& max_value) const;
 
  private:
   Type node_type_{Type::NONE};

@@ -1383,7 +1383,8 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
 std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     const std::string& miniscript, const std::vector<UnspentOutput>& coins,
     int64_t& max_lock_value, int chain_tip) {
-  auto node = ::ParseMiniscript(miniscript, AddressType::ANY);
+  std::string keypath;
+  auto node = Utils::GetScriptNode(miniscript, keypath);
   MiniscriptTimeline timeline{miniscript};
   if (timeline.get_lock_type() == Timelock::Based::NONE) return {};
 
@@ -1392,24 +1393,7 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
                               ? std::time(0)
                               : chain_tip;
   for (auto&& coin : coins) {
-    if (!node->IsSatisfiable([&](const miniscript::Node<std::string>& node) {
-          int64_t value = 0;
-          if (node.fragment == miniscript::Fragment::AFTER) {
-            Timelock timelock = Timelock::FromK(true, node.k);
-            value = timelock.value();
-          } else if (node.fragment == miniscript::Fragment::OLDER) {
-            Timelock timelock = Timelock::FromK(false, node.k);
-            value = (timelock.based() == Timelock::Based::TIME_LOCK
-                         ? coin.get_blocktime()
-                         : coin.get_height()) +
-                    timelock.value();
-          } else {
-            return true;
-          }
-          if (value > current_value && value > max_lock_value)
-            max_lock_value = value;
-          return value <= current_value;
-        })) {
+    if (!node.is_satisfiable(coin, current_value, max_lock_value)) {
       rs.emplace_back(coin);
     }
   }
@@ -1421,6 +1405,7 @@ std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
     int chain_tip) {
   if (script_node.get_type() != ScriptNode::Type::ANDOR &&
       script_node.get_type() != ScriptNode::Type::OR &&
+      script_node.get_type() != ScriptNode::Type::OR_TAPROOT &&
       script_node.get_type() != ScriptNode::Type::THRESH) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid script node");
@@ -1433,51 +1418,13 @@ std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
   int64_t current_value =
       coins[0].get_lock_based() == Timelock::Based::TIME_LOCK ? std::time(0)
                                                               : chain_tip;
-  std::function<bool(const ScriptNode&, const UnspentOutput&, int)>
-      isSatisfiable = [&](const ScriptNode& node, const UnspentOutput& coin,
-                          int i) -> bool {
-    int64_t value = 0;
-    if (node.get_type() == ScriptNode::Type::AFTER) {
-      value = node.get_k();
-    } else if (node.get_type() == ScriptNode::Type::OLDER) {
-      if (coin.get_lock_based() == Timelock::Based::TIME_LOCK)
-        value = coin.get_blocktime() +
-                (int64_t)((node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK)
-                          << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY) -
-                1;
-      else
-        value = coin.get_height() +
-                (int)(node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK) - 1;
-    } else if (node.get_type() == ScriptNode::Type::ANDOR) {
-      return (isSatisfiable(node.get_subs()[0], coin, i) &&
-              isSatisfiable(node.get_subs()[1], coin, i)) ||
-             isSatisfiable(node.get_subs()[2], coin, i);
-    } else if (node.get_type() == ScriptNode::Type::OR) {
-      return isSatisfiable(node.get_subs()[0], coin, i) ||
-             isSatisfiable(node.get_subs()[1], coin, i);
-    } else if (node.get_type() == ScriptNode::Type::AND) {
-      return isSatisfiable(node.get_subs()[0], coin, i) &&
-             isSatisfiable(node.get_subs()[1], coin, i);
-    } else if (node.get_type() == ScriptNode::Type::THRESH) {
-      int count = 0;
-      for (int j = 0; j < node.get_subs().size(); j++) {
-        if (isSatisfiable(node.get_subs()[j], coin, i)) count++;
-      }
-      return count >= node.get_k();
-    } else {
-      return true;
-    }
-
-    if (value > current_value && value > rs[i].second.first)
-      rs[i].second.first = value;
-    return value <= current_value;
-  };
-
   for (auto&& coin : coins) {
     for (int i = 0; i < script_node.get_subs().size(); i++) {
-      if (isSatisfiable(script_node.get_subs()[i], coin, i)) {
+      int64_t max = 0;
+      if (script_node.get_subs()[i].is_satisfiable(coin, current_value, max)) {
         rs[i].first.emplace_back(coin);
       }
+      rs[i].second.first = max;
     }
   }
   return rs;

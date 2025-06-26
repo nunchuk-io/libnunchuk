@@ -56,6 +56,8 @@ int64_t Timelock::k() const {
                                "Invalid height value");
       }
       return value_ & CTxIn::SEQUENCE_LOCKTIME_MASK;
+    } else {
+      return 0;
     }
   }
 }
