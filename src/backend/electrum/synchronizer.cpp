@@ -678,10 +678,10 @@ Transaction ElectrumSynchronizer::GetTransaction(const std::string& tx_id) {
   auto tx = GetTransactionFromCMutableTransaction(cmutx, height);
 
   Amount total_input = 0;
-  for (auto&& [txin_id, vout] : tx.get_inputs()) {
-    auto txin_raw = client_->blockchain_transaction_get(txin_id);
+  for (auto&& input : tx.get_inputs()) {
+    auto txin_raw = client_->blockchain_transaction_get(input.txid);
     auto txin = DecodeRawTransaction(txin_raw);
-    total_input += txin.vout[vout].nValue;
+    total_input += txin.vout[input.vout].nValue;
   }
 
   Amount total_output = std::accumulate(

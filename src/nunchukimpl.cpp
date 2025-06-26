@@ -981,7 +981,7 @@ std::vector<UnspentOutput> NunchukImpl::GetUnspentOutputsFromTxInputs(
   auto utxos = storage_->GetUtxos(chain_, wallet_id);
   auto check = [&](const UnspentOutput& coin) {
     for (auto&& input : txInputs) {
-      if (input.first == coin.get_txid() && input.second == coin.get_vout())
+      if (input.txid == coin.get_txid() && input.vout == coin.get_vout())
         return false;
     }
     return true;
@@ -999,7 +999,7 @@ std::vector<UnspentOutput> NunchukImpl::GetCoinsFromTxInputs(
   auto utxos = storage_->GetUtxos(chain_, wallet_id, true);
   auto check = [&](const UnspentOutput& coin) {
     for (auto&& input : txInputs) {
-      if (input.first == coin.get_txid() && input.second == coin.get_vout())
+      if (input.txid == coin.get_txid() && input.vout == coin.get_vout())
         return false;
     }
     return true;
@@ -1046,8 +1046,8 @@ Transaction NunchukImpl::CreateTransaction(
     for (auto&& input : origin_tx.get_inputs()) {
       if (std::find_if(inputs.begin(), inputs.end(),
                        [&](const UnspentOutput& utxo) {
-                         return utxo.get_txid() == input.first &&
-                                utxo.get_vout() == input.second;
+                         return utxo.get_txid() == input.txid &&
+                                utxo.get_vout() == input.vout;
                        }) != inputs.end()) {
         include_origin_input = true;
         break;
@@ -1500,8 +1500,8 @@ Transaction NunchukImpl::DraftTransaction(
     for (auto&& input : origin_tx.get_inputs()) {
       if (std::find_if(inputs.begin(), inputs.end(),
                        [&](const UnspentOutput& utxo) {
-                         return utxo.get_txid() == input.first &&
-                                utxo.get_vout() == input.second;
+                         return utxo.get_txid() == input.txid &&
+                                utxo.get_vout() == input.vout;
                        }) != inputs.end()) {
         include_origin_input = true;
         break;
@@ -1835,8 +1835,8 @@ Amount NunchukImpl::GetTotalAmount(const std::string& wallet_id,
                                    const std::vector<TxInput>& inputs) {
   Amount total = 0;
   for (auto&& input : inputs) {
-    auto tx = GetTransaction(wallet_id, input.first);
-    total += tx.get_outputs()[input.second].second;
+    auto tx = GetTransaction(wallet_id, input.txid);
+    total += tx.get_outputs()[input.vout].second;
   }
   return total;
 }
@@ -2503,20 +2503,20 @@ bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,
   Amount package_fee = tx.get_fee();
   int64_t package_size = tx.get_vsize();
   std::vector<UnspentOutput> utxos = GetUnspentOutputs(wallet_id);
-  for (auto&& [txid, vout] : tx.get_inputs()) {
+  for (auto&& input : tx.get_inputs()) {
     for (auto&& coin : utxos) {
-      if (coin.get_txid() == txid && coin.get_vout() == vout) {
+      if (coin.get_txid() == input.txid && coin.get_vout() == input.vout) {
         if (coin.get_height() == 0) {
           rs = true;
-          auto prev_tx = GetTransaction(wallet_id, txid);
+          auto prev_tx = GetTransaction(wallet_id, input.txid);
           auto mtx = DecodeRawTransaction(prev_tx.get_raw());
           package_size += GetVirtualTransactionSize(CTransaction(mtx));
 
           Amount prev_input_amount = 0;
           for (auto&& input : prev_tx.get_inputs()) {
-            auto txin_raw = synchronizer_->GetRawTx(input.first);
+            auto txin_raw = synchronizer_->GetRawTx(input.txid);
             auto txin = DecodeRawTransaction(txin_raw);
-            prev_input_amount += txin.vout[input.second].nValue;
+            prev_input_amount += txin.vout[input.vout].nValue;
           }
           Amount prev_output_amount = std::accumulate(
               std::begin(prev_tx.get_outputs()),

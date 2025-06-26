@@ -62,6 +62,7 @@ std::string Transaction::get_raw() const { return raw_; }
 std::string Transaction::get_reject_msg() const { return reject_msg_; }
 time_t Transaction::get_schedule_time() const { return schedule_time_; }
 int Transaction::get_vsize() const { return vsize_; }
+uint32_t Transaction::get_lock_time() const { return lock_time_; }
 
 void Transaction::set_txid(const std::string& value) { txid_ = value; }
 void Transaction::set_height(int value) { height_ = value; }
@@ -108,5 +109,6 @@ void Transaction::set_reject_msg(const std::string& value) {
 }
 void Transaction::set_schedule_time(time_t value) { schedule_time_ = value; }
 void Transaction::set_vsize(int value) { vsize_ = value; }
+void Transaction::set_lock_time(uint32_t value) { lock_time_ = value; }
 
 }  // namespace nunchuk

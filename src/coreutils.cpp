@@ -124,7 +124,11 @@ std::string CoreUtils::CreatePsbt(const std::vector<TxInput> &vin,
                                   int locktime) {
   json input = json::array();
   for (auto &el : vin) {
-    input.push_back({{"txid", el.first}, {"vout", el.second}});
+    if (el.nSequence == 0) {
+      input.push_back({{"txid", el.txid}, {"vout", el.vout}});
+    } else {
+      input.push_back({{"txid", el.txid}, {"vout", el.vout}, {"sequence", el.nSequence}});
+    }
   }
   json output = json::array();
   for (auto &el : vout) {

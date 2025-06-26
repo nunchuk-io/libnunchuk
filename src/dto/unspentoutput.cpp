@@ -26,7 +26,7 @@ UnspentOutput::UnspentOutput() {
 }
 
 std::string UnspentOutput::get_txid() const { return txid_; }
-int UnspentOutput::get_vout() const { return vout_; }
+uint32_t UnspentOutput::get_vout() const { return vout_; }
 std::string UnspentOutput::get_address() const { return address_; }
 Amount UnspentOutput::get_amount() const { return amount_; }
 int UnspentOutput::get_height() const { return height_; }
@@ -50,7 +50,7 @@ Timelock::Based UnspentOutput::get_lock_based() const {
 }
 
 void UnspentOutput::set_txid(const std::string& value) { txid_ = value; }
-void UnspentOutput::set_vout(int value) { vout_ = value; }
+void UnspentOutput::set_vout(uint32_t value) { vout_ = value; }
 void UnspentOutput::set_address(const std::string& value) { address_ = value; }
 void UnspentOutput::set_amount(const Amount& value) { amount_ = value; }
 void UnspentOutput::set_height(int value) { height_ = value; }

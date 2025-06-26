@@ -49,7 +49,26 @@ const int HIGH_DENSITY_BBQR = 27;
 const int ULTRA_HIGH_DENSITY_BBQR = 40;
 
 typedef int64_t Amount;
-typedef std::pair<std::string, int> TxInput;        // txid-vout pair
+struct TxInput {
+  std::string txid;
+  uint32_t vout;
+  uint32_t nSequence;
+  TxInput(const std::string& txid, uint32_t vout, uint32_t nSequence = 0)
+      : txid(txid), vout(vout), nSequence(nSequence) {}
+
+  bool operator<(const TxInput& other) const {
+    if (txid != other.txid) {
+      return txid < other.txid;
+    }
+    return vout < other.vout;
+  }
+
+  bool operator==(const TxInput& other) const {
+    return txid == other.txid && vout == other.vout;
+  }
+
+  bool operator!=(const TxInput& other) const { return !(*this == other); }
+};
 typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair
 typedef std::map<std::string, bool> RequestTokens;  // token-sent map
 typedef std::vector<size_t> ScriptNodeId;
@@ -645,7 +664,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   UnspentOutput();
 
   std::string get_txid() const;
-  int get_vout() const;
+  uint32_t get_vout() const;
   std::string get_address() const;
   Amount get_amount() const;
   int get_height() const;
@@ -661,7 +680,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   Timelock::Based get_lock_based() const;
 
   void set_txid(const std::string& value);
-  void set_vout(int value);
+  void set_vout(uint32_t value);
   void set_address(const std::string& value);
   void set_amount(const Amount& value);
   void set_height(int value);
@@ -677,7 +696,7 @@ class NUNCHUK_EXPORT UnspentOutput {
 
  private:
   std::string txid_;
-  int vout_;
+  uint32_t vout_;
   std::string address_;
   Amount amount_;
   int height_;
@@ -839,6 +858,7 @@ class Transaction {
   std::string get_reject_msg() const;
   time_t get_schedule_time() const;
   int get_vsize() const;
+  uint32_t get_lock_time() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -867,6 +887,7 @@ class Transaction {
   void set_reject_msg(const std::string& value);
   void set_schedule_time(time_t value);
   void set_vsize(int value);
+  void set_lock_time(uint32_t value);   
 
  private:
   std::string txid_;
@@ -896,6 +917,7 @@ class Transaction {
   std::string reject_msg_;
   time_t schedule_time_;
   int vsize_;
+  uint32_t lock_time_;
 };
 
 class TapsignerStatus {

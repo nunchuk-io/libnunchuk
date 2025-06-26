@@ -85,8 +85,9 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   Transaction tx{};
   tx.set_txid(mtx.GetHash().GetHex());
   tx.set_height(height);
+  tx.set_lock_time(mtx.nLockTime);
   for (auto& input : mtx.vin) {
-    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n});
+    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n, input.nSequence});
   }
   for (auto& output : mtx.vout) {
     std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
@@ -108,16 +109,7 @@ inline nunchuk::Transaction ParseCMutableTransaction(
     const CMutableTransaction& mtx, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
 
-  Transaction tx{};
-  tx.set_txid(mtx.GetHash().GetHex());
-  tx.set_height(height);
-  for (auto& input : mtx.vin) {
-    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n});
-  }
-  for (auto& output : mtx.vout) {
-    std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
-    tx.add_output({address, output.nValue});
-  }
+  Transaction tx = GetTransactionFromCMutableTransaction(mtx, height);
   auto signers = wallet.get_signers();
   if (wallet.get_wallet_type() == WalletType::MULTI_SIG &&
       wallet.get_address_type() == AddressType::TAPROOT) {
@@ -164,16 +156,6 @@ inline nunchuk::Transaction ParseCMutableTransaction(
     for (auto&& signer : signers) {
       tx.set_signer(signer.get_master_fingerprint(), true);
     }
-  }
-
-  if (height == 0) {
-    tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
-  } else if (height == -2) {
-    tx.set_status(TransactionStatus::NETWORK_REJECTED);
-  } else if (height == -1) {
-    tx.set_status(TransactionStatus::READY_TO_BROADCAST);
-  } else if (height > 0) {
-    tx.set_status(TransactionStatus::CONFIRMED);
   }
   return tx;
 }

@@ -1181,7 +1181,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 
   // remove invalid, out-of-date Send transactions
   const auto utxos_set = [utxos = db.GetCoins()]() {
-    std::set<std::pair<std::string, int>> ret;
+    std::set<TxInput> ret;
     for (auto&& utxo : utxos) {
       ret.insert({utxo.get_txid(), utxo.get_vout()});
     }
@@ -1189,7 +1189,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   }();
 
   const auto used_inputs_set = [&]() {
-    std::set<std::pair<std::string, int>> ret;
+    std::set<TxInput> ret;
     for (auto&& tx : vtx) {
       if (tx.get_height() > 0) {
         for (auto&& input : tx.get_inputs()) {

@@ -1172,8 +1172,8 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     auto input = tx.get_inputs()[i];
     TxOutput prev_out;
     try {
-      auto prev_tx = GetTransaction(input.first);
-      prev_out = prev_tx.get_outputs()[input.second];
+      auto prev_tx = GetTransaction(input.txid);
+      prev_out = prev_tx.get_outputs()[input.vout];
       if (!extract_signers && tx.get_wallet_type() == WalletType::MULTI_SIG &&
           tx.get_address_type() != AddressType::TAPROOT &&
           !tx.get_raw().empty() && !prev_tx.get_raw().empty()) {
@@ -1182,8 +1182,7 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
             tx.set_signer(signer.first, false);
           }
           auto mtx = DecodeRawTransaction(tx.get_raw());
-          auto vout =
-              DecodeRawTransaction(prev_tx.get_raw()).vout[input.second];
+          auto vout = DecodeRawTransaction(prev_tx.get_raw()).vout[input.vout];
           auto extract = DataFromTransaction(mtx, i, vout);
           for (auto&& sig : extract.signatures) {
             KeyOriginInfo info;
@@ -2110,7 +2109,7 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     tx_map.insert(std::make_pair(tx.get_txid(), tx));
     if (tx.get_height() <= 0) continue;
     for (auto&& input : tx.get_inputs()) {
-      used_by[CoinId(input.first, input.second)] = tx.get_txid();
+      used_by[CoinId(input.txid, input.vout)] = tx.get_txid();
     }
   }
 
@@ -2126,7 +2125,7 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
 
     bool invalid = false;
     for (auto&& input : tx.get_inputs()) {
-      auto id = CoinId(input.first, input.second);
+      auto id = CoinId(input.txid, input.vout);
       if (id ==
           "0000000000000000000000000000000000000000000000000000000000000000:-1")
         continue;  // coinbase input
@@ -2135,15 +2134,15 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     if (invalid) continue;
 
     for (auto&& input : tx.get_inputs()) {
-      if (tx_map.count(input.first) == 0) continue;
-      auto prev_tx = tx_map[input.first];
-      auto address = prev_tx.get_outputs()[input.second].first;
+      if (tx_map.count(input.txid) == 0) continue;
+      auto prev_tx = tx_map[input.txid];
+      auto address = prev_tx.get_outputs()[input.vout].first;
       if (!isMyAddress(address)) continue;
-      auto id = CoinId(input.first, input.second);
-      coins[id].set_txid(input.first);
-      coins[id].set_vout(input.second);
+      auto id = CoinId(input.txid, input.vout);
+      coins[id].set_txid(input.txid);
+      coins[id].set_vout(input.vout);
       coins[id].set_address(address);
-      coins[id].set_amount(prev_tx.get_outputs()[input.second].second);
+      coins[id].set_amount(prev_tx.get_outputs()[input.vout].second);
       coins[id].set_height(prev_tx.get_height());
       coins[id].set_blocktime(prev_tx.get_blocktime());
       if (tx.get_schedule_time() > coins[id].get_schedule_time()) {
@@ -2214,7 +2213,7 @@ std::vector<std::vector<UnspentOutput>> NunchukWalletDb::GetAncestry(
       if (tx_map.count(coin.get_txid()) == 0) continue;
       auto tx = tx_map[coin.get_txid()];
       for (auto&& input : tx.get_inputs()) {
-        auto id = CoinId(input.first, input.second);
+        auto id = CoinId(input.txid, input.vout);
         if (coins.count(id)) grandparents.push_back(coins[id]);
       }
     }
