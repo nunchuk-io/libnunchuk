@@ -60,6 +60,29 @@ int64_t Timelock::k() const {
   }
 }
 
+Timelock Timelock::FromK(bool is_absolute, int64_t k) {
+  Based b;
+  Type t;
+  int64_t v;
+  if (is_absolute) {
+    t = Type::ABSOLUTE;
+    b = k >= LOCKTIME_THRESHOLD ? Timelock::Based::TIME_LOCK
+                                : Timelock::Based::HEIGHT_LOCK;
+    v = k;
+  } else {
+    t = Type::RELATIVE;
+    if (k & CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG) {
+      b = Timelock::Based::TIME_LOCK;
+      v = (int64_t)((k & CTxIn::SEQUENCE_LOCKTIME_MASK)
+                    << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY);
+    } else {
+      b = Timelock::Based::HEIGHT_LOCK;
+      v = (int)(k & CTxIn::SEQUENCE_LOCKTIME_MASK);
+    }
+  }
+  return Timelock(b, t, v);
+}
+
 std::string Timelock::to_miniscript() const {
   std::stringstream temp;
   if (type_ == Type::ABSOLUTE) {

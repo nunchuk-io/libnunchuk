@@ -645,6 +645,7 @@ class NUNCHUK_EXPORT Timelock {
     RELATIVE,
   };
 
+  static Timelock FromK(bool is_absolute, int64_t k);
   Timelock(Based based, Type type, int64_t value);
   Based based() const;
   Type type() const;
@@ -887,7 +888,7 @@ class Transaction {
   void set_reject_msg(const std::string& value);
   void set_schedule_time(time_t value);
   void set_vsize(int value);
-  void set_lock_time(uint32_t value);   
+  void set_lock_time(uint32_t value);
 
  private:
   std::string txid_;

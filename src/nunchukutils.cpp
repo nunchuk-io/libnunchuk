@@ -1395,16 +1395,14 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     if (!node->IsSatisfiable([&](const miniscript::Node<std::string>& node) {
           int64_t value = 0;
           if (node.fragment == miniscript::Fragment::AFTER) {
-            value = node.k;
+            Timelock timelock = Timelock::FromK(true, node.k);
+            value = timelock.value();
           } else if (node.fragment == miniscript::Fragment::OLDER) {
-            if (timeline.get_lock_type() == Timelock::Based::TIME_LOCK)
-              value = coin.get_blocktime() +
-                      (int64_t)((node.k & CTxIn::SEQUENCE_LOCKTIME_MASK)
-                                << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY) -
-                      1;
-            else
-              value = coin.get_height() +
-                      (int)(node.k & CTxIn::SEQUENCE_LOCKTIME_MASK) - 1;
+            Timelock timelock = Timelock::FromK(false, node.k);
+            value = (timelock.based() == Timelock::Based::TIME_LOCK
+                         ? coin.get_blocktime()
+                         : coin.get_height()) +
+                    timelock.value();
           } else {
             return true;
           }

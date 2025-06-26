@@ -12,21 +12,13 @@ MiniscriptTimeline::MiniscriptTimeline(const std::string& miniscript) {
 
 void MiniscriptTimeline::add_node(const ScriptNode& node) {
   if (node.get_type() == ScriptNode::Type::AFTER) {
-    detect_timelock_mixing(node.get_k() >= LOCKTIME_THRESHOLD
-                               ? Timelock::Based::TIME_LOCK
-                               : Timelock::Based::HEIGHT_LOCK);
-    absolute_locks_.push_back(node.get_k());
+    Timelock timelock = Timelock::FromK(true, node.get_k());
+    detect_timelock_mixing(timelock.based());
+    absolute_locks_.push_back(timelock.value());
   } else if (node.get_type() == ScriptNode::Type::OLDER) {
-    int64_t value;
-    if (node.get_k() & CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG) {
-      detect_timelock_mixing(Timelock::Based::TIME_LOCK);
-      value = (int64_t)((node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK)
-                        << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY);
-    } else {
-      detect_timelock_mixing(Timelock::Based::HEIGHT_LOCK);
-      value = (int)(node.get_k() & CTxIn::SEQUENCE_LOCKTIME_MASK);
-    }
-    relative_locks_.push_back(value);
+    Timelock timelock = Timelock::FromK(false, node.get_k());
+    detect_timelock_mixing(timelock.based());
+    relative_locks_.push_back(timelock.value());
   }
 
   for (int i = 0; i < node.get_subs().size(); i++) {
