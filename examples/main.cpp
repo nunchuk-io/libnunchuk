@@ -276,7 +276,7 @@ void send() {
                                         fee_rate, sffa);
   std::cout << "Transaction info\n  Inputs:\n";
   for (auto&& input : tx.get_inputs()) {
-    std::cout << "    " << input.first << ":" << input.second << std::endl;
+    std::cout << "    " << input.txid << ":" << input.vout << std::endl;
   }
   std::cout << "  Psbt: " << tx.get_psbt() << std::endl;
   std::cout << "  Sub total: " << subtotal << std::endl;
