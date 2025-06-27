@@ -47,40 +47,79 @@ const std::vector<std::string>& ScriptNode::get_keys() const { return keys_; }
 const std::vector<unsigned char>& ScriptNode::get_data() const { return data_; }
 const std::vector<ScriptNode>& ScriptNode::get_subs() const { return sub_; }
 uint32_t ScriptNode::get_k() const { return k_; }
-bool ScriptNode::is_satisfiable(const UnspentOutput& coin,
-                                int64_t current_value,
-                                int64_t& max_value) const {
+bool ScriptNode::is_locked(const UnspentOutput& coin, int64_t chain_tip,
+                           int64_t& max_lock) const {
   int64_t value = 0;
+  int64_t current_value;
   if (node_type_ == ScriptNode::Type::AFTER) {
-    value = k_;
+    Timelock timelock = Timelock::FromK(true, k_);
+    value = timelock.value();
+    if (timelock.based() == Timelock::Based::TIME_LOCK) {
+      current_value = std::time(0);
+    } else {
+      current_value = chain_tip;
+    }
   } else if (node_type_ == ScriptNode::Type::OLDER) {
     Timelock timelock = Timelock::FromK(false, k_);
-    value = timelock.based() == Timelock::Based::TIME_LOCK
-                ? coin.get_blocktime() + timelock.value()
-                : coin.get_height() + timelock.value();
+    if (timelock.based() == Timelock::Based::TIME_LOCK) {
+      value = coin.get_blocktime() + timelock.value();
+      current_value = std::time(0);
+    } else {
+      value = coin.get_height() + timelock.value();
+      current_value = chain_tip;
+    }
   } else if (node_type_ == ScriptNode::Type::ANDOR) {
-    return (sub_.at(0).is_satisfiable(coin, current_value, max_value) &&
-            sub_.at(1).is_satisfiable(coin, current_value, max_value)) ||
-           sub_.at(2).is_satisfiable(coin, current_value, max_value);
+    return (sub_.at(0).is_locked(coin, chain_tip, max_lock) &&
+            sub_.at(1).is_locked(coin, chain_tip, max_lock)) ||
+           sub_.at(2).is_locked(coin, chain_tip, max_lock);
   } else if (node_type_ == ScriptNode::Type::OR ||
              node_type_ == ScriptNode::Type::OR_TAPROOT) {
-    return sub_.at(0).is_satisfiable(coin, current_value, max_value) ||
-           sub_.at(1).is_satisfiable(coin, current_value, max_value);
+    return sub_.at(0).is_locked(coin, chain_tip, max_lock) ||
+           sub_.at(1).is_locked(coin, chain_tip, max_lock);
   } else if (node_type_ == ScriptNode::Type::AND) {
-    return sub_.at(0).is_satisfiable(coin, current_value, max_value) &&
-           sub_.at(1).is_satisfiable(coin, current_value, max_value);
+    return sub_.at(0).is_locked(coin, chain_tip, max_lock) &&
+           sub_.at(1).is_locked(coin, chain_tip, max_lock);
   } else if (node_type_ == ScriptNode::Type::THRESH) {
     int count = 0;
     for (int j = 0; j < sub_.size(); j++) {
-      if (sub_.at(j).is_satisfiable(coin, current_value, max_value)) count++;
+      if (sub_.at(j).is_locked(coin, chain_tip, max_lock)) count++;
     }
     return count >= k_;
   } else {
     return true;
   }
 
-  if (value > current_value && value > max_value) max_value = value;
+  if (value > current_value && value > max_lock) {
+    max_lock = value;
+  }
   return value <= current_value;
+}
+
+bool ScriptNode::is_satisfiable(const Transaction& tx) const {
+  if (node_type_ == ScriptNode::Type::AFTER) {
+    return k_ <= tx.get_lock_time();
+  } else if (node_type_ == ScriptNode::Type::OLDER) {
+    for (int i = 0; i < tx.get_inputs().size(); i++) {
+      if (k_ > tx.get_inputs()[i].nSequence) return false;
+    }
+    return true;
+  } else if (node_type_ == ScriptNode::Type::ANDOR) {
+    return (sub_.at(0).is_satisfiable(tx) && sub_.at(1).is_satisfiable(tx)) ||
+           sub_.at(2).is_satisfiable(tx);
+  } else if (node_type_ == ScriptNode::Type::OR ||
+             node_type_ == ScriptNode::Type::OR_TAPROOT) {
+    return sub_.at(0).is_satisfiable(tx) || sub_.at(1).is_satisfiable(tx);
+  } else if (node_type_ == ScriptNode::Type::AND) {
+    return sub_.at(0).is_satisfiable(tx) && sub_.at(1).is_satisfiable(tx);
+  } else if (node_type_ == ScriptNode::Type::THRESH) {
+    int count = 0;
+    for (int j = 0; j < sub_.size(); j++) {
+      if (sub_.at(j).is_satisfiable(tx)) count++;
+    }
+    return count >= k_;
+  } else {
+    return true;
+  }
 }
 
 std::string ScriptNode::type_to_string(ScriptNode::Type type) {

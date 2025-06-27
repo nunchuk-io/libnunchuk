@@ -1340,7 +1340,7 @@ std::string Utils::DecayingMultisigMiniscriptTemplate(
   }
   if (m <= new_m) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "m must be less than new m");
+                           "new m must be less than m");
   }
   std::stringstream temp;
   std::string multi_str =
@@ -1385,15 +1385,9 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     int64_t& max_lock_value, int chain_tip) {
   std::string keypath;
   auto node = Utils::GetScriptNode(miniscript, keypath);
-  MiniscriptTimeline timeline{miniscript};
-  if (timeline.get_lock_type() == Timelock::Based::NONE) return {};
-
   std::vector<UnspentOutput> rs{};
-  int64_t current_value = timeline.get_lock_type() == Timelock::Based::TIME_LOCK
-                              ? std::time(0)
-                              : chain_tip;
   for (auto&& coin : coins) {
-    if (!node.is_satisfiable(coin, current_value, max_lock_value)) {
+    if (!node.is_locked(coin, chain_tip, max_lock_value)) {
       rs.emplace_back(coin);
     }
   }
@@ -1415,16 +1409,13 @@ std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
     rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
   }
 
-  int64_t current_value =
-      coins[0].get_lock_based() == Timelock::Based::TIME_LOCK ? std::time(0)
-                                                              : chain_tip;
   for (auto&& coin : coins) {
     for (int i = 0; i < script_node.get_subs().size(); i++) {
-      int64_t max = 0;
-      if (script_node.get_subs()[i].is_satisfiable(coin, current_value, max)) {
+      int64_t max_lock = 0;
+      if (script_node.get_subs()[i].is_locked(coin, chain_tip, max_lock)) {
         rs[i].first.emplace_back(coin);
       }
-      rs[i].second.first = max;
+      rs[i].second.first = max_lock;
     }
   }
   return rs;
