@@ -1164,6 +1164,7 @@ class NUNCHUK_EXPORT ScriptNode {
   bool is_locked(const UnspentOutput& coin, int64_t chain_tip,
                  int64_t& max_lock) const;
   bool is_satisfiable(const Transaction& tx) const;
+  bool is_satisfiable(const std::string& psbt) const;
 
  private:
   Type node_type_{Type::NONE};

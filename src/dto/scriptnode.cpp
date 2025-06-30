@@ -16,6 +16,7 @@
  */
 
 #include <nunchuk.h>
+#include <utils/txutils.hpp>
 
 namespace nunchuk {
 
@@ -120,6 +121,12 @@ bool ScriptNode::is_satisfiable(const Transaction& tx) const {
   } else {
     return true;
   }
+}
+
+bool ScriptNode::is_satisfiable(const std::string& psbt) const {
+  auto psbtx = DecodePsbt(psbt);
+  auto tx = GetTransactionFromCMutableTransaction(psbtx.tx.value(), -1);
+  return is_satisfiable(tx);
 }
 
 std::string ScriptNode::type_to_string(ScriptNode::Type type) {
