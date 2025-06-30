@@ -2022,10 +2022,10 @@ class NUNCHUK_EXPORT Utils {
   static bool IsPreimageRevealed(const std::string& psbt,
                                  const std::vector<uint8_t>& hash);
   static std::string ExpandingMultisigMiniscriptTemplate(
-      int m, int n, int new_n, const Timelock& timelock,
+      int m, int n, int new_n, bool reuse_signers, const Timelock& timelock,
       AddressType address_type);
   static std::string DecayingMultisigMiniscriptTemplate(
-      int m, int n, int new_m, const Timelock& timelock,
+      int m, int n, int new_m, bool reuse_signers, const Timelock& timelock,
       AddressType address_type);
   static std::string FlexibleMultisigMiniscriptTemplate(
       int m, int n, int new_m, int new_n, bool reuse_signers,
