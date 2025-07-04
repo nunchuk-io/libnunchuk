@@ -1588,6 +1588,7 @@ void combinations(const std::vector<std::vector<SigningPath>>& lists,
 
 std::vector<SigningPath> get_all_paths(const ScriptNode& node) {
   if (node.get_type() != ScriptNode::Type::ANDOR &&
+      node.get_type() != ScriptNode::Type::AND &&
       node.get_type() != ScriptNode::Type::THRESH &&
       node.get_type() != ScriptNode::Type::OR &&
       node.get_type() != ScriptNode::Type::OR_TAPROOT) {
@@ -1602,13 +1603,15 @@ std::vector<SigningPath> get_all_paths(const ScriptNode& node) {
         paths.push_back(sub_path);
       }
     }
-  } else if (node.get_type() == ScriptNode::Type::THRESH) {
+  } else if (node.get_type() == ScriptNode::Type::AND ||
+             node.get_type() == ScriptNode::Type::THRESH) {
     std::map<size_t, std::vector<SigningPath>> sub_paths;
     for (size_t i = 0; i < node.get_subs().size(); i++) {
       sub_paths[i] = get_all_paths(node.get_subs()[i]);
     }
     std::vector<bool> v(node.get_subs().size());
-    std::fill(v.begin(), v.begin() + node.get_k(), true);
+    auto k = node.get_type() == ScriptNode::Type::THRESH ? node.get_k() : 2;
+    std::fill(v.begin(), v.begin() + k, true);
     do {
       std::vector<std::vector<SigningPath>> lists{};
 
@@ -2325,13 +2328,10 @@ std::string NunchukImpl::CreatePsbt(
   if (wallet.get_wallet_type() == WalletType::MINISCRIPT && use_script_path) {
     std::string keypath;
     auto script_node = Utils::GetScriptNode(wallet.get_miniscript(), keypath);
-    std::function<void(const ScriptNode&, bool)> getTimelock =
-        [&](const ScriptNode& node, bool enable_path) -> void {
-      if (!enable_path) {
-        enable_path = std::find(signing_path.begin(), signing_path.end(),
-                                node.get_id()) != signing_path.end();
-      }
-
+    std::function<void(const ScriptNode&)> getTimelock =
+        [&](const ScriptNode& node) -> void {
+      bool enable_path = std::find(signing_path.begin(), signing_path.end(),
+                                   node.get_id()) != signing_path.end();
       if (enable_path) {
         if (node.get_type() == ScriptNode::Type::AFTER) {
           Timelock timelock = Timelock::FromK(true, node.get_k());
@@ -2342,10 +2342,10 @@ std::string NunchukImpl::CreatePsbt(
         }
       }
       for (int i = 0; i < node.get_subs().size(); i++) {
-        getTimelock(node.get_subs()[i], enable_path);
+        getTimelock(node.get_subs()[i]);
       }
     };
-    getTimelock(script_node, false);
+    getTimelock(script_node);
   } else if (anti_fee_sniping) {
     locktime = GetChainTip();
   }
