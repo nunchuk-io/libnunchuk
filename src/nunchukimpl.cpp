@@ -2276,6 +2276,10 @@ std::string NunchukImpl::CreatePsbt(
     int& vsize, int& change_pos, bool anti_fee_sniping, bool use_script_path,
     const SigningPath& signing_path) {
   Wallet wallet = GetWallet(wallet_id);
+  if (wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH) {
+    use_script_path = true;
+  }
+
   std::vector<UnspentOutput> utxos = inputs;
   if (utxos.empty()) {
     utxos = GetUnspentOutputs(wallet_id);
@@ -2307,9 +2311,7 @@ std::string NunchukImpl::CreatePsbt(
       utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
       subtract_fee_from_amount,
       {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)}, change_address,
-      fee_rate, change_pos, vsize,
-      use_script_path ||
-          wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH);
+      fee_rate, change_pos, vsize, use_script_path);
   if (!res) {
     std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
@@ -2319,20 +2321,47 @@ std::string NunchukImpl::CreatePsbt(
   const auto& txr = *res;
   CTransactionRef tx_new = txr.tx;
 
-  std::vector<TxInput> new_inputs;
-  for (const CTxIn& txin : tx_new->vin) {
-    new_inputs.push_back({txin.prevout.hash.GetHex(), txin.prevout.n});
+  uint32_t locktime = 0, sequence = 0;
+  if (wallet.get_wallet_type() == WalletType::MINISCRIPT && use_script_path) {
+    std::string keypath;
+    auto script_node = Utils::GetScriptNode(wallet.get_miniscript(), keypath);
+    std::function<void(const ScriptNode&, bool)> getTimelock =
+        [&](const ScriptNode& node, bool enable_path) -> void {
+      if (!enable_path) {
+        enable_path = std::find(signing_path.begin(), signing_path.end(),
+                                node.get_id()) != signing_path.end();
+      }
+
+      if (enable_path) {
+        if (node.get_type() == ScriptNode::Type::AFTER) {
+          Timelock timelock = Timelock::FromK(true, node.get_k());
+          if (locktime < timelock.value()) locktime = timelock.value();
+        } else if (node.get_type() == ScriptNode::Type::OLDER) {
+          Timelock timelock = Timelock::FromK(false, node.get_k());
+          if (sequence < timelock.value()) sequence = timelock.value();
+        }
+      }
+      for (int i = 0; i < node.get_subs().size(); i++) {
+        getTimelock(node.get_subs()[i], enable_path);
+      }
+    };
+    getTimelock(script_node, false);
+  } else if (anti_fee_sniping) {
+    locktime = GetChainTip();
   }
-  std::vector<TxOutput> new_outputs;
+
+  std::vector<TxInput> vin;
+  for (const CTxIn& txin : tx_new->vin) {
+    vin.push_back({txin.prevout.hash.GetHex(), txin.prevout.n, sequence});
+  }
+  std::vector<TxOutput> vout;
   for (const CTxOut& txout : tx_new->vout) {
     CTxDestination address;
     ExtractDestination(txout.scriptPubKey, address);
-    new_outputs.push_back({EncodeDestination(address), txout.nValue});
+    vout.push_back({EncodeDestination(address), txout.nValue});
   }
 
-  int locktime = anti_fee_sniping ? GetChainTip() : 0;
-  auto psbt =
-      CoreUtils::getInstance().CreatePsbt(new_inputs, new_outputs, locktime);
+  auto psbt = CoreUtils::getInstance().CreatePsbt(vin, vout, locktime);
   if (!utxo_update_psbt) return psbt;
   return storage_->FillPsbt(chain_, wallet_id, psbt);
 }
