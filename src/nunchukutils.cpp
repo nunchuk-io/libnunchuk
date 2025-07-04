@@ -1341,17 +1341,26 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
                            "new m must be less than or equal to new n");
   }
   std::stringstream temp;
-  std::string multi_str =
-      address_type == AddressType::TAPROOT ? "multi_a(" : "multi(";
-  temp << "andor(ln:" << timelock.to_miniscript();
-  temp << "," << multi_str << m;
-  for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
-  temp << ")," << multi_str << new_m;
+  if (address_type == AddressType::TAPROOT) {
+    temp << "{multi_a(" << m;
+    for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
+    temp << "),and_v(v:multi_a(" << new_m;
 
-  int start_index = reuse_signers ? 0 : n;
-  for (int i = start_index; i < start_index + new_n; i++)
-    temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
-  temp << "))";
+    int start_index = reuse_signers ? 0 : n;
+    for (int i = start_index; i < start_index + new_n; i++)
+      temp << ",key_" << i << "_0";
+    temp << ")," << timelock.to_miniscript() << ")}";
+  } else {
+    temp << "andor(ln:" << timelock.to_miniscript();
+    temp << ",multi(" << new_m;
+    int start_index = reuse_signers ? 0 : n;
+    for (int i = start_index; i < start_index + new_n; i++)
+      temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
+    temp << "),multi(" << m;
+
+    for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
+    temp << "))";
+  }
   return temp.str();
 }
 
