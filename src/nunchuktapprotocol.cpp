@@ -899,7 +899,7 @@ CreateSatscardSlotsTransaction(const std::vector<SatscardSlot>& slots,
   int change_pos = 0;
   auto res = wallet::CreateTransaction(utxos, utxos, selector_outputs, true,
                                        descs, change_address, fee_rate,
-                                       change_pos, vsize, false);
+                                       change_pos, vsize, false, 0);
   if (!res) {
     std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR, error);

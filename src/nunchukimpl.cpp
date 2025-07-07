@@ -2310,20 +2310,7 @@ std::string NunchukImpl::CreatePsbt(
     change_address = unused.empty() ? NewAddress(wallet_id, true) : unused[0];
   }
 
-  auto res = wallet::CreateTransaction(
-      utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
-      subtract_fee_from_amount,
-      {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)}, change_address,
-      fee_rate, change_pos, vsize, use_script_path);
-  if (!res) {
-    std::string error = util::ErrorString(res).original;
-    throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
-                           error + strprintf(" wallet_id = '%s'", wallet_id));
-  }
-  fee = res->fee;
-  const auto& txr = *res;
-  CTransactionRef tx_new = txr.tx;
-
+  // Calculate locktime and sequence for the transaction
   uint32_t locktime = 0, sequence = 0;
   if (wallet.get_wallet_type() == WalletType::MINISCRIPT && use_script_path) {
     std::string keypath;
@@ -2334,11 +2321,9 @@ std::string NunchukImpl::CreatePsbt(
                                    node.get_id()) != signing_path.end();
       if (enable_path) {
         if (node.get_type() == ScriptNode::Type::AFTER) {
-          Timelock timelock = Timelock::FromK(true, node.get_k());
-          if (locktime < timelock.value()) locktime = timelock.value();
+          if (locktime < node.get_k()) locktime = node.get_k();
         } else if (node.get_type() == ScriptNode::Type::OLDER) {
-          Timelock timelock = Timelock::FromK(false, node.get_k());
-          if (sequence < timelock.value()) sequence = timelock.value();
+          if (sequence < node.get_k()) sequence = node.get_k();
         }
       }
       for (int i = 0; i < node.get_subs().size(); i++) {
@@ -2348,7 +2333,22 @@ std::string NunchukImpl::CreatePsbt(
     getTimelock(script_node);
   } else if (anti_fee_sniping) {
     locktime = GetChainTip();
+    sequence = MAX_BIP125_RBF_SEQUENCE;
   }
+
+  auto res = wallet::CreateTransaction(
+      utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
+      subtract_fee_from_amount,
+      {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)}, change_address,
+      fee_rate, change_pos, vsize, use_script_path, sequence);
+  if (!res) {
+    std::string error = util::ErrorString(res).original;
+    throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                           error + strprintf(" wallet_id = '%s'", wallet_id));
+  }
+  fee = res->fee;
+  const auto& txr = *res;
+  CTransactionRef tx_new = txr.tx;
 
   std::vector<TxInput> vin;
   for (const CTxIn& txin : tx_new->vin) {
