@@ -258,11 +258,11 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
   const PSBTInput& input = psbtx.inputs[0];
 
   if (!input.m_tap_key_sig.empty()) {
-    if (signers.size() == 1) {
-      tx.set_signer(signers[0].get_master_fingerprint(), true);
-      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
-      return tx;
+    for (int i = 0; i < wallet.get_m(); i++) {
+      tx.set_signer(signers[i].get_master_fingerprint(), true);
     }
+    tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+    return tx;
   }
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
     if (signers.size() == 1) {
