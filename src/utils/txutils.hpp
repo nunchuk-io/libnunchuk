@@ -87,7 +87,8 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   tx.set_height(height);
   tx.set_lock_time(mtx.nLockTime);
   for (auto& input : mtx.vin) {
-    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n, input.nSequence});
+    tx.add_input(
+        {input.prevout.hash.GetHex(), input.prevout.n, input.nSequence});
   }
   for (auto& output : mtx.vout) {
     std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
@@ -264,6 +265,17 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     tx.set_status(TransactionStatus::READY_TO_BROADCAST);
     return tx;
   }
+  if (!input.m_tap_script_sigs.empty()) {
+    auto getXfp = [&input](const XOnlyPubKey& xonly) -> std::string {
+      auto leaf_origin = input.m_tap_bip32_paths.at(xonly);
+      const auto& [leaf_hashes, origin] = leaf_origin;
+      return strprintf("%08x", ReadBE32(origin.fingerprint));
+    };
+    for (const auto& [pubkey_leaf, sig] : input.m_tap_script_sigs) {
+      const auto& [xonly, leaf_hash] = pubkey_leaf;
+      tx.set_signer(getXfp(xonly), true);
+    }
+  }
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
     if (signers.size() == 1) {
       tx.set_signer(signers[0].get_master_fingerprint(), true);
@@ -293,11 +305,8 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       }
     }
 
-    if (FinalizePSBT(psbt)) {
-      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
-    } else {
-      tx.set_status(TransactionStatus::PENDING_SIGNATURES);
-    }
+    tx.set_status(FinalizePSBT(psbt) ? TransactionStatus::READY_TO_BROADCAST
+                                     : TransactionStatus::PENDING_SIGNATURES);
     return tx;
   }
 
@@ -314,55 +323,43 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     return tx;
   }
 
-  std::vector<std::string> signed_pubkey;
-  if (!input.partial_sigs.empty()) {
-    for (const auto& sig : input.partial_sigs) {
-      signed_pubkey.push_back(HexStr(sig.second.first));
-    }
-  }
-
-  if (!input.hd_keypaths.empty()) {
-    for (auto entry : input.hd_keypaths) {
-      std::string pubkey = HexStr(entry.first);
-      std::string master_fingerprint =
-          strprintf("%08x", ReadBE32(entry.second.fingerprint));
-      if (std::find(signed_pubkey.begin(), signed_pubkey.end(), pubkey) !=
-          signed_pubkey.end()) {
-        tx.set_signer(master_fingerprint, true);
-      } else {
-        tx.set_signer(master_fingerprint, false);
+  if (wallet.get_address_type() != AddressType::TAPROOT) {
+    std::set<std::string> signed_pubkey;
+    if (!input.partial_sigs.empty()) {
+      for (const auto& sig : input.partial_sigs) {
+        signed_pubkey.insert(HexStr(sig.second.first));
       }
     }
-  } else {
-    // Hotfix: decode dummy tx sign by SeedSigner
-    for (auto signer : signers) {
-      std::string pubkey = signer.get_public_key();
-      if (pubkey.empty()) {
-        auto xpub = DecodeExtPubKey(signer.get_xpub());
-        CExtPubKey xpub0;
-        if (!xpub.Derive(xpub0, 0)) {
-          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                 "Invalid path");
-        }
-        CExtPubKey xpub01;
-        if (!xpub0.Derive(xpub01, 1)) {
-          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                 "Invalid path");
-        }
-        pubkey = HexStr(xpub01.pubkey);
+    if (!input.hd_keypaths.empty()) {
+      for (auto entry : input.hd_keypaths) {
+        std::string pubkey = HexStr(entry.first);
+        std::string master_fingerprint =
+            strprintf("%08x", ReadBE32(entry.second.fingerprint));
+        tx.set_signer(master_fingerprint, signed_pubkey.contains(pubkey));
       }
-      if (std::find(signed_pubkey.begin(), signed_pubkey.end(), pubkey) !=
-          signed_pubkey.end()) {
-        tx.set_signer(signer.get_master_fingerprint(), true);
-      } else {
-        tx.set_signer(signer.get_master_fingerprint(), false);
+    } else {
+      // Hotfix: decode dummy tx sign by SeedSigner
+      for (auto signer : signers) {
+        std::string pubkey = signer.get_public_key();
+        if (pubkey.empty()) {
+          auto xpub = DecodeExtPubKey(signer.get_xpub());
+          CExtPubKey xpub0;
+          CExtPubKey xpub01;
+          if (!xpub.Derive(xpub0, 0) || !xpub0.Derive(xpub01, 1)) {
+            throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                   "Invalid path");
+          }
+          pubkey = HexStr(xpub01.pubkey);
+        }
+        tx.set_signer(signer.get_master_fingerprint(),
+                      signed_pubkey.contains(pubkey));
       }
     }
   }
 
-  tx.set_status(signed_pubkey.size() == wallet.get_m()
-                    ? TransactionStatus::READY_TO_BROADCAST
-                    : TransactionStatus::PENDING_SIGNATURES);
+  auto psbt = DecodePsbt(EncodePsbt(psbtx));
+  tx.set_status(FinalizePSBT(psbt) ? TransactionStatus::READY_TO_BROADCAST
+                                   : TransactionStatus::PENDING_SIGNATURES);
   return tx;
 }
 inline std::pair<nunchuk::Transaction, bool /* is hex_tx */>
@@ -431,12 +428,8 @@ inline std::string GetPartialSignature(const std::string& base64_psbt,
     if (pubkey.empty()) {
       auto xpub = DecodeExtPubKey(signer.get_xpub());
       CExtPubKey xpub0;
-      if (!xpub.Derive(xpub0, 0)) {
-        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                               "Invalid path");
-      }
       CExtPubKey xpub01;
-      if (!xpub0.Derive(xpub01, 1)) {
+      if (!xpub.Derive(xpub0, 0) || !xpub0.Derive(xpub01, 1)) {
         throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                                "Invalid path");
       }
