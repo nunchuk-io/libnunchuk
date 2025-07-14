@@ -2026,6 +2026,7 @@ class NUNCHUK_EXPORT Utils {
                                     const std::vector<uint8_t>& preimage);
   static bool IsPreimageRevealed(const std::string& psbt,
                                  const std::vector<uint8_t>& hash);
+  static std::vector<SigningPath> GetAllSigningPaths(const std::string& script);
   static std::string ExpandingMultisigMiniscriptTemplate(
       int m, int n, int new_n, bool reuse_signers, const Timelock& timelock,
       AddressType address_type);

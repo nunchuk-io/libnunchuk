@@ -1571,83 +1571,6 @@ Transaction NunchukImpl::DraftTransaction(
   return tx;
 }
 
-void combinations(const std::vector<std::vector<SigningPath>>& lists,
-                  int list_index, std::vector<SigningPath>& current,
-                  std::vector<std::vector<SigningPath>>& result) {
-  if (list_index == lists.size()) {
-    result.push_back(current);
-    return;
-  }
-
-  for (int i = 0; i < lists[list_index].size(); ++i) {
-    current.push_back(lists[list_index][i]);
-    combinations(lists, list_index + 1, current, result);
-    current.pop_back();
-  }
-}
-
-std::vector<SigningPath> get_all_paths(const ScriptNode& node) {
-  if (node.get_type() != ScriptNode::Type::ANDOR &&
-      node.get_type() != ScriptNode::Type::AND &&
-      node.get_type() != ScriptNode::Type::THRESH &&
-      node.get_type() != ScriptNode::Type::OR &&
-      node.get_type() != ScriptNode::Type::OR_TAPROOT) {
-    return {{node.get_id()}};
-  }
-  std::vector<SigningPath> paths;
-
-  if (node.get_type() == ScriptNode::Type::ANDOR) {
-    for (size_t i = 1; i <= 2; i++) {
-      auto sub_paths = get_all_paths(node.get_subs()[i]);
-      for (auto&& sub_path : sub_paths) {
-        paths.push_back(sub_path);
-      }
-    }
-  } else if (node.get_type() == ScriptNode::Type::AND ||
-             node.get_type() == ScriptNode::Type::THRESH) {
-    std::map<size_t, std::vector<SigningPath>> sub_paths;
-    for (size_t i = 0; i < node.get_subs().size(); i++) {
-      sub_paths[i] = get_all_paths(node.get_subs()[i]);
-    }
-    std::vector<bool> v(node.get_subs().size());
-    auto k = node.get_type() == ScriptNode::Type::THRESH ? node.get_k() : 2;
-    std::fill(v.begin(), v.begin() + k, true);
-    do {
-      std::vector<std::vector<SigningPath>> lists{};
-
-      for (int i = 0; i < node.get_subs().size(); i++) {
-        if (v[i]) {
-          lists.push_back(sub_paths[i]);
-        }
-      }
-
-      std::vector<std::vector<SigningPath>> result;
-      std::vector<SigningPath> current;
-      combinations(lists, 0, current, result);
-
-      for (const auto& combination : result) {
-        SigningPath sub_path;
-
-        for (size_t i = 0; i < combination.size(); ++i) {
-          sub_path.insert(sub_path.end(), combination[i].begin(),
-                          combination[i].end());
-        }
-        paths.push_back(sub_path);
-      }
-    } while (std::prev_permutation(v.begin(), v.end()));
-
-  } else if (node.get_type() == ScriptNode::Type::OR ||
-             node.get_type() == ScriptNode::Type::OR_TAPROOT) {
-    for (size_t i = 0; i <= 1; i++) {
-      auto sub_paths = get_all_paths(node.get_subs()[i]);
-      for (auto&& sub_path : sub_paths) {
-        paths.push_back(sub_path);
-      }
-    }
-  }
-  return paths;
-}
-
 std::vector<std::pair<SigningPath, Amount>>
 NunchukImpl::EstimateFeeForSigningPaths(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
@@ -1661,9 +1584,7 @@ NunchukImpl::EstimateFeeForSigningPaths(
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                            "Wallet is not a miniscript wallet!");
   }
-  std::string keypath;
-  auto node = Utils::GetScriptNode(wallet.get_miniscript(), keypath);
-  auto paths = get_all_paths(node);
+  auto paths = Utils::GetAllSigningPaths(wallet.get_miniscript());
   std::vector<std::pair<SigningPath, Amount>> rs;
   for (auto&& path : paths) {
     rs.push_back({path, tx.get_fee()});
