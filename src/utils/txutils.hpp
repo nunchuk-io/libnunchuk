@@ -177,57 +177,67 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
 
   // init keyset status
   std::map<std::string, KeysetStatus> keysets{};
-  int n = wallet.get_n();
-  auto signers = wallet.get_signers();
-  std::vector<bool> v(n);
-  std::fill(v.begin(), v.begin() + wallet.get_m(), true);
   std::string valuekeyset{};
-  bool enableValueKeyset =
-      wallet.get_wallet_template() != WalletTemplate::DISABLE_KEY_PATH;
-  do {
-    KeyStatus status{};
-    std::vector<std::string> xfps{};
-    for (int i = 0; i < n; i++) {
-      if (v[i]) {
-        status[signers[i].get_master_fingerprint()] = false;
-        xfps.push_back(signers[i].get_master_fingerprint());
+
+  if (wallet.get_wallet_type() == WalletType::MULTI_SIG) {
+    int n = wallet.get_n();
+    auto signers = wallet.get_signers();
+    std::vector<bool> v(n);
+    std::fill(v.begin(), v.begin() + wallet.get_m(), true);
+    bool enableValueKeyset =
+        wallet.get_wallet_template() != WalletTemplate::DISABLE_KEY_PATH;
+    do {
+      KeyStatus status{};
+      std::vector<std::string> xfps{};
+      for (int i = 0; i < n; i++) {
+        if (v[i]) {
+          status[signers[i].get_master_fingerprint()] = false;
+          xfps.push_back(signers[i].get_master_fingerprint());
+        }
       }
-    }
-    if (enableValueKeyset && valuekeyset.empty()) valuekeyset = getName(xfps);
-    keysets.insert(
-        {getName(xfps), {TransactionStatus::PENDING_NONCE, std::move(status)}});
-  } while (std::prev_permutation(v.begin(), v.end()));
+      if (enableValueKeyset && valuekeyset.empty()) valuekeyset = getName(xfps);
+      keysets.insert({getName(xfps),
+                      {TransactionStatus::PENDING_NONCE, std::move(status)}});
+    } while (std::prev_permutation(v.begin(), v.end()));
+  }
 
   // mapping aggkey to name
-  std::map<CPubKey, std::string> keysetname{};
+  std::map<CPubKey, std::string> keyset_name{};
   for (const auto& [agg, parts] : input.m_musig2_participants) {
     std::vector<std::string> xfps{};
+    KeyStatus status{};
     for (const auto& pub : parts) {
-      xfps.push_back(getXfp(pub));
+      std::string xfp = getXfp(pub);
+      xfps.push_back(xfp);
+      status[xfp] = false;
     }
-    keysetname.insert({agg, getName(xfps)});
+    keyset_name.insert({agg, getName(xfps)});
+    if (wallet.get_wallet_type() != WalletType::MULTI_SIG) {
+      keysets.insert({keyset_name[agg],
+                      {TransactionStatus::PENDING_NONCE, std::move(status)}});
+    }
   }
 
   // check pubnonces
   for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-    if (part_pubnonce.size() == wallet.get_m()) {
-      keysets[keysetname[agg_lh.first]].first =
-          TransactionStatus::PENDING_SIGNATURES;
+    auto name = keyset_name[agg_lh.first];
+    if (part_pubnonce.size() == keysets[name].second.size()) {
+      keysets[name].first = TransactionStatus::PENDING_SIGNATURES;
     } else {
       for (const auto& [part, pubnonce] : part_pubnonce) {
-        keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
+        keysets[name].second[getXfp(part)] = true;
       }
     }
   }
 
   // check partial sigs
   for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
-    if (part_psig.size() == wallet.get_m()) {
-      keysets[keysetname[agg_lh.first]].first =
-          TransactionStatus::READY_TO_BROADCAST;
+    auto name = keyset_name[agg_lh.first];
+    if (part_psig.size() == keysets[name].second.size()) {
+      keysets[name].first = TransactionStatus::READY_TO_BROADCAST;
     } else {
       for (const auto& [part, psig] : part_psig) {
-        keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
+        keysets[name].second[getXfp(part)] = true;
       }
     }
   }
@@ -321,6 +331,8 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       }
     }
     return tx;
+  } else if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+    tx.set_keyset_status(GetKeysetStatus(psbtx, wallet));
   }
 
   if (wallet.get_address_type() != AddressType::TAPROOT) {
