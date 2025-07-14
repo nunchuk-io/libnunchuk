@@ -2777,25 +2777,25 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
     bool allow_used_signer, const std::string& decoy_pin) {
   std::string script;
   std::string error;
-  WalletTemplate wallet_template{WalletTemplate::DEFAULT};
+  bool is_taproot = address_type == AddressType::TAPROOT;
+  WalletTemplate wallet_template{is_taproot ? WalletTemplate::DISABLE_KEY_PATH
+                                            : WalletTemplate::DEFAULT};
   std::vector<SingleSigner> used_signers{};
 
   if (Utils::IsValidMiniscriptTemplate(tmpl, address_type)) {
     script = Utils::MiniscriptTemplateToMiniscript(tmpl, signers);
   } else if (Utils::IsValidPolicy(tmpl)) {
     script = Utils::PolicyToMiniscript(tmpl, signers, address_type);
-  } else if (address_type == AddressType::TAPROOT &&
-             Utils::IsValidTapscriptTemplate(tmpl, error)) {
+  } else if (is_taproot && Utils::IsValidTapscriptTemplate(tmpl, error)) {
     std::string keypath;
     script = Utils::TapscriptTemplateToTapscript(tmpl, signers, keypath);
-    if (keypath.empty()) {
-      wallet_template = WalletTemplate::DISABLE_KEY_PATH;
-    } else {
+    if (!keypath.empty()) {
       if (!signers.count(keypath)) {
         throw NunchukException(NunchukException::INVALID_PARAMETER,
                                "Invalid keypath");
       }
       used_signers.push_back(signers.at(keypath));
+      wallet_template = WalletTemplate::DEFAULT;
     }
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,

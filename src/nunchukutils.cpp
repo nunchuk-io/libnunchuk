@@ -1237,11 +1237,23 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
     return false;
   }
   for (auto& subscript : subscripts) {
+    if (IsValidMusigTemplate(subscript)) continue;
     if (!IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
       error = strprintf("invalid miniscript template: '%s'", subscript);
       return false;
     }
   }
+  return true;
+}
+
+bool Utils::IsValidMusigTemplate(const std::string& musig_template) {
+  if (musig_template.size() <= 11) return false;
+  if (musig_template.find("pk(musig(") != 0) return false;
+  if (musig_template.find("))", 9) != musig_template.size() - 2) return false;
+  std::string inner = musig_template.substr(9, musig_template.size() - 11);
+  std::vector<std::string> inner_parts = split(inner, ',');
+  if (inner_parts.size() < 2) return false;
+  if (join(inner_parts, ',') != inner) return false;
   return true;
 }
 
@@ -1258,6 +1270,9 @@ struct TemplateContext {
 std::string Utils::MiniscriptTemplateToMiniscript(
     const std::string& miniscript_template,
     const std::map<std::string, SingleSigner>& signers) {
+  if (IsValidMusigTemplate(miniscript_template)) {
+    return GetMusigScript(miniscript_template, signers);
+  }
   auto node = ::ParseMiniscript(miniscript_template, AddressType::ANY);
   if (!node || !node->IsValidTopLevel() || !node->IsSane() ||
       node->IsNotSatisfiable()) {
@@ -1288,6 +1303,24 @@ std::string Utils::TapscriptTemplateToTapscript(
   std::string ret;
   SubScriptsToString(subscripts, depths, ret);
   return ret;
+}
+
+std::string Utils::GetMusigScript(
+    const std::string& musig_template,
+    const std::map<std::string, SingleSigner>& signers) {
+  if (!IsValidMusigTemplate(musig_template))
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid musig template");
+  std::string inner = musig_template.substr(9, musig_template.size() - 11);
+  std::vector<std::string> parts = split(inner, ',');
+  std::stringstream ss;
+  ss << "pk(musig(";
+  for (int i = 0; i < parts.size(); i++) {
+    if (i > 0) ss << ",";
+    ss << GetDescriptorForSigner(signers.at(parts[i]), DescriptorPath::ANY);
+  }
+  ss << "))";
+  return ss.str();
 }
 
 ScriptNode Utils::GetScriptNode(const std::string& script,
