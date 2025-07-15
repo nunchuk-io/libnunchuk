@@ -159,6 +159,8 @@ std::string ScriptNode::type_to_string(ScriptNode::Type type) {
       return "MULTI";
     case ScriptNode::Type::OR_TAPROOT:
       return "OR_TAPROOT";
+    case ScriptNode::Type::MUSIG:
+      return "MUSIG";
     default:
       return "UNKNOWN";
   }

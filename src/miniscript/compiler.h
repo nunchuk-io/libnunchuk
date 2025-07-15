@@ -7,7 +7,6 @@
 
 #include <nunchuk.h>
 #include <miniscript/miniscript.h>
-
 #include <string>
 
 namespace nunchuk {
@@ -109,28 +108,6 @@ struct CompilerContext {
   bool KeyCompare(const Key& a, const Key& b) const { return a < b; }
 };
 
-struct ParseContext {
-  typedef std::string Key;
-
-  nunchuk::miniscript::MiniscriptContext ms_context;
-
-  ParseContext(nunchuk::miniscript::MiniscriptContext ms_context_)
-      : ms_context(ms_context_) {}
-
-  template <typename I>
-  std::optional<Key> FromString(I first, I last) const {
-    if (std::distance(first, last) == 0 || std::distance(first, last) > 200)
-      return {};
-    return std::string(first, last);
-  }
-
-  bool KeyCompare(const Key& a, const Key& b) const { return a < b; }
-
-  nunchuk::miniscript::MiniscriptContext MsContext() const {
-    return ms_context;
-  }
-};
-
 extern const CompilerContext COMPILER_CTX;
 
 bool Compile(const std::string& policy,
@@ -139,31 +116,11 @@ bool Compile(const std::string& policy,
 
 std::string Expand(std::string str);
 std::string Abbreviate(std::string str);
-
 std::string Disassemble(const CScript& script);
 
 nunchuk::Policy ParsePolicy(const std::string& policy);
-std::string PolicyToString(const nunchuk::Policy& node);
 bool CompilePolicy(const nunchuk::Policy& policy,
                    nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret,
                    double& avgcost);
-std::string PolicyToMiniscript(const nunchuk::Policy& policy,
-                               const std::map<std::string, std::string>& config,
-                               nunchuk::AddressType address_type);
-nunchuk::miniscript::NodeRef<std::string> ParseMiniscript(
-    const std::string& script, nunchuk::AddressType address_type);
-std::string MiniscriptToString(
-    const nunchuk::miniscript::NodeRef<std::string>& node);
-nunchuk::ScriptNode MiniscriptToScriptNode(
-    const nunchuk::miniscript::NodeRef<std::string>& node);
-std::string ScriptNodeToString(const nunchuk::ScriptNode& node);
-bool ParseTapscriptTemplate(const std::string& tapscript_template,
-                            std::string& keypath,
-                            std::vector<std::string>& subscripts,
-                            std::vector<int>& depths, std::string& error);
-bool SubScriptsToString(const std::vector<std::string>& subscripts,
-                        const std::vector<int>& depths, std::string& ret);
-nunchuk::ScriptNode SubScriptsToScriptNode(
-    const std::vector<std::string>& subscripts, const std::vector<int>& depths);
 
 #endif

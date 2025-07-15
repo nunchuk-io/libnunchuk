@@ -198,6 +198,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/miniscript/compiler.cpp
     src/miniscript/miniscript.cpp
     src/miniscript/timeline.cpp
+    src/miniscript/util.cpp
 )
 
 set(PROJECT_LIBRARIES

@@ -63,6 +63,8 @@
 #include <bbqr/bbqr.hpp>
 #include <miniscript/compiler.h>
 #include <miniscript/timeline.h>
+#include <miniscript/util.h>
+
 using namespace boost::algorithm;
 using namespace nunchuk::bcr2;
 
@@ -1217,12 +1219,12 @@ std::string Utils::PolicyToMiniscript(
     config[signer.first] =
         GetDescriptorForSigner(signer.second, DescriptorPath::ANY);
   }
-  return ::PolicyToMiniscript(policy_node, config, address_type);
+  return nunchuk::PolicyToMiniscript(policy_node, config, address_type);
 }
 
 bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
                                       AddressType address_type) {
-  auto node = ::ParseMiniscript(miniscript_template, address_type);
+  auto node = ParseMiniscript(miniscript_template, address_type);
   return node && node->IsValidTopLevel() && node->IsSane() &&
          !node->IsNotSatisfiable();
 }
@@ -1273,7 +1275,7 @@ std::string Utils::MiniscriptTemplateToMiniscript(
   if (IsValidMusigTemplate(miniscript_template)) {
     return GetMusigScript(miniscript_template, signers);
   }
-  auto node = ::ParseMiniscript(miniscript_template, AddressType::ANY);
+  auto node = ParseMiniscript(miniscript_template, AddressType::ANY);
   if (!node || !node->IsValidTopLevel() || !node->IsSane() ||
       node->IsNotSatisfiable()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -1334,8 +1336,7 @@ ScriptNode Utils::GetScriptNode(const std::string& script,
     return node;
   }
 
-  auto node =
-      ::MiniscriptToScriptNode(::ParseMiniscript(script, AddressType::ANY));
+  auto node = MiniscriptToScriptNode(ParseMiniscript(script, AddressType::ANY));
   node.set_id({1});
   return node;
 }

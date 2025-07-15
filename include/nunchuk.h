@@ -1137,6 +1137,7 @@ class NUNCHUK_EXPORT ScriptNode {
     THRESH,
     MULTI,
     OR_TAPROOT,
+    MUSIG,
   };
 
   static std::string type_to_string(Type type);
