@@ -63,6 +63,10 @@ bool SubScriptsToString(const std::vector<std::string>& subscripts,
                         const std::vector<int>& depths, std::string& ret);
 ScriptNode SubScriptsToScriptNode(const std::vector<std::string>& subscripts,
                                   const std::vector<int>& depths);
+std::vector<SigningPath> GetAllSigningPaths(const ScriptNode& node);
+bool IsValidMusigTemplate(const std::string& musig_template);
+std::string GetMusigScript(const std::string& musig_template,
+                           const std::map<std::string, SingleSigner>& signers);
 
 }  // namespace nunchuk
 

@@ -1248,17 +1248,6 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
   return true;
 }
 
-bool Utils::IsValidMusigTemplate(const std::string& musig_template) {
-  if (musig_template.size() <= 11) return false;
-  if (musig_template.find("pk(musig(") != 0) return false;
-  if (musig_template.find("))", 9) != musig_template.size() - 2) return false;
-  std::string inner = musig_template.substr(9, musig_template.size() - 11);
-  std::vector<std::string> inner_parts = split(inner, ',');
-  if (inner_parts.size() < 2) return false;
-  if (join(inner_parts, ',') != inner) return false;
-  return true;
-}
-
 struct TemplateContext {
   typedef std::string Key;
   const std::map<std::string, SingleSigner>& signers;
@@ -1272,9 +1261,6 @@ struct TemplateContext {
 std::string Utils::MiniscriptTemplateToMiniscript(
     const std::string& miniscript_template,
     const std::map<std::string, SingleSigner>& signers) {
-  if (IsValidMusigTemplate(miniscript_template)) {
-    return GetMusigScript(miniscript_template, signers);
-  }
   auto node = ParseMiniscript(miniscript_template, AddressType::ANY);
   if (!node || !node->IsValidTopLevel() || !node->IsSane() ||
       node->IsNotSatisfiable()) {
@@ -1299,30 +1285,16 @@ std::string Utils::TapscriptTemplateToTapscript(
 
   std::vector<std::string> subscripts;
   for (auto& subscript : subscripts_tmpl) {
-    subscripts.push_back(MiniscriptTemplateToMiniscript(subscript, signers));
+    if (IsValidMusigTemplate(subscript)) {
+      subscripts.push_back(GetMusigScript(subscript, signers));
+    } else {
+      subscripts.push_back(MiniscriptTemplateToMiniscript(subscript, signers));
+    }
   }
 
   std::string ret;
   SubScriptsToString(subscripts, depths, ret);
   return ret;
-}
-
-std::string Utils::GetMusigScript(
-    const std::string& musig_template,
-    const std::map<std::string, SingleSigner>& signers) {
-  if (!IsValidMusigTemplate(musig_template))
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid musig template");
-  std::string inner = musig_template.substr(9, musig_template.size() - 11);
-  std::vector<std::string> parts = split(inner, ',');
-  std::stringstream ss;
-  ss << "pk(musig(";
-  for (int i = 0; i < parts.size(); i++) {
-    if (i > 0) ss << ",";
-    ss << GetDescriptorForSigner(signers.at(parts[i]), DescriptorPath::ANY);
-  }
-  ss << "))";
-  return ss.str();
 }
 
 ScriptNode Utils::GetScriptNode(const std::string& script,
@@ -1341,100 +1313,10 @@ ScriptNode Utils::GetScriptNode(const std::string& script,
   return node;
 }
 
-void combinations(const std::vector<std::vector<SigningPath>>& lists,
-                  int list_index, std::vector<SigningPath>& current,
-                  std::vector<std::vector<SigningPath>>& result) {
-  if (list_index == lists.size()) {
-    result.push_back(current);
-    return;
-  }
-
-  for (int i = 0; i < lists[list_index].size(); ++i) {
-    current.push_back(lists[list_index][i]);
-    combinations(lists, list_index + 1, current, result);
-    current.pop_back();
-  }
-}
-
-std::vector<SigningPath> get_all_paths(const ScriptNode& node) {
-  if (node.get_type() != ScriptNode::Type::ANDOR &&
-      node.get_type() != ScriptNode::Type::AND &&
-      node.get_type() != ScriptNode::Type::THRESH &&
-      node.get_type() != ScriptNode::Type::OR &&
-      node.get_type() != ScriptNode::Type::OR_TAPROOT) {
-    return {{node.get_id()}};
-  }
-  std::vector<SigningPath> paths;
-
-  if (node.get_type() == ScriptNode::Type::ANDOR) {
-    std::map<size_t, std::vector<SigningPath>> sub_paths;
-    for (size_t i = 0; i < node.get_subs().size(); i++) {
-      sub_paths[i] = get_all_paths(node.get_subs()[i]);
-    }
-    std::vector<std::vector<SigningPath>> xandy_paths;
-    std::vector<SigningPath> current;
-    combinations({sub_paths[0], sub_paths[1]}, 0, current, xandy_paths);
-
-    for (const auto& combination : xandy_paths) {
-      SigningPath sub_path;
-      for (size_t i = 0; i < combination.size(); ++i) {
-        sub_path.insert(sub_path.end(), combination[i].begin(),
-                        combination[i].end());
-      }
-      paths.push_back(sub_path);
-    }
-
-    for (auto&& sub_path : sub_paths[2]) {
-      paths.push_back(sub_path);
-    }
-  } else if (node.get_type() == ScriptNode::Type::AND ||
-             node.get_type() == ScriptNode::Type::THRESH) {
-    std::map<size_t, std::vector<SigningPath>> sub_paths;
-    for (size_t i = 0; i < node.get_subs().size(); i++) {
-      sub_paths[i] = get_all_paths(node.get_subs()[i]);
-    }
-    std::vector<bool> v(node.get_subs().size());
-    auto k = node.get_type() == ScriptNode::Type::THRESH ? node.get_k() : 2;
-    std::fill(v.begin(), v.begin() + k, true);
-    do {
-      std::vector<std::vector<SigningPath>> lists{};
-
-      for (int i = 0; i < node.get_subs().size(); i++) {
-        if (v[i]) {
-          lists.push_back(sub_paths[i]);
-        }
-      }
-
-      std::vector<std::vector<SigningPath>> result;
-      std::vector<SigningPath> current;
-      combinations(lists, 0, current, result);
-
-      for (const auto& combination : result) {
-        SigningPath sub_path;
-        for (size_t i = 0; i < combination.size(); ++i) {
-          sub_path.insert(sub_path.end(), combination[i].begin(),
-                          combination[i].end());
-        }
-        paths.push_back(sub_path);
-      }
-    } while (std::prev_permutation(v.begin(), v.end()));
-
-  } else if (node.get_type() == ScriptNode::Type::OR ||
-             node.get_type() == ScriptNode::Type::OR_TAPROOT) {
-    for (size_t i = 0; i <= 1; i++) {
-      auto sub_paths = get_all_paths(node.get_subs()[i]);
-      for (auto&& sub_path : sub_paths) {
-        paths.push_back(sub_path);
-      }
-    }
-  }
-  return paths;
-}
-
 std::vector<SigningPath> Utils::GetAllSigningPaths(const std::string& script) {
   std::string keypath;
   auto node = GetScriptNode(script, keypath);
-  return get_all_paths(node);
+  return nunchuk::GetAllSigningPaths(node);
 }
 
 std::string Utils::ExpandingMultisigMiniscriptTemplate(

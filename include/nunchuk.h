@@ -2007,16 +2007,12 @@ class NUNCHUK_EXPORT Utils {
                                         AddressType address_type);
   static bool IsValidTapscriptTemplate(const std::string& tapscript_template,
                                        std::string& error);
-  static bool IsValidMusigTemplate(const std::string& musig_template);
   static std::string MiniscriptTemplateToMiniscript(
       const std::string& miniscript_template,
       const std::map<std::string, SingleSigner>& signers);
   static std::string TapscriptTemplateToTapscript(
       const std::string& tapscript_template,
       const std::map<std::string, SingleSigner>& signers, std::string& keypath);
-  static std::string GetMusigScript(
-      const std::string& musig_template,
-      const std::map<std::string, SingleSigner>& signers);
   static ScriptNode GetScriptNode(const std::string& script,
                                   std::string& keypath);
   static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
