@@ -129,6 +129,30 @@ bool ScriptNode::is_satisfiable(const std::string& psbt) const {
   return is_satisfiable(tx);
 }
 
+KeysetStatus ScriptNode::get_keyset_status(const Transaction& tx) const {
+  if (node_type_ != ScriptNode::Type::MUSIG)
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid node type");
+  std::set<std::string> xfps;
+  for (auto& key : keys_) {
+    std::string xfp = Utils::ParseSignerString(key).get_master_fingerprint();
+    xfps.insert(xfp);
+  }
+  auto keysets = tx.get_keyset_status();
+  for (auto& keyset : keysets) {
+    if (keyset.second.size() != xfps.size()) continue;
+    bool found = true;
+    for (auto& xfp : xfps) {
+      if (keyset.second.find(xfp) == keyset.second.end()) {
+        found = false;
+        break;
+      }
+    }
+    if (found) return keyset;
+  }
+  throw NunchukException(NunchukException::NOT_FOUND, "Keyset not found");
+}
+
 std::string ScriptNode::type_to_string(ScriptNode::Type type) {
   switch (type) {
     case ScriptNode::Type::NONE:

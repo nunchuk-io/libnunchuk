@@ -258,6 +258,7 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_STATE = -1030;
   static const int INVALID_WALLET_POLICY = -1031;
   static const int INVALID_WALLET_CONFIG = -1032;
+  static const int NOT_FOUND = -1033;
   using BaseException::BaseException;
 };
 
@@ -1166,6 +1167,7 @@ class NUNCHUK_EXPORT ScriptNode {
                  int64_t& max_lock) const;
   bool is_satisfiable(const Transaction& tx) const;
   bool is_satisfiable(const std::string& psbt) const;
+  KeysetStatus get_keyset_status(const Transaction& tx) const;
 
  private:
   Type node_type_{Type::NONE};
