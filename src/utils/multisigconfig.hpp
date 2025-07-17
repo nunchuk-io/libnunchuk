@@ -123,6 +123,9 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
       throw NunchukException(NunchukException::INVALID_FORMAT,
                              "Invalid parameters n, m");
     }
+    if (n == 1) {
+      w = WalletType::SINGLE_SIG;
+    }
   } catch (NunchukException& ne) {
     throw;
   } catch (...) {
