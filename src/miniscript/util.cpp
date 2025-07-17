@@ -347,7 +347,7 @@ ScriptNode TreeToScriptNode(TreeNode* root) {
     if (IsValidMusigTemplate(root->value)) {
       std::string inner = root->value.substr(9, root->value.size() - 11);
       std::vector<std::string> keys = split(inner, ',');
-      auto k = keys.size();
+      uint32_t k = static_cast<uint32_t>(keys.size());
       return ScriptNode{ScriptNode::Type::MUSIG, {}, std::move(keys), {}, k};
     } else {
       return MiniscriptToScriptNode(
