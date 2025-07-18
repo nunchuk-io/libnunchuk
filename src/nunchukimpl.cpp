@@ -1592,6 +1592,32 @@ NunchukImpl::EstimateFeeForSigningPaths(
   return rs;
 }
 
+std::pair<int64_t, Timelock::Based> NunchukImpl::GetTimelockedUntil(
+    const std::string& wallet_id, const std::string& tx_id) {
+  auto tx = storage_->GetTransaction(chain_, wallet_id, tx_id);
+  if (tx.get_status() == TransactionStatus::CONFIRMED) {
+    return {0, Timelock::Based::NONE};
+  }
+  Timelock timelock = Timelock::FromK(true, tx.get_lock_time());
+  int64_t max_value = timelock.value();
+  Timelock::Based based = timelock.based();
+  uint32_t sequence = tx.get_inputs()[0].nSequence;
+  if (sequence != 0 && sequence != MAX_BIP125_RBF_SEQUENCE) {
+    auto utxos = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
+    based = utxos[0].get_lock_based();
+    if (based != Timelock::Based::NONE) {
+      int64_t lock_value = Timelock::FromK(false, sequence).value();
+      for (auto&& utxo : utxos) {
+        auto value =
+            (based == Timelock::Based::HEIGHT_LOCK ? utxo.get_height()
+                                                   : utxo.get_blocktime());
+        max_value = std::max(max_value, lock_value + value);
+      }
+    }
+  }
+  return {max_value, based};
+}
+
 Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
                                             const std::string& tx_id,
                                             Amount new_fee_rate,

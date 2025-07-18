@@ -1359,6 +1359,8 @@ class NUNCHUK_EXPORT Nunchuk {
                              Amount fee_rate = -1,
                              bool subtract_fee_from_amount = false,
                              const std::string& replace_txid = {}) = 0;
+  virtual std::pair<int64_t, Timelock::Based> GetTimelockedUntil(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
 
   virtual Transaction ReplaceTransaction(
       const std::string& wallet_id, const std::string& tx_id,
