@@ -37,6 +37,16 @@ inline static const std::regex FORMAT_REGEX("Format:(.+)");
 inline static const std::regex DERIVATION_REGEX("Derivation:(.+)");
 inline static const std::regex XFP_REGEX("([0-9a-fA-F]{8}):(.+)");
 
+inline std::string AddressTypeToConfigStr(nunchuk::AddressType value) {
+  using namespace nunchuk;
+  if (value == AddressType::LEGACY) return "P2SH";
+  if (value == AddressType::NESTED_SEGWIT) return "P2WSH-P2SH";
+  if (value == AddressType::NATIVE_SEGWIT) return "P2WSH";
+  if (value == AddressType::TAPROOT) return "P2TR";
+  throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
+                         "Invalid address type");
+}
+
 inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
   std::stringstream content;
@@ -44,11 +54,7 @@ inline std::string GetMultisigConfig(const nunchuk::Wallet& wallet) {
           << "Name: " << wallet.get_name().substr(0, 20) << std::endl
           << "Policy: " << wallet.get_m() << " of " << wallet.get_n()
           << std::endl
-          << "Format: "
-          << (wallet.get_address_type() == AddressType::LEGACY ? "P2SH"
-              : wallet.get_address_type() == AddressType::NATIVE_SEGWIT
-                  ? "P2WSH"
-                  : "P2WSH-P2SH")
+          << "Format: " << AddressTypeToConfigStr(wallet.get_address_type())
           << std::endl;
 
   content << std::endl;
