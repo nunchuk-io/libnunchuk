@@ -5,7 +5,7 @@
 namespace nunchuk {
 
 MiniscriptTimeline::MiniscriptTimeline(const std::string& miniscript) {
-  std::string keypath;
+  std::vector<std::string> keypath;
   node_ = Utils::GetScriptNode(miniscript, keypath);
   add_node(node_);
 }

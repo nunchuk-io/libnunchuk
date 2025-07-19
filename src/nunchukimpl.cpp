@@ -2260,7 +2260,7 @@ std::string NunchukImpl::CreatePsbt(
   // Calculate locktime and sequence for the transaction
   uint32_t locktime = 0, sequence = 0;
   if (wallet.get_wallet_type() == WalletType::MINISCRIPT && use_script_path) {
-    std::string keypath;
+    std::vector<std::string> keypath;
     auto script_node = Utils::GetScriptNode(wallet.get_miniscript(), keypath);
     std::function<void(const ScriptNode&)> getTimelock =
         [&](const ScriptNode& node) -> void {
@@ -2733,16 +2733,16 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
   } else if (Utils::IsValidPolicy(tmpl)) {
     script = Utils::PolicyToMiniscript(tmpl, signers, address_type);
   } else if (is_taproot && Utils::IsValidTapscriptTemplate(tmpl, error)) {
-    std::string keypath;
+    std::vector<std::string> keypath;
     script = Utils::TapscriptTemplateToTapscript(tmpl, signers, keypath);
-    if (!keypath.empty()) {
-      if (!signers.count(keypath)) {
+    for (auto&& key : keypath) {
+      if (!signers.count(key)) {
         throw NunchukException(NunchukException::INVALID_PARAMETER,
                                "Invalid keypath");
       }
-      used_signers.push_back(signers.at(keypath));
-      keypath_m = 1;
+      used_signers.push_back(signers.at(key));
     }
+    keypath_m = keypath.size();
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid miniscript " + error);

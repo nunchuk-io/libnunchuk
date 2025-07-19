@@ -251,14 +251,27 @@ std::string ScriptNodeToString(const ScriptNode& node) {
 }
 
 bool ParseTapscriptTemplate(const std::string& tapscript_template,
-                            std::string& keypath,
+                            std::vector<std::string>& keypath,
                             std::vector<std::string>& subscripts,
                             std::vector<int>& depths, std::string& error) {
   using namespace script;
   Span<const char> expr{tapscript_template};
   if (Func("tr", expr)) {
+    keypath.clear();
     auto a = Expr(expr);
-    keypath = std::string(a.begin(), a.end());
+    std::string tmpl = std::string(a.begin(), a.end());
+    if (tmpl.find("musig(") == 0) {
+      if (tmpl.find(")", 6) != tmpl.size() - 1) {
+        error = strprintf("tr(): expected ')' after musig expression");
+        return false;
+      }
+      auto keys = split(tmpl.substr(6, tmpl.size() - 7), ',');
+      for (auto& key : keys) {
+        keypath.push_back(key);
+      }
+    } else {
+      keypath.push_back(tmpl);
+    }
     if (!Const(",", expr)) {
       error = strprintf("tr: expected ',', got '%c'", expr[0]);
       return false;

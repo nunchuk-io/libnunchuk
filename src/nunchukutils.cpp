@@ -1231,7 +1231,7 @@ bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
 
 bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
                                      std::string& error) {
-  std::string keypath;
+  std::vector<std::string> keypath;
   std::vector<std::string> subscripts;
   std::vector<int> depths;
   if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts, depths,
@@ -1274,7 +1274,8 @@ std::string Utils::MiniscriptTemplateToMiniscript(
 
 std::string Utils::TapscriptTemplateToTapscript(
     const std::string& tapscript_template,
-    const std::map<std::string, SingleSigner>& signers, std::string& keypath) {
+    const std::map<std::string, SingleSigner>& signers,
+    std::vector<std::string>& keypath) {
   std::vector<std::string> subscripts_tmpl;
   std::vector<int> depths;
   std::string error;
@@ -1298,7 +1299,7 @@ std::string Utils::TapscriptTemplateToTapscript(
 }
 
 ScriptNode Utils::GetScriptNode(const std::string& script,
-                                std::string& keypath) {
+                                std::vector<std::string>& keypath) {
   std::vector<std::string> subscripts;
   std::vector<int> depths;
   std::string error;
@@ -1314,7 +1315,7 @@ ScriptNode Utils::GetScriptNode(const std::string& script,
 }
 
 std::vector<SigningPath> Utils::GetAllSigningPaths(const std::string& script) {
-  std::string keypath;
+  std::vector<std::string> keypath;
   auto node = GetScriptNode(script, keypath);
   return nunchuk::GetAllSigningPaths(node);
 }
@@ -1379,7 +1380,7 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
 std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     const std::string& miniscript, const std::vector<UnspentOutput>& coins,
     int64_t& max_lock_value, int chain_tip) {
-  std::string keypath;
+  std::vector<std::string> keypath;
   auto node = Utils::GetScriptNode(miniscript, keypath);
   std::vector<UnspentOutput> rs{};
   for (auto&& coin : coins) {
