@@ -2725,10 +2725,9 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
   std::string script;
   std::string error;
   bool is_taproot = address_type == AddressType::TAPROOT;
-  WalletTemplate wallet_template{is_taproot ? WalletTemplate::DISABLE_KEY_PATH
-                                            : WalletTemplate::DEFAULT};
   std::vector<SingleSigner> used_signers{};
 
+  int keypath_m = 0;
   if (Utils::IsValidMiniscriptTemplate(tmpl, address_type)) {
     script = Utils::MiniscriptTemplateToMiniscript(tmpl, signers);
   } else if (Utils::IsValidPolicy(tmpl)) {
@@ -2742,7 +2741,7 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
                                "Invalid keypath");
       }
       used_signers.push_back(signers.at(keypath));
-      wallet_template = WalletTemplate::DEFAULT;
+      keypath_m = 1;
     }
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -2759,11 +2758,10 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
     }
   }
 
-  Wallet wallet(script, used_signers, address_type);
+  Wallet wallet(script, used_signers, address_type, keypath_m);
   wallet.set_name(name);
   wallet.set_description(description);
   wallet.set_create_date(std::time(0));
-  wallet.set_wallet_template(wallet_template);
   return CreateWallet(wallet, allow_used_signer, decoy_pin);
 }
 

@@ -990,7 +990,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   Wallet true_wallet;
   if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
     true_wallet = Wallet(wallet.get_miniscript(), true_signers,
-                         wallet.get_address_type());
+                         wallet.get_address_type(), wallet.get_m());
     true_wallet.set_name(wallet.get_name());
     true_wallet.set_create_date(wallet.get_create_date());
   } else {

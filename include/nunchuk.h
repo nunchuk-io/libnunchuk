@@ -532,7 +532,8 @@ class NUNCHUK_EXPORT Wallet {
          const std::vector<SingleSigner>& signers, AddressType address_type,
          WalletType wallet_type, time_t create_date, bool strict = true);
   Wallet(const std::string& miniscript,
-         const std::vector<SingleSigner>& signers, AddressType address_type);
+         const std::vector<SingleSigner>& signers, AddressType address_type,
+         int keypath_m);
 
   std::string get_id() const;
   std::string get_name() const;

@@ -65,27 +65,19 @@ Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
 
 Wallet::Wallet(const std::string& miniscript,
                const std::vector<SingleSigner>& signers,
-               AddressType address_type)
-    : m_(1),
+               AddressType address_type, int keypath_m)
+    : m_(keypath_m),
       n_(signers.size()),
       signers_(signers),
       address_type_(address_type),
       wallet_type_(WalletType::MINISCRIPT),
-      wallet_template_(WalletTemplate::DISABLE_KEY_PATH),
+      wallet_template_(WalletTemplate::DEFAULT),
       miniscript_(miniscript) {
-  if (miniscript_.empty())
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid parameter: miniscript is empty");
-  std::string keypath{};
-  if (wallet_template_ == WalletTemplate::DEFAULT) {
-    if (signers_.empty()) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid parameter: signer list is empty");
-    }
-    keypath = GetDescriptorForSigner(signers_[0], DescriptorPath::EXTERNAL_ALL);
+  if (address_type_ == AddressType::TAPROOT && keypath_m == 0) {
+    wallet_template_ = WalletTemplate::DISABLE_KEY_PATH;
   }
-  id_ = GetWalletId(get_miniscript(DescriptorPath::EXTERNAL_ALL), keypath,
-                    address_type_);
+  check_valid();
+  id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
 }
 
 std::string Wallet::get_id() const { return id_; }
@@ -122,7 +114,7 @@ void Wallet::check_valid() const {
   if (n_ <= 0)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: n <= 0");
-  if (m_ <= 0)
+  if (m_ <= 0 && wallet_type_ != WalletType::MINISCRIPT)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: m <= 0");
   if (m_ > n_)
@@ -185,11 +177,18 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
   if (get_wallet_type() == WalletType::MINISCRIPT) {
     std::string keypath{};
     if (wallet_template_ == WalletTemplate::DEFAULT) {
-      if (signers_.empty()) {
-        throw NunchukException(NunchukException::INVALID_PARAMETER,
-                               "Invalid parameter: signer list is empty");
+      if (m_ == 1) {
+        keypath = GetDescriptorForSigner(signers_[0], path, index);
+      } else {
+        std::stringstream ss;
+        ss << "musig(";
+        for (int i = 0; i < m_; i++) {
+          if (i > 0) ss << ",";
+          ss << GetDescriptorForSigner(signers_[i], path, index);
+        }
+        ss << ")";
+        keypath = ss.str();
       }
-      keypath = GetDescriptorForSigner(signers_[0], path, index);
     }
     return GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
                                       get_address_type());
@@ -201,17 +200,7 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
 
 void Wallet::post_update() {
   if (get_wallet_type() == WalletType::MINISCRIPT) {
-    std::string keypath{};
-    if (wallet_template_ == WalletTemplate::DEFAULT) {
-      if (signers_.empty()) {
-        throw NunchukException(NunchukException::INVALID_PARAMETER,
-                               "Invalid parameter: signer list is empty");
-      }
-      keypath =
-          GetDescriptorForSigner(signers_[0], DescriptorPath::EXTERNAL_ALL);
-    }
-    id_ = GetWalletId(get_miniscript(DescriptorPath::EXTERNAL_ALL), keypath,
-                      address_type_);
+    id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
   } else if (signers_.size() > 0) {
     if (wallet_template_ == WalletTemplate::DISABLE_KEY_PATH) {
       std::sort(signers_.begin(), signers_.end(),
