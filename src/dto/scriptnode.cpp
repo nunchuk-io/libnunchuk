@@ -102,7 +102,7 @@ bool ScriptNode::is_satisfiable(const Transaction& tx) const {
   } else if (node_type_ == ScriptNode::Type::OLDER) {
     for (int i = 0; i < tx.get_inputs().size(); i++) {
       auto sequence = tx.get_inputs()[i].nSequence;
-      if (sequence != Timelock::FromK(false, sequence).k()) continue;
+      if (sequence != Timelock::FromK(false, sequence).k()) return false;
       if (k_ > sequence) return false;
     }
     return true;

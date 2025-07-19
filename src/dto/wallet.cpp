@@ -107,17 +107,16 @@ time_t Wallet::get_last_used() const { return last_used_; }
 int Wallet::get_gap_limit() const { return gap_limit_; }
 bool Wallet::need_backup() const { return need_backup_; }
 bool Wallet::is_archived() const { return archived_; }
-std::string Wallet::get_miniscript(DescriptorPath key_path, int index) const {
-  if (key_path == DescriptorPath::ANY) {
+std::string Wallet::get_miniscript(DescriptorPath path, int index) const {
+  if (path == DescriptorPath::ANY) {
     return miniscript_;
-  } else {
-    std::string rs = miniscript_;
-    for (auto&& signer : signers_) {
-      rs = replaceAll(rs, GetDescriptorForSigner(signer, DescriptorPath::ANY),
-                      GetDescriptorForSigner(signer, key_path, index));
-    }
-    return rs;
   }
+  std::string rs = miniscript_;
+  for (auto&& signer : signers_) {
+    rs = replaceAll(rs, GetDescriptorForSigner(signer, DescriptorPath::ANY),
+                    GetDescriptorForSigner(signer, path, index));
+  }
+  return rs;
 }
 void Wallet::check_valid() const {
   if (n_ <= 0)
@@ -181,7 +180,7 @@ void Wallet::set_gap_limit(int value) { gap_limit_ = value; }
 void Wallet::set_need_backup(bool value) { need_backup_ = value; }
 void Wallet::set_archived(bool value) { archived_ = value; }
 void Wallet::set_miniscript(const std::string& value) { miniscript_ = value; }
-std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
+std::string Wallet::get_descriptor(DescriptorPath path, int index,
                                    bool sorted) const {
   if (get_wallet_type() == WalletType::MINISCRIPT) {
     std::string keypath{};
@@ -190,13 +189,13 @@ std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
         throw NunchukException(NunchukException::INVALID_PARAMETER,
                                "Invalid parameter: signer list is empty");
       }
-      keypath = GetDescriptorForSigner(signers_[0], key_path, index);
+      keypath = GetDescriptorForSigner(signers_[0], path, index);
     }
-    return GetDescriptorForMiniscript(get_miniscript(key_path, index), keypath,
+    return GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
                                       get_address_type());
   }
   return GetDescriptorForSigners(
-      get_signers(), get_m(), key_path, get_address_type(), get_wallet_type(),
+      get_signers(), get_m(), path, get_address_type(), get_wallet_type(),
       get_wallet_template(), is_escrow() ? -1 : index, sorted);
 }
 
