@@ -1602,7 +1602,7 @@ std::pair<int64_t, Timelock::Based> NunchukImpl::GetTimelockedUntil(
   int64_t max_value = timelock.value();
   Timelock::Based based = timelock.based();
   uint32_t sequence = tx.get_inputs()[0].nSequence;
-  if (sequence != 0 && sequence != MAX_BIP125_RBF_SEQUENCE) {
+  if (sequence != 0 && sequence == Timelock::FromK(false, sequence).k()) {
     auto utxos = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
     based = utxos[0].get_lock_based();
     if (based != Timelock::Based::NONE) {
