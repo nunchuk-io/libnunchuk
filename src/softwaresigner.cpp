@@ -34,6 +34,7 @@
 #include <script/signingprovider.h>
 #include <rpc/util.h>
 #include <descriptor.h>
+#include <coreutils.h>
 
 #include <secp256k1_musig.h>
 
@@ -232,13 +233,33 @@ std::string SoftwareSigner::SignTaprootTx(
     }
   };
 
+  std::set<std::string> input_addr;
+  for (size_t i = 0; i < psbtx.inputs.size(); i++) {
+    auto& input = psbtx.inputs[i];
+    auto ctxout = input.witness_utxo;
+    if (input.non_witness_utxo) {
+      auto txIn = input.non_witness_utxo.get();
+      auto txSpend = CMutableTransaction(*txIn);
+      ctxout = txSpend.vout[psbtx.tx.value().vin[i].prevout.n];
+    }
+    if (ctxout.IsNull()) continue;
+    CTxDestination address;
+    ExtractDestination(ctxout.scriptPubKey, address);
+    input_addr.insert(EncodeDestination(address));
+  }
   auto desc0 = Parse(external_desc, provider, error, true);
+  auto external_addr = CoreUtils::getInstance().DeriveAddresses(
+      external_desc, 0, external_index);
   for (int i = 0; i <= external_index; i++) {
+    if (!input_addr.contains(external_addr[i])) continue;
     desc0.front()->Expand(i, provider, output_scripts, provider);
     addPath(basepath + "/0/" + std::to_string(i));
   }
   auto desc1 = Parse(internal_desc, provider, error, true);
+  auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
+      internal_desc, 0, internal_index);
   for (int i = 0; i <= internal_index; i++) {
+    if (!input_addr.contains(internal_addr[i])) continue;
     desc1.front()->Expand(i, provider, output_scripts, provider);
     addPath(basepath + "/1/" + std::to_string(i));
   }
