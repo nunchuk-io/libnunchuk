@@ -631,10 +631,10 @@ void newminiscriptwallet() {
   std::string miniscript_template;
   if (idx == 0) {
     miniscript_template = Utils::ExpandingMultisigMiniscriptTemplate(
-        2, 2, 3, timelock, address_type);
+        2, 2, 3, true, timelock, address_type);
   } else if (idx == 1) {
     miniscript_template = Utils::DecayingMultisigMiniscriptTemplate(
-        2, 2, 1, timelock, address_type);
+        2, 2, 1, true, timelock, address_type);
   } else if (idx == 2) {
     auto n = input_int("Total signers");
     auto m = input_int("Required signatures");
@@ -658,7 +658,7 @@ void newminiscriptwallet() {
   }
 
   std::map<std::string, SingleSigner> keys{};
-  std::string keypath;
+  std::vector<std::string> keypath;
   auto node = Utils::GetScriptNode(miniscript_template, keypath);
   std::function<void(const ScriptNode&)> getKeys =
       [&](const ScriptNode& node) -> void {
@@ -689,12 +689,9 @@ void newminiscriptwallet() {
     }
   };
   getKeys(node);
-  std::string miniscript =
-      Utils::MiniscriptTemplateToMiniscript(miniscript_template, keys);
-  std::cout << "Miniscript: " << miniscript << std::endl;
 
-  auto wallet = nu.get()->CreateMiniscriptWallet(name, miniscript, address_type,
-                                                 "", true);
+  auto wallet = nu.get()->CreateMiniscriptWallet(name, miniscript_template,
+                                                 keys, address_type, "", true);
   std::cout << "\nWallet create success. Wallet id: " << wallet.get_id()
             << std::endl;
   std::cout << GetDescriptorRecord(wallet) << std::endl;
