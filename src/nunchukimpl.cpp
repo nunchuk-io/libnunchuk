@@ -2741,6 +2741,7 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
                                "Invalid keypath");
       }
       used_signers.push_back(signers.at(key));
+      used_signers.back().set_name(key);
     }
     keypath_m = keypath.size();
   } else {
@@ -2755,6 +2756,7 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
                        return signer.get_descriptor() == desc;
                      }) == used_signers.end()) {
       used_signers.push_back(key.second);
+      used_signers.back().set_name(key.first);
     }
   }
 
