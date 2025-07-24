@@ -724,6 +724,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   int get_m() const;
   int get_n() const;
   AddressType get_address_type() const;
+  WalletType get_wallet_type() const;
   WalletTemplate get_wallet_template() const;
   const std::vector<SingleSigner>& get_signers() const;
   bool is_finalized() const;
@@ -733,6 +734,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string get_pubkey() const;
   const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
   std::string get_replace_wallet_id() const;
+  std::string get_miniscript_template() const;
 
   void set_name(const std::string& value);
   void set_url(const std::string& value);
@@ -749,6 +751,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   void add_occupied(int index, time_t ts, const std::string& uid);
   void remove_occupied(int index);
   void set_replace_wallet_id(const std::string& value);
+  void set_miniscript_template(const std::string& value);
 
  private:
   std::string id_;
@@ -766,6 +769,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string pubkey_{};
   std::map<int, std::pair<time_t, std::string>> occupied_{};
   std::string replace_wallet_id_{};
+  std::string miniscript_template_{};
 };
 
 class NUNCHUK_EXPORT GroupMessage {
@@ -1786,6 +1790,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void StopConsumeGroupEvent() = 0;
   virtual GroupSandbox CreateGroup(const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
+  virtual GroupSandbox CreateGroup(const std::string& name,
+                                   const std::string& script_tmpl,
+                                   AddressType addressType) = 0;
   virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
   virtual int GetGroupOnline(const std::string& groupId) = 0;
   virtual std::vector<GroupSandbox> GetGroups() = 0;
@@ -1799,11 +1806,18 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const std::string& groupId) = 0;
   virtual GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
                                        bool value) = 0;
+  virtual GroupSandbox SetSlotOccupied(const std::string& groupId,
+                                       const std::string& name, bool value) = 0;
   virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
                                         const SingleSigner& signer,
                                         int index) = 0;
+  virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
+                                        const SingleSigner& signer,
+                                        const std::string& name) = 0;
   virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                              int index) = 0;
+  virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                             const std::string& name) = 0;
   virtual GroupSandbox UpdateGroup(const std::string& groupId,
                                    const std::string& name, int m, int n,
                                    AddressType addressType) = 0;

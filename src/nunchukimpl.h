@@ -612,6 +612,9 @@ class NunchukImpl : public Nunchuk {
   void StopConsumeGroupEvent() override;
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
                            AddressType addressType) override;
+  GroupSandbox CreateGroup(const std::string& name,
+                           const std::string& script_tmpl,
+                           AddressType addressType) override;
   GroupSandbox GetGroup(const std::string& groupId) override;
   int GetGroupOnline(const std::string& groupId) override;
   std::vector<GroupSandbox> GetGroups() override;
@@ -625,10 +628,17 @@ class NunchukImpl : public Nunchuk {
                            const std::string& groupId) override;
   GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
                                bool value) override;
+  GroupSandbox SetSlotOccupied(const std::string& groupId,
+                               const std::string& name, bool value) override;
   GroupSandbox AddSignerToGroup(const std::string& groupId,
                                 const SingleSigner& signer, int index) override;
+  GroupSandbox AddSignerToGroup(const std::string& groupId,
+                                const SingleSigner& signer,
+                                const std::string& name) override;
   GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                      int index) override;
+  GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                     const std::string& name) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType) override;
   GroupSandbox FinalizeGroup(const std::string& groupId,
@@ -682,6 +692,7 @@ class NunchukImpl : public Nunchuk {
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
   void SyncGroupTransactions(const std::string& walletId);
   bool CreateGroupWallet(const GroupSandbox& group);
+  Wallet CreateGroupWallet0(const GroupSandbox& group);
   void SubscribeGroups(const std::vector<std::string>& groupIds,
                        const std::vector<std::string>& walletIds);
   void StartListenEvents();

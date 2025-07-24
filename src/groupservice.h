@@ -57,6 +57,9 @@ class GroupService {
 
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
                            AddressType addressType);
+  GroupSandbox CreateGroup(const std::string& name,
+                           const std::string& script_tmpl,
+                           AddressType addressType);
   GroupSandbox CreateReplaceGroup(const std::string& name, int m, int n,
                                   AddressType addressType,
                                   const std::vector<SingleSigner>& signers,
@@ -104,6 +107,10 @@ class GroupService {
                          const std::string& psbt);
   void DeleteTransaction(const std::string& walletId, const std::string& txId);
   std::string SetupKey(const Wallet& wallet);
+
+  // For miniscript group only
+  std::vector<std::string> ParseSignerNames(const std::string& script_tmpl);
+  int GetSignerIndex(const std::string& groupId, const std::string& name);
 
   // Parse event data
   GroupSandbox ParseGroupData(const std::string& groupId, bool finalized,

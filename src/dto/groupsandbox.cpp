@@ -21,7 +21,7 @@
 
 namespace nunchuk {
 
-GroupSandbox::GroupSandbox(const std::string& id) : id_(id){};
+GroupSandbox::GroupSandbox(const std::string& id) : id_(id) {};
 
 std::string GroupSandbox::get_id() const { return id_; }
 std::string GroupSandbox::get_name() const { return name_; }
@@ -32,6 +32,10 @@ const std::vector<SingleSigner>& GroupSandbox::get_signers() const {
   return signers_;
 }
 AddressType GroupSandbox::get_address_type() const { return address_type_; }
+WalletType GroupSandbox::get_wallet_type() const {
+  return miniscript_template_.empty() ? WalletType::MULTI_SIG
+                                      : WalletType::MINISCRIPT;
+}
 WalletTemplate GroupSandbox::get_wallet_template() const {
   return wallet_template_;
 }
@@ -48,6 +52,9 @@ GroupSandbox::get_occupied() const {
 }
 std::string GroupSandbox::get_replace_wallet_id() const {
   return replace_wallet_id_;
+}
+std::string GroupSandbox::get_miniscript_template() const {
+  return miniscript_template_;
 }
 
 void GroupSandbox::set_name(const std::string& value) { name_ = value; }
@@ -78,5 +85,8 @@ void GroupSandbox::add_occupied(int index, time_t ts, const std::string& uid) {
 void GroupSandbox::remove_occupied(int index) { occupied_.erase(index); }
 void GroupSandbox::set_replace_wallet_id(const std::string& value) {
   replace_wallet_id_ = value;
+}
+void GroupSandbox::set_miniscript_template(const std::string& value) {
+  miniscript_template_ = value;
 }
 }  // namespace nunchuk

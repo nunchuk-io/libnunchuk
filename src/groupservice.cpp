@@ -242,6 +242,9 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   if (config["walletTemplate"] != nullptr) {
     rs.set_wallet_template(WalletTemplate(config["walletTemplate"]));
   }
+  if (config["miniscriptTemplate"] != nullptr) {
+    rs.set_miniscript_template(config["miniscriptTemplate"]);
+  }
 
   bool need_broadcast = false;
   json state = nullptr;
@@ -387,6 +390,7 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group) {
       {"n", group.get_n()},
       {"addressType", group.get_address_type()},
       {"walletTemplate", group.get_wallet_template()},
+      {"miniscriptTemplate", group.get_miniscript_template()},
       {"name", group.get_name()},
       {"occupied", occupied},
       {"added", added},
@@ -495,6 +499,24 @@ GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
   std::vector<SingleSigner> signers(n);
   group.set_name(name);
   group.set_m(m);
+  group.set_n(n);
+  group.set_address_type(addressType);
+  group.set_signers(signers);
+  group.set_ephemeral_keys({ephemeralPub_});
+  std::string body = GroupToEvent(group);
+  std::string rs = Post(url, {body.begin(), body.end()});
+  return ParseGroup(GetHttpResponseData(rs)["group"]);
+}
+
+GroupSandbox GroupService::CreateGroup(const std::string& name,
+                                       const std::string& script_tmpl,
+                                       AddressType addressType) {
+  std::string url = "/v1.1/shared-wallets/groups";
+  GroupSandbox group("");
+  auto n = ParseSignerNames(script_tmpl).size();
+  std::vector<SingleSigner> signers(n);
+  group.set_name(name);
+  group.set_m(1);
   group.set_n(n);
   group.set_address_type(addressType);
   group.set_signers(signers);
@@ -1096,6 +1118,40 @@ std::string GroupService::SetupKey(const Wallet& wallet) {
   auto gid = walletSigner_.at(wallet.get_id())->GetAddressAtPath(KEYPAIR_PATH);
   walletGid2Id_[gid] = wallet.get_id();
   return gid;
+}
+
+std::vector<std::string> GroupService::ParseSignerNames(
+    const std::string& script_tmpl) {
+  if (script_tmpl.empty()) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Miniscript only");
+  }
+  std::vector<std::string> names;
+
+  // Get all keynames from script node
+  ScriptNode script_node = Utils::GetScriptNode(script_tmpl, names);
+  std::function<void(const ScriptNode&)> getKeynames =
+      [&](const ScriptNode& node) -> void {
+    for (int i = 0; i < node.get_keys().size(); i++) {
+      names.push_back(node.get_keys()[i]);
+    }
+    for (int i = 0; i < node.get_subs().size(); i++) {
+      getKeynames(node.get_subs()[i]);
+    }
+  };
+  getKeynames(script_node);
+  std::sort(names.begin(), names.end());
+  return names;
+}
+
+int GroupService::GetSignerIndex(const std::string& groupId,
+                                 const std::string& name) {
+  auto groupJson = GetGroupJson(groupId);
+  auto script_tmpl = groupJson["init"]["pubstate"]["miniscriptTemplate"];
+  auto names = ParseSignerNames(script_tmpl);
+  for (int i = 0; i < names.size(); i++) {
+    if (names[i] == name) return i;
+  }
+  throw GroupException(GroupException::INVALID_PARAMETER, "Key name not found");
 }
 
 json GroupService::GetGroupJson(const std::string& groupId) {
