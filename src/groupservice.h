@@ -56,8 +56,6 @@ class GroupService {
       const std::string& deviceId);
 
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
-                           AddressType addressType);
-  GroupSandbox CreateGroup(const std::string& name,
                            const std::string& script_tmpl,
                            AddressType addressType);
   GroupSandbox CreateReplaceGroup(const std::string& name, int m, int n,
@@ -74,7 +72,8 @@ class GroupService {
   GroupSandbox SetSigner(const std::string& groupId, const SingleSigner& signer,
                          int index);
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
-                           int m, int n, AddressType addressType);
+                           int m, int n, const std::string& script_tmpl,
+                           AddressType addressType);
   GroupSandbox FinalizeGroup(const GroupSandbox& group);
   void DeleteGroup(const std::string& groupId);
   GroupWalletConfig GetWalletConfig(const std::string& walletId);
@@ -109,7 +108,8 @@ class GroupService {
   std::string SetupKey(const Wallet& wallet);
 
   // For miniscript group only
-  static std::vector<std::string> ParseSignerNames(const std::string& script_tmpl);
+  static std::vector<std::string> ParseSignerNames(
+      const std::string& script_tmpl, int& keypath_m);
   int GetSignerIndex(const std::string& groupId, const std::string& name);
 
   // Parse event data

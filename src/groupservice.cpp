@@ -490,33 +490,19 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
 }
 
 GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
-                                       AddressType addressType) {
-  if (m <= 0 || n <= 1 || m > n) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
-  }
-  std::string url = "/v1.1/shared-wallets/groups";
-  GroupSandbox group("");
-  std::vector<SingleSigner> signers(n);
-  group.set_name(name);
-  group.set_m(m);
-  group.set_n(n);
-  group.set_address_type(addressType);
-  group.set_signers(signers);
-  group.set_ephemeral_keys({ephemeralPub_});
-  std::string body = GroupToEvent(group);
-  std::string rs = Post(url, {body.begin(), body.end()});
-  return ParseGroup(GetHttpResponseData(rs)["group"]);
-}
-
-GroupSandbox GroupService::CreateGroup(const std::string& name,
                                        const std::string& script_tmpl,
                                        AddressType addressType) {
   std::string url = "/v1.1/shared-wallets/groups";
   GroupSandbox group("");
-  auto n = ParseSignerNames(script_tmpl).size();
+  if (!script_tmpl.empty()) {
+    group.set_miniscript_template(script_tmpl);
+    n = ParseSignerNames(script_tmpl, m).size();
+  } else if (m <= 0 || n <= 1 || m > n) {
+    throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
+  }
   std::vector<SingleSigner> signers(n);
   group.set_name(name);
-  group.set_m(1);
+  group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
   group.set_signers(signers);
@@ -669,18 +655,25 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
 
 GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
                                        const std::string& name, int m, int n,
+                                       const std::string& script_tmpl,
                                        AddressType addressType) {
-  if (m <= 0 || n <= 1 || m > n) {
+  if (!script_tmpl.empty()) {
+    n = ParseSignerNames(script_tmpl, m).size();
+  } else if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   json group = CheckGroupSandboxJson(GetGroupJson(groupId), true);
 
   auto curAt = AddressType(group["init"]["pubstate"]["addressType"]);
+  auto curScriptTmpl = group["init"]["pubstate"]["miniscriptTemplate"];
   int curN = group["init"]["pubstate"]["n"];
   std::string ciphertext = group["init"]["state"][ephemeralPub_];
 
-  if (curAt != addressType &&
-      (curAt == AddressType::TAPROOT || addressType == AddressType::TAPROOT)) {
+  bool shouldClearSigners =
+      (curAt != addressType && (curAt == AddressType::TAPROOT ||
+                                addressType == AddressType::TAPROOT)) ||
+      (curScriptTmpl != script_tmpl);
+  if (shouldClearSigners) {
     json signers = json::array();
     for (int i = 0; i < n; i++) {
       signers.push_back("[]");
@@ -743,6 +736,7 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
   group["init"]["pubstate"]["m"] = m;
   group["init"]["pubstate"]["n"] = n;
   group["init"]["pubstate"]["addressType"] = addressType;
+  group["init"]["pubstate"]["miniscriptTemplate"] = script_tmpl;
   group["init"]["pubstate"]["name"] = name;
   return SendGroupEvent(groupId, group);
 }
@@ -1121,7 +1115,7 @@ std::string GroupService::SetupKey(const Wallet& wallet) {
 }
 
 std::vector<std::string> GroupService::ParseSignerNames(
-    const std::string& script_tmpl) {
+    const std::string& script_tmpl, int& keypath_m) {
   if (script_tmpl.empty()) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Miniscript only");
   }
@@ -1129,6 +1123,7 @@ std::vector<std::string> GroupService::ParseSignerNames(
 
   // Get all keynames from script node
   ScriptNode script_node = Utils::GetScriptNode(script_tmpl, names);
+  keypath_m = names.size();
   std::function<void(const ScriptNode&)> getKeynames =
       [&](const ScriptNode& node) -> void {
     for (int i = 0; i < node.get_keys().size(); i++) {
@@ -1147,7 +1142,8 @@ int GroupService::GetSignerIndex(const std::string& groupId,
                                  const std::string& name) {
   auto groupJson = GetGroupJson(groupId);
   auto script_tmpl = groupJson["init"]["pubstate"]["miniscriptTemplate"];
-  auto names = ParseSignerNames(script_tmpl);
+  int keypath_m = 0;
+  auto names = ParseSignerNames(script_tmpl, keypath_m);
   for (int i = 0; i < names.size(); i++) {
     if (names[i] == name) return i;
   }

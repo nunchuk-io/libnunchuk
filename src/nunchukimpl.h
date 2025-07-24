@@ -641,6 +641,9 @@ class NunchukImpl : public Nunchuk {
                                      const std::string& name) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType) override;
+  GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
+                           const std::string& script_tmpl,
+                           AddressType addressType) override;
   GroupSandbox FinalizeGroup(const std::string& groupId,
                              const std::set<size_t>& valueKeyset = {}) override;
   void DeleteGroup(const std::string& groupId) override;
@@ -691,8 +694,8 @@ class NunchukImpl : public Nunchuk {
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
   void SyncGroupTransactions(const std::string& walletId);
-  bool CreateGroupWallet(const GroupSandbox& group);
-  Wallet CreateGroupWallet0(const GroupSandbox& group);
+  bool FinalizeGroupLocal(const GroupSandbox& group);
+  Wallet CreateLocalGroupWallet(const GroupSandbox& group);
   void SubscribeGroups(const std::vector<std::string>& groupIds,
                        const std::vector<std::string>& walletIds);
   void StartListenEvents();
