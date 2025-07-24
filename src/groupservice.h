@@ -109,7 +109,7 @@ class GroupService {
   std::string SetupKey(const Wallet& wallet);
 
   // For miniscript group only
-  std::vector<std::string> ParseSignerNames(const std::string& script_tmpl);
+  static std::vector<std::string> ParseSignerNames(const std::string& script_tmpl);
   int GetSignerIndex(const std::string& groupId, const std::string& name);
 
   // Parse event data

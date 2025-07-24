@@ -1345,6 +1345,14 @@ std::string Utils::DecayingMultisigMiniscriptTemplate(
 std::string Utils::FlexibleMultisigMiniscriptTemplate(
     int m, int n, int new_m, int new_n, bool reuse_signers,
     const Timelock& timelock, AddressType address_type) {
+  if (m <= 0 || new_m <= 0) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m, new_m must be greater than 0");
+  }
+  if (n <= 1 || new_n <= 1) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "n, new_n must be greater than 1");
+  }
   if (m > n) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "m must be less than or equal to n");
