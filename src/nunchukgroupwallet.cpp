@@ -21,6 +21,7 @@
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/secretbox.h>
+#include <utils/stringutils.hpp>
 
 using json = nlohmann::json;
 
@@ -284,6 +285,33 @@ GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
 GroupSandbox NunchukImpl::CreateReplaceGroup(const std::string& walletId) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto wallet = GetWallet(walletId);
+
+  // Rebuild script template
+  std::string script_tmpl = wallet.get_miniscript();
+  if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+    for (int i = wallet.get_m(); i < wallet.get_n(); i++) {
+      script_tmpl = replaceAll(
+          script_tmpl,
+          GetDescriptorForSigner(wallet.get_signers()[i], DescriptorPath::ANY),
+          "key_" + std::to_string(i));
+    }
+    if (wallet.get_address_type() == AddressType::TAPROOT &&
+        wallet.get_wallet_template() == WalletTemplate::DEFAULT) {
+      if (wallet.get_m() == 1) {
+        script_tmpl = "tr(key_0," + script_tmpl + ")";
+      } else {
+        std::stringstream tmpl;
+        tmpl << "tr(musig(";
+        for (int i = 0; i < wallet.get_m(); i++) {
+          if (i > 0) tmpl << ",";
+          tmpl << "key_" << i;
+        }
+        tmpl << ")," << script_tmpl << ")";
+        script_tmpl = tmpl.str();
+      }
+    }
+  }
+
   std::vector<SingleSigner> signers{};
   for (auto&& signer : wallet.get_signers()) {
     if (HasSigner(signer)) {
@@ -293,7 +321,7 @@ GroupSandbox NunchukImpl::CreateReplaceGroup(const std::string& walletId) {
     }
   }
   auto group = group_service_.CreateReplaceGroup(
-      wallet.get_name(), wallet.get_m(), wallet.get_n(),
+      wallet.get_name(), wallet.get_m(), wallet.get_n(), script_tmpl,
       wallet.get_address_type(), signers, walletId);
   storage_->AddGroupSandboxId(chain_, group.get_id());
   // BE auto subcribe new groupId for creator, don't need to call Subscribe
