@@ -48,6 +48,8 @@ const int MEDIUM_DENSITY_BBQR = 10;
 const int HIGH_DENSITY_BBQR = 27;
 const int ULTRA_HIGH_DENSITY_BBQR = 40;
 
+const int64_t UNDETERMINED_TIMELOCK_VALUE = INT64_MAX;
+
 typedef int64_t Amount;
 struct TxInput {
   std::string txid;
@@ -1168,8 +1170,8 @@ class NUNCHUK_EXPORT ScriptNode {
   const std::vector<unsigned char>& get_data() const;
   const std::vector<ScriptNode>& get_subs() const;
   uint32_t get_k() const;
-  bool is_locked(const UnspentOutput& coin, int64_t chain_tip,
-                 int64_t& max_lock) const;
+  bool is_unlocked(const UnspentOutput& coin, int64_t chain_tip,
+                   int64_t& max_lock) const;
   bool is_satisfiable(const Transaction& tx) const;
   bool is_satisfiable(const std::string& psbt) const;
   KeysetStatus get_keyset_status(const Transaction& tx) const;

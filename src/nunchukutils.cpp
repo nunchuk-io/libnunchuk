@@ -1392,7 +1392,7 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
   auto node = Utils::GetScriptNode(miniscript, keypath);
   std::vector<UnspentOutput> rs{};
   for (auto&& coin : coins) {
-    if (!node.is_locked(coin, chain_tip, max_lock_value)) {
+    if (!node.is_unlocked(coin, chain_tip, max_lock_value)) {
       rs.emplace_back(coin);
     }
   }
@@ -1417,7 +1417,7 @@ std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
   for (auto&& coin : coins) {
     for (int i = 0; i < script_node.get_subs().size(); i++) {
       int64_t max_lock = 0;
-      if (script_node.get_subs()[i].is_locked(coin, chain_tip, max_lock)) {
+      if (script_node.get_subs()[i].is_unlocked(coin, chain_tip, max_lock)) {
         rs[i].first.emplace_back(coin);
       }
       rs[i].second.first = max_lock;

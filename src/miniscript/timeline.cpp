@@ -36,10 +36,13 @@ void MiniscriptTimeline::detect_timelock_mixing(Timelock::Based new_type) {
 
 std::vector<int64_t> MiniscriptTimeline::get_locks(const UnspentOutput& utxo) {
   std::vector<int64_t> locks = absolute_locks_;
-  for (auto&& lock : relative_locks_) {
-    locks.push_back(lock_type_ == Timelock::Based::TIME_LOCK
-                        ? utxo.get_blocktime() + lock
-                        : utxo.get_height() + lock);
+  // Can not calculate relative lock for unconfirmed utxo
+  if (utxo.get_height() > 0) {
+    for (auto&& lock : relative_locks_) {
+      locks.push_back(lock_type_ == Timelock::Based::TIME_LOCK
+                          ? utxo.get_blocktime() + lock
+                          : utxo.get_height() + lock);
+    }
   }
   // sort and unique
   std::sort(locks.begin(), locks.end());

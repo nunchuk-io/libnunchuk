@@ -492,30 +492,34 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
 GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
                                        const std::string& script_tmpl,
                                        AddressType addressType) {
-  std::string url = "/v1.1/shared-wallets/groups";
-  GroupSandbox group("");
   if (!script_tmpl.empty()) {
-    group.set_miniscript_template(script_tmpl);
     n = ParseSignerNames(script_tmpl, m).size();
   } else if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   std::vector<SingleSigner> signers(n);
+
+  std::string url = "/v1.1/shared-wallets/groups";
+  GroupSandbox group("");
   group.set_name(name);
   group.set_m(m);
   group.set_n(n);
   group.set_address_type(addressType);
   group.set_signers(signers);
   group.set_ephemeral_keys({ephemeralPub_});
+  group.set_miniscript_template(script_tmpl);
   std::string body = GroupToEvent(group);
   std::string rs = Post(url, {body.begin(), body.end()});
   return ParseGroup(GetHttpResponseData(rs)["group"]);
 }
 
 GroupSandbox GroupService::CreateReplaceGroup(
-    const std::string& name, int m, int n, AddressType addressType,
-    const std::vector<SingleSigner>& signers, const std::string& walletId) {
-  if (m <= 0 || n <= 1 || m > n) {
+    const std::string& name, int m, int n, const std::string& script_tmpl,
+    AddressType addressType, const std::vector<SingleSigner>& signers,
+    const std::string& walletId) {
+  if (!script_tmpl.empty()) {
+    n = ParseSignerNames(script_tmpl, m).size();
+  } else if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
 
@@ -531,6 +535,7 @@ GroupSandbox GroupService::CreateReplaceGroup(
   group.set_address_type(addressType);
   group.set_signers(signers);
   group.set_ephemeral_keys({ephemeralPub_});
+  group.set_miniscript_template(script_tmpl);
   std::string body = GroupToEvent(group);
   std::string rs = Post(url, {body.begin(), body.end()});
   return ParseGroup(GetHttpResponseData(rs)["group"]);
@@ -1134,7 +1139,7 @@ std::vector<std::string> GroupService::ParseSignerNames(
     }
   };
   getKeynames(script_node);
-  std::sort(names.begin(), names.end());
+  std::sort(names.begin() + keypath_m, names.end());
   return names;
 }
 

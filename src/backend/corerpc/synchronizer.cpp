@@ -162,7 +162,7 @@ void CoreRpcSynchronizer::BlockchainSync(
     // check if wallet descriptor is imported
     auto address_info = client_->GetAddressInfo(addresses[0]);
     if (!address_info["solvable"].get<bool>()) {
-      auto wallet = storage_->GetWallet(chain, wallet_id);
+      auto wallet = storage_->GetWallet(chain, wallet_id, false, false);
       if (wallet.is_escrow()) {
         descriptors.push_back(
             {{"desc", wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)},

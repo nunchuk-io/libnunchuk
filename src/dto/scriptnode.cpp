@@ -48,7 +48,7 @@ const std::vector<std::string>& ScriptNode::get_keys() const { return keys_; }
 const std::vector<unsigned char>& ScriptNode::get_data() const { return data_; }
 const std::vector<ScriptNode>& ScriptNode::get_subs() const { return sub_; }
 uint32_t ScriptNode::get_k() const { return k_; }
-bool ScriptNode::is_locked(const UnspentOutput& coin, int64_t chain_tip,
+bool ScriptNode::is_unlocked(const UnspentOutput& coin, int64_t chain_tip,
                            int64_t& max_lock) const {
   int64_t value = 0;
   int64_t current_value;
@@ -61,6 +61,11 @@ bool ScriptNode::is_locked(const UnspentOutput& coin, int64_t chain_tip,
       current_value = chain_tip;
     }
   } else if (node_type_ == ScriptNode::Type::OLDER) {
+    // UNDETERMINED_TIMELOCK_VALUE is used for unconfirmed utxo
+    if (coin.get_height() <= 0) {
+      max_lock = UNDETERMINED_TIMELOCK_VALUE;
+      return false;
+    }
     Timelock timelock = Timelock::FromK(false, k_);
     if (timelock.based() == Timelock::Based::TIME_LOCK) {
       value = coin.get_blocktime() + timelock.value();
@@ -70,20 +75,20 @@ bool ScriptNode::is_locked(const UnspentOutput& coin, int64_t chain_tip,
       current_value = chain_tip;
     }
   } else if (node_type_ == ScriptNode::Type::ANDOR) {
-    return (sub_.at(0).is_locked(coin, chain_tip, max_lock) &&
-            sub_.at(1).is_locked(coin, chain_tip, max_lock)) ||
-           sub_.at(2).is_locked(coin, chain_tip, max_lock);
+    return (sub_.at(0).is_unlocked(coin, chain_tip, max_lock) &&
+            sub_.at(1).is_unlocked(coin, chain_tip, max_lock)) ||
+           sub_.at(2).is_unlocked(coin, chain_tip, max_lock);
   } else if (node_type_ == ScriptNode::Type::OR ||
              node_type_ == ScriptNode::Type::OR_TAPROOT) {
-    return sub_.at(0).is_locked(coin, chain_tip, max_lock) ||
-           sub_.at(1).is_locked(coin, chain_tip, max_lock);
+    return sub_.at(0).is_unlocked(coin, chain_tip, max_lock) ||
+           sub_.at(1).is_unlocked(coin, chain_tip, max_lock);
   } else if (node_type_ == ScriptNode::Type::AND) {
-    return sub_.at(0).is_locked(coin, chain_tip, max_lock) &&
-           sub_.at(1).is_locked(coin, chain_tip, max_lock);
+    return sub_.at(0).is_unlocked(coin, chain_tip, max_lock) &&
+           sub_.at(1).is_unlocked(coin, chain_tip, max_lock);
   } else if (node_type_ == ScriptNode::Type::THRESH) {
     int count = 0;
     for (int j = 0; j < sub_.size(); j++) {
-      if (sub_.at(j).is_locked(coin, chain_tip, max_lock)) count++;
+      if (sub_.at(j).is_unlocked(coin, chain_tip, max_lock)) count++;
     }
     return count >= k_;
   } else {

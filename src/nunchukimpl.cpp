@@ -157,7 +157,7 @@ Wallet NunchukImpl::CreateWallet(const Wallet& w, bool allow_used_signer,
 
 Wallet NunchukImpl::CloneWallet(const std::string& wallet_id,
                                 const std::string& decoy_pin) {
-  Wallet wallet = storage_->GetWallet(chain_, wallet_id);
+  Wallet wallet = storage_->GetWallet(chain_, wallet_id, false, false);
   return storage_->CreateDecoyWallet(chain_, wallet, decoy_pin);
 }
 
@@ -1607,10 +1607,13 @@ std::pair<int64_t, Timelock::Based> NunchukImpl::GetTimelockedUntil(
     based = utxos[0].get_lock_based();
     if (based != Timelock::Based::NONE) {
       int64_t lock_value = Timelock::FromK(false, sequence).value();
+      bool is_height_lock = based == Timelock::Based::HEIGHT_LOCK;
       for (auto&& utxo : utxos) {
-        auto value =
-            (based == Timelock::Based::HEIGHT_LOCK ? utxo.get_height()
-                                                   : utxo.get_blocktime());
+        // UNDETERMINED_TIMELOCK_VALUE is used for unconfirmed utxo
+        if (utxo.get_height() <= 0) {
+          return {UNDETERMINED_TIMELOCK_VALUE, based};
+        }
+        auto value = is_height_lock ? utxo.get_height() : utxo.get_blocktime();
         max_value = std::max(max_value, lock_value + value);
       }
     }
@@ -2759,6 +2762,11 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
       used_signers.back().set_name(key.first);
     }
   }
+
+  std::sort(used_signers.begin() + keypath_m, used_signers.end(),
+            [](const SingleSigner& a, const SingleSigner& b) {
+              return a.get_name() < b.get_name();
+            });
 
   Wallet wallet(script, used_signers, address_type, keypath_m);
   wallet.set_name(name);

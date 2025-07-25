@@ -102,6 +102,8 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
   std::vector<UnspentOutput> sorted_coins = coins;
   std::sort(sorted_coins.begin(), sorted_coins.end(),
             [](const UnspentOutput& a, const UnspentOutput& b) {
+              if (a.get_height() <= 0) return false;
+              if (b.get_height() <= 0) return true;
               return a.get_height() < b.get_height();
             });
   CAmount total_amount{0};

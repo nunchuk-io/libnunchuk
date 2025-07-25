@@ -59,6 +59,7 @@ class GroupService {
                            const std::string& script_tmpl,
                            AddressType addressType);
   GroupSandbox CreateReplaceGroup(const std::string& name, int m, int n,
+                                  const std::string& script_tmpl,
                                   AddressType addressType,
                                   const std::vector<SingleSigner>& signers,
                                   const std::string& walletId);
