@@ -358,6 +358,8 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
 std::string GetDescriptorWithoutChecksum(const std::string& desc) {
   std::string rs = split(desc, '#')[0];
   std::replace(rs.begin(), rs.end(), '\'', 'h');
+  std::transform(rs.begin(), rs.end(), rs.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
   return rs;
 }
 
