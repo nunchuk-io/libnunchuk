@@ -1189,10 +1189,14 @@ bool Utils::IsPreimageRevealed(const std::string& psbt,
                                const std::vector<uint8_t>& hash) {
   auto psbtx = DecodePsbt(psbt);
   for (int i = 0; i < psbtx.inputs.size(); i++) {
-    if (psbtx.inputs[i].sha256_preimages.contains(uint256(hash)) ||
-        psbtx.inputs[i].hash256_preimages.contains(uint256(hash)) ||
-        psbtx.inputs[i].hash160_preimages.contains(uint160(hash)) ||
-        psbtx.inputs[i].ripemd160_preimages.contains(uint160(hash))) {
+    if (hash.size() == 32 &&
+        (psbtx.inputs[i].sha256_preimages.contains(uint256(hash)) ||
+         psbtx.inputs[i].hash256_preimages.contains(uint256(hash)))) {
+      return true;
+    }
+    if (hash.size() == 20 &&
+        (psbtx.inputs[i].hash160_preimages.contains(uint160(hash)) ||
+         psbtx.inputs[i].ripemd160_preimages.contains(uint160(hash)))) {
       return true;
     }
   }
