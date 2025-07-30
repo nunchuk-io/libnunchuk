@@ -46,15 +46,9 @@ void NunchukImpl::SubscribeGroups(const std::vector<std::string>& groupIds,
 
 Wallet NunchukImpl::CreateLocalGroupWallet(const GroupSandbox& group) {
   if (group.get_wallet_type() == WalletType::MINISCRIPT) {
-    std::string script_tmpl = group.get_miniscript_template();
-    std::map<std::string, SingleSigner> signers;
-    int keypath_m = 0;
-    auto names = group_service_.ParseSignerNames(script_tmpl, keypath_m);
-    for (int i = 0; i < names.size(); i++) {
-      signers[names[i]] = group.get_signers()[i];
-    }
-    return CreateMiniscriptWallet(group.get_name(), script_tmpl, signers,
-                                  group.get_address_type(), {}, true, {});
+    return CreateMiniscriptWallet(
+        group.get_name(), group.get_miniscript_template(),
+        group.get_named_signers(), group.get_address_type(), {}, true, {});
   }
   return CreateWallet(group.get_name(), group.get_m(), group.get_n(),
                       group.get_signers(), group.get_address_type(), false, {},

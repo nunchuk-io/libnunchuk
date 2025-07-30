@@ -1393,7 +1393,7 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     const std::string& miniscript, const std::vector<UnspentOutput>& coins,
     int64_t& max_lock_value, int chain_tip) {
   std::vector<std::string> keypath;
-  auto node = Utils::GetScriptNode(miniscript, keypath);
+  auto node = GetScriptNode(miniscript, keypath);
   std::vector<UnspentOutput> rs{};
   for (auto&& coin : coins) {
     if (!node.is_unlocked(coin, chain_tip, max_lock_value)) {
@@ -1428,6 +1428,31 @@ std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
     }
   }
   return rs;
+}
+
+std::vector<std::string> Utils::ParseSignerNames(
+    const std::string& script_template, int& keypath_m) {
+  if (script_template.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Miniscript only");
+  }
+  std::vector<std::string> names;
+
+  // Get all keynames from script node
+  ScriptNode script_node = GetScriptNode(script_template, names);
+  keypath_m = names.size();
+  std::function<void(const ScriptNode&)> getKeynames =
+      [&](const ScriptNode& node) -> void {
+    for (int i = 0; i < node.get_keys().size(); i++) {
+      names.push_back(node.get_keys()[i]);
+    }
+    for (int i = 0; i < node.get_subs().size(); i++) {
+      getKeynames(node.get_subs()[i]);
+    }
+  };
+  getKeynames(script_node);
+  std::sort(names.begin() + keypath_m, names.end());
+  return names;
 }
 
 }  // namespace nunchuk

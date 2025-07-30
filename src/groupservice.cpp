@@ -493,7 +493,7 @@ GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
                                        const std::string& script_tmpl,
                                        AddressType addressType) {
   if (!script_tmpl.empty()) {
-    n = ParseSignerNames(script_tmpl, m).size();
+    n = Utils::ParseSignerNames(script_tmpl, m).size();
   } else if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
@@ -518,7 +518,7 @@ GroupSandbox GroupService::CreateReplaceGroup(
     AddressType addressType, const std::vector<SingleSigner>& signers,
     const std::string& walletId) {
   if (!script_tmpl.empty()) {
-    n = ParseSignerNames(script_tmpl, m).size();
+    n = Utils::ParseSignerNames(script_tmpl, m).size();
   } else if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
@@ -663,7 +663,7 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
                                        const std::string& script_tmpl,
                                        AddressType addressType) {
   if (!script_tmpl.empty()) {
-    n = ParseSignerNames(script_tmpl, m).size();
+    n = Utils::ParseSignerNames(script_tmpl, m).size();
   } else if (m <= 0 || n <= 1 || m > n) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
@@ -1119,36 +1119,12 @@ std::string GroupService::SetupKey(const Wallet& wallet) {
   return gid;
 }
 
-std::vector<std::string> GroupService::ParseSignerNames(
-    const std::string& script_tmpl, int& keypath_m) {
-  if (script_tmpl.empty()) {
-    throw GroupException(GroupException::INVALID_PARAMETER, "Miniscript only");
-  }
-  std::vector<std::string> names;
-
-  // Get all keynames from script node
-  ScriptNode script_node = Utils::GetScriptNode(script_tmpl, names);
-  keypath_m = names.size();
-  std::function<void(const ScriptNode&)> getKeynames =
-      [&](const ScriptNode& node) -> void {
-    for (int i = 0; i < node.get_keys().size(); i++) {
-      names.push_back(node.get_keys()[i]);
-    }
-    for (int i = 0; i < node.get_subs().size(); i++) {
-      getKeynames(node.get_subs()[i]);
-    }
-  };
-  getKeynames(script_node);
-  std::sort(names.begin() + keypath_m, names.end());
-  return names;
-}
-
 int GroupService::GetSignerIndex(const std::string& groupId,
                                  const std::string& name) {
   auto groupJson = GetGroupJson(groupId);
   auto script_tmpl = groupJson["init"]["pubstate"]["miniscriptTemplate"];
   int keypath_m = 0;
-  auto names = ParseSignerNames(script_tmpl, keypath_m);
+  auto names = Utils::ParseSignerNames(script_tmpl, keypath_m);
   for (int i = 0; i < names.size(); i++) {
     if (names[i] == name) return i;
   }

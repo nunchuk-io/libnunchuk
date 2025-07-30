@@ -737,6 +737,9 @@ class NUNCHUK_EXPORT GroupSandbox {
   const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
   std::string get_replace_wallet_id() const;
   std::string get_miniscript_template() const;
+  const std::map<std::string, SingleSigner>& get_named_signers() const;
+  const std::map<std::string, std::pair<time_t, std::string>>&
+  get_named_occupied() const;
 
   void set_name(const std::string& value);
   void set_url(const std::string& value);
@@ -2065,6 +2068,8 @@ class NUNCHUK_EXPORT Utils {
   static std::vector<CoinsGroup> GetCoinsGroupedBySubPolicies(
       const ScriptNode& script_node, const std::vector<UnspentOutput>& coins,
       int chain_tip);
+  static std::vector<std::string> ParseSignerNames(
+      const std::string& script_template, int& keypath_m);
 
  private:
   Utils() {}
