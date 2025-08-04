@@ -199,7 +199,7 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
 }
 
 void Wallet::post_update() {
-  if (get_wallet_type() == WalletType::MINISCRIPT) {
+  if (signers_.size() == n_ && get_wallet_type() == WalletType::MINISCRIPT) {
     id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
   } else if (signers_.size() > 0) {
     if (wallet_template_ == WalletTemplate::DISABLE_KEY_PATH) {
