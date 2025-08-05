@@ -1756,6 +1756,8 @@ class NUNCHUK_EXPORT Nunchuk {
                               const std::string& tx_id,
                               const std::vector<uint8_t>& hash,
                               const std::vector<uint8_t>& preimage) = 0;
+  virtual std::vector<SingleSigner> GetTransactionSigners(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
   virtual void SetPreferScriptPath(const Wallet& wallet,
                                    const std::string& tx_id, bool value) = 0;
   virtual bool IsPreferScriptPath(const Wallet& wallet,
@@ -2050,7 +2052,7 @@ class NUNCHUK_EXPORT Utils {
                                     PreimageHashType hashType,
                                     const std::vector<uint8_t>& hash,
                                     const std::vector<uint8_t>& preimage);
-  static bool IsPreimageRevealed(const std::string& psbt,
+  static bool IsPreimageRevealed(const std::string& psbt_or_hex_tx,
                                  const std::vector<uint8_t>& hash);
   static std::vector<SigningPath> GetAllSigningPaths(const std::string& script);
   static std::string ExpandingMultisigMiniscriptTemplate(

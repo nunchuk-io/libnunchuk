@@ -1185,9 +1185,25 @@ std::string Utils::RevealPreimage(const std::string& psbt,
   return EncodePsbt(psbtx);
 }
 
-bool Utils::IsPreimageRevealed(const std::string& psbt,
+bool Utils::IsPreimageRevealed(const std::string& psbt_or_hex_tx,
                                const std::vector<uint8_t>& hash) {
-  auto psbtx = DecodePsbt(psbt);
+  CMutableTransaction mtx;
+  if (DecodeHexTx(mtx, psbt_or_hex_tx, true, true)) {
+    for (int i = 0; i < mtx.vin.size(); i++) {
+      for (int j = 0; j < mtx.vin[i].scriptWitness.stack.size(); j++) {
+        auto data = mtx.vin[i].scriptWitness.stack[j];
+        if (data.size() != 32) continue;
+        if (Utils::HashPreimage(data, PreimageHashType::SHA256) == hash ||
+            Utils::HashPreimage(data, PreimageHashType::HASH256) == hash ||
+            Utils::HashPreimage(data, PreimageHashType::HASH160) == hash ||
+            Utils::HashPreimage(data, PreimageHashType::RIPEMD160) == hash) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  auto psbtx = DecodePsbt(psbt_or_hex_tx);
   for (int i = 0; i < psbtx.inputs.size(); i++) {
     if (hash.size() == 32 &&
         (psbtx.inputs[i].sha256_preimages.contains(uint256(hash)) ||

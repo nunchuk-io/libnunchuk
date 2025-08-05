@@ -32,6 +32,9 @@
 
 #include <signingprovider.h>
 #include <script/sign.h>
+#include <policy/policy.h>
+#include <util/bip32.h>
+
 #include <boost/algorithm/string.hpp>
 
 namespace {
@@ -106,19 +109,108 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   return tx;
 }
 
+struct PubkeyExtractor {
+  std::vector<CPubKey> pubkeys{};
+};
+
+class PubkeyExtractorChecker final : public DeferringSignatureChecker {
+ private:
+  PubkeyExtractor& m_extractor;
+
+ public:
+  PubkeyExtractorChecker(BaseSignatureChecker& checker,
+                         PubkeyExtractor& extractor)
+      : DeferringSignatureChecker(checker), m_extractor(extractor) {}
+
+  bool CheckECDSASignature(const std::vector<unsigned char>& scriptSig,
+                           const std::vector<unsigned char>& vchPubKey,
+                           const CScript& scriptCode,
+                           SigVersion sigversion) const override {
+    if (m_checker.CheckECDSASignature(scriptSig, vchPubKey, scriptCode,
+                                      sigversion)) {
+      CPubKey pubkey(vchPubKey);
+      m_extractor.pubkeys.push_back(pubkey);
+      return true;
+    }
+    return false;
+  }
+
+  bool CheckSchnorrSignature(Span<const unsigned char> sig,
+                             Span<const unsigned char> pubkey,
+                             SigVersion sigversion,
+                             ScriptExecutionData& execdata,
+                             ScriptError* serror) const override {
+    if (m_checker.CheckSchnorrSignature(sig, pubkey, sigversion, execdata,
+                                        serror)) {
+      XOnlyPubKey xonlypub(pubkey);
+      auto cpubkeys = xonlypub.GetCPubKeys();
+      for (auto&& fullpubkey : cpubkeys) {
+        m_extractor.pubkeys.push_back(fullpubkey);
+      }
+      return true;
+    }
+    return false;
+  }
+};
+
+inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
+    const std::string& raw_tx, const std::vector<nunchuk::UnspentOutput>& utxos,
+    const nunchuk::Wallet& wallet) {
+  using namespace nunchuk;
+
+  auto mtx = DecodeRawTransaction(raw_tx);
+  auto input = mtx.vin[0];
+  std::vector<CTxOut> ctxouts(mtx.vin.size());
+  for (int i = 0; i < utxos.size(); i++) {
+    ctxouts[i] = CTxOut{utxos[i].get_amount(),
+                        AddressToCScriptPubKey(utxos[i].get_address())};
+  }
+  auto ctxout = ctxouts[0];
+  PrecomputedTransactionData txdata;
+  txdata.Init(mtx, std::move(ctxouts), true);
+
+  MutableTransactionSignatureChecker checker(&mtx, 0, ctxout.nValue, txdata,
+                                             MissingDataBehavior::FAIL);
+  PubkeyExtractor extractor;
+  PubkeyExtractorChecker extractor_checker(checker, extractor);
+  ScriptError serror;
+  if (!VerifyScript(input.scriptSig, ctxout.scriptPubKey, &input.scriptWitness,
+                    STANDARD_SCRIPT_VERIFY_FLAGS, extractor_checker, &serror)) {
+    throw NunchukException(NunchukException::INVALID_RAW_TX, "Invalid raw tx");
+  }
+
+  std::vector<nunchuk::SingleSigner> rs{};
+  for (auto&& p : extractor.pubkeys) {
+    KeyOriginInfo info;
+    if (SigningProviderCache::getInstance().GetKeyOrigin(p.GetID(), info)) {
+      std::string xfp = strprintf("%08x", ReadBE32(info.fingerprint));
+      std::string path = WriteHDKeypath(info.path);
+      for (auto&& signer : wallet.get_signers()) {
+        if (signer.get_master_fingerprint() == xfp &&
+            path.starts_with(signer.get_derivation_path())) {
+          rs.push_back(signer);
+          break;
+        }
+      }
+    }
+  }
+  return rs;
+}
+
 inline nunchuk::Transaction ParseCMutableTransaction(
     const CMutableTransaction& mtx, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
 
   Transaction tx = GetTransactionFromCMutableTransaction(mtx, height);
   auto signers = wallet.get_signers();
-  if (wallet.get_wallet_type() == WalletType::MULTI_SIG &&
-      wallet.get_address_type() == AddressType::TAPROOT) {
-    if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
+  if (wallet.get_address_type() == AddressType::TAPROOT) {
+    if (wallet.get_wallet_type() == WalletType::SINGLE_SIG) {
+      tx.set_signer(signers[0].get_master_fingerprint(), true);
+    } else if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
       for (int i = 0; i < wallet.get_n(); i++) {
         tx.set_signer(signers[i].get_master_fingerprint(), i < wallet.get_m());
       }
-    } else {
+    } else if (wallet.get_wallet_type() == WalletType::MULTI_SIG) {
       for (auto&& signer : signers) {
         tx.set_signer(signer.get_master_fingerprint(), false);
       }
@@ -151,8 +243,11 @@ inline nunchuk::Transaction ParseCMutableTransaction(
           break;
         }
       }
+    } else if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+      for (auto&& signer : signers) {
+        tx.set_signer(signer.get_master_fingerprint(), false);
+      }
     }
-
   } else {
     for (auto&& signer : signers) {
       tx.set_signer(signer.get_master_fingerprint(), true);

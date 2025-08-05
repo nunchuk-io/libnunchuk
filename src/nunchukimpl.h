@@ -226,6 +226,8 @@ class NunchukImpl : public Nunchuk {
   bool RevealPreimage(const std::string& wallet_id, const std::string& tx_id,
                       const std::vector<uint8_t>& hash,
                       const std::vector<uint8_t>& preimage) override;
+  std::vector<SingleSigner> GetTransactionSigners(
+      const std::string& wallet_id, const std::string& tx_id) override;
   void SetPreferScriptPath(const Wallet& wallet, const std::string& tx_id,
                            bool value) override;
   bool IsPreferScriptPath(const Wallet& wallet,

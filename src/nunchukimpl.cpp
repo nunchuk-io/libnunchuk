@@ -996,16 +996,16 @@ std::vector<UnspentOutput> NunchukImpl::GetCoins(const std::string& wallet_id) {
 
 std::vector<UnspentOutput> NunchukImpl::GetCoinsFromTxInputs(
     const std::string& wallet_id, const std::vector<TxInput>& txInputs) {
-  auto utxos = storage_->GetUtxos(chain_, wallet_id, true);
-  auto check = [&](const UnspentOutput& coin) {
-    for (auto&& input : txInputs) {
-      if (input.txid == coin.get_txid() && input.vout == coin.get_vout())
-        return false;
-    }
-    return true;
-  };
-  utxos.erase(std::remove_if(utxos.begin(), utxos.end(), check), utxos.end());
-  return utxos;
+  auto coins = storage_->GetUtxos(chain_, wallet_id, true);
+  std::vector<UnspentOutput> rs{};
+  for (auto&& input : txInputs) {
+    auto coin =
+        std::find_if(coins.begin(), coins.end(), [&](const UnspentOutput& e) {
+          return e.get_txid() == input.txid && e.get_vout() == input.vout;
+        });
+    if (coin != coins.end()) rs.push_back(*coin);
+  }
+  return rs;
 }
 
 bool NunchukImpl::ExportUnspentOutputs(const std::string& wallet_id,
@@ -2804,6 +2804,14 @@ bool NunchukImpl::RevealPreimage(const std::string& wallet_id,
     group_service_.UpdateTransaction(wallet_id, tx_id, signed_psbt);
   }
   return true;
+}
+
+std::vector<SingleSigner> NunchukImpl::GetTransactionSigners(
+    const std::string& wallet_id, const std::string& tx_id) {
+  auto tx = GetTransaction(wallet_id, tx_id);
+  auto wallet = GetWallet(wallet_id);
+  auto utxos = GetCoinsFromTxInputs(wallet_id, tx.get_inputs());
+  return GetRawTxSigners(tx.get_raw(), utxos, wallet);
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
