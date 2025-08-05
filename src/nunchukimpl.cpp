@@ -2808,8 +2808,17 @@ bool NunchukImpl::RevealPreimage(const std::string& wallet_id,
 
 std::vector<SingleSigner> NunchukImpl::GetTransactionSigners(
     const std::string& wallet_id, const std::string& tx_id) {
-  auto tx = GetTransaction(wallet_id, tx_id);
   auto wallet = GetWallet(wallet_id);
+  auto tx = GetTransaction(wallet_id, tx_id);
+  if (!tx.get_psbt().empty()) {
+    std::vector<SingleSigner> rs{};
+    for (auto&& signer : wallet.get_signers()) {
+      if (tx.get_signers().at(signer.get_master_fingerprint())) {
+        rs.push_back(signer);
+      }
+    }
+    return rs;
+  }
   auto utxos = GetCoinsFromTxInputs(wallet_id, tx.get_inputs());
   return GetRawTxSigners(tx.get_raw(), utxos, wallet);
 }
