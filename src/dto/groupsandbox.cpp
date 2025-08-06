@@ -56,33 +56,38 @@ std::string GroupSandbox::get_replace_wallet_id() const {
 std::string GroupSandbox::get_miniscript_template() const {
   return miniscript_template_;
 }
-const std::map<std::string, SingleSigner>& GroupSandbox::get_named_signers()
-    const {
+std::map<std::string, SingleSigner> GroupSandbox::get_named_signers() const {
   if (miniscript_template_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Miniscript group only");
   }
-  std::map<std::string, SingleSigner> signers{};
+  std::map<std::string, SingleSigner> rs{};
   int keypath_m = 0;
   auto names = Utils::ParseSignerNames(miniscript_template_, keypath_m);
   for (int i = 0; i < names.size(); i++) {
-    signers[names[i]] = signers_.at(i);
+    if (i < signers_.size()) {
+      rs[names[i]] = signers_[i];
+    } else {
+      rs[names[i]] = SingleSigner();
+    }
   }
-  return signers;
+  return rs;
 }
-const std::map<std::string, std::pair<time_t, std::string>>&
+std::map<std::string, std::pair<time_t, std::string>>
 GroupSandbox::get_named_occupied() const {
   if (miniscript_template_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Miniscript group only");
   }
-  std::map<std::string, std::pair<time_t, std::string>> occupied{};
+  std::map<std::string, std::pair<time_t, std::string>> rs{};
   int keypath_m = 0;
   auto names = Utils::ParseSignerNames(miniscript_template_, keypath_m);
   for (int i = 0; i < names.size(); i++) {
-    occupied[names[i]] = occupied_.at(i);
+    if (occupied_.contains(i)) {
+      rs[names[i]] = occupied_.at(i);
+    }
   }
-  return occupied;
+  return rs;
 }
 
 void GroupSandbox::set_name(const std::string& value) { name_ = value; }
