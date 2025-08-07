@@ -180,16 +180,48 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
   }
 
   std::vector<nunchuk::SingleSigner> rs{};
-  for (auto&& p : extractor.pubkeys) {
+  auto pushSigner = [&](const CPubKey& p) {
     KeyOriginInfo info;
-    if (SigningProviderCache::getInstance().GetKeyOrigin(p.GetID(), info)) {
-      std::string xfp = strprintf("%08x", ReadBE32(info.fingerprint));
-      std::string path = WriteHDKeypath(info.path);
-      for (auto&& signer : wallet.get_signers()) {
-        if (signer.get_master_fingerprint() == xfp &&
-            path.starts_with(signer.get_derivation_path())) {
-          rs.push_back(signer);
-          break;
+    if (!SigningProviderCache::getInstance().GetKeyOrigin(p.GetID(), info)) {
+      return;
+    }
+    std::string xfp = strprintf("%08x", ReadBE32(info.fingerprint));
+    std::string path = WriteHDKeypath(info.path);
+    for (auto&& signer : wallet.get_signers()) {
+      if (signer.get_master_fingerprint() == xfp &&
+          path.starts_with(signer.get_derivation_path())) {
+        rs.push_back(signer);
+        break;
+      }
+    }
+  };
+  for (auto&& pubkey : extractor.pubkeys) {
+    pushSigner(pubkey);
+  }
+
+  // Decode Musig signers
+  if (wallet.get_address_type() == AddressType::TAPROOT) {
+    if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
+      for (int i = 0; i < wallet.get_m(); i++) {
+        rs.push_back(wallet.get_signers()[i]);
+      }
+    } else {
+      auto desc = GetDescriptorsImportString(wallet);
+      auto provider = SigningProviderCache::getInstance().GetProvider(desc);
+
+      for (int i = 0; i < mtx.vin[0].scriptWitness.stack.size(); i++) {
+        auto agg = mtx.vin[0].scriptWitness.stack[i];
+        if (agg.size() != CPubKey::COMPRESSED_SIZE + 1) continue;
+        agg.erase(agg.begin());
+        agg.pop_back();
+        XOnlyPubKey xonlypub(agg);
+        auto cpubkeys = xonlypub.GetCPubKeys();
+        for (auto&& fullpubkey : cpubkeys) {
+          if (provider.aggregate_pubkeys.contains(fullpubkey)) {
+            for (auto&& pubkey : provider.aggregate_pubkeys[fullpubkey]) {
+              pushSigner(pubkey);
+            }
+          }
         }
       }
     }
