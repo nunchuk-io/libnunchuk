@@ -1392,15 +1392,14 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
       temp << ",key_" << i << "_0";
     temp << ")," << timelock.to_miniscript() << ")}";
   } else {
-    temp << "andor(ln:" << timelock.to_miniscript();
-    temp << ",multi(" << new_m;
+    temp << "or_d(multi(" << m;
+    for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
+    temp << "),and_v(v:multi(" << new_m;
+
     int start_index = reuse_signers ? 0 : n;
     for (int i = start_index; i < start_index + new_n; i++)
       temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
-    temp << "),multi(" << m;
-
-    for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
-    temp << "))";
+    temp << ")," << timelock.to_miniscript() << "))";
   }
   return temp.str();
 }
