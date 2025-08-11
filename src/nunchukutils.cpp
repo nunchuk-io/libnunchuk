@@ -1421,28 +1421,48 @@ std::vector<UnspentOutput> Utils::GetTimelockedCoins(
 std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
     const ScriptNode& script_node, const std::vector<UnspentOutput>& coins,
     int chain_tip) {
-  if (script_node.get_type() != ScriptNode::Type::ANDOR &&
-      script_node.get_type() != ScriptNode::Type::OR &&
-      script_node.get_type() != ScriptNode::Type::OR_TAPROOT &&
-      script_node.get_type() != ScriptNode::Type::THRESH) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid script node");
-  }
-  std::vector<CoinsGroup> rs{};
-  for (int i = 0; i < script_node.get_subs().size(); i++) {
-    rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
-  }
-
-  for (auto&& coin : coins) {
+  if (script_node.get_type() == ScriptNode::Type::OR ||
+      script_node.get_type() == ScriptNode::Type::OR_TAPROOT ||
+      script_node.get_type() == ScriptNode::Type::THRESH) {
+    std::vector<CoinsGroup> rs{};
     for (int i = 0; i < script_node.get_subs().size(); i++) {
-      int64_t max_lock = 0;
-      if (script_node.get_subs()[i].is_unlocked(coin, chain_tip, max_lock)) {
-        rs[i].first.emplace_back(coin);
-      }
-      rs[i].second.first = max_lock;
+      rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
     }
+
+    for (auto&& coin : coins) {
+      for (int i = 0; i < script_node.get_subs().size(); i++) {
+        int64_t max_lock = 0;
+        if (script_node.get_subs()[i].is_unlocked(coin, chain_tip, max_lock)) {
+          rs[i].first.emplace_back(coin);
+        }
+        rs[i].second.first = max_lock;
+      }
+    }
+    return rs;
+  } else if (script_node.get_type() == ScriptNode::Type::ANDOR) {
+    std::vector<CoinsGroup> rs{};
+    for (int i = 0; i < script_node.get_subs().size(); i++) {
+      rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
+    }
+
+    for (auto&& coin : coins) {
+      int64_t max_lock = 0;
+      if (script_node.get_subs()[0].is_unlocked(coin, chain_tip, max_lock) &&
+          script_node.get_subs()[1].is_unlocked(coin, chain_tip, max_lock)) {
+        rs[1].first.emplace_back(coin);
+      }
+      rs[1].second.first = max_lock;
+
+      max_lock = 0;
+      if (script_node.get_subs()[2].is_unlocked(coin, chain_tip, max_lock)) {
+        rs[2].first.emplace_back(coin);
+      }
+      rs[2].second.first = max_lock;
+    }
+    return rs;
   }
-  return rs;
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Invalid script node");
 }
 
 std::vector<std::string> Utils::ParseSignerNames(
