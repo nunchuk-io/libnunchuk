@@ -1479,7 +1479,10 @@ std::vector<std::string> Utils::ParseSignerNames(
   std::function<void(const ScriptNode&)> getKeynames =
       [&](const ScriptNode& node) -> void {
     for (int i = 0; i < node.get_keys().size(); i++) {
-      names.push_back(node.get_keys()[i]);
+      std::string keyname = node.get_keys()[i];
+      if (std::find(names.begin(), names.end(), keyname) == names.end()) {
+        names.push_back(keyname);
+      }
     }
     for (int i = 0; i < node.get_subs().size(); i++) {
       getKeynames(node.get_subs()[i]);
