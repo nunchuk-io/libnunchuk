@@ -747,8 +747,9 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
 }
 
 GroupSandbox GroupService::FinalizeGroup(const GroupSandbox& group) {
-  if (group.get_m() <= 0 || group.get_n() <= 1 ||
-      group.get_m() > group.get_n()) {
+  if (group.get_wallet_type() != WalletType::MINISCRIPT &&
+      (group.get_m() <= 0 || group.get_n() <= 1 ||
+       group.get_m() > group.get_n())) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   if (group.get_signers().size() != group.get_n()) {

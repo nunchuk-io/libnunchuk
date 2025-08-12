@@ -432,8 +432,9 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId,
                                         const std::set<size_t>& valueKeyset) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
-  if (group.get_m() <= 0 || group.get_n() <= 1 ||
-      group.get_m() > group.get_n()) {
+  if (group.get_wallet_type() != WalletType::MINISCRIPT &&
+      (group.get_m() <= 0 || group.get_n() <= 1 ||
+       group.get_m() > group.get_n())) {
     throw GroupException(GroupException::INVALID_PARAMETER, "Invalid m/n");
   }
   if (group.is_finalized()) {
