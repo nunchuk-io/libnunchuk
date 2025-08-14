@@ -190,8 +190,12 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
         keypath = ss.str();
       }
     }
-    return GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
-                                      get_address_type());
+    auto desc = GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
+                                           get_address_type());
+    if (path == DescriptorPath::TEMPLATE) {
+      return split(desc, '#')[0];
+    }
+    return desc;
   }
   return GetDescriptorForSigners(
       get_signers(), get_m(), path, get_address_type(), get_wallet_type(),

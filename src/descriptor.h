@@ -73,14 +73,11 @@ std::string GetDescriptor(const SingleSigner& signer, AddressType address_type);
 
 SingleSigner ParseSignerString(const std::string& signer_str);
 
-bool ParseDescriptors(const std::string& descs, AddressType& address_type,
-                      WalletType& wallet_type, WalletTemplate& wallet_template,
-                      int& m, int& n, std::vector<SingleSigner>& signers);
+std::optional<Wallet> ParseDescriptors(const std::string& descs,
+                                       std::string& error);
 
-bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
-                          AddressType& address_type, WalletType& wallet_type,
-                          WalletTemplate& wallet_template, int& m, int& n,
-                          std::vector<SingleSigner>& signers);
+std::optional<Wallet> ParseJSONDescriptors(const std::string& json_str,
+                                           std::string& error);
 
 std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
                                             const std::string& prefix = {});

@@ -362,6 +362,15 @@ std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
 }
 
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
+  std::string error;
+  if (auto wallet = ParseBSMSRecord(descs, error); wallet) {
+    return *wallet;
+  } else if (auto wallet = ParseDescriptors(descs, error); wallet) {
+    return *wallet;
+  } else if (auto wallet = ParseJSONDescriptors(descs, error); wallet) {
+    return *wallet;
+  }
+
   AddressType a;
   WalletType w;
   WalletTemplate t = WalletTemplate::DEFAULT;
@@ -369,13 +378,8 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
   int n;
   std::vector<SingleSigner> signers;
   std::string name;
-
-  // Try all possible formats: BSMS, Descriptors, JSON with `descriptor` key,
   // Multisig config
-  if (ParseDescriptorRecord(descs, a, w, t, m, n, signers) ||
-      ParseDescriptors(descs, a, w, t, m, n, signers) ||
-      ParseJSONDescriptors(descs, name, a, w, t, m, n, signers) ||
-      ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
+  if (ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
       ParseConfig(Utils::GetChain(), descs, name, a, w, m, n, signers)) {
     std::string id = GetWalletId(signers, m, a, w, t);
     Wallet wallet{id, name, m, n, signers, a, w, std::time(0)};
