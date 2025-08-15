@@ -29,6 +29,7 @@
 #include <boost/algorithm/string.hpp>
 #include <signingprovider.h>
 #include <utils/stringutils.hpp>
+#include <miniscript/util.h>
 #include "util/bip32.h"
 
 using json = nlohmann::json;
@@ -418,20 +419,79 @@ Wallet ParseSortedMultiDescriptor(const std::string& desc, AddressType a) {
   return Wallet({}, {}, m, n, signers, a, w, 0);
 }
 
+Wallet ParseMusigWallet(const std::string& external, WalletTemplate t) {
+  std::vector<SingleSigner> signers;
+  int m = 0;
+  if (t == WalletTemplate::DISABLE_KEY_PATH) {
+    std::string prefix =
+        "tr(50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0,";
+    std::vector<std::string> parts;
+    std::string scriptpath =
+        external.substr(prefix.size(), external.size() - prefix.size() - 1);
+    boost::split(parts, scriptpath, boost::is_any_of("{}()"),
+                 boost::token_compress_off);
+    for (unsigned i = 0; i < parts.size(); ++i) {
+      if (parts[i].size() < 20) continue;
+      std::vector<std::string> keys;
+      boost::split(keys, parts[i], boost::is_any_of(","),
+                   boost::token_compress_off);
+      m = keys.size();
+      break;
+    }
+  } else {
+    std::string prefix = "tr(musig(";
+    std::vector<std::string> parts;
+    std::string musig_inner =
+        external.substr(prefix.size(), external.find(")", 0) - prefix.size());
+    boost::split(parts, musig_inner, boost::is_any_of(","),
+                 boost::token_compress_off);
+    m = parts.size();
+  }
+  std::vector<std::string> parts;
+  boost::split(parts, external, boost::is_any_of(",{}()"),
+               boost::token_compress_off);
+  std::set<std::string> signerStr{};
+  for (unsigned i = 0; i < parts.size(); ++i) {
+    if (parts[i] == H_POINT) continue;
+    if (parts[i].size() < 20) continue;
+    if (signerStr.count(parts[i])) continue;
+    auto signer = ParseSignerString(parts[i]);
+    signers.push_back(signer);
+    signerStr.insert(parts[i]);
+  }
+  int n = signers.size();
+
+  Wallet wallet({}, {}, m, n, signers, AddressType::TAPROOT,
+                WalletType::MULTI_SIG, 0);
+  wallet.set_wallet_template(t);
+  return wallet;
+}
+
 std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
                                         std::string& error) {
-  if (!Utils::IsValidTapscriptTemplate(desc, error)) {
-    // WalletType::SINGLE_SIG
-    if (error == "tr: expected ',', got ')'") {
-      std::string prefix = "tr(";
-      auto inner =
-          desc.substr(prefix.size(), desc.find(")", 0) - prefix.size());
-      auto signer = ParseSignerString(inner);
-      return Wallet({}, {}, 1, 1, {signer}, AddressType::TAPROOT,
-                    WalletType::SINGLE_SIG, 0);
-    }
-    error = "Invalid tapscript: " + desc;
+  std::vector<std::string> keypath;
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+  if (!ParseTapscriptTemplate(desc, keypath, subscripts, depths, error)) {
     return std::nullopt;
+  }
+  if (subscripts.empty()) {
+    // WalletType::SINGLE_SIG
+    if (keypath.size() != 1 || keypath[0] == H_POINT) {
+      error = "invalid single sig descriptor: " + desc;
+      return std::nullopt;
+    }
+    return Wallet({}, {}, 1, 1, {ParseSignerString(keypath[0])},
+                  AddressType::TAPROOT, WalletType::SINGLE_SIG, 0);
+  }
+  bool has_miniscript = false;
+  for (auto& subscript : subscripts) {
+    if (IsValidMusigTemplate(subscript)) continue;
+    has_miniscript = true;
+    if (!Utils::IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
+      error = strprintf("invalid miniscript template: '%s'", subscript);
+      return std::nullopt;
+    }
   }
 
   // WalletType::MINISCRIPT
@@ -448,9 +508,17 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
     signers_map[key] = signers.back();
   }
 
-  std::vector<std::string> keypath;
   auto script = Utils::TapscriptTemplateToTapscript(desc, signers_map, keypath);
-  return Wallet(script, signers, AddressType::TAPROOT, keypath_m);
+  Wallet wallet(script, signers, AddressType::TAPROOT, keypath_m);
+  if (has_miniscript) return wallet;
+
+  // Maybe WalletType::MULTI_SIG
+  WalletTemplate t = WalletTemplate::DEFAULT;
+  if (keypath.size() == 1 && keypath[0] == H_POINT) {
+    t = WalletTemplate::DISABLE_KEY_PATH;
+  }
+  Wallet musig_wallet = ParseMusigWallet(desc, t);
+  return musig_wallet.get_id() == wallet.get_id() ? musig_wallet : wallet;
 }
 
 std::optional<Wallet> ParseWshDescriptor(const std::string& desc,

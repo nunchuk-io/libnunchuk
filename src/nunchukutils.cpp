@@ -1262,6 +1262,10 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
                               error)) {
     return false;
   }
+  if (subscripts.empty()) {
+    error = "tapscript missing";
+    return false;
+  }
   for (auto& subscript : subscripts) {
     if (IsValidMusigTemplate(subscript)) continue;
     if (!IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {

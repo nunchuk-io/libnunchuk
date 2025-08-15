@@ -255,9 +255,9 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
                             std::vector<std::string>& subscripts,
                             std::vector<int>& depths, std::string& error) {
   using namespace script;
+  keypath.clear();
   Span<const char> expr{tapscript_template};
   if (Func("tr", expr)) {
-    keypath.clear();
     auto a = Expr(expr);
     std::string tmpl = std::string(a.begin(), a.end());
     if (tmpl.find("musig(") == 0) {
@@ -273,6 +273,10 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
       keypath.push_back(tmpl);
     }
     if (!Const(",", expr)) {
+      if (expr.empty() && expr[0] == ')') {
+        // empty tapscript
+        return true;
+      }
       error = strprintf("tr: expected ',', got '%c'", expr[0]);
       return false;
     }
