@@ -21,10 +21,6 @@ namespace nunchuk {
 
 Timelock::Timelock(Based based, Type type, int64_t value)
     : based_(based), type_(type), value_(value) {
-  if (based_ == Based::NONE) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Based cannot be NONE");
-  }
   k();
 }
 
@@ -40,6 +36,8 @@ int64_t Timelock::k() const {
     } else if (value_ >= LOCKTIME_THRESHOLD && based_ == Based::HEIGHT_LOCK) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid height value");
+    } else {
+      return 0;
     }
     return value_;
   } else {
@@ -81,6 +79,9 @@ Timelock Timelock::FromK(bool is_absolute, int64_t k) {
       b = Timelock::Based::HEIGHT_LOCK;
       v = (int)(k & CTxIn::SEQUENCE_LOCKTIME_MASK);
     }
+  }
+  if (v == 0) {
+    b = Timelock::Based::NONE;
   }
   return Timelock(b, t, v);
 }
