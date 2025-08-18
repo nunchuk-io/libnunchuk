@@ -1603,7 +1603,7 @@ std::pair<int64_t, Timelock::Based> NunchukImpl::GetTimelockedUntil(
   Timelock::Based based = timelock.based();
   uint32_t sequence = tx.get_inputs()[0].nSequence;
   if (sequence != 0 && sequence == Timelock::FromK(false, sequence).k()) {
-    auto utxos = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
+    auto utxos = GetCoinsFromTxInputs(wallet_id, tx.get_inputs());
     based = utxos[0].get_lock_based();
     if (based != Timelock::Based::NONE) {
       int64_t lock_value = Timelock::FromK(false, sequence).value();
