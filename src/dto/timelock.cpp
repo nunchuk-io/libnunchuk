@@ -36,8 +36,6 @@ int64_t Timelock::k() const {
     } else if (value_ >= LOCKTIME_THRESHOLD && based_ == Based::HEIGHT_LOCK) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid height value");
-    } else {
-      return 0;
     }
     return value_;
   } else {
