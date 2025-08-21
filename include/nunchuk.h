@@ -637,6 +637,20 @@ class NUNCHUK_EXPORT CoinCollection {
   std::vector<int> add_tags_;
 };
 
+// Workaround: Windows defines ABSOLUTE/RELATIVE as macros > clash with our enum.
+// Temporarily undefine them here, then restore after the class.
+#ifdef ABSOLUTE
+#pragma push_macro("ABSOLUTE")
+#undef ABSOLUTE
+#define NUNCHUK_ABSOLUTE_MACRO_RESTORED
+#endif
+
+#ifdef RELATIVE
+#pragma push_macro("RELATIVE")
+#undef RELATIVE
+#define NUNCHUK_RELATIVE_MACRO_RESTORED
+#endif
+
 class NUNCHUK_EXPORT Timelock {
  public:
   enum class Based {
@@ -663,6 +677,16 @@ class NUNCHUK_EXPORT Timelock {
   Type type_;
   int64_t value_;
 };
+
+#ifdef NUNCHUK_ABSOLUTE_MACRO_RESTORED
+#pragma pop_macro("ABSOLUTE")
+#undef NUNCHUK_ABSOLUTE_MACRO_RESTORED
+#endif
+
+#ifdef NUNCHUK_RELATIVE_MACRO_RESTORED
+#pragma pop_macro("RELATIVE")
+#undef NUNCHUK_RELATIVE_MACRO_RESTORED
+#endif
 
 // Class that represents an Unspent Transaction Output (UTXO)
 class NUNCHUK_EXPORT UnspentOutput {
@@ -2089,5 +2113,4 @@ std::unique_ptr<Nunchuk> MakeNunchukForDecoyPin(const AppSettings& appsettings,
                                                 const std::string& pin);
 
 }  // namespace nunchuk
-
 #endif  // NUNCHUK_INCLUDE_H
