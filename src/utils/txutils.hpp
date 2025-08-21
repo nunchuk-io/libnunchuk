@@ -250,21 +250,9 @@ inline nunchuk::Transaction ParseCMutableTransaction(
       agg.erase(agg.begin());
       agg.pop_back();
 
-      auto maxIdx =
-          SigningProviderCache::getInstance().GetMaxIndex(wallet.get_id());
-      FlatSigningProvider provider;
-      std::string error;
-      std::vector<CScript> output_scripts;
-      auto external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-      auto desc0 = Parse(external_desc, provider, error, true);
-      for (int i = 0; i <= maxIdx; i++) {
-        desc0.front()->Expand(i, provider, output_scripts, provider);
-      }
-      auto internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-      auto desc1 = Parse(internal_desc, provider, error, true);
-      for (int i = 0; i <= maxIdx; i++) {
-        desc1.front()->Expand(i, provider, output_scripts, provider);
-      }
+      auto desc = GetDescriptorsImportString(wallet);
+      auto provider = SigningProviderCache::getInstance().GetProvider(desc);
+
       for (auto&& agg_pubkeys : provider.aggregate_pubkeys) {
         if (HexStr(agg_pubkeys.first).substr(2) == HexStr(agg)) {
           for (auto&& pubkey : agg_pubkeys.second) {
