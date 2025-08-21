@@ -166,6 +166,7 @@ enum class DescriptorPath {
   EXTERNAL_XPUB,
   TEMPLATE,
   EXTERNAL_INTERNAL,
+  NONE,
 };
 
 enum class SignerType {

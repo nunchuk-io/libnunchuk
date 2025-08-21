@@ -261,11 +261,11 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
     auto a = Expr(expr);
     std::string tmpl = std::string(a.begin(), a.end());
     if (tmpl.find("musig(") == 0) {
-      if (tmpl.find(")", 6) != tmpl.size() - 1) {
+      if (tmpl.find(")", 6) == std::string::npos) {
         error = strprintf("tr(): expected ')' after musig expression");
         return false;
       }
-      auto keys = split(tmpl.substr(6, tmpl.size() - 7), ',');
+      auto keys = split(tmpl.substr(6, tmpl.find(")", 6) - 6), ',');
       for (auto& key : keys) {
         keypath.push_back(key);
       }
@@ -362,7 +362,7 @@ struct TreeNode {
 ScriptNode TreeToScriptNode(TreeNode* root) {
   if (root->isLeaf) {
     if (IsValidMusigTemplate(root->value)) {
-      std::string inner = root->value.substr(9, root->value.size() - 11);
+      std::string inner = root->value.substr(9, root->value.find(")", 9) - 9);
       std::vector<std::string> keys = split(inner, ',');
       uint32_t k = static_cast<uint32_t>(keys.size());
       return ScriptNode{ScriptNode::Type::MUSIG, {}, std::move(keys), {}, k};
@@ -523,8 +523,8 @@ std::vector<SigningPath> GetAllSigningPaths(const ScriptNode& node) {
 bool IsValidMusigTemplate(const std::string& musig_template) {
   if (musig_template.size() <= 11) return false;
   if (musig_template.find("pk(musig(") != 0) return false;
-  if (musig_template.find("))", 9) != musig_template.size() - 2) return false;
-  std::string inner = musig_template.substr(9, musig_template.size() - 11);
+  if (musig_template.find(")", 9) > musig_template.size() - 2) return false;
+  std::string inner = musig_template.substr(9, musig_template.find(")", 9) - 9);
   std::vector<std::string> inner_parts = split(inner, ',');
   if (inner_parts.size() < 2) return false;
   if (join(inner_parts, ',') != inner) return false;
@@ -536,15 +536,15 @@ std::string GetMusigScript(const std::string& musig_template,
   if (!IsValidMusigTemplate(musig_template))
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid musig template");
-  std::string inner = musig_template.substr(9, musig_template.size() - 11);
+  std::string inner = musig_template.substr(9, musig_template.find(")", 9) - 9);
   std::vector<std::string> parts = split(inner, ',');
   std::stringstream ss;
   ss << "pk(musig(";
   for (int i = 0; i < parts.size(); i++) {
     if (i > 0) ss << ",";
-    ss << GetDescriptorForSigner(signers.at(parts[i]), DescriptorPath::ANY);
+    ss << signers.at(parts[i]).get_descriptor();
   }
-  ss << "))";
+  ss << ")" << GetKeyPath(DescriptorPath::ANY, 0) << ")";
   return ss.str();
 }
 

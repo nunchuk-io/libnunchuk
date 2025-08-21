@@ -273,7 +273,8 @@ std::vector<Wallet> NunchukImpl::GetWallets(
   std::vector<Wallet> wallets;
   for (auto&& wallet_id : wallet_ids) {
     try {
-      wallets.push_back(GetWallet(wallet_id));
+      auto wallet = GetWallet(wallet_id);
+      if (wallet.get_id() == wallet_id) wallets.push_back(std::move(wallet));
     } catch (...) {
     }
   }
@@ -1181,6 +1182,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
   auto mastersigner_id = device.get_master_fingerprint();
   std::string signed_psbt;
   auto mastersigner = GetMasterSigner(mastersigner_id);
+  auto wallet = GetWallet(wallet_id);
 
   switch (mastersigner.get_type()) {
     case SignerType::FOREIGN_SOFTWARE:
@@ -1193,7 +1195,6 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
     case SignerType::SOFTWARE: {
       auto software_signer =
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
-      auto wallet = GetWallet(wallet_id);
       if (wallet.get_address_type() == AddressType::TAPROOT ||
           wallet.get_wallet_type() == WalletType::MINISCRIPT) {
         std::set<std::string> basepaths;
@@ -1215,10 +1216,10 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
       break;
     }
     case SignerType::HARDWARE:
-      signed_psbt = hwi_.SignTx(device, psbt);
+      signed_psbt = hwi_.SignTx(wallet, device, psbt);
       break;
     case SignerType::COLDCARD_NFC:
-      signed_psbt = hwi_.SignTx(device, psbt);
+      signed_psbt = hwi_.SignTx(wallet, device, psbt);
       break;
     case SignerType::NFC:
       throw NunchukException(
@@ -1295,10 +1296,10 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
       break;
     }
     case SignerType::HARDWARE:
-      signed_psbt = hwi_.SignTx(device, psbt);
+      signed_psbt = hwi_.SignTx(wallet, device, psbt);
       break;
     case SignerType::COLDCARD_NFC:
-      signed_psbt = hwi_.SignTx(device, psbt);
+      signed_psbt = hwi_.SignTx(wallet, device, psbt);
       break;
     case SignerType::FOREIGN_SOFTWARE:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
@@ -2330,6 +2331,7 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
   } else if (signerType == SignerType::HARDWARE ||
              signerType == SignerType::COLDCARD_NFC) {
     Device device{id};
+    // TODO: Add NunchukImpl::SignHealthCheckMessage with wallet arg
     if (isPsbt) return GetPartialSignature(hwi_.SignTx(device, message), id);
     return hwi_.SignMessage(device, message, signer.get_derivation_path());
   } else if (signerType == SignerType::FOREIGN_SOFTWARE) {

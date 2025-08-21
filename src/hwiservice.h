@@ -20,7 +20,6 @@
 
 #include <nunchuk.h>
 
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -38,6 +37,8 @@ class HWIService {
                             const std::string derivation_path) const;
   std::string GetMasterFingerprint(const Device &device) const;
   std::string SignTx(const Device &device,
+                     const std::string &base64_psbt) const;
+  std::string SignTx(const Wallet &wallet, const Device &device,
                      const std::string &base64_psbt) const;
   std::string SignMessage(const Device &device, const std::string &message,
                           const std::string &derivation_path) const;

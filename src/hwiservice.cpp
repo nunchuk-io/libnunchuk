@@ -19,19 +19,18 @@
 
 #include <base58.h>
 
-#include <array>
 #include <boost/process.hpp>
 #include <charconv>
+#include <regex>
+#include "utils/bip388.hpp"
+#include "utils/quote.hpp"
 #ifdef _WIN32
 #include <boost/process/windows.hpp>
 #endif
 #include <cstdio>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <memory>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -59,6 +58,21 @@ static json ParseResponse(const std::string &resp) {
                        NormalizeErrorMessage(rs["error"]));
   }
   return rs;
+}
+
+static std::vector<std::string> PrependDeviceID(
+    std::vector<std::string> cmd_args, const Device &device) {
+  if (!device.get_master_fingerprint().empty()) {
+    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
+    cmd_args.insert(cmd_args.begin(), "-f");
+  } else {
+    // No fingerprint, try to use device type+path instead
+    cmd_args.insert(cmd_args.begin(), device.get_path());
+    cmd_args.insert(cmd_args.begin(), "-d");
+    cmd_args.insert(cmd_args.begin(), device.get_type());
+    cmd_args.insert(cmd_args.begin(), "-t");
+  }
+  return cmd_args;
 }
 
 HWIService::HWIService(std::string path, Chain chain)
@@ -194,18 +208,43 @@ std::string HWIService::GetMasterFingerprint(const Device &device) const {
 std::string HWIService::SignTx(const Device &device,
                                const std::string &base64_psbt) const {
   ValidateDevice(device);
-  std::vector<std::string> cmd_args = {"signtx", base64_psbt};
-  if (!device.get_master_fingerprint().empty()) {
-    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
-    cmd_args.insert(cmd_args.begin(), "-f");
-  } else {
-    // No fingerprint, try to use device type+path instead
-    cmd_args.insert(cmd_args.begin(), device.get_path());
-    cmd_args.insert(cmd_args.begin(), "-d");
-    cmd_args.insert(cmd_args.begin(), device.get_type());
-    cmd_args.insert(cmd_args.begin(), "-t");
-  }
+  std::vector<std::string> cmd_args =
+      PrependDeviceID({"signtx", base64_psbt}, device);
   json rs = ParseResponse(RunCmd(cmd_args));
+  return rs["psbt"];
+}
+
+std::string HWIService::SignTx(const Wallet &wallet, const Device &device,
+                               const std::string &base64_psbt) const {
+  ValidateDevice(device);
+  std::vector<std::string> sign_args =
+      PrependDeviceID({"signtx", base64_psbt}, device);
+
+  if (wallet.get_wallet_type() == WalletType::MINISCRIPT &&
+      device.get_type() == "ledger") {
+    auto bip388 = GetBip388Policy(wallet);
+    std::string name_quoted = quoted_copy(wallet.get_name());
+    std::string desc_quoted = "\"" + bip388.descriptor_template + "\"";
+
+    std::vector<std::string> register_args = PrependDeviceID(
+        {"register", "--desc", desc_quoted, "--name", name_quoted}, device);
+    for (auto &&key_info : bip388.keys_info) {
+      register_args.push_back("--key");
+      register_args.push_back(key_info);
+    }
+
+    json register_rs = ParseResponse(RunCmd(register_args));
+
+    sign_args.insert(sign_args.end(),
+                     {"--policy-desc", desc_quoted, "--policy-name",
+                      name_quoted, "--hmac", register_rs["hmac"]});
+    for (auto &&key_info : bip388.keys_info) {
+      sign_args.push_back("--key");
+      sign_args.push_back(key_info);
+    }
+  }
+
+  json rs = ParseResponse(RunCmd(sign_args));
   return rs["psbt"];
 }
 
@@ -214,18 +253,8 @@ std::string HWIService::SignMessage(const Device &device,
                                     const std::string &derivation_path) const {
   ValidateDevice(device);
   std::string quoted_message = "\"" + message + "\"";
-  std::vector<std::string> cmd_args = {"signmessage", quoted_message,
-                                       derivation_path};
-  if (!device.get_master_fingerprint().empty()) {
-    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
-    cmd_args.insert(cmd_args.begin(), "-f");
-  } else {
-    // No fingerprint, try to use device type+path instead
-    cmd_args.insert(cmd_args.begin(), device.get_path());
-    cmd_args.insert(cmd_args.begin(), "-d");
-    cmd_args.insert(cmd_args.begin(), device.get_type());
-    cmd_args.insert(cmd_args.begin(), "-t");
-  }
+  std::vector<std::string> cmd_args =
+      PrependDeviceID({"signmessage", quoted_message, derivation_path}, device);
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["signature"];
 }
@@ -234,17 +263,8 @@ std::string HWIService::DisplayAddress(const Device &device,
                                        const std::string &desc) const {
   ValidateDevice(device);
   std::string quoted_desc = "\"" + desc + "\"";
-  std::vector<std::string> cmd_args = {"displayaddress", "--desc", quoted_desc};
-  if (!device.get_master_fingerprint().empty()) {
-    cmd_args.insert(cmd_args.begin(), device.get_master_fingerprint());
-    cmd_args.insert(cmd_args.begin(), "-f");
-  } else {
-    // No fingerprint, try to use device type+path instead
-    cmd_args.insert(cmd_args.begin(), device.get_path());
-    cmd_args.insert(cmd_args.begin(), "-d");
-    cmd_args.insert(cmd_args.begin(), device.get_type());
-    cmd_args.insert(cmd_args.begin(), "-t");
-  }
+  std::vector<std::string> cmd_args =
+      PrependDeviceID({"displayaddress", "--desc", quoted_desc}, device);
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["address"];
 }
