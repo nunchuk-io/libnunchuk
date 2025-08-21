@@ -149,6 +149,7 @@ enum class ExportFormat {
   COBO,
   CSV,
   BSMS,
+  DESCRIPTOR_EXTERNAL_ALL,
 };
 
 enum class Unit {
@@ -637,8 +638,8 @@ class NUNCHUK_EXPORT CoinCollection {
   std::vector<int> add_tags_;
 };
 
-// Workaround: Windows defines ABSOLUTE/RELATIVE as macros > clash with our enum.
-// Temporarily undefine them here, then restore after the class.
+// Workaround: Windows defines ABSOLUTE/RELATIVE as macros > clash with our
+// enum. Temporarily undefine them here, then restore after the class.
 #ifdef ABSOLUTE
 #pragma push_macro("ABSOLUTE")
 #undef ABSOLUTE
@@ -2032,7 +2033,8 @@ class NUNCHUK_EXPORT Utils {
       const std::string& psbt, int min_version = 1 /*1-40*/,
       int max_version = 40 /*1-40*/);
   static std::vector<std::string> ExportBBQRWallet(
-      const Wallet& wallet, ExportFormat = ExportFormat::COLDCARD,
+      const Wallet& wallet,
+      ExportFormat = ExportFormat::DESCRIPTOR_EXTERNAL_ALL,
       int min_version = 1 /*1-40*/, int max_version = 1 /*1-40*/);
   static std::vector<std::string> ExportKeystoneWallet(const Wallet& wallet,
                                                        int fragment_len = 200);

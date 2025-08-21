@@ -172,9 +172,13 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
         wallet_db.DecryptDb(file_path);
       }
       return true;
-    default:
-      return false;
+    case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
+      return WriteFile(file_path, wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
+    case ExportFormat::COBO:
+    case ExportFormat::CSV:
+      break;
   }
+  return false;
 }
 
 std::string NunchukStorage::GetWalletExportData(Chain chain,
@@ -196,6 +200,8 @@ std::string NunchukStorage::GetWalletExportData(Chain chain,
       return {};
     case ExportFormat::CSV:
       return {};
+    case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
+      return wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   }
   return {};
 }
