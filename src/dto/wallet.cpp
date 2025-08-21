@@ -103,12 +103,8 @@ std::string Wallet::get_miniscript(DescriptorPath path, int index) const {
   if (path == DescriptorPath::ANY) {
     return miniscript_;
   }
-  std::string rs = miniscript_;
-  for (auto&& signer : signers_) {
-    rs = replaceAll(rs, GetDescriptorForSigner(signer, DescriptorPath::ANY),
-                    GetDescriptorForSigner(signer, path, index));
-  }
-  return rs;
+  return replaceAll(miniscript_, GetKeyPath(DescriptorPath::ANY, 0),
+                    GetKeyPath(path, index));
 }
 void Wallet::check_valid() const {
   if (n_ <= 0)
@@ -184,11 +180,13 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
         ss << "musig(";
         for (int i = 0; i < m_; i++) {
           if (i > 0) ss << ",";
-          ss << GetDescriptorForSigner(signers_[i], path, index);
+          ss << signers_[i].get_descriptor();
         }
-        ss << ")";
+        ss << ")" << GetKeyPath(path, index);
         keypath = ss.str();
       }
+    } else {
+      keypath = GetUnspendableXpub(signers_) + GetKeyPath(path, index);
     }
     auto desc = GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
                                            get_address_type());

@@ -25,19 +25,20 @@
 #include <vector>
 
 namespace nunchuk {
+const std::string H_POINT =
+    "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
 
 std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
+
+std::string GetKeyPath(DescriptorPath path, int index);
 
 std::string GetDerivationPathView(std::string path);
 
 std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
                         AddressType address_type, WalletType wallet_type,
                         WalletTemplate wallet_template);
-
-std::string GetWalletId(const std::string& miniscript,
-                        const std::string& keypath, AddressType address_type);
 
 /**
  * @param external External descriptor to import
@@ -81,6 +82,10 @@ std::optional<Wallet> ParseJSONDescriptors(const std::string& json_str,
 
 std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
                                             const std::string& prefix = {});
+
+std::string GetUnspendableXpub(const std::vector<SingleSigner> &signers);
+
+bool IsUnspendableXpub(const std::string &xpub);
 
 }  // namespace nunchuk
 

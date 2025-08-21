@@ -358,6 +358,7 @@ std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
   }
+  // TODO: Add Utils::SignPsbt with wallet arg
   return hwi.SignTx(device, psbt);
 }
 
@@ -1397,7 +1398,7 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
 
     int start_index = reuse_signers ? 0 : n;
     for (int i = start_index; i < start_index + new_n; i++)
-      temp << ",key_" << i << "_0";
+      temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
     temp << ")," << timelock.to_miniscript() << ")}";
   } else {
     temp << "or_d(multi(" << m;

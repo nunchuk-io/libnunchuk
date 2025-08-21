@@ -16,6 +16,7 @@
  */
 
 #include <backend/electrum/client.h>
+#include <boost/asio/ip/address.hpp>
 #include <iterator>
 #include <utils/loguru.hpp>
 #include <utils/errorutils.hpp>
@@ -476,6 +477,13 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
 
   if (is_secure_) {
     secure_socket_->lowest_layer().set_option(ip::tcp::no_delay(true));
+    // Set SNI if host is not an IP address
+    std::string host = use_proxy_ ? proxy_host_ : host_;
+    boost::system::error_code err;
+    auto ip = boost::asio::ip::make_address(host, err);
+    if (err) {
+      SSL_set_tlsext_host_name(secure_socket_->native_handle(), host.c_str());
+    }
     secure_socket_->set_verify_callback(
         [](bool preverified, ssl::verify_context& ctx) {
           char subject_name[256];

@@ -46,7 +46,7 @@ extern "C" {
 void random_buffer(uint8_t* buf, size_t len) {
   // Core's GetStrongRandBytes
   // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  Span<unsigned char> bytes(buf, len);
+  std::span<unsigned char> bytes(buf, len);
   GetStrongRandBytes(bytes);
 }
 }
@@ -266,6 +266,10 @@ std::string SoftwareSigner::SignTaprootTx(
     for (auto&& basepath : basepaths) {
       addPath(basepath + "/1/" + std::to_string(i));
     }
+  }
+
+  for (auto&& basepath : basepaths) {
+    addPath(basepath);
   }
 
   std::map<uint256, MuSig2SecNonce> musig2_secnonces{};

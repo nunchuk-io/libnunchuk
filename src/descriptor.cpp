@@ -34,9 +34,7 @@
 
 using json = nlohmann::json;
 namespace nunchuk {
-
-static const std::string H_POINT =
-    "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
+static const auto BIP341_NUMS_PUBKEY = ParseHex(std::string("02") + H_POINT);
 
 std::string AddChecksum(const std::string& str) {
   return str + "#" + GetDescriptorChecksum(str);
@@ -113,6 +111,9 @@ std::string GetKeyPath(DescriptorPath path, int index) {
       break;
     case DescriptorPath::EXTERNAL_INTERNAL:
       keypath << "/<0;1>/*";
+      break;
+    case DescriptorPath::NONE:
+      keypath << "";
       break;
   }
   return keypath.str();
@@ -314,8 +315,7 @@ std::string GetDescriptorForMiniscript(const std::string& miniscript,
   if (address_type == AddressType::NATIVE_SEGWIT) {
     desc << "wsh(" << miniscript << ")";
   } else if (address_type == AddressType::TAPROOT) {
-    desc << "tr(" << (keypath.empty() ? H_POINT : keypath) << "," << miniscript
-         << ")";
+    desc << "tr(" << keypath << "," << miniscript << ")";
   } else {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid address type");
@@ -328,21 +328,6 @@ std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
   auto external_desc = GetDescriptorForSigners(
       signers, m, DescriptorPath::EXTERNAL_ALL, a, w, t);
   return GetDescriptorChecksum(external_desc);
-}
-
-std::string GetWalletId(const std::string& miniscript,
-                        const std::string& keypath, AddressType address_type) {
-  std::stringstream desc;
-  if (address_type == AddressType::NATIVE_SEGWIT) {
-    desc << "wsh(" << miniscript << ")";
-  } else if (address_type == AddressType::TAPROOT) {
-    desc << "tr(" << (keypath.empty() ? H_POINT : keypath) << "," << miniscript
-         << ")";
-  } else {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid address type");
-  }
-  return GetDescriptorChecksum(desc.str());
 }
 
 std::string GetPkhDescriptor(const std::string& address) {
@@ -423,8 +408,7 @@ Wallet ParseMusigWallet(const std::string& external, WalletTemplate t) {
   std::vector<SingleSigner> signers;
   int m = 0;
   if (t == WalletTemplate::DISABLE_KEY_PATH) {
-    std::string prefix =
-        "tr(50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0,";
+    std::string prefix = "tr(" + H_POINT + ",";
     std::vector<std::string> parts;
     std::string scriptpath =
         external.substr(prefix.size(), external.size() - prefix.size() - 1);
@@ -452,7 +436,7 @@ Wallet ParseMusigWallet(const std::string& external, WalletTemplate t) {
                boost::token_compress_off);
   std::set<std::string> signerStr{};
   for (unsigned i = 0; i < parts.size(); ++i) {
-    if (parts[i] == H_POINT) continue;
+    if (parts[i] == H_POINT || IsUnspendableXpub(parts[i])) continue;
     if (parts[i].size() < 20) continue;
     if (signerStr.count(parts[i])) continue;
     auto signer = ParseSignerString(parts[i]);
@@ -477,8 +461,9 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
   }
   if (subscripts.empty()) {
     // WalletType::SINGLE_SIG
-    if (keypath.size() != 1 || keypath[0] == H_POINT) {
-      error = "invalid single sig descriptor: " + desc;
+    if (keypath.size() != 1 || keypath[0] == H_POINT ||
+        IsUnspendableXpub(keypath[0])) {
+      error = "invalid single-sig descriptor: " + desc;
       return std::nullopt;
     }
     return Wallet({}, {}, 1, 1, {ParseSignerString(keypath[0])},
@@ -489,7 +474,7 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
     if (IsValidMusigTemplate(subscript)) continue;
     has_miniscript = true;
     if (!Utils::IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
-      error = strprintf("invalid miniscript template: '%s'", subscript);
+      error = "invalid miniscript: " + subscript;
       return std::nullopt;
     }
   }
@@ -500,7 +485,7 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
   auto keys = Utils::ParseSignerNames(desc, keypath_m);
   std::map<std::string, SingleSigner> signers_map;
   for (auto&& key : keys) {
-    if (key == H_POINT) {
+    if (key == H_POINT || IsUnspendableXpub(key)) {
       keypath_m = 0;
       continue;
     }
@@ -514,11 +499,16 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
 
   // Maybe WalletType::MULTI_SIG
   WalletTemplate t = WalletTemplate::DEFAULT;
+  auto miniscript_desc = wallet.get_descriptor(DescriptorPath::NONE);
   if (keypath.size() == 1 && keypath[0] == H_POINT) {
     t = WalletTemplate::DISABLE_KEY_PATH;
+    miniscript_desc =
+        GetDescriptorForMiniscript(wallet.get_miniscript(DescriptorPath::NONE),
+                                   H_POINT, wallet.get_address_type());
   }
   Wallet musig_wallet = ParseMusigWallet(desc, t);
-  return musig_wallet.get_id() == wallet.get_id() ? musig_wallet : wallet;
+  auto musig_desc = musig_wallet.get_descriptor(DescriptorPath::NONE);
+  return (musig_desc == miniscript_desc) ? musig_wallet : wallet;
 }
 
 std::optional<Wallet> ParseWshDescriptor(const std::string& desc,
@@ -604,6 +594,7 @@ std::optional<Wallet> ParseDescriptors(const std::string& descs,
         return wallet;
       }
     }
+    error = "Failed to verify wallet descriptor";
     return std::nullopt;
   } catch (...) {
     return std::nullopt;
@@ -644,6 +635,38 @@ std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
   std::string rs = prefix + sp[0] + "/" + sp[1];
   std::replace(rs.begin(), rs.end(), '\'', 'h');
   return rs;
+}
+
+std::string GetUnspendableXpub(const std::vector<SingleSigner>& signers) {
+  CExtPubKey xpub{};
+
+  std::vector<std::vector<unsigned char>> pubkeys;
+  pubkeys.reserve(signers.size());
+
+  for (auto&& signer : signers) {
+    auto pubkey = DecodeExtPubKey(signer.get_xpub()).pubkey;
+    pubkeys.emplace_back(pubkey.begin(), pubkey.end());
+  }
+
+  std::sort(pubkeys.begin(), pubkeys.end());
+  pubkeys.erase(std::unique(pubkeys.begin(), pubkeys.end()), pubkeys.end());
+
+  CSHA256 hasher;
+  for (auto&& pubkey : pubkeys) {
+    hasher.Write(pubkey.data(), pubkey.size());
+  }
+  hasher.Finalize(xpub.chaincode.data());
+
+  xpub.pubkey.Set(BIP341_NUMS_PUBKEY.begin(), BIP341_NUMS_PUBKEY.end());
+
+  return EncodeExtPubKey(xpub);
+}
+
+bool IsUnspendableXpub(const std::string& xpub) {
+  if (xpub.empty()) return false;
+  auto pubkey = DecodeExtPubKey(split(xpub, '/')[0]).pubkey;
+  return std::equal(pubkey.begin(), pubkey.end(), BIP341_NUMS_PUBKEY.begin(),
+                    BIP341_NUMS_PUBKEY.end());
 }
 
 }  // namespace nunchuk
