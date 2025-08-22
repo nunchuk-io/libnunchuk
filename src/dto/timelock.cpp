@@ -29,7 +29,7 @@ Timelock::Type Timelock::type() const { return type_; }
 int64_t Timelock::value() const { return value_; }
 
 int64_t Timelock::k() const {
-  if (type_ == Type::ABSOLUTE) {
+  if (type_ == Type::LOCKTYPE_ABSOLUTE) {
     if (value_ < LOCKTIME_THRESHOLD && based_ == Based::TIME_LOCK) {
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid time value");
@@ -63,12 +63,12 @@ Timelock Timelock::FromK(bool is_absolute, int64_t k) {
   Type t;
   int64_t v;
   if (is_absolute) {
-    t = Type::ABSOLUTE;
+    t = Type::LOCKTYPE_ABSOLUTE;
     b = k >= LOCKTIME_THRESHOLD ? Timelock::Based::TIME_LOCK
                                 : Timelock::Based::HEIGHT_LOCK;
     v = k;
   } else {
-    t = Type::RELATIVE;
+    t = Type::LOCKTYPE_RELATIVE;
     if (k & CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG) {
       b = Timelock::Based::TIME_LOCK;
       v = (int64_t)((k & CTxIn::SEQUENCE_LOCKTIME_MASK)
@@ -86,7 +86,7 @@ Timelock Timelock::FromK(bool is_absolute, int64_t k) {
 
 std::string Timelock::to_miniscript() const {
   std::stringstream temp;
-  if (type_ == Type::ABSOLUTE) {
+  if (type_ == Type::LOCKTYPE_ABSOLUTE) {
     temp << "after(" << k() << ")";
   } else {
     temp << "older(" << k() << ")";

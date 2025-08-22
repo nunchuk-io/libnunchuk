@@ -618,7 +618,7 @@ void newminiscriptwallet() {
 
   // TODO: allow user to select timelock based, type and value
   Timelock::Based based = Timelock::Based::HEIGHT_LOCK;
-  Timelock::Type type = Timelock::Type::RELATIVE;
+  Timelock::Type type = Timelock::Type::LOCKTYPE_RELATIVE;
   int64_t value = 1;
   Timelock timelock{based, type, value};
 
