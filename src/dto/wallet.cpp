@@ -80,7 +80,12 @@ Wallet::Wallet(const std::string& miniscript,
   id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
 }
 
-std::string Wallet::get_id() const { return id_; }
+std::string Wallet::get_id() const {
+  if (id_.empty()) {
+    throw NunchukException(NunchukException::INVALID_STATE, "Id is empty");
+  }
+  return id_;
+}
 std::string Wallet::get_name() const { return name_; }
 int Wallet::get_m() const { return m_; }
 int Wallet::get_n() const { return n_; }
@@ -201,9 +206,16 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
 }
 
 void Wallet::post_update() {
-  if (signers_.size() == n_ && get_wallet_type() == WalletType::MINISCRIPT) {
+  try {
+    check_valid();
+  } catch (const NunchukException& e) {
+    if (strict_) throw e;
+    id_ = "";
+    return;
+  }
+  if (get_wallet_type() == WalletType::MINISCRIPT) {
     id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
-  } else if (signers_.size() > 0) {
+  } else {
     if (wallet_template_ == WalletTemplate::DISABLE_KEY_PATH) {
       std::sort(signers_.begin(), signers_.end(),
                 [](const SingleSigner& a, const SingleSigner& b) {
@@ -213,9 +225,6 @@ void Wallet::post_update() {
     }
     id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type(),
                       get_wallet_template());
-  }
-  if (strict_) {
-    check_valid();
   }
 }
 
