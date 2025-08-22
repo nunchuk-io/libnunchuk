@@ -1381,9 +1381,9 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "m, new_m must be greater than 0");
   }
-  if (n <= 1 || new_n <= 1) {
+  if (n <= 0 || new_n <= 0) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "n, new_n must be greater than 1");
+                           "n, new_n must be greater than 0");
   }
   if (m > n) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -1393,25 +1393,30 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "new m must be less than or equal to new n");
   }
+  auto inner = [&address_type](int m, int n, int start_index, int new_index) {
+    if (n == 1) {
+      return "pk(key_" + std::to_string(start_index) +
+             (0 < new_index ? "_1" : "_0") + ")";
+    }
+    std::stringstream multi;
+    multi << (address_type == AddressType::TAPROOT ? "multi_a" : "multi");
+    multi << "(" << m;
+    for (int i = start_index; i < start_index + n; i++) {
+      multi << ",key_" << i << (i < new_index ? "_1" : "_0");
+    }
+    multi << ")";
+    return multi.str();
+  };
+
   std::stringstream temp;
   if (address_type == AddressType::TAPROOT) {
-    temp << "{multi_a(" << m;
-    for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
-    temp << "),and_v(v:multi_a(" << new_m;
-
-    int start_index = reuse_signers ? 0 : n;
-    for (int i = start_index; i < start_index + new_n; i++)
-      temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
-    temp << ")," << timelock.to_miniscript() << ")}";
+    temp << "{" << inner(m, n, 0, 0) << ",and_v(v:"
+         << inner(new_m, new_n, reuse_signers ? 0 : n, reuse_signers ? n : 0)
+         << "," << timelock.to_miniscript() << ")}";
   } else {
-    temp << "or_d(multi(" << m;
-    for (int i = 0; i < n; i++) temp << ",key_" << i << "_0";
-    temp << "),and_v(v:multi(" << new_m;
-
-    int start_index = reuse_signers ? 0 : n;
-    for (int i = start_index; i < start_index + new_n; i++)
-      temp << ",key_" << i << (reuse_signers && i < n ? "_1" : "_0");
-    temp << ")," << timelock.to_miniscript() << "))";
+    temp << "or_d(" << inner(m, n, 0, 0) << ",and_v(v:"
+         << inner(new_m, new_n, reuse_signers ? 0 : n, reuse_signers ? n : 0)
+         << "," << timelock.to_miniscript() << "))";
   }
   return temp.str();
 }
