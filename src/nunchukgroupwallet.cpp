@@ -283,10 +283,12 @@ GroupSandbox NunchukImpl::CreateReplaceGroup(const std::string& walletId) {
   // Rebuild script template
   std::string script_tmpl = wallet.get_miniscript();
   if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+    script_tmpl =
+        replaceAll(script_tmpl, GetKeyPath(DescriptorPath::ANY, 0), "");
     for (int i = wallet.get_m(); i < wallet.get_n(); i++) {
       script_tmpl = replaceAll(
           script_tmpl,
-          GetDescriptorForSigner(wallet.get_signers()[i], DescriptorPath::ANY),
+          GetDescriptorForSigner(wallet.get_signers()[i], DescriptorPath::NONE),
           "key_" + std::to_string(i));
     }
     if (wallet.get_address_type() == AddressType::TAPROOT &&
