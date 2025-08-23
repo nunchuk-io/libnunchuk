@@ -699,7 +699,8 @@ class NunchukImpl : public Nunchuk {
   bool FinalizeGroupLocal(const GroupSandbox& group);
   Wallet CreateLocalGroupWallet(const GroupSandbox& group);
   void SubscribeGroups(const std::vector<std::string>& groupIds,
-                       const std::vector<std::string>& walletIds);
+                       const std::vector<std::string>& walletIds,
+                       bool sync = false);
   void StartListenEvents();
 
   AppSettings app_settings_;

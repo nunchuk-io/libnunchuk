@@ -34,8 +34,9 @@ void ThrowIfNotEnable(bool value) {
 }
 
 void NunchukImpl::SubscribeGroups(const std::vector<std::string>& groupIds,
-                                  const std::vector<std::string>& walletIds) {
-  auto rejected = group_service_.Subscribe(groupIds, walletIds);
+                                  const std::vector<std::string>& walletIds,
+                                  bool sync) {
+  auto rejected = group_service_.Subscribe(groupIds, walletIds, sync);
   for (auto&& id : rejected.first) {
     storage_->RemoveGroupSandboxId(chain_, id);
   }
@@ -115,7 +116,7 @@ void NunchukImpl::EnableGroupWallet(const std::string& osName,
 
 void NunchukImpl::StartListenEvents() {
   SubscribeGroups(storage_->GetGroupSandboxIds(chain_),
-                  storage_->GetGroupWalletIds(chain_));
+                  storage_->GetGroupWalletIds(chain_), true);
   group_service_.StartListenEvents([&](const nlohmann::json& event) {
     time_t ts = event["timestamp_ms"].get<int64_t>() / 1000;
     std::string eid = event["id"];

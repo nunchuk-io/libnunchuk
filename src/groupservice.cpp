@@ -926,7 +926,7 @@ bool GroupService::HasWallet(const std::string& walletId) {
 
 std::pair<std::vector<std::string>, std::vector<std::string>>
 GroupService::Subscribe(const std::vector<std::string>& groupIds,
-                        const std::vector<std::string>& walletIds) {
+                        const std::vector<std::string>& walletIds, bool sync) {
   std::string url = "/v1.1/shared-wallets/events/subscribe";
   json ids = json::array();
   for (auto&& id : groupIds) {
@@ -938,7 +938,7 @@ GroupService::Subscribe(const std::vector<std::string>& groupIds,
     auto gid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
     ids.push_back({{"wallet_id", gid}, {"from_ts_ms", 0}});
   }
-  json sub = {{"sub", ids}};
+  json sub = {{"sub", ids}, {"sync", sync}};
   std::string body = sub.dump();
   json data = GetHttpResponseData(Post(url, {body.begin(), body.end()}));
   std::vector<std::string> rejectedGroupIds{};
