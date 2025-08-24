@@ -393,12 +393,7 @@ Transaction NunchukImpl::SignTapsignerTransaction(
            "NunchukImpl::SignTapsignerTransaction(), "
            "signed_psbt='%s'",
            signed_psbt.c_str());
-    storage_->UpdatePsbt(chain_, wallet_id, signed_psbt);
-    storage_listener_();
-    if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
-      group_service_.UpdateTransaction(wallet_id, tx_id, signed_psbt);
-    }
-    return GetTransaction(wallet_id, tx_id);
+    return ImportPsbt(wallet_id, signed_psbt);
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
