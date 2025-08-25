@@ -219,7 +219,10 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
         xpub.nChild = 0;
         xpub.nDepth = 0;
         for (auto&& p : path) {
-          xpub.Derive(xpub, p);
+          if (!xpub.Derive(xpub, p)) {
+            throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                   "Invalid path");
+          }
         }
         return xpub;
       };
@@ -319,9 +322,9 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
   std::map<std::string, KeysetStatus> keysets{};
   std::string valuekeyset{};
 
+  auto signers = wallet.get_signers();
   if (wallet.get_wallet_type() == WalletType::MULTI_SIG) {
     int n = wallet.get_n();
-    auto signers = wallet.get_signers();
     std::vector<bool> v(n);
     std::fill(v.begin(), v.begin() + wallet.get_m(), true);
     bool enableValueKeyset =
@@ -339,6 +342,12 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
       keysets.insert({getName(xfps),
                       {TransactionStatus::PENDING_NONCE, std::move(status)}});
     } while (std::prev_permutation(v.begin(), v.end()));
+  } else if (wallet.get_m() > 0) {
+    std::vector<std::string> xfps{};
+    for (int i = 0; i < wallet.get_m(); i++) {
+      xfps.push_back(signers[i].get_master_fingerprint());
+    }
+    valuekeyset = getName(xfps);
   }
 
   // mapping aggkey to name
