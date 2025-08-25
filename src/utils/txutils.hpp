@@ -209,6 +209,21 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
       auto desc = GetDescriptorsImportString(wallet);
       auto provider = SigningProviderCache::getInstance().GetProvider(desc);
 
+      auto aggxpub = [](const CPubKey& pubkey,
+                        const std::vector<uint32_t>& path) {
+        CExtPubKey xpub{};
+        xpub.chaincode =
+            ChainCode(ParseHex("868087ca02a6f974c4598924c36b57762d32cb45717167e"
+                               "300622c7167e38965"));
+        xpub.pubkey = pubkey;
+        xpub.nChild = 0;
+        xpub.nDepth = 0;
+        for (auto&& p : path) {
+          xpub.Derive(xpub, p);
+        }
+        return xpub;
+      };
+
       for (int i = 0; i < mtx.vin[0].scriptWitness.stack.size(); i++) {
         auto agg = mtx.vin[0].scriptWitness.stack[i];
         if (agg.size() != CPubKey::COMPRESSED_SIZE + 1) continue;
@@ -220,6 +235,16 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
           if (provider.aggregate_pubkeys.contains(fullpubkey)) {
             for (auto&& pubkey : provider.aggregate_pubkeys[fullpubkey]) {
               pushSigner(pubkey);
+            }
+          } else if (provider.origins.contains(fullpubkey.GetID())) {
+            auto origin = provider.origins[fullpubkey.GetID()];
+            for (auto&& aggpubkey : provider.aggregate_pubkeys) {
+              auto xpub = aggxpub(aggpubkey.first, origin.second.path);
+              if (xpub.pubkey == origin.first) {
+                for (auto&& pubkey : aggpubkey.second) {
+                  pushSigner(pubkey);
+                }
+              }
             }
           }
         }
