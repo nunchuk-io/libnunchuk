@@ -21,6 +21,10 @@ namespace nunchuk {
 
 Timelock::Timelock(Based based, Type type, int64_t value)
     : based_(based), type_(type), value_(value) {
+  if (based_ == Based::TIME_LOCK && type_ == Type::LOCKTYPE_RELATIVE &&
+      value_ < 512) {
+    value_ = 512;
+  }
   k();
 }
 
