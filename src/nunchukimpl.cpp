@@ -1407,7 +1407,7 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
       if (to_lower_copy(reject_msg).find("non-final") != std::string::npos) {
         throw NunchukException(
             NunchukException::NETWORK_REJECTED,
-            "Network rejected. Please wait for ~5-10 more blocks before "
+            "Network rejected. Please wait for ~6-11 more blocks before "
             "retrying. The network's median time must pass the timelock for "
             "the transaction to be valid.");
       }
