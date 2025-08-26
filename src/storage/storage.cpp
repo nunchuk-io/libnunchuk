@@ -173,7 +173,8 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
       }
       return true;
     case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
-      return WriteFile(file_path, wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
+      return WriteFile(file_path,
+                       wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
     case ExportFormat::COBO:
     case ExportFormat::CSV:
       break;
@@ -792,12 +793,10 @@ void NunchukStorage::CacheMasterSignerXPub(
     if (first) {
       if (w == WalletType::MULTI_SIG) {
         if (a == AddressType::NATIVE_SEGWIT) return 1;
-        if (a == AddressType::NESTED_SEGWIT) return 1;
-        if (a == AddressType::TAPROOT) return 1;
       }
       if (w == WalletType::SINGLE_SIG) {
         if (a == AddressType::NATIVE_SEGWIT) return 1;
-        if (a == AddressType::TAPROOT) return 1;
+        if (a == AddressType::LEGACY) return 1;
       }
       return 0;
     }
@@ -858,14 +857,10 @@ bool NunchukStorage::CacheDefaultMasterSignerXpub(
       chain == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                            : TESTNET_HEALTH_CHECK_PATH,
       GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT, 0),
-      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NESTED_SEGWIT, 0),
-      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::LEGACY, 0),
+      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT, 1),
       GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
                    0),
-      GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
-                   0),
       GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::LEGACY, 0),
-      GetBip32Path(chain, WalletType::ESCROW, AddressType::ANY, 0),
   };
   auto signer_db = GetSignerDb(chain, mastersigner_id);
 
