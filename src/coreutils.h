@@ -26,11 +26,13 @@ class CoreUtils {
  public:
   void SetChain(Chain chain);
   Chain GetChain() const;
+  std::string SendRequest(const std::string &method, const json &params);
   std::string CombinePsbt(const std::vector<std::string> &psbts);
   std::string FinalizePsbt(const std::string &combined);
   std::string DecodeRawTransaction(const std::string &raw_tx);
   std::string CreatePsbt(const std::vector<TxInput> &vin,
-                         const std::vector<TxOutput> &vout, int locktime = 0);
+                         const std::vector<TxOutput> &vout,
+                         uint32_t locktime = 0);
   std::string DecodePsbt(const std::string &base64_psbt);
   std::string DeriveAddress(const std::string &descriptor, int index = -1);
   std::vector<std::string> DeriveAddresses(const std::string &descriptor,

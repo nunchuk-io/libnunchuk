@@ -39,6 +39,14 @@ std::ostream& operator<<(std::ostream& os, const out_quoted<CharT>& q) {
   return os << q.delim;
 }
 
+template <typename CharT>
+std::string quoted_copy(const std::basic_string<CharT>& s,
+                        CharT delim = CharT('"'), CharT escape = CharT('\\')) {
+  std::stringstream ss;
+  ss << quoted(s, delim, escape);
+  return ss.str();
+}
+
 }  // namespace nunchuk
 
 #endif  // NUNCHUK_QUOTE_H

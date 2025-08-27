@@ -18,6 +18,7 @@
 #include <nunchuk.h>
 #include <vector>
 #include <descriptor.h>
+#include <utils/stringutils.hpp>
 
 namespace nunchuk {
 
@@ -62,7 +63,29 @@ Wallet::Wallet(const std::string& id, const std::string& name, int m, int n,
   name_ = name;
 };
 
-std::string Wallet::get_id() const { return id_; }
+Wallet::Wallet(const std::string& miniscript,
+               const std::vector<SingleSigner>& signers,
+               AddressType address_type, int keypath_m)
+    : m_(keypath_m),
+      n_(signers.size()),
+      signers_(signers),
+      address_type_(address_type),
+      wallet_type_(WalletType::MINISCRIPT),
+      wallet_template_(WalletTemplate::DEFAULT),
+      miniscript_(miniscript) {
+  if (address_type_ == AddressType::TAPROOT && keypath_m == 0) {
+    wallet_template_ = WalletTemplate::DISABLE_KEY_PATH;
+  }
+  check_valid();
+  id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
+}
+
+std::string Wallet::get_id() const {
+  if (id_.empty()) {
+    throw NunchukException(NunchukException::INVALID_STATE, "Id is empty");
+  }
+  return id_;
+}
 std::string Wallet::get_name() const { return name_; }
 int Wallet::get_m() const { return m_; }
 int Wallet::get_n() const { return n_; }
@@ -81,11 +104,18 @@ time_t Wallet::get_last_used() const { return last_used_; }
 int Wallet::get_gap_limit() const { return gap_limit_; }
 bool Wallet::need_backup() const { return need_backup_; }
 bool Wallet::is_archived() const { return archived_; }
+std::string Wallet::get_miniscript(DescriptorPath path, int index) const {
+  if (path == DescriptorPath::ANY) {
+    return miniscript_;
+  }
+  return replaceAll(miniscript_, GetKeyPath(DescriptorPath::ANY, 0),
+                    GetKeyPath(path, index));
+}
 void Wallet::check_valid() const {
   if (n_ <= 0)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: n <= 0");
-  if (m_ <= 0)
+  if (m_ <= 0 && wallet_type_ != WalletType::MINISCRIPT)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: m <= 0");
   if (m_ > n_)
@@ -102,6 +132,9 @@ void Wallet::check_valid() const {
       wallet_template_ == WalletTemplate::DISABLE_KEY_PATH)
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid parameter: template is not supported");
+  if (wallet_type_ == WalletType::MINISCRIPT && miniscript_.empty())
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid parameter: miniscript is empty");
   // TODO: need to call get_descriptor() for bitcoin core validation?
 }
 void Wallet::set_name(const std::string& value) { name_ = value; }
@@ -124,7 +157,7 @@ void Wallet::set_address_type(AddressType value) {
 void Wallet::set_wallet_type(WalletType value) {
   wallet_type_ = value;
   post_update();
-};
+}
 void Wallet::set_wallet_template(WalletTemplate value) {
   wallet_template_ = value;
   post_update();
@@ -139,15 +172,50 @@ void Wallet::set_last_used(const time_t value) { last_used_ = value; }
 void Wallet::set_gap_limit(int value) { gap_limit_ = value; }
 void Wallet::set_need_backup(bool value) { need_backup_ = value; }
 void Wallet::set_archived(bool value) { archived_ = value; }
-std::string Wallet::get_descriptor(DescriptorPath key_path, int index,
+void Wallet::set_miniscript(const std::string& value) { miniscript_ = value; }
+std::string Wallet::get_descriptor(DescriptorPath path, int index,
                                    bool sorted) const {
+  if (get_wallet_type() == WalletType::MINISCRIPT) {
+    std::string keypath{};
+    if (wallet_template_ == WalletTemplate::DEFAULT) {
+      if (m_ == 1) {
+        keypath = GetDescriptorForSigner(signers_[0], path, index);
+      } else {
+        std::stringstream ss;
+        ss << "musig(";
+        for (int i = 0; i < m_; i++) {
+          if (i > 0) ss << ",";
+          ss << signers_[i].get_descriptor();
+        }
+        ss << ")" << GetKeyPath(path, index);
+        keypath = ss.str();
+      }
+    } else {
+      keypath = GetUnspendableXpub(signers_) + GetKeyPath(path, index);
+    }
+    auto desc = GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
+                                           get_address_type());
+    if (path == DescriptorPath::TEMPLATE) {
+      return split(desc, '#')[0];
+    }
+    return desc;
+  }
   return GetDescriptorForSigners(
-      get_signers(), get_m(), key_path, get_address_type(), get_wallet_type(),
+      get_signers(), get_m(), path, get_address_type(), get_wallet_type(),
       get_wallet_template(), is_escrow() ? -1 : index, sorted);
 }
 
 void Wallet::post_update() {
-  if (signers_.size() > 0) {
+  try {
+    check_valid();
+  } catch (const NunchukException& e) {
+    if (strict_) throw e;
+    id_ = "";
+    return;
+  }
+  if (get_wallet_type() == WalletType::MINISCRIPT) {
+    id_ = GetDescriptorChecksum(get_descriptor(DescriptorPath::EXTERNAL_ALL));
+  } else {
     if (wallet_template_ == WalletTemplate::DISABLE_KEY_PATH) {
       std::sort(signers_.begin(), signers_.end(),
                 [](const SingleSigner& a, const SingleSigner& b) {
@@ -157,9 +225,6 @@ void Wallet::post_update() {
     }
     id_ = GetWalletId(signers_, m_, address_type_, get_wallet_type(),
                       get_wallet_template());
-  }
-  if (strict_) {
-    check_valid();
   }
 }
 

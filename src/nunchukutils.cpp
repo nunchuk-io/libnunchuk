@@ -61,6 +61,9 @@
 #include "utils/httplib.h"
 
 #include <bbqr/bbqr.hpp>
+#include <miniscript/compiler.h>
+#include <miniscript/timeline.h>
+#include <miniscript/util.h>
 
 using namespace boost::algorithm;
 using namespace nunchuk::bcr2;
@@ -355,10 +358,20 @@ std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
   }
+  // TODO: Add Utils::SignPsbt with wallet arg
   return hwi.SignTx(device, psbt);
 }
 
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
+  std::string error;
+  if (auto wallet = ParseBSMSRecord(descs, error); wallet) {
+    return *wallet;
+  } else if (auto wallet = ParseDescriptors(descs, error); wallet) {
+    return *wallet;
+  } else if (auto wallet = ParseJSONDescriptors(descs, error); wallet) {
+    return *wallet;
+  }
+
   AddressType a;
   WalletType w;
   WalletTemplate t = WalletTemplate::DEFAULT;
@@ -366,13 +379,8 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
   int n;
   std::vector<SingleSigner> signers;
   std::string name;
-
-  // Try all possible formats: BSMS, Descriptors, JSON with `descriptor` key,
   // Multisig config
-  if (ParseDescriptorRecord(descs, a, w, t, m, n, signers) ||
-      ParseDescriptors(descs, a, w, t, m, n, signers) ||
-      ParseJSONDescriptors(descs, name, a, w, t, m, n, signers) ||
-      ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
+  if (ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
       ParseConfig(Utils::GetChain(), descs, name, a, w, m, n, signers)) {
     std::string id = GetWalletId(signers, m, a, w, t);
     Wallet wallet{id, name, m, n, signers, a, w, std::time(0)};
@@ -866,6 +874,9 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
         return {};
       case ExportFormat::CSV:
         return {};
+      case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
+        return wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+        break;
     }
     return {};
   };
@@ -1128,6 +1139,375 @@ bool Utils::CheckElectrumServer(const std::string& server, int timeout) {
   }
 
   return result;
+}
+std::vector<uint8_t> Utils::HashPreimage(const std::vector<uint8_t>& data,
+                                         PreimageHashType hashType) {
+  if (data.size() != 32) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid preimage size");
+  }
+  std::vector<uint8_t> hash;
+  switch (hashType) {
+    case PreimageHashType::SHA256:
+      hash.resize(32);
+      CSHA256().Write(data.data(), data.size()).Finalize(hash.data());
+      break;
+    case PreimageHashType::HASH256:
+      hash.resize(32);
+      CHash256().Write(data).Finalize(hash);
+      break;
+    case PreimageHashType::RIPEMD160:
+      hash.resize(20);
+      CRIPEMD160().Write(data.data(), data.size()).Finalize(hash.data());
+      break;
+    case PreimageHashType::HASH160:
+      hash.resize(20);
+      CHash160().Write(data).Finalize(hash);
+      break;
+    default:
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid hash type");
+  }
+  return hash;
+}
+
+std::string Utils::RevealPreimage(const std::string& psbt,
+                                  PreimageHashType hashType,
+                                  const std::vector<uint8_t>& hash,
+                                  const std::vector<uint8_t>& preimage) {
+  auto psbtx = DecodePsbt(psbt);
+  if (hash != Utils::HashPreimage(preimage, hashType)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid hash");
+  }
+  for (int i = 0; i < psbtx.inputs.size(); i++) {
+    if (hashType == PreimageHashType::SHA256) {
+      psbtx.inputs[i].sha256_preimages.emplace(hash, preimage);
+    } else if (hashType == PreimageHashType::HASH256) {
+      psbtx.inputs[i].hash256_preimages.emplace(hash, preimage);
+    } else if (hashType == PreimageHashType::HASH160) {
+      psbtx.inputs[i].hash160_preimages.emplace(hash, preimage);
+    } else if (hashType == PreimageHashType::RIPEMD160) {
+      psbtx.inputs[i].ripemd160_preimages.emplace(hash, preimage);
+    }
+  }
+  return EncodePsbt(psbtx);
+}
+
+bool Utils::IsPreimageRevealed(const std::string& psbt_or_hex_tx,
+                               const std::vector<uint8_t>& hash) {
+  CMutableTransaction mtx;
+  if (DecodeHexTx(mtx, psbt_or_hex_tx, true, true)) {
+    for (int i = 0; i < mtx.vin.size(); i++) {
+      for (int j = 0; j < mtx.vin[i].scriptWitness.stack.size(); j++) {
+        auto data = mtx.vin[i].scriptWitness.stack[j];
+        if (data.size() != 32) continue;
+        if (Utils::HashPreimage(data, PreimageHashType::SHA256) == hash ||
+            Utils::HashPreimage(data, PreimageHashType::HASH256) == hash ||
+            Utils::HashPreimage(data, PreimageHashType::HASH160) == hash ||
+            Utils::HashPreimage(data, PreimageHashType::RIPEMD160) == hash) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  auto psbtx = DecodePsbt(psbt_or_hex_tx);
+  for (int i = 0; i < psbtx.inputs.size(); i++) {
+    if (hash.size() == 32 &&
+        (psbtx.inputs[i].sha256_preimages.contains(uint256(hash)) ||
+         psbtx.inputs[i].hash256_preimages.contains(uint256(hash)))) {
+      return true;
+    }
+    if (hash.size() == 20 &&
+        (psbtx.inputs[i].hash160_preimages.contains(uint160(hash)) ||
+         psbtx.inputs[i].ripemd160_preimages.contains(uint160(hash)))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Utils::IsValidPolicy(const std::string& policy) {
+  miniscript::NodeRef<std::string> ret;
+  double avgcost;
+  return ::Compile(policy, ret, avgcost);
+}
+
+std::string Utils::PolicyToMiniscript(
+    const std::string& policy,
+    const std::map<std::string, SingleSigner>& signers,
+    AddressType address_type) {
+  auto policy_node = ::ParsePolicy(policy);
+  if (!policy_node()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid policy");
+  }
+  std::map<std::string, std::string> config;
+  for (const auto& signer : signers) {
+    config[signer.first] =
+        GetDescriptorForSigner(signer.second, DescriptorPath::ANY);
+  }
+  return nunchuk::PolicyToMiniscript(policy_node, config, address_type);
+}
+
+bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
+                                      AddressType address_type) {
+  auto node = ParseMiniscript(miniscript_template, address_type);
+  return node && node->IsValidTopLevel() && node->IsSane() &&
+         !node->IsNotSatisfiable();
+}
+
+bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
+                                     std::string& error) {
+  std::vector<std::string> keypath;
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts, depths,
+                              error)) {
+    return false;
+  }
+  if (subscripts.empty()) {
+    error = "tapscript missing";
+    return false;
+  }
+  for (auto& subscript : subscripts) {
+    if (IsValidMusigTemplate(subscript)) continue;
+    if (!IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
+      error = strprintf("invalid miniscript template: '%s'", subscript);
+      return false;
+    }
+  }
+  return true;
+}
+
+struct TemplateContext {
+  typedef std::string Key;
+  const std::map<std::string, SingleSigner>& signers;
+  TemplateContext(const std::map<std::string, SingleSigner>& signers)
+      : signers(signers) {}
+  std::optional<std::string> ToString(const Key& key) const {
+    return GetDescriptorForSigner(signers.at(key), DescriptorPath::ANY);
+  }
+};
+
+std::string Utils::MiniscriptTemplateToMiniscript(
+    const std::string& miniscript_template,
+    const std::map<std::string, SingleSigner>& signers) {
+  auto node = ParseMiniscript(miniscript_template, AddressType::ANY);
+  if (!node || !node->IsValidTopLevel() || !node->IsSane() ||
+      node->IsNotSatisfiable()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid miniscript template");
+  }
+
+  return ::Abbreviate(
+      *(node->ToString<TemplateContext>(TemplateContext(signers))));
+}
+
+std::string Utils::TapscriptTemplateToTapscript(
+    const std::string& tapscript_template,
+    const std::map<std::string, SingleSigner>& signers,
+    std::vector<std::string>& keypath) {
+  std::vector<std::string> subscripts_tmpl;
+  std::vector<int> depths;
+  std::string error;
+  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts_tmpl,
+                              depths, error)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, error);
+  }
+
+  std::vector<std::string> subscripts;
+  for (auto& subscript : subscripts_tmpl) {
+    if (IsValidMusigTemplate(subscript)) {
+      subscripts.push_back(GetMusigScript(subscript, signers));
+    } else {
+      subscripts.push_back(MiniscriptTemplateToMiniscript(subscript, signers));
+    }
+  }
+
+  std::string ret;
+  SubScriptsToString(subscripts, depths, ret);
+  return ret;
+}
+
+ScriptNode Utils::GetScriptNode(const std::string& script,
+                                std::vector<std::string>& keypath) {
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+  std::string error;
+  if (ParseTapscriptTemplate(script, keypath, subscripts, depths, error)) {
+    auto node = SubScriptsToScriptNode(subscripts, depths);
+    node.set_id({1});
+    return node;
+  }
+
+  auto node = MiniscriptToScriptNode(ParseMiniscript(script, AddressType::ANY));
+  node.set_id({1});
+  return node;
+}
+
+std::vector<SigningPath> Utils::GetAllSigningPaths(const std::string& script) {
+  std::vector<std::string> keypath;
+  auto node = GetScriptNode(script, keypath);
+  return nunchuk::GetAllSigningPaths(node);
+}
+
+std::string Utils::ExpandingMultisigMiniscriptTemplate(
+    int m, int n, int new_n, bool reuse_signers, const Timelock& timelock,
+    AddressType address_type) {
+  if (n >= new_n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "n must be less than new n");
+  }
+  return FlexibleMultisigMiniscriptTemplate(m, n, m, new_n, reuse_signers,
+                                            timelock, address_type);
+}
+
+std::string Utils::DecayingMultisigMiniscriptTemplate(
+    int m, int n, int new_m, bool reuse_signers, const Timelock& timelock,
+    AddressType address_type) {
+  if (m <= new_m) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "new m must be less than m");
+  }
+  return FlexibleMultisigMiniscriptTemplate(m, n, new_m, n, reuse_signers,
+                                            timelock, address_type);
+}
+
+std::string Utils::FlexibleMultisigMiniscriptTemplate(
+    int m, int n, int new_m, int new_n, bool reuse_signers,
+    const Timelock& timelock, AddressType address_type) {
+  if (m <= 0 || new_m <= 0) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m, new_m must be greater than 0");
+  }
+  if (n <= 0 || new_n <= 0) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "n, new_n must be greater than 0");
+  }
+  if (m > n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "m must be less than or equal to n");
+  }
+  if (new_m > new_n) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "new m must be less than or equal to new n");
+  }
+  auto inner = [&address_type](int m, int n, int start_index, int new_index) {
+    if (n == 1) {
+      return "pk(key_" + std::to_string(start_index) +
+             (0 < new_index ? "_1" : "_0") + ")";
+    }
+    std::stringstream multi;
+    multi << (address_type == AddressType::TAPROOT ? "multi_a" : "multi");
+    multi << "(" << m;
+    for (int i = start_index; i < start_index + n; i++) {
+      multi << ",key_" << i << (i < new_index ? "_1" : "_0");
+    }
+    multi << ")";
+    return multi.str();
+  };
+
+  std::stringstream temp;
+  if (address_type == AddressType::TAPROOT) {
+    temp << "{" << inner(m, n, 0, 0) << ",and_v(v:"
+         << inner(new_m, new_n, reuse_signers ? 0 : n, reuse_signers ? n : 0)
+         << "," << timelock.to_miniscript() << ")}";
+  } else {
+    temp << "or_d(" << inner(m, n, 0, 0) << ",and_v(v:"
+         << inner(new_m, new_n, reuse_signers ? 0 : n, reuse_signers ? n : 0)
+         << "," << timelock.to_miniscript() << "))";
+  }
+  return temp.str();
+}
+
+std::vector<UnspentOutput> Utils::GetTimelockedCoins(
+    const std::string& miniscript, const std::vector<UnspentOutput>& coins,
+    int64_t& max_lock_value, int chain_tip) {
+  std::vector<std::string> keypath;
+  auto node = GetScriptNode(miniscript, keypath);
+  std::vector<UnspentOutput> rs{};
+  for (auto&& coin : coins) {
+    if (!node.is_unlocked(coin, chain_tip, max_lock_value)) {
+      rs.emplace_back(coin);
+    }
+  }
+  return rs;
+}
+
+std::vector<CoinsGroup> Utils::GetCoinsGroupedBySubPolicies(
+    const ScriptNode& script_node, const std::vector<UnspentOutput>& coins,
+    int chain_tip) {
+  if (script_node.get_type() == ScriptNode::Type::OR ||
+      script_node.get_type() == ScriptNode::Type::OR_TAPROOT ||
+      script_node.get_type() == ScriptNode::Type::THRESH) {
+    std::vector<CoinsGroup> rs{};
+    for (int i = 0; i < script_node.get_subs().size(); i++) {
+      rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
+    }
+
+    for (auto&& coin : coins) {
+      for (int i = 0; i < script_node.get_subs().size(); i++) {
+        int64_t max_lock = 0;
+        if (script_node.get_subs()[i].is_unlocked(coin, chain_tip, max_lock)) {
+          rs[i].first.emplace_back(coin);
+        }
+        rs[i].second.first = max_lock;
+      }
+    }
+    return rs;
+  } else if (script_node.get_type() == ScriptNode::Type::ANDOR) {
+    std::vector<CoinsGroup> rs{};
+    for (int i = 0; i < script_node.get_subs().size(); i++) {
+      rs.push_back(CoinsGroup{std::vector<UnspentOutput>{}, TimeRange{0, 0}});
+    }
+
+    for (auto&& coin : coins) {
+      int64_t max_lock = 0;
+      if (script_node.get_subs()[0].is_unlocked(coin, chain_tip, max_lock) &&
+          script_node.get_subs()[1].is_unlocked(coin, chain_tip, max_lock)) {
+        rs[1].first.emplace_back(coin);
+      }
+      rs[1].second.first = max_lock;
+
+      max_lock = 0;
+      if (script_node.get_subs()[2].is_unlocked(coin, chain_tip, max_lock)) {
+        rs[2].first.emplace_back(coin);
+      }
+      rs[2].second.first = max_lock;
+    }
+    return rs;
+  }
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Invalid script node");
+}
+
+std::vector<std::string> Utils::ParseSignerNames(
+    const std::string& script_template, int& keypath_m) {
+  if (script_template.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Miniscript only");
+  }
+  std::vector<std::string> names;
+
+  // Get all keynames from script node
+  ScriptNode script_node = GetScriptNode(script_template, names);
+  keypath_m = names.size();
+  std::function<void(const ScriptNode&)> getKeynames =
+      [&](const ScriptNode& node) -> void {
+    for (int i = 0; i < node.get_keys().size(); i++) {
+      std::string keyname = node.get_keys()[i];
+      if (std::find(names.begin(), names.end(), keyname) == names.end()) {
+        names.push_back(keyname);
+      }
+    }
+    for (int i = 0; i < node.get_subs().size(); i++) {
+      getKeynames(node.get_subs()[i]);
+    }
+  };
+  getKeynames(script_node);
+  std::sort(names.begin() + keypath_m, names.end());
+  return names;
 }
 
 }  // namespace nunchuk

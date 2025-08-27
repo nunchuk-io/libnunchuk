@@ -47,40 +47,36 @@ inline std::string GetDescriptorRecord(const nunchuk::Wallet& wallet) {
   return record.str();
 }
 
-inline bool ParseDescriptorRecord(const std::string& bsms,
-                                  nunchuk::AddressType& a,
-                                  nunchuk::WalletType& w,
-                                  nunchuk::WalletTemplate& t, int& m, int& n,
-                                  std::vector<nunchuk::SingleSigner>& signers) {
+inline std::optional<nunchuk::Wallet> ParseBSMSRecord(const std::string& bsms,
+                                                      std::string& error) {
   using namespace nunchuk;
-  a = AddressType::LEGACY;
-  w = WalletType::MULTI_SIG;
-  t = WalletTemplate::DEFAULT;
-  m = 0;
-  n = 0;
   std::istringstream content_stream(bsms);
   std::string line;
   if (!safeGetline(content_stream, line) || line != "BSMS 1.0") {
-    return false;  // Invalid BSMS version
+    error = "Invalid BSMS version";
+    return std::nullopt;
   }
-  if (!safeGetline(content_stream, line) ||
-      !ParseDescriptors(line, a, w, t, m, n, signers)) {
-    return false;  // Invalid Descriptor template
+  if (!safeGetline(content_stream, line)) {
+    error = "Invalid Descriptor template";
+    return std::nullopt;
+  }
+  std::optional<Wallet> wallet = ParseDescriptors(line, error);
+  if (!wallet) {
+    return std::nullopt;
   }
   if (!safeGetline(content_stream, line) ||
       (line != "/0/*,/1/*" && line != "No path restrictions")) {
-    return false;  // Invalid path restrictions
+    error = "Invalid path restrictions";
+    return std::nullopt;
   }
-  int index = w == WalletType::ESCROW ? -1 : 0;
-  if (!safeGetline(content_stream, line) ||
-      line !=
-          CoreUtils::getInstance().DeriveAddress(
-              GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL,
-                                      a, w, t, index, true),
-              index)) {
-    return false;  // Invalid address
+  int index = wallet->is_escrow() ? -1 : 0;
+  std::string first_address = CoreUtils::getInstance().DeriveAddress(
+      wallet->get_descriptor(DescriptorPath::EXTERNAL_ALL, index, true), index);
+  if (!safeGetline(content_stream, line) || line != first_address) {
+    error = "Invalid address";
+    return std::nullopt;
   }
-  return true;
+  return wallet;
 }
 
 inline nunchuk::BSMSData ParseBSMSData(const std::string& bsms) {
@@ -107,30 +103,12 @@ inline nunchuk::BSMSData ParseBSMSData(const std::string& bsms) {
                            "Invalid path restrictions");
   }
 
-  AddressType a;
-  WalletType w;
-  WalletTemplate t;
-  int m;
-  int n;
-  std::vector<SingleSigner> signers;
-
+  std::string error;
   if (!safeGetline(content_stream, result.first_address) ||
-      !ParseDescriptorRecord(bsms, a, w, t, m, n, signers)) {
+      !ParseBSMSRecord(bsms, error)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid address");
   }
-
-  int index = w == WalletType::ESCROW ? -1 : 0;
-  std::string first_address = CoreUtils::getInstance().DeriveAddress(
-      GetDescriptorForSigners(signers, m, DescriptorPath::EXTERNAL_ALL, a, w, t,
-                              index, true),
-      index);
-
-  if (result.first_address != first_address) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER,
-                           "Invalid address");
-  }
-
   return result;
 }
 

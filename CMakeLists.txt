@@ -175,6 +175,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/groupmessage.cpp
     src/dto/groupconfig.cpp
     src/dto/groupwalletconfig.cpp
+    src/dto/scriptnode.cpp
+    src/dto/timelock.cpp
     src/storage/appstatedb.cpp
     src/storage/db.cpp
     src/storage/localdb.cpp
@@ -193,6 +195,11 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/utils/tweetnacl.c
+    src/utils/bip388.hpp
+    src/miniscript/compiler.cpp
+    src/miniscript/miniscript.cpp
+    src/miniscript/timeline.cpp
+    src/miniscript/util.cpp
 )
 
 set(PROJECT_LIBRARIES

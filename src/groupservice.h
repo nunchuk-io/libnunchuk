@@ -56,8 +56,10 @@ class GroupService {
       const std::string& deviceId);
 
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
+                           const std::string& script_tmpl,
                            AddressType addressType);
   GroupSandbox CreateReplaceGroup(const std::string& name, int m, int n,
+                                  const std::string& script_tmpl,
                                   AddressType addressType,
                                   const std::vector<SingleSigner>& signers,
                                   const std::string& walletId);
@@ -71,7 +73,8 @@ class GroupService {
   GroupSandbox SetSigner(const std::string& groupId, const SingleSigner& signer,
                          int index);
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
-                           int m, int n, AddressType addressType);
+                           int m, int n, const std::string& script_tmpl,
+                           AddressType addressType);
   GroupSandbox FinalizeGroup(const GroupSandbox& group);
   void DeleteGroup(const std::string& groupId);
   GroupWalletConfig GetWalletConfig(const std::string& walletId);
@@ -87,7 +90,7 @@ class GroupService {
   void StopHttpClients();
   std::pair<std::vector<std::string>, std::vector<std::string>> Subscribe(
       const std::vector<std::string>& groupIds,
-      const std::vector<std::string>& walletIds);
+      const std::vector<std::string>& walletIds, bool sync);
   bool HasWallet(const std::string& walletId);
   void RecoverWallet(const std::string& walletId);
   void DeleteWallet(const std::string& walletId);
@@ -104,6 +107,9 @@ class GroupService {
                          const std::string& psbt);
   void DeleteTransaction(const std::string& walletId, const std::string& txId);
   std::string SetupKey(const Wallet& wallet);
+
+  // For miniscript group only
+  int GetSignerIndex(const std::string& groupId, const std::string& name);
 
   // Parse event data
   GroupSandbox ParseGroupData(const std::string& groupId, bool finalized,

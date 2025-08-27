@@ -63,6 +63,12 @@ CoreUtils &CoreUtils::getInstance() {
 
 CoreUtils::CoreUtils() { EmbeddedRpc::getInstance().Init(); }
 
+std::string CoreUtils::SendRequest(const std::string &method,
+                                   const json &params) {
+  json req = {{"method", method}, {"params", params}, {"id", "placeholder"}};
+  return EmbeddedRpc::getInstance().SendRequest(req.dump());
+}
+
 void CoreUtils::SetChain(Chain chain) {
   EmbeddedRpc::getInstance().SetChain(GetChainString(chain));
 }
@@ -91,18 +97,12 @@ static json ParseResponse(const std::string &resp) {
 }
 
 std::string CoreUtils::CombinePsbt(const std::vector<std::string> &psbts) {
-  json req = {{"method", "combinepsbt"},
-              {"params", json::array({json(psbts)})},
-              {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("combinepsbt", json::array({json(psbts)}));
   return ParseResponse(resp);
 }
 
 std::string CoreUtils::FinalizePsbt(const std::string &combined) {
-  json req = {{"method", "finalizepsbt"},
-              {"params", json::array({combined, true})},
-              {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("finalizepsbt", json::array({combined, true}));
   json rs = ParseResponse(resp);
   if (!rs["complete"]) {
     throw NunchukException(NunchukException::PSBT_INCOMPLETE,
@@ -112,39 +112,32 @@ std::string CoreUtils::FinalizePsbt(const std::string &combined) {
 }
 
 std::string CoreUtils::DecodeRawTransaction(const std::string &raw_tx) {
-  json req = {{"method", "decoderawtransaction"},
-              {"params", json::array({raw_tx})},
-              {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("decoderawtransaction", json::array({raw_tx}));
   return ParseResponse(resp).dump();
 }
 
 std::string CoreUtils::CreatePsbt(const std::vector<TxInput> &vin,
                                   const std::vector<TxOutput> &vout,
-                                  int locktime) {
-  json input = json::array();
+                                  uint32_t locktime) {
+  json inputs = json::array();
   for (auto &el : vin) {
-    input.push_back({{"txid", el.first}, {"vout", el.second}});
+    json input = {{"txid", el.txid}, {"vout", el.vout}};
+    if (el.nSequence > 0) {
+      input["sequence"] = el.nSequence;
+    }
+    inputs.push_back(input);
   }
-  json output = json::array();
+  json outputs = json::array();
   for (auto &el : vout) {
-    output.push_back({{el.first, Utils::ValueFromAmount(el.second)}});
+    outputs.push_back({{el.first, Utils::ValueFromAmount(el.second)}});
   }
-  json params = json::array({input,     // inputs
-                             output,    // ouputs
-                             locktime,  // locktime
-                             true});    // replaceable
-  json req = {
-      {"method", "createpsbt"}, {"params", params}, {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  json params = json::array({inputs, outputs, locktime, true});  // replaceable
+  std::string resp = SendRequest("createpsbt", params);
   return ParseResponse(resp);
 }
 
 std::string CoreUtils::DecodePsbt(const std::string &base64_psbt) {
-  json req = {{"method", "decodepsbt"},
-              {"params", json::array({base64_psbt})},
-              {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("decodepsbt", json::array({base64_psbt}));
   return ParseResponse(resp).dump();
 }
 
@@ -152,18 +145,14 @@ std::string CoreUtils::DeriveAddress(const std::string &descriptor, int index) {
   json params = index >= 0
                     ? json::array({descriptor, json::array({index, index})})
                     : json::array({descriptor});
-  json req = {
-      {"method", "deriveaddresses"}, {"params", params}, {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("deriveaddresses", params);
   return ParseResponse(resp)[0];
 }
 
 std::vector<std::string> CoreUtils::DeriveAddresses(
     const std::string &descriptor, int fromIndex, int toIndex) {
   json params = json::array({descriptor, json::array({fromIndex, toIndex})});
-  json req = {
-      {"method", "deriveaddresses"}, {"params", params}, {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("deriveaddresses", params);
   return ParseResponse(resp);
 }
 
@@ -171,9 +160,7 @@ bool CoreUtils::VerifyMessage(const std::string &address,
                               const std::string &signature,
                               const std::string &message) {
   json params = json::array({address, signature, message});
-  json req = {
-      {"method", "verifymessage"}, {"params", params}, {"id", "placeholder"}};
-  std::string resp = EmbeddedRpc::getInstance().SendRequest(req.dump());
+  std::string resp = SendRequest("verifymessage", params);
   return ParseResponse(resp);
 }
 

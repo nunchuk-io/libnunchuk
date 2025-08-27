@@ -32,6 +32,9 @@
 
 #include <signingprovider.h>
 #include <script/sign.h>
+#include <policy/policy.h>
+#include <util/bip32.h>
+
 #include <boost/algorithm/string.hpp>
 
 namespace {
@@ -85,8 +88,10 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   Transaction tx{};
   tx.set_txid(mtx.GetHash().GetHex());
   tx.set_height(height);
+  tx.set_lock_time(mtx.nLockTime);
   for (auto& input : mtx.vin) {
-    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n});
+    tx.add_input(
+        {input.prevout.hash.GetHex(), input.prevout.n, input.nSequence});
   }
   for (auto& output : mtx.vout) {
     std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
@@ -104,28 +109,168 @@ inline nunchuk::Transaction GetTransactionFromCMutableTransaction(
   return tx;
 }
 
+struct PubkeyExtractor {
+  std::vector<CPubKey> pubkeys{};
+};
+
+class PubkeyExtractorChecker final : public DeferringSignatureChecker {
+ private:
+  PubkeyExtractor& m_extractor;
+
+ public:
+  PubkeyExtractorChecker(BaseSignatureChecker& checker,
+                         PubkeyExtractor& extractor)
+      : DeferringSignatureChecker(checker), m_extractor(extractor) {}
+
+  bool CheckECDSASignature(const std::vector<unsigned char>& scriptSig,
+                           const std::vector<unsigned char>& vchPubKey,
+                           const CScript& scriptCode,
+                           SigVersion sigversion) const override {
+    if (m_checker.CheckECDSASignature(scriptSig, vchPubKey, scriptCode,
+                                      sigversion)) {
+      CPubKey pubkey(vchPubKey);
+      m_extractor.pubkeys.push_back(pubkey);
+      return true;
+    }
+    return false;
+  }
+
+  bool CheckSchnorrSignature(Span<const unsigned char> sig,
+                             Span<const unsigned char> pubkey,
+                             SigVersion sigversion,
+                             ScriptExecutionData& execdata,
+                             ScriptError* serror) const override {
+    if (m_checker.CheckSchnorrSignature(sig, pubkey, sigversion, execdata,
+                                        serror)) {
+      XOnlyPubKey xonlypub(pubkey);
+      auto cpubkeys = xonlypub.GetCPubKeys();
+      for (auto&& fullpubkey : cpubkeys) {
+        m_extractor.pubkeys.push_back(fullpubkey);
+      }
+      return true;
+    }
+    return false;
+  }
+};
+
+inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
+    const std::string& raw_tx, const std::vector<nunchuk::UnspentOutput>& utxos,
+    const nunchuk::Wallet& wallet) {
+  using namespace nunchuk;
+
+  auto mtx = DecodeRawTransaction(raw_tx);
+  auto input = mtx.vin[0];
+  std::vector<CTxOut> ctxouts(mtx.vin.size());
+  for (int i = 0; i < utxos.size(); i++) {
+    ctxouts[i] = CTxOut{utxos[i].get_amount(),
+                        AddressToCScriptPubKey(utxos[i].get_address())};
+  }
+  auto ctxout = ctxouts[0];
+  PrecomputedTransactionData txdata;
+  txdata.Init(mtx, std::move(ctxouts), true);
+
+  MutableTransactionSignatureChecker checker(&mtx, 0, ctxout.nValue, txdata,
+                                             MissingDataBehavior::FAIL);
+  PubkeyExtractor extractor;
+  PubkeyExtractorChecker extractor_checker(checker, extractor);
+  ScriptError serror;
+  if (!VerifyScript(input.scriptSig, ctxout.scriptPubKey, &input.scriptWitness,
+                    STANDARD_SCRIPT_VERIFY_FLAGS, extractor_checker, &serror)) {
+    throw NunchukException(NunchukException::INVALID_RAW_TX, "Invalid raw tx");
+  }
+
+  std::vector<nunchuk::SingleSigner> rs{};
+  auto pushSigner = [&](const CPubKey& p) {
+    KeyOriginInfo info;
+    if (!SigningProviderCache::getInstance().GetKeyOrigin(p.GetID(), info)) {
+      return;
+    }
+    std::string xfp = strprintf("%08x", ReadBE32(info.fingerprint));
+    std::string path = WriteHDKeypath(info.path);
+    for (auto&& signer : wallet.get_signers()) {
+      if (signer.get_master_fingerprint() == xfp &&
+          path.starts_with(signer.get_derivation_path())) {
+        rs.push_back(signer);
+        break;
+      }
+    }
+  };
+  for (auto&& pubkey : extractor.pubkeys) {
+    pushSigner(pubkey);
+  }
+
+  // Decode Musig signers
+  if (wallet.get_address_type() == AddressType::TAPROOT) {
+    if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
+      for (int i = 0; i < wallet.get_m(); i++) {
+        rs.push_back(wallet.get_signers()[i]);
+      }
+    } else {
+      auto desc = GetDescriptorsImportString(wallet);
+      auto provider = SigningProviderCache::getInstance().GetProvider(desc);
+
+      auto aggxpub = [](const CPubKey& pubkey,
+                        const std::vector<uint32_t>& path) {
+        CExtPubKey xpub{};
+        xpub.chaincode =
+            ChainCode(ParseHex("868087ca02a6f974c4598924c36b57762d32cb45717167e"
+                               "300622c7167e38965"));
+        xpub.pubkey = pubkey;
+        xpub.nChild = 0;
+        xpub.nDepth = 0;
+        for (auto&& p : path) {
+          if (!xpub.Derive(xpub, p)) {
+            throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                   "Invalid path");
+          }
+        }
+        return xpub;
+      };
+
+      for (int i = 0; i < mtx.vin[0].scriptWitness.stack.size(); i++) {
+        auto agg = mtx.vin[0].scriptWitness.stack[i];
+        if (agg.size() != CPubKey::COMPRESSED_SIZE + 1) continue;
+        agg.erase(agg.begin());
+        agg.pop_back();
+        XOnlyPubKey xonlypub(agg);
+        auto cpubkeys = xonlypub.GetCPubKeys();
+        for (auto&& fullpubkey : cpubkeys) {
+          if (provider.aggregate_pubkeys.contains(fullpubkey)) {
+            for (auto&& pubkey : provider.aggregate_pubkeys[fullpubkey]) {
+              pushSigner(pubkey);
+            }
+          } else if (provider.origins.contains(fullpubkey.GetID())) {
+            auto origin = provider.origins[fullpubkey.GetID()];
+            for (auto&& aggpubkey : provider.aggregate_pubkeys) {
+              auto xpub = aggxpub(aggpubkey.first, origin.second.path);
+              if (xpub.pubkey == origin.first) {
+                for (auto&& pubkey : aggpubkey.second) {
+                  pushSigner(pubkey);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return rs;
+}
+
 inline nunchuk::Transaction ParseCMutableTransaction(
     const CMutableTransaction& mtx, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
 
-  Transaction tx{};
-  tx.set_txid(mtx.GetHash().GetHex());
-  tx.set_height(height);
-  for (auto& input : mtx.vin) {
-    tx.add_input({input.prevout.hash.GetHex(), input.prevout.n});
-  }
-  for (auto& output : mtx.vout) {
-    std::string address = ScriptPubKeyToAddress(output.scriptPubKey);
-    tx.add_output({address, output.nValue});
-  }
+  Transaction tx = GetTransactionFromCMutableTransaction(mtx, height);
   auto signers = wallet.get_signers();
-  if (wallet.get_wallet_type() == WalletType::MULTI_SIG &&
-      wallet.get_address_type() == AddressType::TAPROOT) {
-    if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
+  if (wallet.get_address_type() == AddressType::TAPROOT) {
+    if (wallet.get_wallet_type() == WalletType::SINGLE_SIG) {
+      tx.set_signer(signers[0].get_master_fingerprint(), true);
+    } else if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
       for (int i = 0; i < wallet.get_n(); i++) {
         tx.set_signer(signers[i].get_master_fingerprint(), i < wallet.get_m());
       }
-    } else {
+    } else if (wallet.get_wallet_type() == WalletType::MULTI_SIG) {
       for (auto&& signer : signers) {
         tx.set_signer(signer.get_master_fingerprint(), false);
       }
@@ -133,21 +278,9 @@ inline nunchuk::Transaction ParseCMutableTransaction(
       agg.erase(agg.begin());
       agg.pop_back();
 
-      auto maxIdx =
-          SigningProviderCache::getInstance().GetMaxIndex(wallet.get_id());
-      FlatSigningProvider provider;
-      std::string error;
-      std::vector<CScript> output_scripts;
-      auto external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-      auto desc0 = Parse(external_desc, provider, error, true);
-      for (int i = 0; i <= maxIdx; i++) {
-        desc0.front()->Expand(i, provider, output_scripts, provider);
-      }
-      auto internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
-      auto desc1 = Parse(internal_desc, provider, error, true);
-      for (int i = 0; i <= maxIdx; i++) {
-        desc1.front()->Expand(i, provider, output_scripts, provider);
-      }
+      auto desc = GetDescriptorsImportString(wallet);
+      auto provider = SigningProviderCache::getInstance().GetProvider(desc);
+
       for (auto&& agg_pubkeys : provider.aggregate_pubkeys) {
         if (HexStr(agg_pubkeys.first).substr(2) == HexStr(agg)) {
           for (auto&& pubkey : agg_pubkeys.second) {
@@ -158,22 +291,15 @@ inline nunchuk::Transaction ParseCMutableTransaction(
           break;
         }
       }
+    } else if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+      for (auto&& signer : signers) {
+        tx.set_signer(signer.get_master_fingerprint(), false);
+      }
     }
-
   } else {
     for (auto&& signer : signers) {
       tx.set_signer(signer.get_master_fingerprint(), true);
     }
-  }
-
-  if (height == 0) {
-    tx.set_status(TransactionStatus::PENDING_CONFIRMATION);
-  } else if (height == -2) {
-    tx.set_status(TransactionStatus::NETWORK_REJECTED);
-  } else if (height == -1) {
-    tx.set_status(TransactionStatus::READY_TO_BROADCAST);
-  } else if (height > 0) {
-    tx.set_status(TransactionStatus::CONFIRMED);
   }
   return tx;
 }
@@ -194,57 +320,73 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
 
   // init keyset status
   std::map<std::string, KeysetStatus> keysets{};
-  int n = wallet.get_n();
-  auto signers = wallet.get_signers();
-  std::vector<bool> v(n);
-  std::fill(v.begin(), v.begin() + wallet.get_m(), true);
   std::string valuekeyset{};
-  bool enableValueKeyset =
-      wallet.get_wallet_template() != WalletTemplate::DISABLE_KEY_PATH;
-  do {
-    KeyStatus status{};
-    std::vector<std::string> xfps{};
-    for (int i = 0; i < n; i++) {
-      if (v[i]) {
-        status[signers[i].get_master_fingerprint()] = false;
-        xfps.push_back(signers[i].get_master_fingerprint());
+
+  auto signers = wallet.get_signers();
+  if (wallet.get_wallet_type() == WalletType::MULTI_SIG) {
+    int n = wallet.get_n();
+    std::vector<bool> v(n);
+    std::fill(v.begin(), v.begin() + wallet.get_m(), true);
+    bool enableValueKeyset =
+        wallet.get_wallet_template() != WalletTemplate::DISABLE_KEY_PATH;
+    do {
+      KeyStatus status{};
+      std::vector<std::string> xfps{};
+      for (int i = 0; i < n; i++) {
+        if (v[i]) {
+          status[signers[i].get_master_fingerprint()] = false;
+          xfps.push_back(signers[i].get_master_fingerprint());
+        }
       }
+      if (enableValueKeyset && valuekeyset.empty()) valuekeyset = getName(xfps);
+      keysets.insert({getName(xfps),
+                      {TransactionStatus::PENDING_NONCE, std::move(status)}});
+    } while (std::prev_permutation(v.begin(), v.end()));
+  } else if (wallet.get_m() > 0) {
+    std::vector<std::string> xfps{};
+    for (int i = 0; i < wallet.get_m(); i++) {
+      xfps.push_back(signers[i].get_master_fingerprint());
     }
-    if (enableValueKeyset && valuekeyset.empty()) valuekeyset = getName(xfps);
-    keysets.insert(
-        {getName(xfps), {TransactionStatus::PENDING_NONCE, std::move(status)}});
-  } while (std::prev_permutation(v.begin(), v.end()));
+    valuekeyset = getName(xfps);
+  }
 
   // mapping aggkey to name
-  std::map<CPubKey, std::string> keysetname{};
+  std::map<CPubKey, std::string> keyset_name{};
   for (const auto& [agg, parts] : input.m_musig2_participants) {
     std::vector<std::string> xfps{};
+    KeyStatus status{};
     for (const auto& pub : parts) {
-      xfps.push_back(getXfp(pub));
+      std::string xfp = getXfp(pub);
+      xfps.push_back(xfp);
+      status[xfp] = false;
     }
-    keysetname.insert({agg, getName(xfps)});
+    keyset_name.insert({agg, getName(xfps)});
+    if (wallet.get_wallet_type() != WalletType::MULTI_SIG) {
+      keysets.insert({keyset_name[agg],
+                      {TransactionStatus::PENDING_NONCE, std::move(status)}});
+    }
   }
 
   // check pubnonces
   for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-    if (part_pubnonce.size() == wallet.get_m()) {
-      keysets[keysetname[agg_lh.first]].first =
-          TransactionStatus::PENDING_SIGNATURES;
+    auto name = keyset_name[agg_lh.first];
+    if (part_pubnonce.size() == keysets[name].second.size()) {
+      keysets[name].first = TransactionStatus::PENDING_SIGNATURES;
     } else {
       for (const auto& [part, pubnonce] : part_pubnonce) {
-        keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
+        keysets[name].second[getXfp(part)] = true;
       }
     }
   }
 
   // check partial sigs
   for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
-    if (part_psig.size() == wallet.get_m()) {
-      keysets[keysetname[agg_lh.first]].first =
-          TransactionStatus::READY_TO_BROADCAST;
+    auto name = keyset_name[agg_lh.first];
+    if (part_psig.size() == keysets[name].second.size()) {
+      keysets[name].first = TransactionStatus::READY_TO_BROADCAST;
     } else {
       for (const auto& [part, psig] : part_psig) {
-        keysets[keysetname[agg_lh.first]].second[getXfp(part)] = true;
+        keysets[name].second[getXfp(part)] = true;
       }
     }
   }
@@ -276,10 +418,21 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
   const PSBTInput& input = psbtx.inputs[0];
 
   if (!input.m_tap_key_sig.empty()) {
-    if (signers.size() == 1) {
-      tx.set_signer(signers[0].get_master_fingerprint(), true);
-      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
-      return tx;
+    for (int i = 0; i < wallet.get_m(); i++) {
+      tx.set_signer(signers[i].get_master_fingerprint(), true);
+    }
+    tx.set_status(TransactionStatus::READY_TO_BROADCAST);
+    return tx;
+  }
+  if (!input.m_tap_script_sigs.empty()) {
+    auto getXfp = [&input](const XOnlyPubKey& xonly) -> std::string {
+      auto leaf_origin = input.m_tap_bip32_paths.at(xonly);
+      const auto& [leaf_hashes, origin] = leaf_origin;
+      return strprintf("%08x", ReadBE32(origin.fingerprint));
+    };
+    for (const auto& [pubkey_leaf, sig] : input.m_tap_script_sigs) {
+      const auto& [xonly, leaf_hash] = pubkey_leaf;
+      tx.set_signer(getXfp(xonly), true);
     }
   }
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
@@ -311,11 +464,8 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       }
     }
 
-    if (FinalizePSBT(psbt)) {
-      tx.set_status(TransactionStatus::READY_TO_BROADCAST);
-    } else {
-      tx.set_status(TransactionStatus::PENDING_SIGNATURES);
-    }
+    tx.set_status(FinalizePSBT(psbt) ? TransactionStatus::READY_TO_BROADCAST
+                                     : TransactionStatus::PENDING_SIGNATURES);
     return tx;
   }
 
@@ -330,57 +480,47 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
       }
     }
     return tx;
+  } else if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+    tx.set_keyset_status(GetKeysetStatus(psbtx, wallet));
   }
 
-  std::vector<std::string> signed_pubkey;
-  if (!input.partial_sigs.empty()) {
-    for (const auto& sig : input.partial_sigs) {
-      signed_pubkey.push_back(HexStr(sig.second.first));
-    }
-  }
-
-  if (!input.hd_keypaths.empty()) {
-    for (auto entry : input.hd_keypaths) {
-      std::string pubkey = HexStr(entry.first);
-      std::string master_fingerprint =
-          strprintf("%08x", ReadBE32(entry.second.fingerprint));
-      if (std::find(signed_pubkey.begin(), signed_pubkey.end(), pubkey) !=
-          signed_pubkey.end()) {
-        tx.set_signer(master_fingerprint, true);
-      } else {
-        tx.set_signer(master_fingerprint, false);
+  if (wallet.get_address_type() != AddressType::TAPROOT) {
+    std::set<std::string> signed_pubkey;
+    if (!input.partial_sigs.empty()) {
+      for (const auto& sig : input.partial_sigs) {
+        signed_pubkey.insert(HexStr(sig.second.first));
       }
     }
-  } else {
-    // Hotfix: decode dummy tx sign by SeedSigner
-    for (auto signer : signers) {
-      std::string pubkey = signer.get_public_key();
-      if (pubkey.empty()) {
-        auto xpub = DecodeExtPubKey(signer.get_xpub());
-        CExtPubKey xpub0;
-        if (!xpub.Derive(xpub0, 0)) {
-          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                 "Invalid path");
+    if (!input.hd_keypaths.empty()) {
+      for (auto entry : input.hd_keypaths) {
+        std::string pubkey = HexStr(entry.first);
+        std::string master_fingerprint =
+            strprintf("%08x", ReadBE32(entry.second.fingerprint));
+        tx.set_signer(master_fingerprint, signed_pubkey.contains(pubkey));
+      }
+    } else {
+      // Hotfix: decode dummy tx sign by SeedSigner
+      for (auto signer : signers) {
+        std::string pubkey = signer.get_public_key();
+        if (pubkey.empty()) {
+          auto xpub = DecodeExtPubKey(signer.get_xpub());
+          CExtPubKey xpub0;
+          CExtPubKey xpub01;
+          if (!xpub.Derive(xpub0, 0) || !xpub0.Derive(xpub01, 1)) {
+            throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                                   "Invalid path");
+          }
+          pubkey = HexStr(xpub01.pubkey);
         }
-        CExtPubKey xpub01;
-        if (!xpub0.Derive(xpub01, 1)) {
-          throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                                 "Invalid path");
-        }
-        pubkey = HexStr(xpub01.pubkey);
-      }
-      if (std::find(signed_pubkey.begin(), signed_pubkey.end(), pubkey) !=
-          signed_pubkey.end()) {
-        tx.set_signer(signer.get_master_fingerprint(), true);
-      } else {
-        tx.set_signer(signer.get_master_fingerprint(), false);
+        tx.set_signer(signer.get_master_fingerprint(),
+                      signed_pubkey.contains(pubkey));
       }
     }
   }
 
-  tx.set_status(signed_pubkey.size() == wallet.get_m()
-                    ? TransactionStatus::READY_TO_BROADCAST
-                    : TransactionStatus::PENDING_SIGNATURES);
+  auto psbt = DecodePsbt(EncodePsbt(psbtx));
+  tx.set_status(FinalizePSBT(psbt) ? TransactionStatus::READY_TO_BROADCAST
+                                   : TransactionStatus::PENDING_SIGNATURES);
   return tx;
 }
 inline std::pair<nunchuk::Transaction, bool /* is hex_tx */>
@@ -449,12 +589,8 @@ inline std::string GetPartialSignature(const std::string& base64_psbt,
     if (pubkey.empty()) {
       auto xpub = DecodeExtPubKey(signer.get_xpub());
       CExtPubKey xpub0;
-      if (!xpub.Derive(xpub0, 0)) {
-        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                               "Invalid path");
-      }
       CExtPubKey xpub01;
-      if (!xpub0.Derive(xpub01, 1)) {
+      if (!xpub.Derive(xpub0, 0) || !xpub0.Derive(xpub01, 1)) {
         throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                                "Invalid path");
       }

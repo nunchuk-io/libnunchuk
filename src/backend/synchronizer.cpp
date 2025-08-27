@@ -130,7 +130,7 @@ int Synchronizer::GetChainTip() {
 
 std::string Synchronizer::NewAddress(Chain chain, const std::string& wallet_id,
                                      bool internal) {
-  auto wallet = storage_->GetWallet(chain, wallet_id);
+  auto wallet = storage_->GetWallet(chain, wallet_id, false, false);
   std::string descriptor = wallet.get_descriptor(
       internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int index =

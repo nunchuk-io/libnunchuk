@@ -46,7 +46,7 @@ extern "C" {
 void random_buffer(uint8_t* buf, size_t len) {
   // Core's GetStrongRandBytes
   // https://github.com/bitcoin/bitcoin/commit/6e6b3b944d12a252a0fd9a1d68fec9843dd5b4f8
-  Span<unsigned char> bytes(buf, len);
+  std::span<unsigned char> bytes(buf, len);
   GetStrongRandBytes(bytes);
 }
 }
@@ -216,7 +216,7 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
 
 std::string SoftwareSigner::SignTaprootTx(
     const NunchukLocalDb& db, const std::string& base64_psbt,
-    const std::string& basepath, const std::string& external_desc,
+    const std::set<std::string>& basepaths, const std::string& external_desc,
     const std::string& internal_desc, int external_index, int internal_index) {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
@@ -253,7 +253,9 @@ std::string SoftwareSigner::SignTaprootTx(
   for (int i = 0; i <= external_index; i++) {
     if (!input_addr.contains(external_addr[i])) continue;
     desc0.front()->Expand(i, provider, output_scripts, provider);
-    addPath(basepath + "/0/" + std::to_string(i));
+    for (auto&& basepath : basepaths) {
+      addPath(basepath + "/0/" + std::to_string(i));
+    }
   }
   auto desc1 = Parse(internal_desc, provider, error, true);
   auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
@@ -261,7 +263,13 @@ std::string SoftwareSigner::SignTaprootTx(
   for (int i = 0; i <= internal_index; i++) {
     if (!input_addr.contains(internal_addr[i])) continue;
     desc1.front()->Expand(i, provider, output_scripts, provider);
-    addPath(basepath + "/1/" + std::to_string(i));
+    for (auto&& basepath : basepaths) {
+      addPath(basepath + "/1/" + std::to_string(i));
+    }
+  }
+
+  for (auto&& basepath : basepaths) {
+    addPath(basepath);
   }
 
   std::map<uint256, MuSig2SecNonce> musig2_secnonces{};
@@ -269,69 +277,58 @@ std::string SoftwareSigner::SignTaprootTx(
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
   const CMutableTransaction& tx = *psbtx.tx;
-  bool preferScriptPath = db.IsPreferScriptPath(tx.GetHash().GetHex());
+  // bool preferScriptPath = db.IsPreferScriptPath(tx.GetHash().GetHex());
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
     const PSBTInput& input = psbtx.inputs[i];
 
-    if (preferScriptPath) {
-      SignatureData sigdata;
-      psbtx.inputs[i].FillSignatureData(sigdata);
-      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT);
-      psbtx.inputs[i].m_musig2_partial_sigs.clear();
-      psbtx.inputs[i].m_musig2_pubnonces.clear();
-    } else {
-      for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-        const auto& [agg, lh] = agg_lh;
-        for (const auto& [part, pubnonce] : part_pubnonce) {
-          if (input.m_musig2_partial_sigs.count(agg_lh)) {
-            auto partial_sigs = input.m_musig2_partial_sigs.at(agg_lh);
-            if (partial_sigs.count(part)) continue;
-          }
-          SigVersion sigversion =
-              lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
-          ScriptExecutionData execdata;
-          execdata.m_annex_init = true;
-          execdata.m_annex_present =
-              false;  // Only support annex-less signing for now.
-          if (sigversion == SigVersion::TAPSCRIPT) {
-            execdata.m_codeseparator_pos_init = true;
-            execdata.m_codeseparator_pos =
-                0xFFFFFFFF;  // Only support non-OP_CODESEPARATOR BIP342 signing
-                             // for now.
-            execdata.m_tapleaf_hash_init = true;
-            execdata.m_tapleaf_hash = lh;
-          }
-          uint256 hash;
-          SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT,
-                               sigversion, txdata, MissingDataBehavior::FAIL);
+    for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
+      const auto& [agg, lh] = agg_lh;
+      for (const auto& [part, pubnonce] : part_pubnonce) {
+        if (input.m_musig2_partial_sigs.count(agg_lh)) {
+          auto partial_sigs = input.m_musig2_partial_sigs.at(agg_lh);
+          if (partial_sigs.count(part)) continue;
+        }
+        SigVersion sigversion =
+            lh.IsNull() ? SigVersion::TAPROOT : SigVersion::TAPSCRIPT;
+        ScriptExecutionData execdata;
+        execdata.m_annex_init = true;
+        // Only support annex-less signing for now.
+        execdata.m_annex_present = false;
 
-          HashWriter hasher;
-          hasher << agg << part << hash;
-          uint256 session_id = hasher.GetSHA256();
+        if (sigversion == SigVersion::TAPSCRIPT) {
+          execdata.m_codeseparator_pos_init = true;
+          // Only support non-OP_CODESEPARATOR BIP342 signing for now.
+          execdata.m_codeseparator_pos = 0xFFFFFFFF;
+          execdata.m_tapleaf_hash_init = true;
+          execdata.m_tapleaf_hash = lh;
+        }
+        uint256 hash;
+        SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, sigversion,
+                             txdata, MissingDataBehavior::FAIL);
 
-          XOnlyPubKey xpart(part);
-          std::string pubkey = HexStr(xpart);
-          for (const auto& [xonly, leaf_origin] : input.m_tap_bip32_paths) {
-            const auto& [leaf_hashes, origin] = leaf_origin;
-            std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
-            if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
-              musig2_secnonces.emplace(session_id,
-                                       db.GetMuSig2SecNonce(session_id));
-            }
+        HashWriter hasher;
+        hasher << agg << part << hash;
+        uint256 session_id = hasher.GetSHA256();
+
+        XOnlyPubKey xpart(part);
+        std::string pubkey = HexStr(xpart);
+        for (const auto& [xonly, leaf_origin] : input.m_tap_bip32_paths) {
+          const auto& [leaf_hashes, origin] = leaf_origin;
+          std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
+          if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
+            musig2_secnonces.emplace(session_id,
+                                     db.GetMuSig2SecNonce(session_id));
           }
         }
       }
+    }
 
-      SignatureData sigdata;
-      psbtx.inputs[i].FillSignatureData(sigdata);
-      SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr,
-                    false);
-      // psbtx.inputs[i].m_tap_script_sigs.clear();
-      // psbtx.inputs[i].m_tap_scripts.clear();
+    SignatureData sigdata;
+    psbtx.inputs[i].FillSignatureData(sigdata);
+    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr, false);
 
-      for (auto&& [session_id, secnonce] : musig2_secnonces) {
-        db.SetMuSig2SecNonce(session_id, std::move(secnonce));
-      }
+    for (auto&& [session_id, secnonce] : musig2_secnonces) {
+      db.SetMuSig2SecNonce(session_id, std::move(secnonce));
     }
     musig2_secnonces.clear();
   }

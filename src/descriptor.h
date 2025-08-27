@@ -25,10 +25,14 @@
 #include <vector>
 
 namespace nunchuk {
+const std::string H_POINT =
+    "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
 
 std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
+
+std::string GetKeyPath(DescriptorPath path, int index);
 
 std::string GetDerivationPathView(std::string path);
 
@@ -57,23 +61,31 @@ std::string GetDescriptorForSigners(
     WalletTemplate wallet_template = WalletTemplate::DEFAULT, int index = -1,
     bool sorted = true);
 
+std::string GetDescriptorForSigner(const SingleSigner& signer,
+                                   DescriptorPath key_path, int index = -1);
+
+std::string GetDescriptorForMiniscript(const std::string& miniscript,
+                                       const std::string& keypath,
+                                       AddressType address_type);
+
 std::string GetPkhDescriptor(const std::string& address);
 
 std::string GetDescriptor(const SingleSigner& signer, AddressType address_type);
 
 SingleSigner ParseSignerString(const std::string& signer_str);
 
-bool ParseDescriptors(const std::string& descs, AddressType& address_type,
-                      WalletType& wallet_type, WalletTemplate& wallet_template,
-                      int& m, int& n, std::vector<SingleSigner>& signers);
+std::optional<Wallet> ParseDescriptors(const std::string& descs,
+                                       std::string& error);
 
-bool ParseJSONDescriptors(const std::string& json_str, std::string& name,
-                          AddressType& address_type, WalletType& wallet_type,
-                          WalletTemplate& wallet_template, int& m, int& n,
-                          std::vector<SingleSigner>& signers);
+std::optional<Wallet> ParseJSONDescriptors(const std::string& json_str,
+                                           std::string& error);
 
 std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
                                             const std::string& prefix = {});
+
+std::string GetUnspendableXpub(const std::vector<SingleSigner> &signers);
+
+bool IsUnspendableXpub(const std::string &xpub);
 
 }  // namespace nunchuk
 

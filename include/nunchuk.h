@@ -48,10 +48,33 @@ const int MEDIUM_DENSITY_BBQR = 10;
 const int HIGH_DENSITY_BBQR = 27;
 const int ULTRA_HIGH_DENSITY_BBQR = 40;
 
+const int64_t UNDETERMINED_TIMELOCK_VALUE = INT64_MAX;
+
 typedef int64_t Amount;
-typedef std::pair<std::string, int> TxInput;        // txid-vout pair
+struct TxInput {
+  std::string txid;
+  uint32_t vout;
+  uint32_t nSequence;
+  TxInput(const std::string& txid, uint32_t vout, uint32_t nSequence = 0)
+      : txid(txid), vout(vout), nSequence(nSequence) {}
+
+  bool operator<(const TxInput& other) const {
+    if (txid != other.txid) {
+      return txid < other.txid;
+    }
+    return vout < other.vout;
+  }
+
+  bool operator==(const TxInput& other) const {
+    return txid == other.txid && vout == other.vout;
+  }
+
+  bool operator!=(const TxInput& other) const { return !(*this == other); }
+};
 typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair
 typedef std::map<std::string, bool> RequestTokens;  // token-sent map
+typedef std::vector<size_t> ScriptNodeId;
+typedef std::vector<ScriptNodeId> SigningPath;
 
 enum class AddressType {
   ANY,
@@ -77,6 +100,7 @@ enum class WalletType {
   SINGLE_SIG,
   MULTI_SIG,
   ESCROW,
+  MINISCRIPT,
 };
 
 enum class WalletTemplate {
@@ -125,6 +149,7 @@ enum class ExportFormat {
   COBO,
   CSV,
   BSMS,
+  DESCRIPTOR_EXTERNAL_ALL,
 };
 
 enum class Unit {
@@ -142,6 +167,7 @@ enum class DescriptorPath {
   EXTERNAL_XPUB,
   TEMPLATE,
   EXTERNAL_INTERNAL,
+  NONE,
 };
 
 enum class SignerType {
@@ -176,6 +202,13 @@ enum class SignerTag {
   LEDGER,
   BITBOX,
   KEEPKEY,
+};
+
+enum class PreimageHashType {
+  SHA256,
+  RIPEMD160,
+  HASH160,
+  HASH256,
 };
 
 class NUNCHUK_EXPORT BaseException : public std::exception {
@@ -227,6 +260,9 @@ class NUNCHUK_EXPORT NunchukException : public BaseException {
   static const int INVALID_RBF = -1028;
   static const int INSUFFICIENT_FEE = -1029;
   static const int INVALID_STATE = -1030;
+  static const int INVALID_WALLET_POLICY = -1031;
+  static const int INVALID_WALLET_CONFIG = -1032;
+  static const int NOT_FOUND = -1033;
   using BaseException::BaseException;
 };
 
@@ -499,6 +535,9 @@ class NUNCHUK_EXPORT Wallet {
   Wallet(const std::string& id, const std::string& name, int m, int n,
          const std::vector<SingleSigner>& signers, AddressType address_type,
          WalletType wallet_type, time_t create_date, bool strict = true);
+  Wallet(const std::string& miniscript,
+         const std::vector<SingleSigner>& signers, AddressType address_type,
+         int keypath_m);
 
   std::string get_id() const;
   std::string get_name() const;
@@ -520,6 +559,8 @@ class NUNCHUK_EXPORT Wallet {
   void check_valid() const;
   bool need_backup() const;
   bool is_archived() const;
+  std::string get_miniscript(DescriptorPath key_path = DescriptorPath::ANY,
+                             int index = -1) const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -536,6 +577,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_gap_limit(int value);
   void set_need_backup(bool value);
   void set_archived(bool value);
+  void set_miniscript(const std::string& value);
 
  private:
   void post_update();
@@ -556,6 +598,7 @@ class NUNCHUK_EXPORT Wallet {
   int gap_limit_{20};
   bool need_backup_{false};
   bool archived_{false};
+  std::string miniscript_;
 };
 
 class NUNCHUK_EXPORT CoinTag {
@@ -595,13 +638,40 @@ class NUNCHUK_EXPORT CoinCollection {
   std::vector<int> add_tags_;
 };
 
+class NUNCHUK_EXPORT Timelock {
+ public:
+  enum class Based {
+    NONE,
+    TIME_LOCK,
+    HEIGHT_LOCK,
+  };
+
+  enum class Type {
+    LOCKTYPE_ABSOLUTE,
+    LOCKTYPE_RELATIVE,
+  };
+
+  static Timelock FromK(bool is_absolute, int64_t k);
+  Timelock(Based based, Type type, int64_t value);
+  Based based() const;
+  Type type() const;
+  int64_t value() const;
+  int64_t k() const;
+  std::string to_miniscript() const;
+
+ private:
+  Based based_;
+  Type type_;
+  int64_t value_;
+};
+
 // Class that represents an Unspent Transaction Output (UTXO)
 class NUNCHUK_EXPORT UnspentOutput {
  public:
   UnspentOutput();
 
   std::string get_txid() const;
-  int get_vout() const;
+  uint32_t get_vout() const;
   std::string get_address() const;
   Amount get_amount() const;
   int get_height() const;
@@ -613,9 +683,11 @@ class NUNCHUK_EXPORT UnspentOutput {
   time_t get_blocktime() const;
   time_t get_schedule_time() const;
   CoinStatus get_status() const;
+  std::vector<int64_t> const& get_timelocks() const;
+  Timelock::Based get_lock_based() const;
 
   void set_txid(const std::string& value);
-  void set_vout(int value);
+  void set_vout(uint32_t value);
   void set_address(const std::string& value);
   void set_amount(const Amount& value);
   void set_height(int value);
@@ -627,10 +699,11 @@ class NUNCHUK_EXPORT UnspentOutput {
   void set_blocktime(time_t value);
   void set_schedule_time(time_t value);
   void set_status(CoinStatus value);
+  void set_timelocks(std::vector<int64_t> value);
 
  private:
   std::string txid_;
-  int vout_;
+  uint32_t vout_;
   std::string address_;
   Amount amount_;
   int height_;
@@ -642,6 +715,7 @@ class NUNCHUK_EXPORT UnspentOutput {
   time_t blocktime_;
   time_t schedule_time_;
   CoinStatus status_;
+  std::vector<int64_t> timelocks_;
 };
 
 class NUNCHUK_EXPORT GroupSandbox {
@@ -654,6 +728,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   int get_m() const;
   int get_n() const;
   AddressType get_address_type() const;
+  WalletType get_wallet_type() const;
   WalletTemplate get_wallet_template() const;
   const std::vector<SingleSigner>& get_signers() const;
   bool is_finalized() const;
@@ -663,6 +738,10 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string get_pubkey() const;
   const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
   std::string get_replace_wallet_id() const;
+  std::string get_miniscript_template() const;
+  std::map<std::string, SingleSigner> get_named_signers() const;
+  std::map<std::string, std::pair<time_t, std::string>> get_named_occupied()
+      const;
 
   void set_name(const std::string& value);
   void set_url(const std::string& value);
@@ -679,6 +758,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   void add_occupied(int index, time_t ts, const std::string& uid);
   void remove_occupied(int index);
   void set_replace_wallet_id(const std::string& value);
+  void set_miniscript_template(const std::string& value);
 
  private:
   std::string id_;
@@ -696,6 +776,7 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::string pubkey_{};
   std::map<int, std::pair<time_t, std::string>> occupied_{};
   std::string replace_wallet_id_{};
+  std::string miniscript_template_{};
 };
 
 class NUNCHUK_EXPORT GroupMessage {
@@ -791,6 +872,7 @@ class Transaction {
   std::string get_reject_msg() const;
   time_t get_schedule_time() const;
   int get_vsize() const;
+  uint32_t get_lock_time() const;
 
   void set_txid(const std::string& value);
   void set_height(int value);
@@ -819,6 +901,7 @@ class Transaction {
   void set_reject_msg(const std::string& value);
   void set_schedule_time(time_t value);
   void set_vsize(int value);
+  void set_lock_time(uint32_t value);
 
  private:
   std::string txid_;
@@ -848,6 +931,7 @@ class Transaction {
   std::string reject_msg_;
   time_t schedule_time_;
   int vsize_;
+  uint32_t lock_time_;
 };
 
 class TapsignerStatus {
@@ -1049,6 +1133,63 @@ class NUNCHUK_EXPORT AppSettings {
   std::string group_server_;
 };
 
+class NUNCHUK_EXPORT ScriptNode {
+ public:
+  enum class Type {
+    NONE,
+    PK,
+    OLDER,
+    AFTER,
+    HASH160,
+    HASH256,
+    RIPEMD160,
+    SHA256,
+    AND,
+    OR,
+    ANDOR,
+    THRESH,
+    MULTI,
+    OR_TAPROOT,
+    MUSIG,
+  };
+
+  static std::string type_to_string(Type type);
+
+  ~ScriptNode() = default;
+  ScriptNode(const ScriptNode& x) = delete;
+  ScriptNode& operator=(const ScriptNode& x) = delete;
+  ScriptNode& operator=(ScriptNode&& x) = default;
+  ScriptNode(ScriptNode&& x) = default;
+
+  ScriptNode();
+  ScriptNode(Type nt, std::vector<ScriptNode>&& subs,
+             std::vector<std::string>&& key, std::vector<unsigned char>&& dat,
+             uint32_t kv);
+
+  bool operator()() const;
+  void set_id(ScriptNodeId&& id);
+
+  Type get_type() const;
+  const ScriptNodeId& get_id() const;
+  const std::vector<std::string>& get_keys() const;
+  const std::vector<unsigned char>& get_data() const;
+  const std::vector<ScriptNode>& get_subs() const;
+  uint32_t get_k() const;
+  bool is_unlocked(const UnspentOutput& coin, int64_t chain_tip,
+                   int64_t& max_lock) const;
+  bool is_satisfiable(const Transaction& tx) const;
+  bool is_satisfiable(const std::string& psbt) const;
+  KeysetStatus get_keyset_status(const Transaction& tx) const;
+
+ private:
+  Type node_type_{Type::NONE};
+  ScriptNodeId id_;
+  std::vector<ScriptNode> sub_;
+  std::vector<std::string> keys_;
+  std::vector<unsigned char> data_;
+  uint32_t k_{0};
+};
+
 class NUNCHUK_EXPORT Nunchuk {
  public:
   Nunchuk(const Nunchuk&) = delete;
@@ -1078,6 +1219,11 @@ class NUNCHUK_EXPORT Nunchuk {
                                  const std::string& passphrase = {},
                                  bool need_backup = true,
                                  bool replace = true) = 0;
+  virtual Wallet CreateMiniscriptWallet(
+      const std::string& name, const std::string& script_template,
+      const std::map<std::string, SingleSigner>& signers,
+      AddressType address_type, const std::string& description = {},
+      bool allow_used_signer = false, const std::string& decoy_pin = {}) = 0;
   virtual std::string GetHotWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
   virtual std::string GetHotKeyMnemonic(const std::string& signer_id,
@@ -1191,7 +1337,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false,
       const std::string& replace_txid = {}, bool anti_fee_sniping = false,
-      bool use_script_path = false) = 0;
+      bool use_script_path = false, const SigningPath& signing_path = {}) = 0;
   virtual bool ExportTransaction(const std::string& wallet_id,
                                  const std::string& tx_id,
                                  const std::string& file_path) = 0;
@@ -1216,12 +1362,22 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::map<std::string, Amount>& outputs,
       const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
       bool subtract_fee_from_amount = false,
-      const std::string& replace_txid = {}, bool use_script_path = false) = 0;
-  virtual Transaction ReplaceTransaction(const std::string& wallet_id,
-                                         const std::string& tx_id,
-                                         Amount new_fee_rate,
-                                         bool anti_fee_sniping = false,
-                                         bool use_script_path = false) = 0;
+      const std::string& replace_txid = {}, bool use_script_path = false,
+      const SigningPath& signing_path = {}) = 0;
+  virtual std::vector<std::pair<SigningPath, Amount>>
+  EstimateFeeForSigningPaths(const std::string& wallet_id,
+                             const std::map<std::string, Amount>& outputs,
+                             const std::vector<UnspentOutput>& inputs = {},
+                             Amount fee_rate = -1,
+                             bool subtract_fee_from_amount = false,
+                             const std::string& replace_txid = {}) = 0;
+  virtual std::pair<int64_t, Timelock::Based> GetTimelockedUntil(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
+
+  virtual Transaction ReplaceTransaction(
+      const std::string& wallet_id, const std::string& tx_id,
+      Amount new_fee_rate, bool anti_fee_sniping = false,
+      bool use_script_path = false, const SigningPath& signing_path = {}) = 0;
   virtual bool ReplaceTransactionId(const std::string& wallet_id,
                                     const std::string& txid,
                                     const std::string& replace_txid) = 0;
@@ -1521,7 +1677,8 @@ class NUNCHUK_EXPORT Nunchuk {
                          const std::string& new_wallet_id,
                          const std::set<int>& tags,
                          const std::set<int>& collections, Amount fee_rate = -1,
-                         bool use_script_path = false) = 0;
+                         bool use_script_path = false,
+                         const SigningPath& signing_path = {}) = 0;
   virtual std::map<
       std::pair<std::set<int> /* tags */, std::set<int> /* collections */>,
       Transaction>
@@ -1529,13 +1686,13 @@ class NUNCHUK_EXPORT Nunchuk {
                             const std::string& new_wallet_id,
                             const std::set<int>& tags,
                             const std::set<int>& collections,
-                            Amount fee_rate = -1,
-                            bool use_script_path = false) = 0;
+                            Amount fee_rate = -1, bool use_script_path = false,
+                            const SigningPath& signing_path = {}) = 0;
   virtual std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
       Amount fee_rate = -1, bool anti_fee_sniping = false,
-      bool use_script_path = false) = 0;
+      bool use_script_path = false, const SigningPath& signing_path = {}) = 0;
 
   // Dummy transaction
   virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(
@@ -1597,6 +1754,12 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction SignTransaction(const Wallet& wallet,
                                       const Transaction& tx,
                                       const Device& device) = 0;
+  virtual bool RevealPreimage(const std::string& wallet_id,
+                              const std::string& tx_id,
+                              const std::vector<uint8_t>& hash,
+                              const std::vector<uint8_t>& preimage) = 0;
+  virtual std::vector<SingleSigner> GetTransactionSigners(
+      const std::string& wallet_id, const std::string& tx_id) = 0;
   virtual void SetPreferScriptPath(const Wallet& wallet,
                                    const std::string& tx_id, bool value) = 0;
   virtual bool IsPreferScriptPath(const Wallet& wallet,
@@ -1636,6 +1799,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void StopConsumeGroupEvent() = 0;
   virtual GroupSandbox CreateGroup(const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
+  virtual GroupSandbox CreateGroup(const std::string& name,
+                                   const std::string& script_tmpl,
+                                   AddressType addressType) = 0;
   virtual GroupSandbox GetGroup(const std::string& groupId) = 0;
   virtual int GetGroupOnline(const std::string& groupId) = 0;
   virtual std::vector<GroupSandbox> GetGroups() = 0;
@@ -1649,13 +1815,24 @@ class NUNCHUK_EXPORT Nunchuk {
                                    const std::string& groupId) = 0;
   virtual GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
                                        bool value) = 0;
+  virtual GroupSandbox SetSlotOccupied(const std::string& groupId,
+                                       const std::string& name, bool value) = 0;
   virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
                                         const SingleSigner& signer,
                                         int index) = 0;
+  virtual GroupSandbox AddSignerToGroup(const std::string& groupId,
+                                        const SingleSigner& signer,
+                                        const std::string& name) = 0;
   virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                              int index) = 0;
+  virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                             const std::string& name) = 0;
   virtual GroupSandbox UpdateGroup(const std::string& groupId,
                                    const std::string& name, int m, int n,
+                                   AddressType addressType) = 0;
+  virtual GroupSandbox UpdateGroup(const std::string& groupId,
+                                   const std::string& name,
+                                   const std::string& script_tmpl,
                                    AddressType addressType) = 0;
   virtual GroupSandbox FinalizeGroup(
       const std::string& groupId, const std::set<size_t>& valueKeyset = {}) = 0;
@@ -1721,6 +1898,9 @@ struct BSMSData {
   std::string path_restrictions;
   std::string first_address;
 };
+
+typedef std::pair<int64_t, int64_t> TimeRange;  // from-to pair
+typedef std::pair<std::vector<UnspentOutput>, TimeRange> CoinsGroup;
 
 class NUNCHUK_EXPORT Utils {
  public:
@@ -1829,7 +2009,8 @@ class NUNCHUK_EXPORT Utils {
       const std::string& psbt, int min_version = 1 /*1-40*/,
       int max_version = 40 /*1-40*/);
   static std::vector<std::string> ExportBBQRWallet(
-      const Wallet& wallet, ExportFormat = ExportFormat::COLDCARD,
+      const Wallet& wallet,
+      ExportFormat = ExportFormat::DESCRIPTOR_EXTERNAL_ALL,
       int min_version = 1 /*1-40*/, int max_version = 1 /*1-40*/);
   static std::vector<std::string> ExportKeystoneWallet(const Wallet& wallet,
                                                        int fragment_len = 200);
@@ -1850,6 +2031,50 @@ class NUNCHUK_EXPORT Utils {
                              const std::string& new_pin);
   static std::vector<std::string> ListDecoyPin(const std::string& storage_path);
   static bool CheckElectrumServer(const std::string& server, int timeout = 1);
+  static bool IsValidPolicy(const std::string& policy);
+  static std::string PolicyToMiniscript(
+      const std::string& policy,
+      const std::map<std::string, SingleSigner>& signers,
+      AddressType address_type);
+  static bool IsValidMiniscriptTemplate(const std::string& miniscript_template,
+                                        AddressType address_type);
+  static bool IsValidTapscriptTemplate(const std::string& tapscript_template,
+                                       std::string& error);
+  static std::string MiniscriptTemplateToMiniscript(
+      const std::string& miniscript_template,
+      const std::map<std::string, SingleSigner>& signers);
+  static std::string TapscriptTemplateToTapscript(
+      const std::string& tapscript_template,
+      const std::map<std::string, SingleSigner>& signers,
+      std::vector<std::string>& keypath);
+  static ScriptNode GetScriptNode(const std::string& script,
+                                  std::vector<std::string>& keypath);
+  static std::vector<uint8_t> HashPreimage(const std::vector<uint8_t>& preimage,
+                                           PreimageHashType hashType);
+  static std::string RevealPreimage(const std::string& psbt,
+                                    PreimageHashType hashType,
+                                    const std::vector<uint8_t>& hash,
+                                    const std::vector<uint8_t>& preimage);
+  static bool IsPreimageRevealed(const std::string& psbt_or_hex_tx,
+                                 const std::vector<uint8_t>& hash);
+  static std::vector<SigningPath> GetAllSigningPaths(const std::string& script);
+  static std::string ExpandingMultisigMiniscriptTemplate(
+      int m, int n, int new_n, bool reuse_signers, const Timelock& timelock,
+      AddressType address_type);
+  static std::string DecayingMultisigMiniscriptTemplate(
+      int m, int n, int new_m, bool reuse_signers, const Timelock& timelock,
+      AddressType address_type);
+  static std::string FlexibleMultisigMiniscriptTemplate(
+      int m, int n, int new_m, int new_n, bool reuse_signers,
+      const Timelock& timelock, AddressType address_type);
+  static std::vector<UnspentOutput> GetTimelockedCoins(
+      const std::string& miniscript, const std::vector<UnspentOutput>& coins,
+      int64_t& max_lock_value, int chain_tip);
+  static std::vector<CoinsGroup> GetCoinsGroupedBySubPolicies(
+      const ScriptNode& script_node, const std::vector<UnspentOutput>& coins,
+      int chain_tip);
+  static std::vector<std::string> ParseSignerNames(
+      const std::string& script_template, int& keypath_m);
 
  private:
   Utils() {}
@@ -1866,5 +2091,4 @@ std::unique_ptr<Nunchuk> MakeNunchukForDecoyPin(const AppSettings& appsettings,
                                                 const std::string& pin);
 
 }  // namespace nunchuk
-
 #endif  // NUNCHUK_INCLUDE_H

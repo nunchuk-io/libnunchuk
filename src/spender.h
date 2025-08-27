@@ -30,11 +30,10 @@ using namespace nunchuk;
 util::Result<CreatedTransactionResult> CreateTransaction(
     const std::vector<UnspentOutput>& coins,
     const std::vector<UnspentOutput>& listSelected,
-    const std::vector<TxOutput>& recipients,
-    const bool substract_fee_from_amount,
+    const std::vector<TxOutput>& recipients, const bool subtract_fee_outputs,
     const std::vector<std::string>& descriptors,
     const std::string& change_address, const Amount fee_rate, int& change_pos,
-    int& signedVSize, bool use_script_path);
+    int& signedVSize, bool use_script_path, uint32_t sequence);
 
 int EstimateScriptPathVSize(const std::vector<std::string>& descriptors,
                             const CTransaction ctx);

@@ -42,6 +42,8 @@
 #include <policy/policy.h>
 #include <crypto/sha256.h>
 
+#include <miniscript/timeline.h>
+
 #ifdef _WIN32
 #include <shlobj.h>
 #endif
@@ -170,9 +172,14 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
         wallet_db.DecryptDb(file_path);
       }
       return true;
-    default:
-      return false;
+    case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
+      return WriteFile(file_path,
+                       wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
+    case ExportFormat::COBO:
+    case ExportFormat::CSV:
+      break;
   }
+  return false;
 }
 
 std::string NunchukStorage::GetWalletExportData(Chain chain,
@@ -194,6 +201,8 @@ std::string NunchukStorage::GetWalletExportData(Chain chain,
       return {};
     case ExportFormat::CSV:
       return {};
+    case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
+      return wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   }
   return {};
 }
@@ -255,17 +264,19 @@ static bfs::path rename_file_with_retry(const bfs::path& path) {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_MS));
   }
-  throw std::runtime_error("Failed to rename file: " + path.string() + " - " + ec.message());
+  throw std::runtime_error("Failed to rename file: " + path.string() + " - " +
+                           ec.message());
 }
 
-static void safe_copy_file(const bfs::path& source, const bfs::path& destination) {
-    bfs::path temp = destination;
-    temp += ".copy.tmp";
-    if (bfs::copy_file(source, temp, bfs::copy_options::overwrite_existing)) {
-        bfs::rename(temp, destination);
-    } else {
-        throw std::runtime_error("Failed to copy file: " + source.string());
-    }
+static void safe_copy_file(const bfs::path& source,
+                           const bfs::path& destination) {
+  bfs::path temp = destination;
+  temp += ".copy.tmp";
+  if (bfs::copy_file(source, temp, bfs::copy_options::overwrite_existing)) {
+    bfs::rename(temp, destination);
+  } else {
+    throw std::runtime_error("Failed to copy file: " + source.string());
+  }
 }
 
 void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
@@ -294,7 +305,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
     bfs::path temp = rename_file_with_retry(old_file);
     try {
       safe_copy_file(new_file, old_file);
-    } catch (...) {    
+    } catch (...) {
       bfs::rename(temp, old_file);
       throw;
     }
@@ -782,12 +793,10 @@ void NunchukStorage::CacheMasterSignerXPub(
     if (first) {
       if (w == WalletType::MULTI_SIG) {
         if (a == AddressType::NATIVE_SEGWIT) return 1;
-        if (a == AddressType::NESTED_SEGWIT) return 1;
-        if (a == AddressType::TAPROOT) return 1;
       }
       if (w == WalletType::SINGLE_SIG) {
         if (a == AddressType::NATIVE_SEGWIT) return 1;
-        if (a == AddressType::TAPROOT) return 1;
+        if (a == AddressType::LEGACY) return 1;
       }
       return 0;
     }
@@ -848,14 +857,10 @@ bool NunchukStorage::CacheDefaultMasterSignerXpub(
       chain == Chain::MAIN ? MAINNET_HEALTH_CHECK_PATH
                            : TESTNET_HEALTH_CHECK_PATH,
       GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT, 0),
-      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NESTED_SEGWIT, 0),
-      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::LEGACY, 0),
+      GetBip32Path(chain, WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT, 1),
       GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT,
                    0),
-      GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT,
-                   0),
       GetBip32Path(chain, WalletType::SINGLE_SIG, AddressType::LEGACY, 0),
-      GetBip32Path(chain, WalletType::ESCROW, AddressType::ANY, 0),
   };
   auto signer_db = GetSignerDb(chain, mastersigner_id);
 
@@ -982,9 +987,18 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     true_signers.push_back(
         GetTrueSigner0(chain, signer, create_signers_if_not_exist));
   }
-  Wallet true_wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(),
-                     true_signers, wallet.get_address_type(),
-                     wallet.get_wallet_type(), wallet.get_create_date());
+
+  Wallet true_wallet;
+  if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+    true_wallet = Wallet(wallet.get_miniscript(), true_signers,
+                         wallet.get_address_type(), wallet.get_m());
+    true_wallet.set_name(wallet.get_name());
+    true_wallet.set_create_date(wallet.get_create_date());
+  } else {
+    true_wallet = Wallet(id, wallet.get_name(), wallet.get_m(), wallet.get_n(),
+                         true_signers, wallet.get_address_type(),
+                         wallet.get_wallet_type(), wallet.get_create_date());
+  }
   true_wallet.set_description(wallet.get_description());
   true_wallet.set_balance(wallet.get_balance());
   true_wallet.set_unconfirmed_balance(wallet.get_unconfirmed_balance());
@@ -1168,7 +1182,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
 
   // remove invalid, out-of-date Send transactions
   const auto utxos_set = [utxos = db.GetCoins()]() {
-    std::set<std::pair<std::string, int>> ret;
+    std::set<TxInput> ret;
     for (auto&& utxo : utxos) {
       ret.insert({utxo.get_txid(), utxo.get_vout()});
     }
@@ -1176,7 +1190,7 @@ std::vector<Transaction> NunchukStorage::GetTransactions(
   }();
 
   const auto used_inputs_set = [&]() {
-    std::set<std::pair<std::string, int>> ret;
+    std::set<TxInput> ret;
     for (auto&& tx : vtx) {
       if (tx.get_height() > 0) {
         for (auto&& input : tx.get_inputs()) {
@@ -1262,6 +1276,13 @@ std::vector<UnspentOutput> NunchukStorage::GetUtxos0(
     coin.set_collections(
         wallet.GetAddedCollections(coin.get_txid(), coin.get_vout()));
     utxos.push_back(coin);
+  }
+  auto miniscript = wallet.GetMiniscript();
+  if (!miniscript.empty()) {
+    MiniscriptTimeline timeline(miniscript);
+    for (auto&& utxo : utxos) {
+      utxo.set_timelocks(timeline.get_locks(utxo));
+    }
   }
   return utxos;
 }

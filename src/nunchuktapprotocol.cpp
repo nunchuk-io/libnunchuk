@@ -393,12 +393,7 @@ Transaction NunchukImpl::SignTapsignerTransaction(
            "NunchukImpl::SignTapsignerTransaction(), "
            "signed_psbt='%s'",
            signed_psbt.c_str());
-    storage_->UpdatePsbt(chain_, wallet_id, signed_psbt);
-    storage_listener_();
-    if (group_wallet_enable_ && group_service_.HasWallet(wallet_id)) {
-      group_service_.UpdateTransaction(wallet_id, tx_id, signed_psbt);
-    }
-    return GetTransaction(wallet_id, tx_id);
+    return ImportPsbt(wallet_id, signed_psbt);
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);
   }
@@ -899,7 +894,7 @@ CreateSatscardSlotsTransaction(const std::vector<SatscardSlot>& slots,
   int change_pos = 0;
   auto res = wallet::CreateTransaction(utxos, utxos, selector_outputs, true,
                                        descs, change_address, fee_rate,
-                                       change_pos, vsize, false);
+                                       change_pos, vsize, false, 0);
   if (!res) {
     std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR, error);

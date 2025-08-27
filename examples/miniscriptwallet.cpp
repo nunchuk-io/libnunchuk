@@ -27,6 +27,7 @@
 using namespace nunchuk;
 
 std::unique_ptr<Nunchuk> nu;
+bool group_wallet_enabled = false;
 
 inline std::string input_string(const std::string& message) {
   std::cout << "... " << message << ": ";
@@ -49,12 +50,12 @@ inline bool input_bool(const std::string& message) {
   return (yn != "n" && yn != "N");
 }
 
-inline AddressType input_address_type(const WalletType& wallet_type) {
+inline AddressType input_address_type() {
   std::cout << "... Choose address type: " << std::endl;
   std::cout << "1: Native Segwit" << std::endl;
   std::cout << "2: Nested Segwit" << std::endl;
   std::cout << "3: Legacy" << std::endl;
-  std::cout << "4: Taproot (singlesig only)" << std::endl;
+  std::cout << "4: Taproot" << std::endl;
   int input;
   std::cin >> input;
   switch (input) {
@@ -65,8 +66,6 @@ inline AddressType input_address_type(const WalletType& wallet_type) {
     case 3:
       return AddressType::LEGACY;
     case 4:
-      if (wallet_type != WalletType::SINGLE_SIG)
-        throw std::runtime_error("Only SingleSig wallet support Taproot");
       return AddressType::TAPROOT;
   }
   throw std::runtime_error("Invalid address type");
@@ -103,6 +102,13 @@ inline void print_list_wallets(const std::vector<Wallet>& wallets) {
     std::cout << i++ << ": [" << wallet.get_id() << "] " << wallet.get_name()
               << " (" << wallet.get_m() << "/" << wallet.get_n()
               << "). Balance: " << wallet.get_balance() << " sat" << std::endl;
+  }
+}
+
+inline void check_m_n(int m, int n) {
+  if (m > n) {
+    throw std::runtime_error(
+        "Required signatures must less or equal total signers");
   }
 }
 
@@ -178,13 +184,10 @@ void newwallet() {
   auto name = input_string("Enter wallet name");
   auto n = input_int("Total signers");
   auto m = input_int("Required signatures");
-  if (m > n) {
-    throw std::runtime_error(
-        "Required signatures must less or equal total signers");
-  }
+  check_m_n(m, n);
   WalletType wallet_type =
       n == 1 ? WalletType::SINGLE_SIG : WalletType::MULTI_SIG;
-  AddressType address_type = input_address_type(wallet_type);
+  AddressType address_type = input_address_type();
 
   std::vector<SingleSigner> signers;
   for (int i = 0; i < n; i++) {
@@ -322,15 +325,12 @@ void newsandbox() {
   auto name = input_string("Enter wallet name");
   auto n = input_int("Total signers");
   auto m = input_int("Required signatures");
-  if (m > n) {
-    throw std::runtime_error(
-        "Required signatures must less or equal total signers");
-  }
+  check_m_n(m, n);
   if (n < 2) {
     throw std::runtime_error("Group wallet must have at least 2 signers");
   }
   WalletType wallet_type = WalletType::MULTI_SIG;
-  AddressType address_type = input_address_type(wallet_type);
+  AddressType address_type = input_address_type();
 
   auto group = nu.get()->CreateGroup(name, m, n, address_type);
   std::cout << "\nGroup sandbox create success. Group id: " << group.get_id()
@@ -612,9 +612,93 @@ void groupconfig() {
   nu.get()->SetGroupWalletConfig(wallet_id, config);
 }
 
+void newminiscriptwallet() {
+  auto name = input_string("Enter wallet name");
+  AddressType address_type = input_address_type();
+
+  // TODO: allow user to select timelock based, type and value
+  Timelock::Based based = Timelock::Based::HEIGHT_LOCK;
+  Timelock::Type type = Timelock::Type::LOCKTYPE_RELATIVE;
+  int64_t value = 1;
+  Timelock timelock{based, type, value};
+
+  // select miniscript template
+  std::cout << std::endl;
+  std::cout << "0: [Expanding Multisig Wallet] " << std::endl;
+  std::cout << "1: [Decaying Multisig Wallet] " << std::endl;
+  std::cout << "2: [Flexible Multisig Wallet] " << std::endl;
+  int idx = input_int("Choose miniscript template");
+  std::string miniscript_template;
+  if (idx == 0) {
+    miniscript_template = Utils::ExpandingMultisigMiniscriptTemplate(
+        2, 2, 3, true, timelock, address_type);
+  } else if (idx == 1) {
+    miniscript_template = Utils::DecayingMultisigMiniscriptTemplate(
+        2, 2, 1, true, timelock, address_type);
+  } else if (idx == 2) {
+    auto n = input_int("Total signers");
+    auto m = input_int("Required signatures");
+    check_m_n(m, n);
+    auto new_n = input_int("New total signers");
+    auto new_m = input_int("New required signatures");
+    check_m_n(new_m, new_n);
+    miniscript_template = Utils::FlexibleMultisigMiniscriptTemplate(
+        m, n, new_m, new_n, true, timelock, address_type);
+  } else {
+    throw std::runtime_error("Invalid miniscript template");
+  }
+
+  std::cout << "Miniscript template: " << miniscript_template << std::endl;
+
+  // configure wallet
+  auto master_signers = nu.get()->GetMasterSigners();
+  auto remote_signers = nu.get()->GetRemoteSigners();
+  if (master_signers.empty() && remote_signers.empty()) {
+    throw std::runtime_error("Please create signer first");
+  }
+
+  std::map<std::string, SingleSigner> keys{};
+  std::vector<std::string> keypath;
+  auto node = Utils::GetScriptNode(miniscript_template, keypath);
+  std::function<void(const ScriptNode&)> getKeys =
+      [&](const ScriptNode& node) -> void {
+    for (int i = 0; i < node.get_keys().size(); i++) {
+      if (keys.find(node.get_keys()[i]) != keys.end()) {
+        continue;
+      }
+      print_list_signers(master_signers, remote_signers);
+      int signer_idx = input_int("Choose a signer for " + node.get_keys()[i]);
+      SingleSigner signer{};
+      if (signer_idx >= 0 && signer_idx < master_signers.size()) {
+        signer = nu.get()->GetUnusedSignerFromMasterSigner(
+            master_signers[signer_idx].get_id(), WalletType::MINISCRIPT,
+            address_type);
+        master_signers.erase(master_signers.begin() + signer_idx);
+      } else if (signer_idx >= master_signers.size() &&
+                 signer_idx < master_signers.size() + remote_signers.size()) {
+        signer = remote_signers[signer_idx - master_signers.size()];
+        remote_signers.erase(remote_signers.begin() + signer_idx -
+                             master_signers.size());
+      } else {
+        throw std::runtime_error("Invalid signer");
+      }
+      keys[node.get_keys()[i]] = signer;
+    }
+    for (int i = 0; i < node.get_subs().size(); i++) {
+      getKeys(node.get_subs()[i]);
+    }
+  };
+  getKeys(node);
+
+  auto wallet = nu.get()->CreateMiniscriptWallet(name, miniscript_template,
+                                                 keys, address_type, "", true);
+  std::cout << "\nWallet create success. Wallet id: " << wallet.get_id()
+            << std::endl;
+  std::cout << GetDescriptorRecord(wallet) << std::endl;
+}
+
 void init() {
   auto account = input_string("Enter account name");
-  auto token = input_string("Enter token");
 
   AppSettings settings;
   settings.set_chain(Chain::MAIN);
@@ -625,7 +709,13 @@ void init() {
   settings.set_storage_path("/home/bringer/libnunchuk/examples/playground.cpp");
   settings.set_group_server("https://api.nunchuk.io");
   nu = MakeNunchukForAccount(settings, {}, account);
-  nu->EnableGroupWallet("ubuntu", "22.04", "1.0.0", "desktop", account, token);
+
+  group_wallet_enabled = input_bool("Enable group wallet");
+  if (group_wallet_enabled) {
+    auto token = input_string("Enter token");
+    nu->EnableGroupWallet("ubuntu", "22.04", "1.0.0", "desktop", account,
+                          token);
+  }
 }
 
 void interactive() {
@@ -667,6 +757,9 @@ void interactive() {
       {getreplacestatus, "getreplacestatus", "get replace sandbox"},
       {acceptreplace, "acceptreplace", "accept replace sandbox"},
 
+      {newminiscriptwallet, "newminiscriptwallet",
+       "create new miniscript wallet"},
+
       {history, "history", "list transaction history"},
       {send, "send", "create new transaction"}};
 
@@ -675,7 +768,7 @@ void interactive() {
     mapCommands[command.name_] = &command;
   }
 
-  std::cout << "\e[1mKusari\e[0m 0.1.0 (GroupWallet)" << std::endl;
+  std::cout << "\e[1mKusari\e[0m 0.1.0 (MiniscriptWallet)" << std::endl;
   std::cout << "Type \"#help\" for more information." << std::endl;
   for (;;) {
     std::string input_line;
@@ -735,14 +828,19 @@ void replaceLisnter(const std::string& wallet_id, const std::string& group_id) {
 int main(int argc, char** argv) {
   loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
   init();
-  auto t1 = std::thread([&]() { nu->StartConsumeGroupEvent(); });
-  nu->AddGroupUpdateListener(sandboxListener);
-  nu->AddGroupMessageListener(messageListener);
-  nu->AddTransactionListener(transactionListener);
-  nu->AddReplaceRequestListener(replaceLisnter);
 
-  interactive();
-  nu->StopConsumeGroupEvent();
-  t1.join();
+  if (group_wallet_enabled) {
+    auto t1 = std::thread([&]() { nu->StartConsumeGroupEvent(); });
+    nu->AddGroupUpdateListener(sandboxListener);
+    nu->AddGroupMessageListener(messageListener);
+    nu->AddTransactionListener(transactionListener);
+    nu->AddReplaceRequestListener(replaceLisnter);
+
+    interactive();
+    nu->StopConsumeGroupEvent();
+    t1.join();
+  } else {
+    interactive();
+  }
   nu.reset();
 }

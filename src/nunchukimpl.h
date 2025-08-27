@@ -60,6 +60,12 @@ class NunchukImpl : public Nunchuk {
   Wallet CreateHotWallet(const std::string& mnemonic = {},
                          const std::string& passphrase = {},
                          bool need_backup = true, bool replace = true) override;
+  Wallet CreateMiniscriptWallet(
+      const std::string& name, const std::string& script_template,
+      const std::map<std::string, SingleSigner>& signers,
+      AddressType address_type, const std::string& description = {},
+      bool allow_used_signer = false,
+      const std::string& decoy_pin = {}) override;
   std::string GetHotWalletMnemonic(const std::string& wallet_id,
                                    const std::string& passphrase = {}) override;
   std::string GetHotKeyMnemonic(const std::string& signer_id,
@@ -203,7 +209,8 @@ class NunchukImpl : public Nunchuk {
                                 bool subtract_fee_from_amount = false,
                                 const std::string& replace_txid = {},
                                 bool anti_fee_sniping = false,
-                                bool use_script_path = false) override;
+                                bool use_script_path = false,
+                                const SigningPath& signing_path = {}) override;
   bool ExportTransaction(const std::string& wallet_id, const std::string& tx_id,
                          const std::string& file_path) override;
   Transaction ImportTransaction(const std::string& wallet_id,
@@ -216,6 +223,11 @@ class NunchukImpl : public Nunchuk {
                               const Device& device) override;
   Transaction SignTransaction(const Wallet& wallet, const Transaction& tx,
                               const Device& device) override;
+  bool RevealPreimage(const std::string& wallet_id, const std::string& tx_id,
+                      const std::vector<uint8_t>& hash,
+                      const std::vector<uint8_t>& preimage) override;
+  std::vector<SingleSigner> GetTransactionSigners(
+      const std::string& wallet_id, const std::string& tx_id) override;
   void SetPreferScriptPath(const Wallet& wallet, const std::string& tx_id,
                            bool value) override;
   bool IsPreferScriptPath(const Wallet& wallet,
@@ -235,11 +247,21 @@ class NunchukImpl : public Nunchuk {
                                Amount fee_rate = -1,
                                bool subtract_fee_from_amount = false,
                                const std::string& replace_txid = {},
-                               bool use_script_path = false) override;
+                               bool use_script_path = false,
+                               const SigningPath& signing_path = {}) override;
+  std::vector<std::pair<SigningPath, Amount>> EstimateFeeForSigningPaths(
+      const std::string& wallet_id,
+      const std::map<std::string, Amount>& outputs,
+      const std::vector<UnspentOutput>& inputs = {}, Amount fee_rate = -1,
+      bool subtract_fee_from_amount = false,
+      const std::string& replace_txid = {}) override;
+  std::pair<int64_t, Timelock::Based> GetTimelockedUntil(
+      const std::string& wallet_id, const std::string& tx_id) override;
   Transaction ReplaceTransaction(const std::string& wallet_id,
                                  const std::string& tx_id, Amount new_fee_rate,
                                  bool anti_fee_sniping = false,
-                                 bool use_script_path = false) override;
+                                 bool use_script_path = false,
+                                 const SigningPath& signing_path = {}) override;
   bool ReplaceTransactionId(const std::string& wallet_id,
                             const std::string& txid,
                             const std::string& replace_txid) override;
@@ -561,19 +583,21 @@ class NunchukImpl : public Nunchuk {
   std::pair<Amount, Amount> EstimateRollOverAmount(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
-      Amount fee_rate = -1, bool use_script_path = false) override;
+      Amount fee_rate = -1, bool use_script_path = false,
+      const SigningPath& signing_path = {}) override;
   std::map<std::pair<std::set<int>, std::set<int>>, Transaction>
   DraftRollOverTransactions(const std::string& old_wallet_id,
                             const std::string& new_wallet_id,
                             const std::set<int>& tags,
                             const std::set<int>& collections,
-                            Amount fee_rate = -1,
-                            bool use_script_path = false) override;
+                            Amount fee_rate = -1, bool use_script_path = false,
+                            const SigningPath& signing_path = {}) override;
   std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
       Amount fee_rate = -1, bool anti_fee_sniping = false,
-      bool use_script_path = false) override;
+      bool use_script_path = false,
+      const SigningPath& signing_path = {}) override;
 
   // Group Wallet
   void EnableGroupWallet(const std::string& osName,
@@ -590,6 +614,9 @@ class NunchukImpl : public Nunchuk {
   void StopConsumeGroupEvent() override;
   GroupSandbox CreateGroup(const std::string& name, int m, int n,
                            AddressType addressType) override;
+  GroupSandbox CreateGroup(const std::string& name,
+                           const std::string& script_tmpl,
+                           AddressType addressType) override;
   GroupSandbox GetGroup(const std::string& groupId) override;
   int GetGroupOnline(const std::string& groupId) override;
   std::vector<GroupSandbox> GetGroups() override;
@@ -603,12 +630,22 @@ class NunchukImpl : public Nunchuk {
                            const std::string& groupId) override;
   GroupSandbox SetSlotOccupied(const std::string& groupId, int index,
                                bool value) override;
+  GroupSandbox SetSlotOccupied(const std::string& groupId,
+                               const std::string& name, bool value) override;
   GroupSandbox AddSignerToGroup(const std::string& groupId,
                                 const SingleSigner& signer, int index) override;
+  GroupSandbox AddSignerToGroup(const std::string& groupId,
+                                const SingleSigner& signer,
+                                const std::string& name) override;
   GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                      int index) override;
+  GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
+                                     const std::string& name) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType) override;
+  GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
+                           const std::string& script_tmpl,
+                           AddressType addressType) override;
   GroupSandbox FinalizeGroup(const std::string& groupId,
                              const std::set<size_t>& valueKeyset = {}) override;
   void DeleteGroup(const std::string& groupId) override;
@@ -652,16 +689,18 @@ class NunchukImpl : public Nunchuk {
                          Amount fee_rate, bool subtract_fee_from_amount,
                          bool utxo_update_psbt, Amount& fee, int& vsize,
                          int& change_pos, bool anti_fee_sniping,
-                         bool use_script_path);
+                         bool use_script_path, const SigningPath& signing_path);
   Wallet ImportWalletFromConfig(const std::string& config,
                                 const std::string& description);
   void RunScanWalletAddress(const std::string& wallet_id, bool from_start);
   // Find the first unused address that the next 19 addresses are unused too
   std::string GetUnusedAddress(const Wallet& wallet, int& index, bool internal);
   void SyncGroupTransactions(const std::string& walletId);
-  bool CreateGroupWallet(const GroupSandbox& group);
+  bool FinalizeGroupLocal(const GroupSandbox& group);
+  Wallet CreateLocalGroupWallet(const GroupSandbox& group);
   void SubscribeGroups(const std::vector<std::string>& groupIds,
-                       const std::vector<std::string>& walletIds);
+                       const std::vector<std::string>& walletIds,
+                       bool sync = false);
   void StartListenEvents();
 
   AppSettings app_settings_;
