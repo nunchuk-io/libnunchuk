@@ -1259,10 +1259,10 @@ bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
 
 bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
                                      std::string& error) {
-  std::vector<std::string> keypath;
+  std::vector<std::string> names;
   std::vector<std::string> subscripts;
   std::vector<int> depths;
-  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts, depths,
+  if (!ParseTapscriptTemplate(tapscript_template, names, subscripts, depths,
                               error)) {
     return false;
   }
@@ -1270,11 +1270,31 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
     error = "tapscript missing";
     return false;
   }
+  int keypath_m;
   for (auto& subscript : subscripts) {
-    if (IsValidMusigTemplate(subscript)) continue;
+    if (IsValidMusigTemplate(subscript)) {
+      std::string inner = subscript.substr(9, subscript.find(")", 9) - 9);
+      std::vector<std::string> keys = split(inner, ',');
+      for (auto& key : keys) {
+        if (std::find(names.begin(), names.end(), key) != names.end()) {
+          error = strprintf("duplicate key: '%s'", key);
+          return false;
+        }
+        names.push_back(key);
+      }
+      continue;
+    }
     if (!IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
       error = strprintf("invalid miniscript template: '%s'", subscript);
       return false;
+    }
+    auto subscript_names = ParseSignerNames(subscript, keypath_m);
+    for (auto& name : subscript_names) {
+      if (std::find(names.begin(), names.end(), name) != names.end()) {
+        error = strprintf("duplicate key: '%s'", name);
+        return false;
+      }
+      names.push_back(name);
     }
   }
   return true;
