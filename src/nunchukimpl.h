@@ -284,6 +284,7 @@ class NunchukImpl : public Nunchuk {
                              std::function<bool(int)> progress) override;
   Amount EstimateFee(int conf_target = 6, bool use_mempool = true) override;
   int GetChainTip() override;
+  time_t GetMedianTimePast() override;
   Amount GetTotalAmount(const std::string& wallet_id,
                         const std::vector<TxInput>& inputs) override;
   std::string GetSelectedWallet() override;

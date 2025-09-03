@@ -57,6 +57,14 @@ Amount CoreRpcSynchronizer::EstimateFee(int conf_target) {
   return client_->EstimateFee(conf_target);
 }
 
+time_t CoreRpcSynchronizer::GetMedianTimePast() {
+  if (stopped)
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  auto blockchain_info = client_->GetBlockchainInfo();
+  return blockchain_info["mediantime"];
+}
+
 Amount CoreRpcSynchronizer::RelayFee() {
   if (stopped) return Amount(1000);
   return client_->RelayFee();

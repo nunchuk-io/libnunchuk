@@ -338,8 +338,8 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
       storage_->SetChainTip(app_settings_.get_chain(), chain_tip_);
       block_listener_(rs[0]["height"], rs[0]["hex"]);
     });
-    connection_listener_(ConnectionStatus::SYNCING, 0);
     chain_tip_ = header["height"];
+    connection_listener_(ConnectionStatus::SYNCING, 0);
     storage_->SetChainTip(chain, header["height"]);
     block_listener_(header["height"], header["hex"]);
     client_->scripthash_add_listener([&](json notification) {
@@ -415,6 +415,25 @@ Amount ElectrumSynchronizer::EstimateFee(int conf_target) {
   }
   return Utils::AmountFromValue(
       client_->blockchain_estimatefee(conf_target).dump());
+}
+
+time_t ElectrumSynchronizer::GetMedianTimePast() {
+  std::unique_lock<std::mutex> lock_(status_mutex_);
+  if (status_ != Status::READY && status_ != Status::SYNCING) {
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           "Disconnected");
+  }
+
+  const int nMedianTimeSpan = 11;
+  auto headers = client_->blockchain_block_headers(
+      chain_tip_ - nMedianTimeSpan + 1, nMedianTimeSpan);
+  std::string hex = headers["hex"];
+  int64_t pmedian[nMedianTimeSpan];
+  for (int i = 0; i < nMedianTimeSpan; i++) {
+    pmedian[i] = GetBlockTime(hex.substr(i * 160, 160));
+  }
+  std::sort(pmedian, pmedian + nMedianTimeSpan);
+  return pmedian[nMedianTimeSpan / 2];
 }
 
 Amount ElectrumSynchronizer::RelayFee() {

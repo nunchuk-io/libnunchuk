@@ -34,6 +34,7 @@ class ElectrumSynchronizer : public Synchronizer {
 
   void Broadcast(const std::string& raw_tx) override;
   Amount EstimateFee(int conf_target) override;
+  time_t GetMedianTimePast() override;
   Amount RelayFee() override;
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal) override;

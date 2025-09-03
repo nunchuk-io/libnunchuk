@@ -57,6 +57,7 @@ class ElectrumClient {
   json blockchain_transaction_broadcast(const std::string& raw_tx);
   json blockchain_transaction_get(const std::string& tx_hash);
   json blockchain_block_header(int height);
+  json blockchain_block_headers(int start_height, int count);
 
   json server_version();
   bool support_batch_requests();

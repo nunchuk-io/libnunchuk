@@ -54,6 +54,7 @@ class Synchronizer {
 
   virtual void Broadcast(const std::string& raw_tx) = 0;
   virtual Amount EstimateFee(int conf_target) = 0;
+  virtual time_t GetMedianTimePast() = 0;
   virtual Amount RelayFee() = 0;
   virtual bool LookAhead(Chain chain, const std::string& wallet_id,
                          const std::string& address, int index,

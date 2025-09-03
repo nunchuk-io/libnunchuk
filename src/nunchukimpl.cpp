@@ -1792,6 +1792,10 @@ Amount NunchukImpl::EstimateFee(int conf_target, bool use_mempool) {
 
 int NunchukImpl::GetChainTip() { return synchronizer_->GetChainTip(); }
 
+time_t NunchukImpl::GetMedianTimePast() {
+  return synchronizer_->GetMedianTimePast();
+}
+
 Amount NunchukImpl::GetTotalAmount(const std::string& wallet_id,
                                    const std::vector<TxInput>& inputs) {
   Amount total = 0;

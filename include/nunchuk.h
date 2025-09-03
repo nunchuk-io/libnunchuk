@@ -1398,6 +1398,7 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& file_path) = 0;
   virtual Amount EstimateFee(int conf_target = 6, bool use_mempool = true) = 0;
   virtual int GetChainTip() = 0;
+  virtual time_t GetMedianTimePast() = 0;
   virtual Amount GetTotalAmount(const std::string& wallet_id,
                                 const std::vector<TxInput>& inputs) = 0;
   virtual std::string GetSelectedWallet() = 0;

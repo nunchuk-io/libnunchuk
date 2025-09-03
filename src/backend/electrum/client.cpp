@@ -242,6 +242,10 @@ json ElectrumClient::blockchain_block_header(int height) {
   return call_method("blockchain.block.header", {height});
 }
 
+json ElectrumClient::blockchain_block_headers(int start_height, int count) {
+  return call_method("blockchain.block.headers", {start_height, count});
+}
+
 json ElectrumClient::server_version() {
   return call_method("server.version", {"Nunchuk", {"1.3", "1.4.2"}});
 }
