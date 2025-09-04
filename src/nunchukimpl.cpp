@@ -618,7 +618,8 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
             master.get_name(), xpub, "", path, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
-        return signer;
+        return storage_->AddSignerToMasterSigner(
+            chain_, mastersigner_id, Utils::SanitizeSingleSigner(signer));
       }
     }
     throw;
