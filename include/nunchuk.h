@@ -2068,6 +2068,9 @@ class NUNCHUK_EXPORT Utils {
   static std::string FlexibleMultisigMiniscriptTemplate(
       int m, int n, int new_m, int new_n, bool reuse_signers,
       const Timelock& timelock, AddressType address_type);
+  static std::string ZenHodlMiniscriptTemplate(int m, int n,
+                                               const Timelock& timelock,
+                                               AddressType address_type);
   static std::vector<UnspentOutput> GetTimelockedCoins(
       const std::string& miniscript, const std::vector<UnspentOutput>& coins,
       int64_t& max_lock_value, int chain_tip);

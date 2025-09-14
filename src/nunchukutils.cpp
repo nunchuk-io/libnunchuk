@@ -1441,6 +1441,27 @@ std::string Utils::FlexibleMultisigMiniscriptTemplate(
   return temp.str();
 }
 
+std::string Utils::ZenHodlMiniscriptTemplate(int m, int n,
+                                             const Timelock& timelock,
+                                             AddressType address_type) {
+  auto inner = [&address_type](int m, int n) -> std::string {
+    if (n == 1) {
+      return "pk(key_0_0)";
+    }
+    std::stringstream multi;
+    multi << (address_type == AddressType::TAPROOT ? "multi_a" : "multi");
+    multi << "(" << m;
+    for (int i = 0; i < n; i++) {
+      multi << ",key_" << i << "_0";
+    }
+    multi << ")";
+    return multi.str();
+  };
+  std::stringstream temp;
+  temp << "and_v(v:" << inner(m, n) << "," << timelock.to_miniscript() << ")";
+  return temp.str();
+}
+
 std::vector<UnspentOutput> Utils::GetTimelockedCoins(
     const std::string& miniscript, const std::vector<UnspentOutput>& coins,
     int64_t& max_lock_value, int chain_tip) {
