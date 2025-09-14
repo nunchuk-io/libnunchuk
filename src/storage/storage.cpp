@@ -550,9 +550,10 @@ SingleSigner NunchukStorage::GetTrueSigner0(Chain chain,
   if (signer_db.IsMaster()) {
     return SingleSigner(
         signer_db.GetName(), signer.get_xpub(), signer.get_public_key(),
-        signer.get_derivation_path(), signer.get_master_fingerprint(),
-        signer_db.GetLastHealthCheck(), master_id, false,
-        signer_db.GetSignerType(), signer_db.GetTags(), signer_db.IsVisible());
+        signer.get_derivation_path(), signer.get_external_internal_index(),
+        signer.get_master_fingerprint(), signer_db.GetLastHealthCheck(),
+        master_id, false, signer_db.GetSignerType(), signer_db.GetTags(),
+        signer_db.IsVisible());
   }
 
   // remote
@@ -560,9 +561,10 @@ SingleSigner NunchukStorage::GetTrueSigner0(Chain chain,
     auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
     return SingleSigner(
         remote.get_name(), signer.get_xpub(), signer.get_public_key(),
-        signer.get_derivation_path(), signer.get_master_fingerprint(),
-        remote.get_last_health_check(), {}, false, signer_db.GetSignerType(),
-        signer_db.GetTags(), signer_db.IsVisible());
+        signer.get_derivation_path(), signer.get_external_internal_index(),
+        signer.get_master_fingerprint(), remote.get_last_health_check(), {},
+        false, signer_db.GetSignerType(), signer_db.GetTags(),
+        signer_db.IsVisible());
   } catch (StorageException& se) {
     if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
     if (create_if_not_exist) {
@@ -692,8 +694,9 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
                     signer_db.GetName()));
     }
   }
+  // TODO: external_internal_index
   auto signer = SingleSigner(
-      signer_db.GetName(), xpub, "", path, signer_db.GetFingerprint(),
+      signer_db.GetName(), xpub, "", path, {0, 1}, signer_db.GetFingerprint(),
       signer_db.GetLastHealthCheck(), mastersigner_id, false,
       signer_db.GetSignerType(), signer_db.GetTags(), signer_db.IsVisible());
   return signer;
@@ -717,8 +720,9 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
                     signer_db.GetName()));
     }
   }
+  // TODO: external_internal_index
   auto signer = SingleSigner(
-      signer_db.GetName(), xpub, "", path, signer_db.GetFingerprint(),
+      signer_db.GetName(), xpub, "", path, {0, 1}, signer_db.GetFingerprint(),
       signer_db.GetLastHealthCheck(), mastersigner_id, false,
       signer_db.GetSignerType(), signer_db.GetTags(), signer_db.IsVisible());
   return signer;
@@ -738,11 +742,11 @@ SingleSigner NunchukStorage::AddSignerToMasterSigner(
 
   signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
                     GetBip32Type(signer.get_derivation_path()));
-  return SingleSigner(signer_db.GetName(), signer.get_xpub(), "",
-                      signer.get_derivation_path(), signer_db.GetFingerprint(),
-                      signer_db.GetLastHealthCheck(), mastersigner_id, false,
-                      signer_db.GetSignerType(), signer_db.GetTags(),
-                      signer_db.IsVisible());
+  return SingleSigner(
+      signer_db.GetName(), signer.get_xpub(), "", signer.get_derivation_path(),
+      signer.get_external_internal_index(), signer_db.GetFingerprint(),
+      signer_db.GetLastHealthCheck(), mastersigner_id, false,
+      signer_db.GetSignerType(), signer_db.GetTags(), signer_db.IsVisible());
 }
 
 std::vector<SingleSigner> NunchukStorage::GetSignersFromMasterSigner(

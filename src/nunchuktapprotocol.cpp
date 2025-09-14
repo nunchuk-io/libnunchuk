@@ -565,10 +565,11 @@ SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     std::string xpub = hwi_tapsigner_->GetXpubAtPath(path);
+    // TODO: external_internal_index
     auto signer = storage_->AddSignerToMasterSigner(
         chain_, master_signer_id,
         Utils::SanitizeSingleSigner(SingleSigner(
-            {}, xpub, {}, path, master_signer_id, std::time(nullptr))));
+            {}, xpub, {}, path, {0, 1}, master_signer_id, std::time(nullptr))));
     return signer;
   } catch (tap_protocol::TapProtoException& te) {
     throw TapProtocolException(te);

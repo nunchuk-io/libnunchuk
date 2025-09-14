@@ -429,9 +429,10 @@ static Wallet parseBCR2Wallet(Chain chain,
 
     for (auto&& key : output.outputDescriptors) {
       std::string path = key.get_path();
+      // TODO: external_internal_index
       signers.push_back(
           SingleSigner(GetSignerNameFromDerivationPath(path, "ImportedKey-"),
-                       key.get_xpub(), {}, path, key.get_xfp(), 0));
+                       key.get_xpub(), {}, path, {0, 1}, key.get_xfp(), 0));
     }
   } else {  // COLDCARD config format encoded in bytes
     std::vector<char> config;
@@ -584,9 +585,10 @@ std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
       const std::string xpub = bip_iter.value()["xpub"];
       const std::string derivation_path = bip_iter.value()["deriv"];
 
+      // TODO: external_internal_index
       SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
           GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
-          {}, derivation_path, xfp, std::time(nullptr), {}, false,
+          {}, derivation_path, {0, 1}, xfp, std::time(nullptr), {}, false,
           signer_type));
 
       Wallet wallet({}, tmp_name, 1, 1, {std::move(signer)}, address_type,
@@ -677,11 +679,11 @@ SingleSigner Utils::SanitizeSingleSigner(const SingleSigner& signer) {
   std::string xfp = boost::to_lower_copy(signer.get_master_fingerprint());
   std::string name = boost::trim_copy(signer.get_name());
 
-  return SingleSigner(name, sanitized_xpub, signer.get_public_key(),
-                      signer.get_derivation_path(), xfp,
-                      signer.get_last_health_check(),
-                      signer.get_master_signer_id(), signer.is_used(),
-                      signer.get_type(), signer.get_tags());
+  return SingleSigner(
+      name, sanitized_xpub, signer.get_public_key(),
+      signer.get_derivation_path(), signer.get_external_internal_index(), xfp,
+      signer.get_last_health_check(), signer.get_master_signer_id(),
+      signer.is_used(), signer.get_type(), signer.get_tags());
 }
 
 std::vector<SingleSigner> Utils::SanitizeSingleSigners(

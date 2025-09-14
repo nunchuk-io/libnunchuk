@@ -113,9 +113,10 @@ inline bool ParseConfig(nunchuk::Chain chain, const std::string& content,
           throw NunchukException(NunchukException::INVALID_FORMAT,
                                  "Invalid xpub");
         }
+        // TODO: external_internal_index
         signers.push_back(SingleSigner(
             GetSignerNameFromDerivationPath(derivation_path, "ImportedKey-"),
-            xpub, {}, derivation_path, xfp, 0));
+            xpub, {}, derivation_path, {0, 1}, xfp, 0));
       }
     }
     if (n <= 0) n = signers.size();

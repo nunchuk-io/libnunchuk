@@ -27,6 +27,7 @@ SingleSigner::SingleSigner() {}
 SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
                            const std::string& public_key,
                            const std::string& derivation_path,
+                           const std::pair<int, int>& external_internal_index,
                            const std::string& master_fingerprint,
                            time_t last_health_check,
                            const std::string& master_signer_id, bool used,
@@ -36,6 +37,7 @@ SingleSigner::SingleSigner(const std::string& name, const std::string& xpub,
       xpub_(xpub),
       public_key_(public_key),
       derivation_path_(GetDerivationPathView(derivation_path)),
+      external_internal_index_(external_internal_index),
       master_fingerprint_(master_fingerprint),
       master_signer_id_(master_signer_id),
       last_health_check_(last_health_check),
@@ -50,6 +52,9 @@ std::string SingleSigner::get_xpub() const { return xpub_; }
 std::string SingleSigner::get_public_key() const { return public_key_; }
 std::string SingleSigner::get_derivation_path() const {
   return derivation_path_;
+}
+std::pair<int, int> SingleSigner::get_external_internal_index() const {
+  return external_internal_index_;
 }
 std::string SingleSigner::get_master_fingerprint() const {
   return master_fingerprint_;
@@ -86,5 +91,9 @@ void SingleSigner::set_tags(std::vector<SignerTag> tags) {
   tags_.erase(std::unique(tags_.begin(), tags_.end()), tags_.end());
 }
 void SingleSigner::set_visible(bool value) { visible_ = value; }
+void SingleSigner::set_external_internal_index(
+    const std::pair<int, int>& value) {
+  external_internal_index_ = value;
+}
 
 }  // namespace nunchuk

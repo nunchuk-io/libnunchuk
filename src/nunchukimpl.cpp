@@ -614,8 +614,9 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
         Device device{mastersigner_id};
         auto path = GetBip32Path(chain_, wallet_type, address_type, index);
         auto xpub = hwi_.GetXpubAtPath(device, path);
+        // TODO: external_internal_index
         auto signer = SingleSigner(
-            master.get_name(), xpub, "", path, mastersigner_id,
+            master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
         return storage_->AddSignerToMasterSigner(
@@ -631,8 +632,9 @@ SingleSigner NunchukImpl::CreateSigner(
     const std::string& public_key, const std::string& derivation_path,
     const std::string& master_fingerprint, SignerType signer_type,
     std::vector<SignerTag> tags, bool replace) {
+  // TODO: external_internal_index
   const SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
-      raw_name, xpub, public_key, derivation_path, master_fingerprint,
+      raw_name, xpub, public_key, derivation_path, {0, 1}, master_fingerprint,
       std::time(nullptr), {}, false, signer_type, tags));
   auto rs = storage_->CreateSingleSigner(
       chain_, signer.get_name(), signer.get_xpub(), signer.get_public_key(),
@@ -734,8 +736,9 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
       if (master.get_type() == SignerType::HARDWARE) {
         Device device{mastersigner_id};
         auto xpub = hwi_.GetXpubAtPath(device, path);
+        // TODO: external_internal_index
         auto signer = SingleSigner(
-            master.get_name(), xpub, "", path, mastersigner_id,
+            master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
         return signer;
@@ -1918,8 +1921,9 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   decodeCryptoAccount(i, end, account);
   CryptoHDKey key = account.outputDescriptors[0];
 
+  // TODO: external_internal_index
   auto signer = SingleSigner("Keystone", key.get_xpub(), {}, key.get_path(),
-                             key.get_xfp(), 0);
+                             {0, 1}, key.get_xfp(), 0);
   signer.set_type(SignerType::AIRGAP);
   return signer;
 }
@@ -2016,9 +2020,10 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
 
   for (auto&& key : account.outputDescriptors) {
     const std::string path = key.get_path();
+    // TODO: external_internal_index
     signers.emplace_back(SingleSigner(
         GetSignerNameFromDerivationPath(path, "SeedSigner-"), key.get_xpub(),
-        {}, path, key.get_xfp(), 0, {}, false, SignerType::AIRGAP));
+        {}, path, {0, 1}, key.get_xfp(), 0, {}, false, SignerType::AIRGAP));
   }
 
   if (signers.empty()) {
