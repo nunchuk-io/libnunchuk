@@ -1918,7 +1918,6 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   decodeCryptoAccount(i, end, account);
   CryptoHDKey key = account.outputDescriptors[0];
 
-  // TODO: external_internal_index
   auto signer = SingleSigner("Keystone", key.get_xpub(), {}, key.get_path(),
                              {0, 1}, key.get_xfp(), 0);
   signer.set_type(SignerType::AIRGAP);
@@ -2017,7 +2016,6 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
 
   for (auto&& key : account.outputDescriptors) {
     const std::string path = key.get_path();
-    // TODO: external_internal_index
     signers.emplace_back(SingleSigner(
         GetSignerNameFromDerivationPath(path, "SeedSigner-"), key.get_xpub(),
         {}, path, {0, 1}, key.get_xfp(), 0, {}, false, SignerType::AIRGAP));
