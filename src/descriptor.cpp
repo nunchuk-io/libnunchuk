@@ -359,12 +359,18 @@ SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
   if (std::regex_match(signer_str, sm, SIGNER_REGEX)) {
     const std::string xfp = boost::algorithm::to_lower_copy(sm[1].str());
-    // TODO: external_internal_index
+    const std::string sm4 = sm[4].str();
+    std::pair<int, int> eii = {0, 1};
+    if (sm4.find("/<", 0) == 0 && sm4.find(">/*", 0) == sm4.size() - 3) {
+      std::vector<std::string> parts;
+      boost::split(parts, sm4.substr(2, sm4.size() - 5), boost::is_any_of(";"));
+      eii = {std::stoi(parts[0]), std::stoi(parts[1])};
+    }
     if (sm[3].str().rfind("tpub", 0) == 0 ||
         sm[3].str().rfind("xpub", 0) == 0) {
-      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), {0, 1}, xfp, 0);
+      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), eii, xfp, 0);
     } else {
-      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), {0, 1}, xfp, 0);
+      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), eii, xfp, 0);
     }
   }
   throw NunchukException(NunchukException::INVALID_PARAMETER,
