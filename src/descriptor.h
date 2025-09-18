@@ -32,7 +32,8 @@ std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
 
-std::string GetKeyPath(DescriptorPath path, int index);
+std::string GetChildKeyPath(const std::pair<int, int>& external_internal,
+                            DescriptorPath path, int index);
 
 std::string GetDerivationPathView(std::string path);
 
@@ -83,9 +84,9 @@ std::optional<Wallet> ParseJSONDescriptors(const std::string& json_str,
 std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
                                             const std::string& prefix = {});
 
-std::string GetUnspendableXpub(const std::vector<SingleSigner> &signers);
+std::string GetUnspendableXpub(const std::vector<SingleSigner>& signers);
 
-bool IsUnspendableXpub(const std::string &xpub);
+bool IsUnspendableXpub(const std::string& xpub);
 
 }  // namespace nunchuk
 
