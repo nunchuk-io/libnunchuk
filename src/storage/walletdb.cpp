@@ -280,7 +280,6 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
     std::string public_key = basic_info["public_key"];
     std::string derivation_path = basic_info["derivation_path"];
     std::string master_fingerprint = basic_info["master_fingerprint"];
-    // TODO: external_internal_index
     std::pair<int, int> external_internal_index = {0, 1};
     if (basic_info["external_internal_index"] != nullptr) {
       external_internal_index = basic_info["external_internal_index"];

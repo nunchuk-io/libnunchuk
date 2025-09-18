@@ -614,7 +614,6 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
         Device device{mastersigner_id};
         auto path = GetBip32Path(chain_, wallet_type, address_type, index);
         auto xpub = hwi_.GetXpubAtPath(device, path);
-        // TODO: external_internal_index
         auto signer = SingleSigner(
             master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
@@ -632,7 +631,6 @@ SingleSigner NunchukImpl::CreateSigner(
     const std::string& public_key, const std::string& derivation_path,
     const std::string& master_fingerprint, SignerType signer_type,
     std::vector<SignerTag> tags, bool replace) {
-  // TODO: external_internal_index
   const SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
       raw_name, xpub, public_key, derivation_path, {0, 1}, master_fingerprint,
       std::time(nullptr), {}, false, signer_type, tags));
@@ -736,7 +734,6 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
       if (master.get_type() == SignerType::HARDWARE) {
         Device device{mastersigner_id};
         auto xpub = hwi_.GetXpubAtPath(device, path);
-        // TODO: external_internal_index
         auto signer = SingleSigner(
             master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,

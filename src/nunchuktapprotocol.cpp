@@ -565,7 +565,6 @@ SingleSigner NunchukImpl::GetSignerFromTapsignerMasterSigner(
   try {
     hwi_tapsigner_->SetDevice(tapsigner, cvc);
     std::string xpub = hwi_tapsigner_->GetXpubAtPath(path);
-    // TODO: external_internal_index
     auto signer = storage_->AddSignerToMasterSigner(
         chain_, master_signer_id,
         Utils::SanitizeSingleSigner(SingleSigner(

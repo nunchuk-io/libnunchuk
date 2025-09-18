@@ -424,7 +424,6 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     std::string name = std::string((char*)sqlite3_column_text(stmt, 2));
     time_t last_health_check = sqlite3_column_int64(stmt, 3);
     bool used = sqlite3_column_int(stmt, 4) == 1;
-    // TODO: external_internal_index
     SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_, last_health_check, {},
                         used, GetSignerType(), GetTags(), IsVisible());
     SQLCHECK(sqlite3_finalize(stmt));
@@ -517,7 +516,6 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     std::string name = std::string((char*)sqlite3_column_text(stmt, 3));
     time_t last_health_check = sqlite3_column_int64(stmt, 4);
     bool used = sqlite3_column_int(stmt, 5) == 1;
-    // TODO: external_internal_index
     SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_, last_health_check, {},
                         used, GetSignerType(), GetTags(), IsVisible());
     if (signer.get_type() != SignerType::UNKNOWN) {
@@ -546,7 +544,6 @@ std::vector<SingleSigner> NunchukSignerDb::GetSingleSigners(
   while (sqlite3_column_text(stmt, 0)) {
     std::string path = std::string((char*)sqlite3_column_text(stmt, 0));
     std::string xpub = std::string((char*)sqlite3_column_text(stmt, 1));
-    // TODO: external_internal_index
     SingleSigner signer(name, xpub, "", path, {0, 1}, master_fingerprint,
                         last_health_check, id_, true, signer_type, GetTags(),
                         IsVisible());

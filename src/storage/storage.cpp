@@ -694,7 +694,6 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
                     signer_db.GetName()));
     }
   }
-  // TODO: external_internal_index
   auto signer = SingleSigner(
       signer_db.GetName(), xpub, "", path, {0, 1}, signer_db.GetFingerprint(),
       signer_db.GetLastHealthCheck(), mastersigner_id, false,
@@ -720,7 +719,6 @@ SingleSigner NunchukStorage::GetSignerFromMasterSigner(
                     signer_db.GetName()));
     }
   }
-  // TODO: external_internal_index
   auto signer = SingleSigner(
       signer_db.GetName(), xpub, "", path, {0, 1}, signer_db.GetFingerprint(),
       signer_db.GetLastHealthCheck(), mastersigner_id, false,
