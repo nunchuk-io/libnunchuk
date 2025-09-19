@@ -86,6 +86,25 @@ std::string FormalizePath(const std::string& path) {
   return rs;
 }
 
+DescriptorPath DefaultDescriptorPath(const std::vector<SingleSigner>& signers) {
+  for (const auto& signer : signers) {
+    if (signer.get_external_internal_index() != std::make_pair(0, 1)) {
+      return DescriptorPath::EXTERNAL_INTERNAL;
+    }
+  }
+  return DescriptorPath::ANY;
+}
+
+DescriptorPath DefaultDescriptorPath(
+    const std::map<std::string, SingleSigner>& signers) {
+  for (const auto& signer : signers) {
+    if (signer.second.get_external_internal_index() != std::make_pair(0, 1)) {
+      return DescriptorPath::EXTERNAL_INTERNAL;
+    }
+  }
+  return DescriptorPath::ANY;
+}
+
 std::string GetChildKeyPath(const std::pair<int, int>& eii, DescriptorPath path,
                             int index) {
   std::stringstream keypath;

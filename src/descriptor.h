@@ -32,6 +32,10 @@ std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
 
+DescriptorPath DefaultDescriptorPath(const std::vector<SingleSigner>& signers);
+
+DescriptorPath DefaultDescriptorPath(const std::map<std::string, SingleSigner>& signers);
+
 std::string GetChildKeyPath(const std::pair<int, int>& external_internal,
                             DescriptorPath path, int index = -1);
 

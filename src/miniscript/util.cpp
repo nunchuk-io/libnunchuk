@@ -555,7 +555,7 @@ std::string GetMusigScript(const std::string& musig_template,
     }
     ss << signer.get_descriptor();
   }
-  ss << ")" << GetChildKeyPath(eii, DescriptorPath::EXTERNAL_INTERNAL) << ")";
+  ss << ")" << GetChildKeyPath(eii, DefaultDescriptorPath(signers)) << ")";
   return ss.str();
 }
 

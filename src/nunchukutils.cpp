@@ -867,7 +867,8 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
       case ExportFormat::COLDCARD:
         return ::GetMultisigConfig(wallet);
       case ExportFormat::DESCRIPTOR:
-        return wallet.get_descriptor(DescriptorPath::ANY);
+        return wallet.get_descriptor(
+            DefaultDescriptorPath(wallet.get_signers()));
       case ExportFormat::BSMS:
         return GetDescriptorRecord(wallet);
       case ExportFormat::DB:
@@ -1245,9 +1246,9 @@ std::string Utils::PolicyToMiniscript(
                            "Invalid policy");
   }
   std::map<std::string, std::string> config;
+  DescriptorPath path = DefaultDescriptorPath(signers);
   for (const auto& signer : signers) {
-    config[signer.first] =
-        GetDescriptorForSigner(signer.second, DescriptorPath::ANY);
+    config[signer.first] = GetDescriptorForSigner(signer.second, path);
   }
   return nunchuk::PolicyToMiniscript(policy_node, config, address_type);
 }
@@ -1308,11 +1309,11 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
 struct TemplateContext {
   typedef std::string Key;
   const std::map<std::string, SingleSigner>& signers;
+  DescriptorPath path;
   TemplateContext(const std::map<std::string, SingleSigner>& signers)
-      : signers(signers) {}
+      : signers(signers), path(DefaultDescriptorPath(signers)) {}
   std::optional<std::string> ToString(const Key& key) const {
-    return GetDescriptorForSigner(signers.at(key),
-                                  DescriptorPath::EXTERNAL_INTERNAL);
+    return GetDescriptorForSigner(signers.at(key), path);
   }
 };
 

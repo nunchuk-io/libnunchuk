@@ -162,7 +162,9 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
     case ExportFormat::COLDCARD:
       return WriteFile(file_path, ::GetMultisigConfig(wallet));
     case ExportFormat::DESCRIPTOR:
-      return WriteFile(file_path, wallet.get_descriptor(DescriptorPath::ANY));
+      return WriteFile(
+          file_path,
+          wallet.get_descriptor(DefaultDescriptorPath(wallet.get_signers())));
     case ExportFormat::BSMS:
       return WriteFile(file_path, GetDescriptorRecord(wallet));
     case ExportFormat::DB:
@@ -192,7 +194,7 @@ std::string NunchukStorage::GetWalletExportData(Chain chain,
     case ExportFormat::COLDCARD:
       return ::GetMultisigConfig(wallet);
     case ExportFormat::DESCRIPTOR:
-      return wallet.get_descriptor(DescriptorPath::ANY);
+      return wallet.get_descriptor(DefaultDescriptorPath(wallet.get_signers()));
     case ExportFormat::BSMS:
       return GetDescriptorRecord(wallet);
     case ExportFormat::DB:
@@ -1587,7 +1589,8 @@ std::string NunchukStorage::ExportBackup() {
         json wallet = {
             {"id", w.get_id()},
             {"name", w.get_name()},
-            {"descriptor", w.get_descriptor(DescriptorPath::ANY)},
+            {"descriptor",
+             w.get_descriptor(DefaultDescriptorPath(w.get_signers()))},
             {"create_date", w.get_create_date()},
             {"description", w.get_description()},
             {"pending_signatures", json::array()},

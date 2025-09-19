@@ -37,7 +37,9 @@ inline Bip388Policy GetBip388Policy(const Wallet& wallet) {
     policy.keys_info.push_back(signer.get_descriptor());
   }
 
-  std::string descriptor = wallet.get_descriptor(DescriptorPath::TEMPLATE);
+  DescriptorPath path = DefaultDescriptorPath(wallet.get_signers());
+  if (path == DescriptorPath::ANY) path = DescriptorPath::TEMPLATE;
+  std::string descriptor = wallet.get_descriptor(path);
 
   if (wallet.get_address_type() == AddressType::TAPROOT &&
       wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH) {

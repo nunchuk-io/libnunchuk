@@ -292,6 +292,7 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
   auto a = AddressTypeFromStr(init_body["address_type"]);
 
   Wallet w("", name, m, n, signers, a, is_escrow? WalletType::ESCROW : WalletType::MULTI_SIG, 0);
+  // shared wallet always use default external internal <0;1> so it safe to use child path /** here
   std::string descriptor = w.get_descriptor(DescriptorPath::TEMPLATE);
   std::string first_address = CoreUtils::getInstance().DeriveAddress(
       w.get_descriptor(DescriptorPath::EXTERNAL_ALL), is_escrow ? -1 : 0);

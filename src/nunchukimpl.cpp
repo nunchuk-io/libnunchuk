@@ -213,7 +213,7 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
   Wallet wallet("", m, n, Utils::SanitizeSingleSigners(signers), address_type,
                 is_escrow, 0);
   wallet.set_wallet_template(wallet_template);
-  return wallet.get_descriptor(DescriptorPath::ANY);
+  return wallet.get_descriptor(DefaultDescriptorPath(signers));
 }
 
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
@@ -225,7 +225,7 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
   Wallet wallet("", name, m, n, Utils::SanitizeSingleSigners(signers),
                 address_type, wallet_type, 0);
   wallet.set_wallet_template(wallet_template);
-  return wallet.get_descriptor(DescriptorPath::ANY);
+  return wallet.get_descriptor(DefaultDescriptorPath(signers));
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets(
@@ -2131,7 +2131,7 @@ std::string NunchukImpl::GetWalletExportData(const Wallet& wallet,
     case ExportFormat::COLDCARD:
       return ::GetMultisigConfig(wallet);
     case ExportFormat::DESCRIPTOR:
-      return wallet.get_descriptor(DescriptorPath::ANY);
+      return wallet.get_descriptor(DefaultDescriptorPath(wallet.get_signers()));
     case ExportFormat::BSMS:
       return GetDescriptorRecord(wallet);
     case ExportFormat::DB:

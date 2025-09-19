@@ -94,6 +94,7 @@ SoftwareSigner::SoftwareSigner(const std::string& master_xprv)
 }
 
 SoftwareSigner::SoftwareSigner(const Wallet& group_wallet) {
+  // Must use ANY here for backward compatibility
   auto desc = group_wallet.get_descriptor(DescriptorPath::ANY);
   uint8_t seed[512 / 8];
   std::string salt = "entropy-from-descriptor";
