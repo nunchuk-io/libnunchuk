@@ -350,8 +350,9 @@ std::string NunchukWalletDb::GetAddressPath(const std::string& address) {
   std::vector<std::string> paths{};
   for (auto&& signer : signers) {
     std::stringstream path;
-    path << "m" << FormalizePath(signer.get_derivation_path())
-         << (internal ? "/1/" : "/0/") << index;
+    auto eii = signer.get_external_internal_index();
+    path << "m" << FormalizePath(signer.get_derivation_path()) << "/"
+         << (internal ? eii.second : eii.first) << "/" << index;
     paths.push_back(path.str());
   }
   if (paths.size() == 1) return paths[0];
