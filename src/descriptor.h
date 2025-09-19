@@ -33,7 +33,7 @@ std::string AddChecksum(const std::string& str);
 std::string FormalizePath(const std::string& path);
 
 std::string GetChildKeyPath(const std::pair<int, int>& external_internal,
-                            DescriptorPath path, int index);
+                            DescriptorPath path, int index = -1);
 
 std::string GetDerivationPathView(std::string path);
 

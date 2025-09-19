@@ -98,6 +98,10 @@ std::string GetChildKeyPath(const std::pair<int, int>& eii, DescriptorPath path,
       break;
     case DescriptorPath::INTERNAL_PUBKEY:
     case DescriptorPath::INTERNAL_XPUB:
+      if (index < 0) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid index");
+      }
       keypath << "/" << eii.second << "/" << index;
       break;
     case DescriptorPath::EXTERNAL_ALL:
@@ -105,6 +109,10 @@ std::string GetChildKeyPath(const std::pair<int, int>& eii, DescriptorPath path,
       break;
     case DescriptorPath::EXTERNAL_PUBKEY:
     case DescriptorPath::EXTERNAL_XPUB:
+      if (index < 0) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid index");
+      }
       keypath << "/" << eii.first << "/" << index;
       break;
     case DescriptorPath::TEMPLATE:
