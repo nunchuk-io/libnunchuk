@@ -1311,7 +1311,8 @@ struct TemplateContext {
   TemplateContext(const std::map<std::string, SingleSigner>& signers)
       : signers(signers) {}
   std::optional<std::string> ToString(const Key& key) const {
-    return GetDescriptorForSigner(signers.at(key), DescriptorPath::ANY);
+    return GetDescriptorForSigner(signers.at(key),
+                                  DescriptorPath::EXTERNAL_INTERNAL);
   }
 };
 
