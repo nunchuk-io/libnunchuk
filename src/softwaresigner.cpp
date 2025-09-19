@@ -215,10 +215,11 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   return EncodePsbt(psbtx);
 }
 
-std::string SoftwareSigner::SignTaprootTx(
-    const NunchukLocalDb& db, const std::string& base64_psbt,
-    const std::set<std::string>& basepaths, const std::string& external_desc,
-    const std::string& internal_desc, int external_index, int internal_index) {
+std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
+                                          const std::string& base64_psbt,
+                                          const Wallet& wallet,
+                                          int external_index,
+                                          int internal_index) {
   auto psbtx = DecodePsbt(base64_psbt);
   auto master_fingerprint = GetMasterFingerprint();
   FlatSigningProvider provider;
@@ -248,28 +249,49 @@ std::string SoftwareSigner::SignTaprootTx(
     ExtractDestination(ctxout.scriptPubKey, address);
     input_addr.insert(EncodeDestination(address));
   }
+  auto external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   auto desc0 = Parse(external_desc, provider, error, true);
   auto external_addr = CoreUtils::getInstance().DeriveAddresses(
       external_desc, 0, external_index);
+  std::set<std::string> external_basepaths;
+  for (auto&& signer : wallet.get_signers()) {
+    if (signer.get_master_fingerprint() == master_fingerprint) {
+      external_basepaths.insert(
+          signer.get_derivation_path() + "/" +
+          std::to_string(signer.get_external_internal_index().first) + "/");
+    }
+  }
   for (int i = 0; i <= external_index; i++) {
     if (!input_addr.contains(external_addr[i])) continue;
     desc0.front()->Expand(i, provider, output_scripts, provider);
-    for (auto&& basepath : basepaths) {
-      addPath(basepath + "/0/" + std::to_string(i));
+    for (auto&& basepath : external_basepaths) {
+      addPath(basepath + std::to_string(i));
     }
   }
+  auto internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
   auto desc1 = Parse(internal_desc, provider, error, true);
   auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
       internal_desc, 0, internal_index);
+  std::set<std::string> internal_basepaths;
+  for (auto&& signer : wallet.get_signers()) {
+    if (signer.get_master_fingerprint() == master_fingerprint) {
+      internal_basepaths.insert(
+          signer.get_derivation_path() + "/" +
+          std::to_string(signer.get_external_internal_index().second) + "/");
+    }
+  }
   for (int i = 0; i <= internal_index; i++) {
     if (!input_addr.contains(internal_addr[i])) continue;
     desc1.front()->Expand(i, provider, output_scripts, provider);
-    for (auto&& basepath : basepaths) {
-      addPath(basepath + "/1/" + std::to_string(i));
+    for (auto&& basepath : internal_basepaths) {
+      addPath(basepath + std::to_string(i));
     }
   }
 
-  for (auto&& basepath : basepaths) {
+  for (auto&& basepath : external_basepaths) {
+    addPath(basepath);
+  }
+  for (auto&& basepath : internal_basepaths) {
     addPath(basepath);
   }
 
