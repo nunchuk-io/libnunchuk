@@ -1268,8 +1268,9 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
   std::vector<std::string> names;
   std::vector<std::string> subscripts;
   std::vector<int> depths;
-  if (!ParseTapscriptTemplate(tapscript_template, names, subscripts, depths,
-                              error)) {
+  std::pair<int, int> eii;
+  if (!ParseTapscriptTemplate(tapscript_template, names, eii, subscripts,
+                              depths, error)) {
     return false;
   }
   if (subscripts.empty()) {
@@ -1338,7 +1339,8 @@ std::string Utils::TapscriptTemplateToTapscript(
   std::vector<std::string> subscripts_tmpl;
   std::vector<int> depths;
   std::string error;
-  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts_tmpl,
+  std::pair<int, int> eii;
+  if (!ParseTapscriptTemplate(tapscript_template, keypath, eii, subscripts_tmpl,
                               depths, error)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, error);
   }
@@ -1362,7 +1364,8 @@ ScriptNode Utils::GetScriptNode(const std::string& script,
   std::vector<std::string> subscripts;
   std::vector<int> depths;
   std::string error;
-  if (ParseTapscriptTemplate(script, keypath, subscripts, depths, error)) {
+  std::pair<int, int> eii;
+  if (ParseTapscriptTemplate(script, keypath, eii, subscripts, depths, error)) {
     auto node = SubScriptsToScriptNode(subscripts, depths);
     node.set_id({1});
     return node;

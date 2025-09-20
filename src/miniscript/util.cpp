@@ -252,6 +252,7 @@ std::string ScriptNodeToString(const ScriptNode& node) {
 
 bool ParseTapscriptTemplate(const std::string& tapscript_template,
                             std::vector<std::string>& keypath,
+                            std::pair<int, int>& eii,
                             std::vector<std::string>& subscripts,
                             std::vector<int>& depths, std::string& error) {
   using namespace script;
@@ -266,6 +267,7 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
         return false;
       }
       auto keys = split(tmpl.substr(6, tmpl.find(")", 6) - 6), ',');
+      eii = ParseExternalInternalIndex(tmpl.substr(tmpl.find(")", 6) + 1));
       for (auto& key : keys) {
         keypath.push_back(key);
       }

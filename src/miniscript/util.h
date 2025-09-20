@@ -57,6 +57,7 @@ ScriptNode MiniscriptToScriptNode(const miniscript::NodeRef<std::string>& node);
 std::string ScriptNodeToString(const ScriptNode& node);
 bool ParseTapscriptTemplate(const std::string& tapscript_template,
                             std::vector<std::string>& keypath,
+                            std::pair<int, int>& keypath_eii,
                             std::vector<std::string>& subscripts,
                             std::vector<int>& depths, std::string& error);
 bool SubScriptsToString(const std::vector<std::string>& subscripts,

@@ -77,6 +77,8 @@ std::string GetPkhDescriptor(const std::string& address);
 
 std::string GetDescriptor(const SingleSigner& signer, AddressType address_type);
 
+std::pair<int, int> ParseExternalInternalIndex(const std::string& eii);
+
 SingleSigner ParseSignerString(const std::string& signer_str);
 
 std::optional<Wallet> ParseDescriptors(const std::string& descs,
