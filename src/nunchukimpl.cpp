@@ -848,11 +848,11 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
   }
 
   if (deviceType == "ledger") std::replace(path.begin(), path.end(), '\'', 'h');
+
   Device device{fingerprint};
   std::string xpub;
-  try {
-    xpub = hwi_.GetXpubAtPath(device, path);
-  } catch (HWIException& he) {
+
+  auto get_native_segwit_xpub = [&]() {
     path = "m/84'/0'/0'/1/0";
     xpub = hwi_.GetXpubAtPath(device, "m/84'/0'/0'");
     CExtPubKey xkey = DecodeExtPubKey(xpub);
@@ -865,6 +865,17 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
                              "Invalid path");
     }
     xpub = EncodeExtPubKey(xkey);
+  };
+
+  if (deviceType == "trezor") {
+    // Workaround for Trezor: 'Forbidden key path'
+    get_native_segwit_xpub();
+  } else {
+    try {
+      xpub = hwi_.GetXpubAtPath(device, path);
+    } catch (HWIException& he) {
+      get_native_segwit_xpub();
+    }
   }
 
   if (existed && signerType == SignerType::HARDWARE &&
