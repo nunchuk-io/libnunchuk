@@ -249,6 +249,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
     ExtractDestination(ctxout.scriptPubKey, address);
     input_addr.insert(EncodeDestination(address));
   }
+  std::set<std::string> basepaths;
   auto external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   auto desc0 = Parse(external_desc, provider, error, true);
   auto external_addr = CoreUtils::getInstance().DeriveAddresses(
@@ -256,6 +257,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
   std::set<std::string> external_basepaths;
   for (auto&& signer : wallet.get_signers()) {
     if (signer.get_master_fingerprint() == master_fingerprint) {
+      basepaths.insert(signer.get_derivation_path());
       external_basepaths.insert(
           signer.get_derivation_path() + "/" +
           std::to_string(signer.get_external_internal_index().first) + "/");
@@ -288,10 +290,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
     }
   }
 
-  for (auto&& basepath : external_basepaths) {
-    addPath(basepath);
-  }
-  for (auto&& basepath : internal_basepaths) {
+  for (auto&& basepath : basepaths) {
     addPath(basepath);
   }
 
