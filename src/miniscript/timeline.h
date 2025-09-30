@@ -36,6 +36,7 @@ class MiniscriptTimeline {
  private:
   void add_node(const ScriptNode& node);
   void detect_timelock_mixing(Timelock::Based new_type);
+  void detect_invalid_value(const Timelock& timelock, uint32_t k);
 
   ScriptNode node_;
   Timelock::Based lock_type_{Timelock::Based::NONE};

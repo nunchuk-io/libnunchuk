@@ -1253,8 +1253,11 @@ std::string Utils::PolicyToMiniscript(
 bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
                                       AddressType address_type) {
   auto node = ParseMiniscript(miniscript_template, address_type);
-  return node && node->IsValidTopLevel() && node->IsSane() &&
-         !node->IsNotSatisfiable();
+  bool isValid = node && node->IsValidTopLevel() && node->IsSane() &&
+                 !node->IsNotSatisfiable();
+  if (!isValid) return false;
+  MiniscriptTimeline timeline(miniscript_template); // validate timelock
+  return true;
 }
 
 bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,

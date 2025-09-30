@@ -13,10 +13,12 @@ MiniscriptTimeline::MiniscriptTimeline(const std::string& miniscript) {
 void MiniscriptTimeline::add_node(const ScriptNode& node) {
   if (node.get_type() == ScriptNode::Type::AFTER) {
     Timelock timelock = Timelock::FromK(true, node.get_k());
+    detect_invalid_value(timelock, node.get_k());
     detect_timelock_mixing(timelock.based());
     absolute_locks_.push_back(timelock.value());
   } else if (node.get_type() == ScriptNode::Type::OLDER) {
     Timelock timelock = Timelock::FromK(false, node.get_k());
+    detect_invalid_value(timelock, node.get_k());
     detect_timelock_mixing(timelock.based());
     relative_locks_.push_back(timelock.value());
   }
@@ -30,7 +32,20 @@ void MiniscriptTimeline::detect_timelock_mixing(Timelock::Based new_type) {
   if (lock_type_ == Timelock::Based::NONE) {
     lock_type_ = new_type;
   } else if (lock_type_ != new_type) {
-    throw std::runtime_error("Timelock mixing");
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Timelock mixing");
+  }
+}
+
+void MiniscriptTimeline::detect_invalid_value(const Timelock& timelock,
+                                              uint32_t k) {
+  if (timelock.k() == k) return;
+  if (timelock.based() == Timelock::Based::TIME_LOCK) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid time value");
+  } else {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid height value");
   }
 }
 
