@@ -427,6 +427,7 @@ class NUNCHUK_EXPORT SingleSigner {
   SingleSigner(const std::string& name, const std::string& xpub,
                const std::string& public_key,
                const std::string& derivation_path,
+               const std::pair<int, int>& external_internal_index,
                const std::string& master_fingerprint, time_t last_health_check,
                const std::string& master_signer_id = {}, bool used = false,
                SignerType signer_type = SignerType::AIRGAP,
@@ -436,6 +437,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string get_xpub() const;
   std::string get_public_key() const;
   std::string get_derivation_path() const;
+  std::pair<int, int> get_external_internal_index() const;
   std::string get_master_fingerprint() const;
   std::string get_master_signer_id() const;
   SignerType get_type() const;
@@ -450,6 +452,7 @@ class NUNCHUK_EXPORT SingleSigner {
   void set_used(bool value);
   void set_type(SignerType value);
   void set_tags(std::vector<SignerTag> tags);
+  void set_external_internal_index(const std::pair<int, int>& value);
   void set_visible(bool value);
 
  private:
@@ -457,6 +460,7 @@ class NUNCHUK_EXPORT SingleSigner {
   std::string xpub_;
   std::string public_key_;
   std::string derivation_path_;
+  std::pair<int, int> external_internal_index_;
   std::string master_fingerprint_;
   std::string master_signer_id_;
   time_t last_health_check_;

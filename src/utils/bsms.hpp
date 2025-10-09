@@ -32,15 +32,12 @@ namespace {
 
 inline std::string GetDescriptorRecord(const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
-  auto retrictpath = true;
+  auto path = DefaultDescriptorPath(wallet.get_signers());
   auto sorted = true;
   std::stringstream record;
   record << "BSMS 1.0" << std::endl;
-  record << wallet.get_descriptor(
-                retrictpath ? DescriptorPath::TEMPLATE : DescriptorPath::ANY, 0,
-                sorted)
-         << std::endl;
-  record << (retrictpath ? "/0/*,/1/*" : "No path restrictions") << std::endl;
+  record << wallet.get_descriptor(path, 0, sorted) << std::endl;
+  record << "No path restrictions" << std::endl;
   record << CoreUtils::getInstance().DeriveAddress(
       wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL, 0, sorted),
       wallet.is_escrow() ? -1 : 0);

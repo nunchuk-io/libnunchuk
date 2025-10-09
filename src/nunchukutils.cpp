@@ -429,9 +429,10 @@ static Wallet parseBCR2Wallet(Chain chain,
 
     for (auto&& key : output.outputDescriptors) {
       std::string path = key.get_path();
+      // TODO: external_internal_index
       signers.push_back(
           SingleSigner(GetSignerNameFromDerivationPath(path, "ImportedKey-"),
-                       key.get_xpub(), {}, path, key.get_xfp(), 0));
+                       key.get_xpub(), {}, path, {0, 1}, key.get_xfp(), 0));
     }
   } else {  // COLDCARD config format encoded in bytes
     std::vector<char> config;
@@ -584,9 +585,10 @@ std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
       const std::string xpub = bip_iter.value()["xpub"];
       const std::string derivation_path = bip_iter.value()["deriv"];
 
+      // TODO: external_internal_index
       SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
           GetSignerNameFromDerivationPath(derivation_path, "COLDCARD-"), xpub,
-          {}, derivation_path, xfp, std::time(nullptr), {}, false,
+          {}, derivation_path, {0, 1}, xfp, std::time(nullptr), {}, false,
           signer_type));
 
       Wallet wallet({}, tmp_name, 1, 1, {std::move(signer)}, address_type,
@@ -677,11 +679,11 @@ SingleSigner Utils::SanitizeSingleSigner(const SingleSigner& signer) {
   std::string xfp = boost::to_lower_copy(signer.get_master_fingerprint());
   std::string name = boost::trim_copy(signer.get_name());
 
-  return SingleSigner(name, sanitized_xpub, signer.get_public_key(),
-                      signer.get_derivation_path(), xfp,
-                      signer.get_last_health_check(),
-                      signer.get_master_signer_id(), signer.is_used(),
-                      signer.get_type(), signer.get_tags());
+  return SingleSigner(
+      name, sanitized_xpub, signer.get_public_key(),
+      signer.get_derivation_path(), signer.get_external_internal_index(), xfp,
+      signer.get_last_health_check(), signer.get_master_signer_id(),
+      signer.is_used(), signer.get_type(), signer.get_tags());
 }
 
 std::vector<SingleSigner> Utils::SanitizeSingleSigners(
@@ -865,7 +867,8 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
       case ExportFormat::COLDCARD:
         return ::GetMultisigConfig(wallet);
       case ExportFormat::DESCRIPTOR:
-        return wallet.get_descriptor(DescriptorPath::ANY);
+        return wallet.get_descriptor(
+            DefaultDescriptorPath(wallet.get_signers()));
       case ExportFormat::BSMS:
         return GetDescriptorRecord(wallet);
       case ExportFormat::DB:
@@ -1243,9 +1246,9 @@ std::string Utils::PolicyToMiniscript(
                            "Invalid policy");
   }
   std::map<std::string, std::string> config;
+  DescriptorPath path = DefaultDescriptorPath(signers);
   for (const auto& signer : signers) {
-    config[signer.first] =
-        GetDescriptorForSigner(signer.second, DescriptorPath::ANY);
+    config[signer.first] = GetDescriptorForSigner(signer.second, path);
   }
   return nunchuk::PolicyToMiniscript(policy_node, config, address_type);
 }
@@ -1265,8 +1268,9 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
   std::vector<std::string> names;
   std::vector<std::string> subscripts;
   std::vector<int> depths;
-  if (!ParseTapscriptTemplate(tapscript_template, names, subscripts, depths,
-                              error)) {
+  std::pair<int, int> eii;
+  if (!ParseTapscriptTemplate(tapscript_template, names, eii, subscripts,
+                              depths, error)) {
     return false;
   }
   if (subscripts.empty()) {
@@ -1306,10 +1310,11 @@ bool Utils::IsValidTapscriptTemplate(const std::string& tapscript_template,
 struct TemplateContext {
   typedef std::string Key;
   const std::map<std::string, SingleSigner>& signers;
+  DescriptorPath path;
   TemplateContext(const std::map<std::string, SingleSigner>& signers)
-      : signers(signers) {}
+      : signers(signers), path(DefaultDescriptorPath(signers)) {}
   std::optional<std::string> ToString(const Key& key) const {
-    return GetDescriptorForSigner(signers.at(key), DescriptorPath::ANY);
+    return GetDescriptorForSigner(signers.at(key), path);
   }
 };
 
@@ -1334,7 +1339,8 @@ std::string Utils::TapscriptTemplateToTapscript(
   std::vector<std::string> subscripts_tmpl;
   std::vector<int> depths;
   std::string error;
-  if (!ParseTapscriptTemplate(tapscript_template, keypath, subscripts_tmpl,
+  std::pair<int, int> eii;
+  if (!ParseTapscriptTemplate(tapscript_template, keypath, eii, subscripts_tmpl,
                               depths, error)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, error);
   }
@@ -1358,7 +1364,8 @@ ScriptNode Utils::GetScriptNode(const std::string& script,
   std::vector<std::string> subscripts;
   std::vector<int> depths;
   std::string error;
-  if (ParseTapscriptTemplate(script, keypath, subscripts, depths, error)) {
+  std::pair<int, int> eii;
+  if (ParseTapscriptTemplate(script, keypath, eii, subscripts, depths, error)) {
     auto node = SubScriptsToScriptNode(subscripts, depths);
     node.set_id({1});
     return node;

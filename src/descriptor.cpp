@@ -86,31 +86,59 @@ std::string FormalizePath(const std::string& path) {
   return rs;
 }
 
-std::string GetKeyPath(DescriptorPath path, int index) {
+DescriptorPath DefaultDescriptorPath(const std::vector<SingleSigner>& signers) {
+  for (const auto& signer : signers) {
+    if (signer.get_external_internal_index() != std::make_pair(0, 1)) {
+      return DescriptorPath::EXTERNAL_INTERNAL;
+    }
+  }
+  return DescriptorPath::ANY;
+}
+
+DescriptorPath DefaultDescriptorPath(
+    const std::map<std::string, SingleSigner>& signers) {
+  for (const auto& signer : signers) {
+    if (signer.second.get_external_internal_index() != std::make_pair(0, 1)) {
+      return DescriptorPath::EXTERNAL_INTERNAL;
+    }
+  }
+  return DescriptorPath::ANY;
+}
+
+std::string GetChildKeyPath(const std::pair<int, int>& eii, DescriptorPath path,
+                            int index) {
   std::stringstream keypath;
   switch (path) {
     case DescriptorPath::ANY:
       keypath << "/*";
       break;
     case DescriptorPath::INTERNAL_ALL:
-      keypath << "/1/*";
+      keypath << "/" << eii.second << "/*";
       break;
     case DescriptorPath::INTERNAL_PUBKEY:
     case DescriptorPath::INTERNAL_XPUB:
-      keypath << "/1/" << index;
+      if (index < 0) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid index");
+      }
+      keypath << "/" << eii.second << "/" << index;
       break;
     case DescriptorPath::EXTERNAL_ALL:
-      keypath << "/0/*";
+      keypath << "/" << eii.first << "/*";
       break;
     case DescriptorPath::EXTERNAL_PUBKEY:
     case DescriptorPath::EXTERNAL_XPUB:
-      keypath << "/0/" << index;
+      if (index < 0) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid index");
+      }
+      keypath << "/" << eii.first << "/" << index;
       break;
     case DescriptorPath::TEMPLATE:
       keypath << "/**";
       break;
     case DescriptorPath::EXTERNAL_INTERNAL:
-      keypath << "/<0;1>/*";
+      keypath << "/<" << eii.first << ";" << eii.second << ">/*";
       break;
     case DescriptorPath::NONE:
       keypath << "";
@@ -135,7 +163,6 @@ std::string GetScriptpathDescriptor(const std::vector<std::string>& nodes) {
 };
 
 std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
-                               const std::string& keypath,
                                bool disableValueKeyset) {
   int n = keys.size();
 
@@ -186,43 +213,40 @@ std::string GetMusigDescriptor(const std::vector<std::string>& keys, int m,
 }
 
 std::string GetDescriptorForSigner(const SingleSigner& signer,
-                                   DescriptorPath key_path, int index) {
-  std::string keypath = GetKeyPath(key_path, index);
+                                   DescriptorPath path, int index) {
+  auto eii = signer.get_external_internal_index();
+  std::string childKeyPath = GetChildKeyPath(eii, path, index);
   std::stringstream key;
   key << "[" << signer.get_master_fingerprint();
-  if (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
-      key_path == DescriptorPath::INTERNAL_PUBKEY) {
-    std::stringstream p;
-    p << signer.get_derivation_path() << keypath;
-    std::string path = FormalizePath(p.str());
+  if (path == DescriptorPath::EXTERNAL_PUBKEY ||
+      path == DescriptorPath::INTERNAL_PUBKEY) {
+    std::string derivationPath = signer.get_derivation_path() + childKeyPath;
     auto xpub = DecodeExtPubKey(signer.get_xpub());
-    if (!xpub.Derive(xpub,
-                     (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
-      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                             "Invalid path");
-    }
-    if (!xpub.Derive(xpub, index)) {
+    int changeIndex =
+        path == DescriptorPath::INTERNAL_PUBKEY ? eii.second : eii.first;
+    if (!xpub.Derive(xpub, changeIndex) || !xpub.Derive(xpub, index)) {
       throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                              "Invalid path");
     }
     std::string pubkey = HexStr(xpub.pubkey);
-    key << path << "]" << pubkey;
+    key << FormalizePath(derivationPath) << "]" << pubkey;
   } else {
     key << FormalizePath(signer.get_derivation_path()) << "]"
-        << signer.get_xpub() << keypath;
+        << signer.get_xpub() << childKeyPath;
   }
   return key.str();
 }
 
 std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
-                                    int m, DescriptorPath key_path,
+                                    int m, DescriptorPath path,
                                     AddressType address_type,
                                     WalletType wallet_type,
                                     WalletTemplate wallet_template, int index,
                                     bool sorted) {
-  std::string keypath = GetKeyPath(key_path, index);
   std::vector<std::string> keys{};
   for (auto&& signer : signers) {
+    auto eii = signer.get_external_internal_index();
+    std::string childKeyPath = GetChildKeyPath(eii, path, index);
     std::stringstream key;
     key << "[" << signer.get_master_fingerprint();
     if (wallet_type == WalletType::ESCROW) {
@@ -232,27 +256,23 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
       }
       key << FormalizePath(signer.get_derivation_path()) << "]" << pubkey;
     } else if (wallet_type == WalletType::MULTI_SIG &&
-               (key_path == DescriptorPath::EXTERNAL_PUBKEY ||
-                key_path == DescriptorPath::INTERNAL_PUBKEY)) {
-      std::stringstream p;
-      p << signer.get_derivation_path() << keypath;
-      std::string path = FormalizePath(p.str());
+               (path == DescriptorPath::EXTERNAL_PUBKEY ||
+                path == DescriptorPath::INTERNAL_PUBKEY)) {
+      auto eii = signer.get_external_internal_index();
+      std::string derivationPath = signer.get_derivation_path() + childKeyPath;
       // displayaddress only takes pubkeys as inputs, not xpubs
       auto xpub = DecodeExtPubKey(signer.get_xpub());
-      if (!xpub.Derive(xpub,
-                       (key_path == DescriptorPath::INTERNAL_PUBKEY ? 1 : 0))) {
-        throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                               "Invalid path");
-      }
-      if (!xpub.Derive(xpub, index)) {
+      int changeIndex =
+          path == DescriptorPath::INTERNAL_PUBKEY ? eii.second : eii.first;
+      if (!xpub.Derive(xpub, changeIndex) || !xpub.Derive(xpub, index)) {
         throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                                "Invalid path");
       }
       std::string pubkey = HexStr(xpub.pubkey);
-      key << path << "]" << pubkey;
+      key << FormalizePath(derivationPath) << "]" << pubkey;
     } else {
       key << FormalizePath(signer.get_derivation_path()) << "]"
-          << signer.get_xpub() << keypath;
+          << signer.get_xpub() << childKeyPath;
     }
     keys.push_back(key.str());
   }
@@ -268,8 +288,7 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
   } else if (address_type == AddressType::TAPROOT) {
     if (keys.size() <= 5 || keys.size() == m) {
       desc << GetMusigDescriptor(
-          keys, m, keypath,
-          wallet_template == WalletTemplate::DISABLE_KEY_PATH);
+          keys, m, wallet_template == WalletTemplate::DISABLE_KEY_PATH);
     } else {
       if (wallet_template == WalletTemplate::DISABLE_KEY_PATH) {
         desc << "tr(" << H_POINT << ",";
@@ -298,7 +317,7 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
     desc << (address_type == AddressType::NESTED_SEGWIT ? ")" : "");
   }
 
-  if (key_path == DescriptorPath::TEMPLATE) {
+  if (path == DescriptorPath::TEMPLATE) {
     return desc.str();
   }
 
@@ -355,15 +374,25 @@ std::string GetDescriptor(const SingleSigner& signer,
 
 static std::regex SIGNER_REGEX("\\[([0-9a-fA-F]{8})(.+)\\](.+?)(/.*\\*)?\n?");
 
+std::pair<int, int> ParseExternalInternalIndex(const std::string& eii) {
+  if (eii.find("/<", 0) == 0 && eii.find(">/*", 0) == eii.size() - 3) {
+    std::vector<std::string> parts;
+    boost::split(parts, eii.substr(2, eii.size() - 5), boost::is_any_of(";"));
+    return {std::stoi(parts[0]), std::stoi(parts[1])};
+  }
+  return {0, 1};
+}
+
 SingleSigner ParseSignerString(const std::string& signer_str) {
   std::smatch sm;
   if (std::regex_match(signer_str, sm, SIGNER_REGEX)) {
     const std::string xfp = boost::algorithm::to_lower_copy(sm[1].str());
+    std::pair<int, int> eii = ParseExternalInternalIndex(sm[4].str());
     if (sm[3].str().rfind("tpub", 0) == 0 ||
         sm[3].str().rfind("xpub", 0) == 0) {
-      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), xfp, 0);
+      return SingleSigner(sm[1], sm[3], {}, "m" + sm[2].str(), eii, xfp, 0);
     } else {
-      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), xfp, 0);
+      return SingleSigner(sm[1], {}, sm[3], "m" + sm[2].str(), eii, xfp, 0);
     }
   }
   throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -454,9 +483,10 @@ Wallet ParseMusigWallet(const std::string& external, WalletTemplate t) {
 std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
                                         std::string& error) {
   std::vector<std::string> keypath;
+  std::pair<int, int> eii;
   std::vector<std::string> subscripts;
   std::vector<int> depths;
-  if (!ParseTapscriptTemplate(desc, keypath, subscripts, depths, error)) {
+  if (!ParseTapscriptTemplate(desc, keypath, eii, subscripts, depths, error)) {
     return std::nullopt;
   }
   if (subscripts.empty()) {
@@ -469,28 +499,47 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
     return Wallet({}, {}, 1, 1, {ParseSignerString(keypath[0])},
                   AddressType::TAPROOT, WalletType::SINGLE_SIG, 0);
   }
-  bool has_miniscript = false;
-  for (auto& subscript : subscripts) {
-    if (IsValidMusigTemplate(subscript)) continue;
-    has_miniscript = true;
-    if (!Utils::IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
-      error = "invalid miniscript: " + subscript;
-      return std::nullopt;
-    }
-  }
 
-  // WalletType::MINISCRIPT
+  int keypath_m = keypath.size();
   std::vector<SingleSigner> signers;
-  int keypath_m = 0;
-  auto keys = Utils::ParseSignerNames(desc, keypath_m);
   std::map<std::string, SingleSigner> signers_map;
-  for (auto&& key : keys) {
+  for (auto&& key : keypath) {
     if (key == H_POINT || IsUnspendableXpub(key)) {
       keypath_m = 0;
       continue;
     }
     signers.push_back(ParseSignerString(key));
+    signers.back().set_external_internal_index(eii);
     signers_map[key] = signers.back();
+  }
+
+  // WalletType::MINISCRIPT
+  bool has_miniscript = false;
+  for (auto& subscript : subscripts) {
+    if (IsValidMusigTemplate(subscript)) {
+      std::string inner = subscript.substr(9, subscript.find(")", 9) - 9);
+      std::vector<std::string> keys = split(inner, ',');
+      std::string eii_str = subscript.substr(subscript.find(")", 9) + 1);
+      eii_str = eii_str.substr(0, eii_str.find(")"));
+      eii = ParseExternalInternalIndex(eii_str);
+      for (auto& key : keys) {
+        signers.push_back(ParseSignerString(key));
+        signers.back().set_external_internal_index(eii);
+        signers_map[key] = signers.back();
+      }
+      continue;
+    }
+    has_miniscript = true;
+    if (!Utils::IsValidMiniscriptTemplate(subscript, AddressType::TAPROOT)) {
+      error = "invalid miniscript: " + subscript;
+      return std::nullopt;
+    }
+    int tmp;
+    auto keys = Utils::ParseSignerNames(subscript, tmp);
+    for (auto&& key : keys) {
+      signers.push_back(ParseSignerString(key));
+      signers_map[key] = signers.back();
+    }
   }
 
   auto script = Utils::TapscriptTemplateToTapscript(desc, signers_map, keypath);

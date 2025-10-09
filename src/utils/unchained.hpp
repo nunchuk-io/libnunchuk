@@ -40,8 +40,9 @@ bool ParseUnchainedWallet(const std::string& content, std::string& name,
     n = j["quorum"]["totalSigners"];
     m = j["quorum"]["requiredSigners"];
     for (auto&& signer : j["extendedPublicKeys"]) {
+      // TODO: external_internal_index
       signers.emplace_back(SingleSigner(
-          signer["name"], signer["xpub"], {}, signer["bip32Path"],
+          signer["name"], signer["xpub"], {}, signer["bip32Path"], {0, 1},
           signer["xfp"], std::time(nullptr), {}, false, SignerType::AIRGAP));
     }
     signers = Utils::SanitizeSingleSigners(signers);

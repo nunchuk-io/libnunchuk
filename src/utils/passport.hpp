@@ -51,7 +51,7 @@ inline bool ParsePassportSignerConfig(
       return s.str();
     };
     signers.push_back(
-        {"Passport", xpub, {}, j["derivation"], getXfp(j["ckcc_xfp"]), 0});
+        {"Passport", xpub, {}, j["derivation"], {0, 1}, getXfp(j["ckcc_xfp"]), 0});
     return true;
   }
 
@@ -62,13 +62,13 @@ inline bool ParsePassportSignerConfig(
       xpub != data.end() && path != data.end()) {
     signers.push_back(SingleSigner(
         "Passport", Utils::SanitizeBIP32Input(*xpub, target_format), {}, *path,
-        xfp, 0));
+        {0, 1}, xfp, 0));
   }
 
   auto addSigner = [&](const json& j) {
     if (j == nullptr) return;
     std::string xpub = Utils::SanitizeBIP32Input(j["xpub"], target_format);
-    signers.push_back({"Passport", xpub, {}, j["deriv"], xfp, 0});
+    signers.push_back({"Passport", xpub, {}, j["deriv"], {0, 1}, xfp, 0});
   };
   addSigner(data["bip86"]);
   addSigner(data["bip84"]);
@@ -82,7 +82,7 @@ inline bool ParsePassportSignerConfig(
     std::string deriv = k + "_deriv";
     if (data[k] == nullptr || data[deriv] == nullptr) return;
     std::string xpub = Utils::SanitizeBIP32Input(data[k], target_format);
-    signers.push_back({"Passport", xpub, {}, data[deriv], xfp, 0});
+    signers.push_back({"Passport", xpub, {}, data[deriv], {0, 1}, xfp, 0});
   };
   addMSigner("p2wsh");
   addMSigner("p2wsh_p2sh");

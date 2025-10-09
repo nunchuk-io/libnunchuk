@@ -126,11 +126,13 @@ void NunchukWalletDb::MaybeMigrate() {
 }
 
 std::string NunchukWalletDb::GetSingleSignerKey(const SingleSigner& signer) {
-  json basic_data = {{"xpub", signer.get_xpub()},
-                     {"public_key", signer.get_public_key()},
-                     {"derivation_path", signer.get_derivation_path()},
-                     {"master_fingerprint",
-                      ba::to_lower_copy(signer.get_master_fingerprint())}};
+  json basic_data = {
+      {"xpub", signer.get_xpub()},
+      {"public_key", signer.get_public_key()},
+      {"derivation_path", signer.get_derivation_path()},
+      {"external_internal_index", signer.get_external_internal_index()},
+      {"master_fingerprint",
+       ba::to_lower_copy(signer.get_master_fingerprint())}};
   return basic_data.dump();
 }
 
@@ -213,7 +215,8 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
 
   Wallet wallet;
   if (wallet_type == WalletType::MINISCRIPT) {
-    wallet = Wallet(GetString(DbKeys::MINISCRIPT), GetSigners(), address_type, m);
+    wallet =
+        Wallet(GetString(DbKeys::MINISCRIPT), GetSigners(), address_type, m);
     wallet.set_name(GetString(DbKeys::NAME));
     wallet.set_create_date(create_date);
   } else {
@@ -277,10 +280,15 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
     std::string public_key = basic_info["public_key"];
     std::string derivation_path = basic_info["derivation_path"];
     std::string master_fingerprint = basic_info["master_fingerprint"];
+    std::pair<int, int> external_internal_index = {0, 1};
+    if (basic_info["external_internal_index"] != nullptr) {
+      external_internal_index = basic_info["external_internal_index"];
+    }
     ba::to_lower(master_fingerprint);
     time_t last_health_check = sqlite3_column_int64(stmt, 3);
     SingleSigner signer(name, xpub, public_key, derivation_path,
-                        master_fingerprint, last_health_check, master_id, false,
+                        external_internal_index, master_fingerprint,
+                        last_health_check, master_id, false,
                         SignerType::UNKNOWN);
     signers.push_back(signer);
     sqlite3_step(stmt);
@@ -342,8 +350,9 @@ std::string NunchukWalletDb::GetAddressPath(const std::string& address) {
   std::vector<std::string> paths{};
   for (auto&& signer : signers) {
     std::stringstream path;
-    path << "m" << FormalizePath(signer.get_derivation_path())
-         << (internal ? "/1/" : "/0/") << index;
+    auto eii = signer.get_external_internal_index();
+    path << "m" << FormalizePath(signer.get_derivation_path()) << "/"
+         << (internal ? eii.second : eii.first) << "/" << index;
     paths.push_back(path.str());
   }
   if (paths.size() == 1) return paths[0];

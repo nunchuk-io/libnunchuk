@@ -252,6 +252,7 @@ std::string ScriptNodeToString(const ScriptNode& node) {
 
 bool ParseTapscriptTemplate(const std::string& tapscript_template,
                             std::vector<std::string>& keypath,
+                            std::pair<int, int>& eii,
                             std::vector<std::string>& subscripts,
                             std::vector<int>& depths, std::string& error) {
   using namespace script;
@@ -266,6 +267,7 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
         return false;
       }
       auto keys = split(tmpl.substr(6, tmpl.find(")", 6) - 6), ',');
+      eii = ParseExternalInternalIndex(tmpl.substr(tmpl.find(")", 6) + 1));
       for (auto& key : keys) {
         keypath.push_back(key);
       }
@@ -540,11 +542,22 @@ std::string GetMusigScript(const std::string& musig_template,
   std::vector<std::string> parts = split(inner, ',');
   std::stringstream ss;
   ss << "pk(musig(";
+  std::pair<int, int> eii;
   for (int i = 0; i < parts.size(); i++) {
-    if (i > 0) ss << ",";
-    ss << signers.at(parts[i]).get_descriptor();
+    auto signer = signers.at(parts[i]);
+    if (i == 0) {
+      eii = signer.get_external_internal_index();
+    } else {
+      if (eii != signer.get_external_internal_index()) {
+        throw NunchukException(
+            NunchukException::INVALID_PARAMETER,
+            "Signers must have the same external internal index");
+      }
+      ss << ",";
+    }
+    ss << signer.get_descriptor();
   }
-  ss << ")" << GetKeyPath(DescriptorPath::ANY, 0) << ")";
+  ss << ")" << GetChildKeyPath(eii, DefaultDescriptorPath(signers)) << ")";
   return ss.str();
 }
 

@@ -213,7 +213,7 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
   Wallet wallet("", m, n, Utils::SanitizeSingleSigners(signers), address_type,
                 is_escrow, 0);
   wallet.set_wallet_template(wallet_template);
-  return wallet.get_descriptor(DescriptorPath::ANY);
+  return wallet.get_descriptor(DefaultDescriptorPath(signers));
 }
 
 std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
@@ -225,7 +225,7 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
   Wallet wallet("", name, m, n, Utils::SanitizeSingleSigners(signers),
                 address_type, wallet_type, 0);
   wallet.set_wallet_template(wallet_template);
-  return wallet.get_descriptor(DescriptorPath::ANY);
+  return wallet.get_descriptor(DefaultDescriptorPath(signers));
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets(
@@ -615,7 +615,7 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
         auto path = GetBip32Path(chain_, wallet_type, address_type, index);
         auto xpub = hwi_.GetXpubAtPath(device, path);
         auto signer = SingleSigner(
-            master.get_name(), xpub, "", path, mastersigner_id,
+            master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
         return storage_->AddSignerToMasterSigner(
@@ -632,7 +632,7 @@ SingleSigner NunchukImpl::CreateSigner(
     const std::string& master_fingerprint, SignerType signer_type,
     std::vector<SignerTag> tags, bool replace) {
   const SingleSigner signer = Utils::SanitizeSingleSigner(SingleSigner(
-      raw_name, xpub, public_key, derivation_path, master_fingerprint,
+      raw_name, xpub, public_key, derivation_path, {0, 1}, master_fingerprint,
       std::time(nullptr), {}, false, signer_type, tags));
   auto rs = storage_->CreateSingleSigner(
       chain_, signer.get_name(), signer.get_xpub(), signer.get_public_key(),
@@ -735,7 +735,7 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
         Device device{mastersigner_id};
         auto xpub = hwi_.GetXpubAtPath(device, path);
         auto signer = SingleSigner(
-            master.get_name(), xpub, "", path, mastersigner_id,
+            master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
         return signer;
@@ -1214,16 +1214,8 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
       if (wallet.get_address_type() == AddressType::TAPROOT ||
           wallet.get_wallet_type() == WalletType::MINISCRIPT) {
-        std::set<std::string> basepaths;
-        for (auto&& signer : wallet.get_signers()) {
-          if (signer.get_master_fingerprint() == mastersigner_id) {
-            basepaths.insert(signer.get_derivation_path());
-          }
-        }
         signed_psbt = software_signer.SignTaprootTx(
-            storage_->GetLocalDb(chain_), psbt, basepaths,
-            wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
-            wallet.get_descriptor(DescriptorPath::INTERNAL_ALL),
+            storage_->GetLocalDb(chain_), psbt, wallet,
             storage_->GetCurrentAddressIndex(chain_, wallet_id, false),
             storage_->GetCurrentAddressIndex(chain_, wallet_id, true));
       } else {
@@ -1289,16 +1281,8 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
           storage_->GetSoftwareSigner(chain_, mastersigner_id);
       if (wallet.get_address_type() == AddressType::TAPROOT ||
           wallet.get_wallet_type() == WalletType::MINISCRIPT) {
-        std::set<std::string> basepaths;
-        for (auto&& signer : wallet.get_signers()) {
-          if (signer.get_master_fingerprint() == mastersigner_id) {
-            basepaths.insert(signer.get_derivation_path());
-          }
-        }
         signed_psbt = software_signer.SignTaprootTx(
-            storage_->GetLocalDb(chain_), psbt, basepaths,
-            wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL),
-            wallet.get_descriptor(DescriptorPath::INTERNAL_ALL),
+            storage_->GetLocalDb(chain_), psbt, wallet,
             storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), false),
             storage_->GetCurrentAddressIndex(chain_, wallet.get_id(), true));
       } else {
@@ -1919,7 +1903,7 @@ SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   CryptoHDKey key = account.outputDescriptors[0];
 
   auto signer = SingleSigner("Keystone", key.get_xpub(), {}, key.get_path(),
-                             key.get_xfp(), 0);
+                             {0, 1}, key.get_xfp(), 0);
   signer.set_type(SignerType::AIRGAP);
   return signer;
 }
@@ -2018,7 +2002,7 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
     const std::string path = key.get_path();
     signers.emplace_back(SingleSigner(
         GetSignerNameFromDerivationPath(path, "SeedSigner-"), key.get_xpub(),
-        {}, path, key.get_xfp(), 0, {}, false, SignerType::AIRGAP));
+        {}, path, {0, 1}, key.get_xfp(), 0, {}, false, SignerType::AIRGAP));
   }
 
   if (signers.empty()) {
@@ -2131,7 +2115,7 @@ std::string NunchukImpl::GetWalletExportData(const Wallet& wallet,
     case ExportFormat::COLDCARD:
       return ::GetMultisigConfig(wallet);
     case ExportFormat::DESCRIPTOR:
-      return wallet.get_descriptor(DescriptorPath::ANY);
+      return wallet.get_descriptor(DefaultDescriptorPath(wallet.get_signers()));
     case ExportFormat::BSMS:
       return GetDescriptorRecord(wallet);
     case ExportFormat::DB:

@@ -105,11 +105,21 @@ int Wallet::get_gap_limit() const { return gap_limit_; }
 bool Wallet::need_backup() const { return need_backup_; }
 bool Wallet::is_archived() const { return archived_; }
 std::string Wallet::get_miniscript(DescriptorPath path, int index) const {
-  if (path == DescriptorPath::ANY) {
-    return miniscript_;
+  auto defaultPath = DefaultDescriptorPath(signers_);
+  if (path == defaultPath) return miniscript_;
+  if (defaultPath == DescriptorPath::EXTERNAL_INTERNAL) {
+    std::string rs = miniscript_;
+    for (size_t i = 0; i < get_signers().size(); ++i) {
+      SingleSigner signer = get_signers()[i];
+      auto eii = signer.get_external_internal_index();
+      rs = replaceAll(rs, GetChildKeyPath(eii, defaultPath),
+                      GetChildKeyPath(eii, path, index));
+    }
+    return rs;
+  } else {
+    return replaceAll(miniscript_, GetChildKeyPath({0, 1}, defaultPath),
+                      GetChildKeyPath({0, 1}, path, index));
   }
-  return replaceAll(miniscript_, GetKeyPath(DescriptorPath::ANY, 0),
-                    GetKeyPath(path, index));
 }
 void Wallet::check_valid() const {
   if (n_ <= 0)
@@ -183,15 +193,26 @@ std::string Wallet::get_descriptor(DescriptorPath path, int index,
       } else {
         std::stringstream ss;
         ss << "musig(";
+        std::pair<int, int> eii;
         for (int i = 0; i < m_; i++) {
-          if (i > 0) ss << ",";
+          if (i == 0) {
+            eii = signers_[i].get_external_internal_index();
+          } else {
+            if (eii != signers_[i].get_external_internal_index()) {
+              throw NunchukException(
+                  NunchukException::INVALID_PARAMETER,
+                  "Signers must have the same external internal index");
+            }
+            ss << ",";
+          }
           ss << signers_[i].get_descriptor();
         }
-        ss << ")" << GetKeyPath(path, index);
+        ss << ")" << GetChildKeyPath(eii, path, index);
         keypath = ss.str();
       }
     } else {
-      keypath = GetUnspendableXpub(signers_) + GetKeyPath(path, index);
+      keypath =
+          GetUnspendableXpub(signers_) + GetChildKeyPath({0, 1}, path, index);
     }
     auto desc = GetDescriptorForMiniscript(get_miniscript(path, index), keypath,
                                            get_address_type());

@@ -32,7 +32,12 @@ std::string AddChecksum(const std::string& str);
 
 std::string FormalizePath(const std::string& path);
 
-std::string GetKeyPath(DescriptorPath path, int index);
+DescriptorPath DefaultDescriptorPath(const std::vector<SingleSigner>& signers);
+
+DescriptorPath DefaultDescriptorPath(const std::map<std::string, SingleSigner>& signers);
+
+std::string GetChildKeyPath(const std::pair<int, int>& external_internal,
+                            DescriptorPath path, int index = -1);
 
 std::string GetDerivationPathView(std::string path);
 
@@ -72,6 +77,8 @@ std::string GetPkhDescriptor(const std::string& address);
 
 std::string GetDescriptor(const SingleSigner& signer, AddressType address_type);
 
+std::pair<int, int> ParseExternalInternalIndex(const std::string& eii);
+
 SingleSigner ParseSignerString(const std::string& signer_str);
 
 std::optional<Wallet> ParseDescriptors(const std::string& descs,
@@ -83,9 +90,9 @@ std::optional<Wallet> ParseJSONDescriptors(const std::string& json_str,
 std::string GetSignerNameFromDerivationPath(const std::string& derivation_path,
                                             const std::string& prefix = {});
 
-std::string GetUnspendableXpub(const std::vector<SingleSigner> &signers);
+std::string GetUnspendableXpub(const std::vector<SingleSigner>& signers);
 
-bool IsUnspendableXpub(const std::string &xpub);
+bool IsUnspendableXpub(const std::string& xpub);
 
 }  // namespace nunchuk
 
