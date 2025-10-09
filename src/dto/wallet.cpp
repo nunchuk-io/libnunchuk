@@ -106,6 +106,7 @@ bool Wallet::need_backup() const { return need_backup_; }
 bool Wallet::is_archived() const { return archived_; }
 std::string Wallet::get_miniscript(DescriptorPath path, int index) const {
   auto defaultPath = DefaultDescriptorPath(signers_);
+  if (path == DescriptorPath::ANY && defaultPath == DescriptorPath::EXTERNAL_INTERNAL) path = defaultPath;
   if (path == defaultPath) return miniscript_;
   if (defaultPath == DescriptorPath::EXTERNAL_INTERNAL) {
     std::string rs = miniscript_;
