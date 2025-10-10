@@ -252,6 +252,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
   std::set<std::string> basepaths;
   auto external_desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
   auto desc0 = Parse(external_desc, provider, error, true);
+  if (external_index < 0) external_index = 0;
   auto external_addr = CoreUtils::getInstance().DeriveAddresses(
       external_desc, 0, external_index);
   std::set<std::string> external_basepaths;
@@ -272,6 +273,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
   }
   auto internal_desc = wallet.get_descriptor(DescriptorPath::INTERNAL_ALL);
   auto desc1 = Parse(internal_desc, provider, error, true);
+  if (internal_index < 0) internal_index = 0;
   auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
       internal_desc, 0, internal_index);
   std::set<std::string> internal_basepaths;
