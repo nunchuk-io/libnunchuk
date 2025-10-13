@@ -150,6 +150,7 @@ enum class ExportFormat {
   CSV,
   BSMS,
   DESCRIPTOR_EXTERNAL_ALL,
+  DESCRIPTOR_EXTERNAL_INTERNAL,
 };
 
 enum class Unit {

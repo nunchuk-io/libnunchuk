@@ -2126,6 +2126,8 @@ std::string NunchukImpl::GetWalletExportData(const Wallet& wallet,
       return {};
     case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
       return wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+    case ExportFormat::DESCRIPTOR_EXTERNAL_INTERNAL:
+      return wallet.get_descriptor(DescriptorPath::EXTERNAL_INTERNAL);
   }
   return {};
 }

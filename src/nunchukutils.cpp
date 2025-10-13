@@ -879,7 +879,8 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
         return {};
       case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
         return wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-        break;
+      case ExportFormat::DESCRIPTOR_EXTERNAL_INTERNAL:
+        return wallet.get_descriptor(DescriptorPath::EXTERNAL_INTERNAL);
     }
     return {};
   };
@@ -1259,7 +1260,7 @@ bool Utils::IsValidMiniscriptTemplate(const std::string& miniscript_template,
   bool isValid = node && node->IsValidTopLevel() && node->IsSane() &&
                  !node->IsNotSatisfiable();
   if (!isValid) return false;
-  MiniscriptTimeline timeline(miniscript_template); // validate timelock
+  MiniscriptTimeline timeline(miniscript_template);  // validate timelock
   return true;
 }
 
