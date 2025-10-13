@@ -177,6 +177,9 @@ bool NunchukStorage::ExportWallet(Chain chain, const std::string& wallet_id,
     case ExportFormat::DESCRIPTOR_EXTERNAL_ALL:
       return WriteFile(file_path,
                        wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
+    case ExportFormat::DESCRIPTOR_EXTERNAL_INTERNAL:
+      return WriteFile(
+          file_path, wallet.get_descriptor(DescriptorPath::EXTERNAL_INTERNAL));
     case ExportFormat::COBO:
     case ExportFormat::CSV:
       break;
