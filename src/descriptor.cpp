@@ -509,7 +509,7 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
       continue;
     }
     signers.push_back(ParseSignerString(key));
-    signers.back().set_external_internal_index(eii);
+    if (eii != std::make_pair(0,0)) signers.back().set_external_internal_index(eii);
     signers_map[key] = signers.back();
   }
 
