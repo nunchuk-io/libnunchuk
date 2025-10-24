@@ -135,8 +135,8 @@ class PubkeyExtractorChecker final : public DeferringSignatureChecker {
     return false;
   }
 
-  bool CheckSchnorrSignature(Span<const unsigned char> sig,
-                             Span<const unsigned char> pubkey,
+  bool CheckSchnorrSignature(std::span<const unsigned char> sig,
+                             std::span<const unsigned char> pubkey,
                              SigVersion sigversion,
                              ScriptExecutionData& execdata,
                              ScriptError* serror) const override {

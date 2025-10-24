@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <utils/stringutils.hpp>
 #include <descriptor.h>
+#include <tinyformat.h>
 
 namespace nunchuk {
 
@@ -257,7 +258,7 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
                             std::vector<int>& depths, std::string& error) {
   using namespace script;
   keypath.clear();
-  Span<const char> expr{tapscript_template};
+  std::span<const char> expr{tapscript_template};
   if (Func("tr", expr)) {
     auto a = Expr(expr);
     std::string tmpl = std::string(a.begin(), a.end());

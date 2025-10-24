@@ -148,7 +148,7 @@ inline std::string Encrypt(const std::string &pub_key,
                          RSA_PKCS1_PADDING) < 0) {
     throw std::runtime_error("Encrypt " + std::string(strerror(errno)));
   }
-  Span<unsigned char> cipher{(unsigned char *)ciphertext,
+  std::span<unsigned char> cipher{(unsigned char *)ciphertext,
                              (size_t)cipherTextSize};
   std::string output = EncodeBase64(cipher);
   free(ciphertext);

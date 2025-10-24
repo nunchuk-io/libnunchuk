@@ -24,19 +24,69 @@ using Node = nunchuk::miniscript::NodeRef<CompilerContext::Key>;
 using Fragment = nunchuk::miniscript::Fragment;
 using nunchuk::miniscript::operator"" _mst;
 
+template <typename T>
+bool ParseIntegral(std::string_view str, T* out)
+{
+    static_assert(std::is_integral_v<T>);
+    // Replicate the exact behavior of strtol/strtoll/strtoul/strtoull when
+    // handling leading +/- for backwards compatibility.
+    if (str.length() >= 2 && str[0] == '+' && str[1] == '-') {
+        return false;
+    }
+    const std::optional<T> opt_int = ToIntegral<T>((!str.empty() && str[0] == '+') ? str.substr(1) : str);
+    if (!opt_int) {
+        return false;
+    }
+    if (out != nullptr) {
+        *out = *opt_int;
+    }
+    return true;
+}
+
+
+bool ParseInt32(std::string_view str, int32_t* out)
+{
+    return ParseIntegral<int32_t>(str, out);
+}
+
+bool ParseInt64(std::string_view str, int64_t* out)
+{
+    return ParseIntegral<int64_t>(str, out);
+}
+
+bool ParseUInt8(std::string_view str, uint8_t* out)
+{
+    return ParseIntegral<uint8_t>(str, out);
+}
+
+bool ParseUInt16(std::string_view str, uint16_t* out)
+{
+    return ParseIntegral<uint16_t>(str, out);
+}
+
+bool ParseUInt32(std::string_view str, uint32_t* out)
+{
+    return ParseIntegral<uint32_t>(str, out);
+}
+
+bool ParseUInt64(std::string_view str, uint64_t* out)
+{
+    return ParseIntegral<uint64_t>(str, out);
+}
+
 template<typename... Args>
 Node MakeNode(Args&&... args) { return nunchuk::miniscript::MakeNodeRef<CompilerContext::Key>(nunchuk::miniscript::internal::NoDupCheck{}, nunchuk::miniscript::MiniscriptContext::P2WSH, std::forward<Args>(args)...); }
 
-std::vector<unsigned char> Hash2(const Span<const char>& in, size_t len)
+std::vector<unsigned char> Hash2(const std::span<const char>& in, size_t len)
 {
     auto unhex = ParseHex(std::string(in.begin(), in.end()));
     if (unhex.size() == len) return unhex;
     return {};
 }
 
-Policy Parse(Span<const char>& in);
+Policy Parse(std::span<const char>& in);
 
-Policy ParseProb(Span<const char>& in, uint32_t& prob) {
+Policy ParseProb(std::span<const char>& in, uint32_t& prob) {
     prob = 0;
     while (in.size() && in[0] >= ('0' + (prob == 0)) && in[0] <= '9') {
         prob = std::min<uint32_t>(prob * 10 + (in[0] - '0'), std::numeric_limits<uint16_t>::max());
@@ -51,7 +101,7 @@ Policy ParseProb(Span<const char>& in, uint32_t& prob) {
     return Parse(in);
 }
 
-Policy Parse(Span<const char>& in) {
+Policy Parse(std::span<const char>& in) {
     using namespace script;
     auto expr = Expr(in);
     if (Func("pk", expr)) {
@@ -138,7 +188,7 @@ Policy Parse(Span<const char>& in) {
 
 Policy Parse(const std::string& in) {
     try {
-        Span<const char> sp(in.data(), in.size());
+        std::span<const char> sp(in.data(), in.size());
         Policy ret = Parse(sp);
         if (sp.size()) return Policy(Policy::Type::NONE);
         return ret;

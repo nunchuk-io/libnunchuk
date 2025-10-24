@@ -57,7 +57,7 @@ static uint32_t MaskedCRC(const unsigned char* data, uint64_t size) {
   return ur_crc32(data, size) & 0xffffffff;
 }
 
-uint64_t ReadVar64(Span<const unsigned char>& data) {
+uint64_t ReadVar64(std::span<const unsigned char>& data) {
   if (data.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Empty input");
   }
@@ -96,7 +96,7 @@ uint64_t ReadVar64(Span<const unsigned char>& data) {
 }
 
 static std::vector<unsigned char> encode_utf_16_le(
-    Span<const unsigned char> input) {
+    std::span<const unsigned char> input) {
   std::vector<unsigned char> result;
   result.reserve(input.size() * 2);
 
@@ -137,9 +137,9 @@ struct ParseSectionHeaderResult {
 };
 
 static ParseSectionHeaderResult ParseSectionHeader(
-    Span<const unsigned char> header) {
+    std::span<const unsigned char> header) {
   auto patmatch = [](const std::string& pattern,
-                     Span<const unsigned char> where) {
+                     std::span<const unsigned char> where) {
     auto pat = ParseHex(pattern);
     auto pos = std::search(where.begin(), where.end(), pat.begin(), pat.end());
     if (pos == where.end()) {
@@ -273,13 +273,13 @@ static ColdcardBackupData ParseColdcardBackupData(const std::string& data) {
 
 ColdcardBackupData ExtractColdcardBackup(const std::vector<unsigned char>& data,
                                          const std::string& password) {
-  Span<const unsigned char> input(data);
+  std::span<const unsigned char> input(data);
   if (input.size() < FILE_HEADER_SIZE) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "File too short");
   }
 
-  const Span<const unsigned char> magic(input.subspan(0, 6));
+  const std::span<const unsigned char> magic(input.subspan(0, 6));
 
   const uint8_t major = data[6];
   const uint8_t minor = data[7];
@@ -304,8 +304,8 @@ ColdcardBackupData ExtractColdcardBackup(const std::vector<unsigned char>& data,
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Truncated file?");
     }
-    const Span<const unsigned char> section = input.first(sh.offset);
-    const Span<const unsigned char> header = input.subspan(sh.offset, sh.size);
+    const std::span<const unsigned char> section = input.first(sh.offset);
+    const std::span<const unsigned char> header = input.subspan(sh.offset, sh.size);
     input = input.subspan(sh.offset + sh.size);
 
     auto parse_result = ParseSectionHeader(header);
