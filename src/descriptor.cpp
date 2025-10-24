@@ -31,6 +31,7 @@
 #include <utils/stringutils.hpp>
 #include <miniscript/util.h>
 #include "util/bip32.h"
+#include <tinyformat.h>
 
 using json = nlohmann::json;
 namespace nunchuk {

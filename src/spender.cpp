@@ -68,7 +68,7 @@ static COutput CreateCOutput(const UnspentOutput& coin, const Descriptor& desc,
       static_cast<int>(GetVirtualTransactionSize(*input_weight, 0, 0));
 
   return COutput(outpoint, txout, coin.get_height(), input_bytes, true, true,
-                 true, coin.get_blocktime(), coin.is_change(), feerate);
+                 coin.get_blocktime(), true);
 }
 
 util::Result<PreSelectedInputs> FetchSelectedInputs(

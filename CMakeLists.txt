@@ -74,7 +74,7 @@ set(BUILD_TESTS OFF)
 set(HAVE_IFADDRS_H FALSE)
 cmake_policy(SET CMP0077 NEW)
 set(SECP256K1_ENABLE_MODULE_ECDH ON)
-set(BUILD_CLI OFF)
+set(BUILD_CLI ON)
 add_subdirectory(contrib/bitcoin)
 
 add_subdirectory(embedded)
