@@ -363,6 +363,10 @@ std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
 }
 
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
+  if (descs.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid descriptor");
+  }
   std::string error;
   if (auto wallet = ParseBSMSRecord(descs, error); wallet) {
     return *wallet;
@@ -372,20 +376,23 @@ Wallet Utils::ParseWalletDescriptor(const std::string& descs) {
     return *wallet;
   }
 
-  AddressType a;
-  WalletType w;
-  WalletTemplate t = WalletTemplate::DEFAULT;
-  int m;
-  int n;
-  std::vector<SingleSigner> signers;
-  std::string name;
-  // Multisig config
-  if (ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
-      ParseConfig(Utils::GetChain(), descs, name, a, w, m, n, signers)) {
-    std::string id = GetWalletId(signers, m, a, w, t);
-    Wallet wallet{id, name, m, n, signers, a, w, std::time(0)};
-    wallet.set_wallet_template(t);
-    return wallet;
+  try {
+    AddressType a;
+    WalletType w;
+    WalletTemplate t = WalletTemplate::DEFAULT;
+    int m;
+    int n;
+    std::vector<SingleSigner> signers;
+    std::string name;
+    // Multisig config
+    if (ParseUnchainedWallet(descs, name, a, w, m, n, signers) ||
+        ParseConfig(Utils::GetChain(), descs, name, a, w, m, n, signers)) {
+      std::string id = GetWalletId(signers, m, a, w, t);
+      Wallet wallet{id, name, m, n, signers, a, w, std::time(0)};
+      wallet.set_wallet_template(t);
+      return wallet;
+    }
+  } catch (...) {
   }
 
   throw NunchukException(NunchukException::INVALID_PARAMETER,
