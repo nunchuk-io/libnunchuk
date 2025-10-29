@@ -2310,15 +2310,20 @@ RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
                                                    SIGHASH_DEFAULT);
 
         auto pair = split(token, '.');
+        bool isValid = false;
         for (const auto& key : input.hd_keypaths) {
-          if (HexStr(key.second.fingerprint) != pair[0]) continue;
-          if (!creator.Checker().CheckECDSASignature(
+          if (HexStr(key.second.fingerprint) == pair[0] &&
+              creator.Checker().CheckECDSASignature(
                   ParseHex(pair[1]),
                   {key.first.data(), key.first.data() + key.first.size()},
                   scriptCode, SigVersion::WITNESS_V0)) {
-            throw NunchukException(NunchukException::INVALID_SIGNATURE,
-                                   "Invalid signature!");
+            isValid = true;
+            break;
           }
+        }
+        if (!isValid) {
+          throw NunchukException(NunchukException::INVALID_SIGNATURE,
+                                 "Invalid signature!");
         }
       }
     } else {
