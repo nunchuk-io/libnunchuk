@@ -358,8 +358,16 @@ std::string Utils::SignPsbt(const std::string& hwi_path, const Device& device,
   if (psbt.empty()) {
     throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
   }
-  // TODO: Add Utils::SignPsbt with wallet arg
   return hwi.SignTx(device, psbt);
+}
+
+std::string Utils::SignPsbt(const std::string& hwi_path, const Wallet& wallet,
+                            const Device& device, const std::string& psbt) {
+  auto hwi = HWIService(hwi_path, Utils::GetChain());
+  if (psbt.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "Invalid PSBT");
+  }
+  return hwi.SignTx(wallet, device, psbt);
 }
 
 Wallet Utils::ParseWalletDescriptor(const std::string& descs) {

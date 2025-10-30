@@ -1781,9 +1781,14 @@ class NUNCHUK_EXPORT Nunchuk {
                                const std::string& pin) = 0;
   virtual void SendPassphraseToDevice(const Device& device,
                                       const std::string& passphrase) = 0;
+  virtual void VerifySingleSigner(const Device& device,
+                                  const SingleSigner& signer) = 0;
 
   // The following methods is for signing server requests
   virtual std::string SignHealthCheckMessage(const SingleSigner& signer,
+                                             const std::string& message) = 0;
+  virtual std::string SignHealthCheckMessage(const Wallet& wallet,
+                                             const SingleSigner& signer,
                                              const std::string& message) = 0;
   virtual std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,
                                              const std::string& cvc,
@@ -1973,6 +1978,8 @@ class NUNCHUK_EXPORT Utils {
                               const std::string& cvc, const std::string& psbt);
   static std::string SignPsbt(const std::string& hwi_path, const Device& device,
                               const std::string& psbt);
+  static std::string SignPsbt(const std::string& hwi_path, const Wallet& wallet,
+                              const Device& device, const std::string& psbt);
 
   static Wallet ParseWalletDescriptor(const std::string& descs);
   static Wallet ParseKeystoneWallet(Chain chain,
