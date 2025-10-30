@@ -296,6 +296,8 @@ class NunchukImpl : public Nunchuk {
   void SendPinToDevice(const Device& device, const std::string& pin) override;
   void SendPassphraseToDevice(const Device& device,
                               const std::string& passphrase) override;
+  void VerifySingleSigner(const Device& device,
+                          const SingleSigner& signer) override;
   std::string ExportBackup() override;
   bool SyncWithBackup(
       const std::string& data,
@@ -498,6 +500,9 @@ class NunchukImpl : public Nunchuk {
   void AddStorageUpdateListener(std::function<void()> listener) override;
 
   std::string SignHealthCheckMessage(const SingleSigner& signer,
+                                     const std::string& message) override;
+  std::string SignHealthCheckMessage(const Wallet& wallet,
+                                     const SingleSigner& signer,
                                      const std::string& message) override;
   std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,
                                      const std::string& cvc,

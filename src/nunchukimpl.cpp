@@ -474,6 +474,16 @@ void NunchukImpl::SendPassphraseToDevice(const Device& device,
   hwi_.SendPassphrase(device, passphrase);
 }
 
+void NunchukImpl::VerifySingleSigner(const Device& device,
+                                     const SingleSigner& signer) {
+  auto xpub = hwi_.GetXpubAtPath(device, signer.get_derivation_path());
+  if (xpub != signer.get_xpub() ||
+      signer.get_master_fingerprint() != device.get_master_fingerprint()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "This signer does not match the connected device.");
+  }
+}
+
 MasterSigner NunchukImpl::CreateMasterSigner(
     const std::string& raw_name, const Device& device,
     std::function<bool(int)> progress) {
@@ -2342,8 +2352,40 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
   } else if (signerType == SignerType::HARDWARE ||
              signerType == SignerType::COLDCARD_NFC) {
     Device device{id};
-    // TODO: Add NunchukImpl::SignHealthCheckMessage with wallet arg
     if (isPsbt) return GetPartialSignature(hwi_.SignTx(device, message), id);
+    return hwi_.SignMessage(device, message, signer.get_derivation_path());
+  } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
+    throw NunchukException(
+        NunchukException::INVALID_SIGNER_TYPE,
+        strprintf("Can not sign with foreign software id = '%s'", id));
+  } else if (signerType == SignerType::NFC ||
+             signerType == SignerType::PORTAL_NFC) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           strprintf("Must be sign with NFC id = '%s'", id));
+  } else if (signerType == SignerType::AIRGAP) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           strprintf("Must be sign with Airgap id = '%s'", id));
+  }
+  throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                         "Invalid signer type");
+}
+
+std::string NunchukImpl::SignHealthCheckMessage(const Wallet& wallet,
+                                                const SingleSigner& signer,
+                                                const std::string& message) {
+  SignerType signerType = signer.get_type();
+  std::string id = signer.get_master_fingerprint();
+
+  bool isPsbt = message.size() != 64;
+  if (signerType == SignerType::SOFTWARE) {
+    auto ss = storage_->GetSoftwareSigner(chain_, id);
+    if (isPsbt) return GetPartialSignature(ss.SignTx(message), id);
+    return ss.SignMessage(message, signer.get_derivation_path());
+  } else if (signerType == SignerType::HARDWARE ||
+             signerType == SignerType::COLDCARD_NFC) {
+    Device device{id};
+    if (isPsbt)
+      return GetPartialSignature(hwi_.SignTx(wallet, device, message), id);
     return hwi_.SignMessage(device, message, signer.get_derivation_path());
   } else if (signerType == SignerType::FOREIGN_SOFTWARE) {
     throw NunchukException(
