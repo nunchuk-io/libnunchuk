@@ -32,7 +32,9 @@ namespace {
 
 inline std::string GetDescriptorRecord(const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
-  auto path = DefaultDescriptorPath(wallet.get_signers());
+  auto path = wallet.get_wallet_type() == WalletType::MINISCRIPT
+                  ? DescriptorPath::EXTERNAL_INTERNAL
+                  : DescriptorPath::ANY;
   auto sorted = true;
   std::stringstream record;
   record << "BSMS 1.0" << std::endl;
