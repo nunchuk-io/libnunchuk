@@ -45,6 +45,9 @@ TransactionStatus Transaction::get_status() const { return status_; }
 std::vector<KeysetStatus> const& Transaction::get_keyset_status() const {
   return keyset_status_;
 }
+std::vector<SingleSigner> const& Transaction::get_signed() const {
+  return signed_;
+}
 std::string Transaction::get_replaced_by_txid() const {
   return replaced_by_txid_;
 }
@@ -87,6 +90,9 @@ void Transaction::set_memo(const std::string& value) { memo_ = value; }
 void Transaction::set_status(TransactionStatus value) { status_ = value; }
 void Transaction::set_keyset_status(const std::vector<KeysetStatus>& value) {
   keyset_status_ = value;
+}
+void Transaction::set_signed(const std::vector<SingleSigner>& value) {
+  signed_ = value;
 }
 void Transaction::set_replaced_by_txid(const std::string& value) {
   replaced_by_txid_ = value;

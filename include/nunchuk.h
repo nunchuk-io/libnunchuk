@@ -864,6 +864,7 @@ class Transaction {
   std::string get_memo() const;
   TransactionStatus get_status() const;
   std::vector<KeysetStatus> const& get_keyset_status() const;
+  std::vector<SingleSigner> const& get_signed() const;
   std::string get_replaced_by_txid() const;
   std::string get_replace_txid() const;
   Amount get_fee() const;
@@ -893,6 +894,7 @@ class Transaction {
   void set_memo(const std::string& value);
   void set_status(TransactionStatus value);
   void set_keyset_status(const std::vector<KeysetStatus>& value);
+  void set_signed(const std::vector<SingleSigner>& value);
   void set_replaced_by_txid(const std::string& value);
   void set_replace_txid(const std::string& value);
   void set_fee(const Amount& value);
@@ -923,6 +925,7 @@ class Transaction {
   std::string memo_;
   TransactionStatus status_;
   std::vector<KeysetStatus> keyset_status_;
+  std::vector<SingleSigner> signed_;
   std::string replaced_by_txid_;
   std::string replace_txid_;
   Amount fee_;
