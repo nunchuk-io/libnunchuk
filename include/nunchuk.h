@@ -1681,6 +1681,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual int EstimateRollOverTransactionCount(
       const std::string& wallet_id, const std::set<int>& tags,
       const std::set<int>& collections) = 0;
+  virtual int EstimateRollOver11TransactionCount(
+      const std::string& wallet_id) = 0;
   virtual std::pair<Amount /* sub total */, Amount /* fee */>
   EstimateRollOverAmount(const std::string& old_wallet_id,
                          const std::string& new_wallet_id,
@@ -1688,6 +1690,11 @@ class NUNCHUK_EXPORT Nunchuk {
                          const std::set<int>& collections, Amount fee_rate = -1,
                          bool use_script_path = false,
                          const SigningPath& signing_path = {}) = 0;
+  virtual std::pair<Amount /* sub total */, Amount /* fee */>
+  EstimateRollOver11Amount(const std::string& old_wallet_id,
+                           const std::string& new_wallet_id,
+                           Amount fee_rate = -1, bool use_script_path = false,
+                           const SigningPath& signing_path = {}) = 0;
   virtual std::map<
       std::pair<std::set<int> /* tags */, std::set<int> /* collections */>,
       Transaction>
@@ -1697,9 +1704,17 @@ class NUNCHUK_EXPORT Nunchuk {
                             const std::set<int>& collections,
                             Amount fee_rate = -1, bool use_script_path = false,
                             const SigningPath& signing_path = {}) = 0;
+  virtual std::vector<Transaction> DraftRollOver11Transactions(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
+      Amount fee_rate = -1, bool use_script_path = false,
+      const SigningPath& signing_path = {}) = 0;
   virtual std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
+      Amount fee_rate = -1, bool anti_fee_sniping = false,
+      bool use_script_path = false, const SigningPath& signing_path = {}) = 0;
+  virtual std::vector<Transaction> CreateRollOver11Transactions(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
       Amount fee_rate = -1, bool anti_fee_sniping = false,
       bool use_script_path = false, const SigningPath& signing_path = {}) = 0;
 

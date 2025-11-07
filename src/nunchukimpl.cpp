@@ -2659,6 +2659,12 @@ int NunchukImpl::EstimateRollOverTransactionCount(
   return groupUtxos(utxos, tags, collections).size();
 }
 
+int NunchukImpl::EstimateRollOver11TransactionCount(
+    const std::string& wallet_id) {
+  auto utxos = storage_->GetUtxos(chain_, wallet_id);
+  return utxos.size();
+}
+
 std::pair<Amount, Amount> NunchukImpl::EstimateRollOverAmount(
     const std::string& old_wallet_id, const std::string& new_wallet_id,
     const std::set<int>& tags, const std::set<int>& collections,
@@ -2671,6 +2677,20 @@ std::pair<Amount, Amount> NunchukImpl::EstimateRollOverAmount(
   for (auto&& tx : txs) {
     total += tx.second.get_sub_amount();
     fee += tx.second.get_fee();
+  }
+  return {total, fee};
+}
+
+std::pair<Amount, Amount> NunchukImpl::EstimateRollOver11Amount(
+    const std::string& old_wallet_id, const std::string& new_wallet_id,
+    Amount fee_rate, bool use_script_path, const SigningPath& signing_path) {
+  auto txs = DraftRollOver11Transactions(old_wallet_id, new_wallet_id, fee_rate,
+                                         use_script_path, signing_path);
+  Amount total{0};
+  Amount fee{0};
+  for (auto&& tx : txs) {
+    total += tx.get_sub_amount();
+    fee += tx.get_fee();
   }
   return {total, fee};
 }
@@ -2698,6 +2718,27 @@ NunchukImpl::DraftRollOverTransactions(const std::string& old_wallet_id,
       rs[groups.first] =
           DraftTransaction(old_wallet_id, {{address, amount}}, groups.second,
                            fee_rate, true, {}, use_script_path, signing_path);
+    } catch (...) {
+    }
+  }
+  return rs;
+}
+
+std::vector<Transaction> NunchukImpl::DraftRollOver11Transactions(
+    const std::string& old_wallet_id, const std::string& new_wallet_id,
+    Amount fee_rate, bool use_script_path, const SigningPath& signing_path) {
+  auto utxos = storage_->GetUtxos(chain_, old_wallet_id);
+  std::vector<Transaction> rs{};
+  auto newWallet = GetWallet(new_wallet_id);
+  std::string desc = newWallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+
+  int index = 0;
+  for (auto&& utxo : utxos) {
+    std::string address = CoreUtils::getInstance().DeriveAddress(desc, index++);
+    try {
+      rs.push_back(DraftTransaction(
+          old_wallet_id, {{address, utxo.get_amount()}}, {utxo}, fee_rate, true,
+          {}, use_script_path, signing_path));
     } catch (...) {
     }
   }
@@ -2756,6 +2797,72 @@ std::vector<Transaction> NunchukImpl::CreateRollOverTransactions(
   auto oldCollections = storage_->GetCoinCollections(chain_, old_wallet_id);
   for (auto&& i : oldCollections) {
     if (!collections.count(i.get_id())) continue;
+    std::vector<std::string> add_tagged;
+    for (auto&& t : i.get_add_coins_with_tag()) {
+      if (tagName.count(t)) add_tagged.push_back(tagName[t]);
+    }
+    json collection = {{"name", i.get_name()},
+                       {"add_new_coin", i.is_add_new_coin()},
+                       {"auto_lock", i.is_auto_lock()},
+                       {"add_tagged", add_tagged}};
+    collection["coins"] = json::array();
+    for (auto&& coin : coinCollections[i.get_id()]) {
+      collection["coins"].push_back(coin);
+    }
+    data["collections"].push_back(collection);
+  }
+  storage_->ImportCoinControlData(chain_, new_wallet_id, data.dump(), true,
+                                  true);
+
+  return rs;
+}
+
+std::vector<Transaction> NunchukImpl::CreateRollOver11Transactions(
+    const std::string& old_wallet_id, const std::string& new_wallet_id,
+    Amount fee_rate, bool anti_fee_sniping, bool use_script_path,
+    const SigningPath& signing_path) {
+  auto utxos = storage_->GetUtxos(chain_, old_wallet_id);
+  std::vector<Transaction> rs{};
+  auto newWallet = GetWallet(new_wallet_id);
+  std::string desc = newWallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+
+  int index = 0;
+  std::map<int, std::vector<std::string>> coinTags{};
+  std::map<int, std::vector<std::string>> coinCollections{};
+  for (auto&& utxo : utxos) {
+    std::string address = CoreUtils::getInstance().DeriveAddress(desc, index++);
+    try {
+      auto tx = CreateTransaction(
+          old_wallet_id, {{address, utxo.get_amount()}}, {}, {utxo}, fee_rate,
+          true, {}, anti_fee_sniping, use_script_path, signing_path);
+      rs.push_back(tx);
+      std::string coin = strprintf("%s:%d", tx.get_txid(), 0);
+      for (auto tag : utxo.get_tags()) coinTags[tag].push_back(coin);
+      for (auto col : utxo.get_collections())
+        coinCollections[col].push_back(coin);
+    } catch (...) {
+    }
+  }
+
+  // create export data
+  json data;
+  data["export_ts"] = std::time(0);
+  data["last_modified_ts"] = std::time(0);
+  data["tags"] = json::array();
+  auto oldTags = storage_->GetCoinTags(chain_, old_wallet_id);
+  std::map<int, std::string> tagName{};
+  for (auto&& i : oldTags) {
+    tagName[i.get_id()] = i.get_name();
+    json tag = {{"name", i.get_name()}, {"color", i.get_color()}};
+    tag["coins"] = json::array();
+    for (auto&& coin : coinTags[i.get_id()]) {
+      tag["coins"].push_back(coin);
+    }
+    data["tags"].push_back(tag);
+  }
+  data["collections"] = json::array();
+  auto oldCollections = storage_->GetCoinCollections(chain_, old_wallet_id);
+  for (auto&& i : oldCollections) {
     std::vector<std::string> add_tagged;
     for (auto&& t : i.get_add_coins_with_tag()) {
       if (tagName.count(t)) add_tagged.push_back(tagName[t]);

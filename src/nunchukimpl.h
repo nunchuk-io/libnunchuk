@@ -586,9 +586,14 @@ class NunchukImpl : public Nunchuk {
   int EstimateRollOverTransactionCount(
       const std::string& wallet_id, const std::set<int>& tags,
       const std::set<int>& collections) override;
+  int EstimateRollOver11TransactionCount(const std::string& wallet_id) override;
   std::pair<Amount, Amount> EstimateRollOverAmount(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
+      Amount fee_rate = -1, bool use_script_path = false,
+      const SigningPath& signing_path = {}) override;
+  std::pair<Amount, Amount> EstimateRollOver11Amount(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
       Amount fee_rate = -1, bool use_script_path = false,
       const SigningPath& signing_path = {}) override;
   std::map<std::pair<std::set<int>, std::set<int>>, Transaction>
@@ -598,9 +603,18 @@ class NunchukImpl : public Nunchuk {
                             const std::set<int>& collections,
                             Amount fee_rate = -1, bool use_script_path = false,
                             const SigningPath& signing_path = {}) override;
+  std::vector<Transaction> DraftRollOver11Transactions(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
+      Amount fee_rate = -1, bool use_script_path = false,
+      const SigningPath& signing_path = {}) override;
   std::vector<Transaction> CreateRollOverTransactions(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,
+      Amount fee_rate = -1, bool anti_fee_sniping = false,
+      bool use_script_path = false,
+      const SigningPath& signing_path = {}) override;
+  std::vector<Transaction> CreateRollOver11Transactions(
+      const std::string& old_wallet_id, const std::string& new_wallet_id,
       Amount fee_rate = -1, bool anti_fee_sniping = false,
       bool use_script_path = false,
       const SigningPath& signing_path = {}) override;
