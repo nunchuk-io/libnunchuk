@@ -2371,6 +2371,7 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
 }
 
 std::string NunchukImpl::SignHealthCheckMessage(const Wallet& wallet,
+                                                const Device& device,
                                                 const SingleSigner& signer,
                                                 const std::string& message) {
   SignerType signerType = signer.get_type();
@@ -2383,7 +2384,6 @@ std::string NunchukImpl::SignHealthCheckMessage(const Wallet& wallet,
     return ss.SignMessage(message, signer.get_derivation_path());
   } else if (signerType == SignerType::HARDWARE ||
              signerType == SignerType::COLDCARD_NFC) {
-    Device device{id};
     if (isPsbt)
       return GetPartialSignature(hwi_.SignTx(wallet, device, message), id);
     return hwi_.SignMessage(device, message, signer.get_derivation_path());

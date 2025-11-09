@@ -502,6 +502,7 @@ class NunchukImpl : public Nunchuk {
   std::string SignHealthCheckMessage(const SingleSigner& signer,
                                      const std::string& message) override;
   std::string SignHealthCheckMessage(const Wallet& wallet,
+                                     const Device& device,
                                      const SingleSigner& signer,
                                      const std::string& message) override;
   std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,
