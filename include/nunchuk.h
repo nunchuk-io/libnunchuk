@@ -1806,6 +1806,7 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::string SignHealthCheckMessage(const SingleSigner& signer,
                                              const std::string& message) = 0;
   virtual std::string SignHealthCheckMessage(const Wallet& wallet,
+                                             const Device& device,
                                              const SingleSigner& signer,
                                              const std::string& message) = 0;
   virtual std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,
