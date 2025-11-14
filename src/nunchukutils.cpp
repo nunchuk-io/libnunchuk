@@ -793,14 +793,15 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
 
 Transaction Utils::DecodeTx(const Wallet& wallet, const std::string& psbt,
                             const Amount& sub_amount, const Amount& fee,
-                            const Amount& fee_rate) {
+                            const Amount& fee_rate,
+                            bool subtract_fee_from_amount) {
   auto tx =
       GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
   tx.set_sub_amount(sub_amount);
   tx.set_fee(fee);
   tx.set_fee_rate(fee_rate);
   tx.set_receive(false);
-  tx.set_subtract_fee_from_amount(true);
+  tx.set_subtract_fee_from_amount(subtract_fee_from_amount);
   tx.set_psbt(psbt);
   return tx;
 }
