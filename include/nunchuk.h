@@ -2023,7 +2023,8 @@ class NUNCHUK_EXPORT Utils {
                                    const std::string& psbt);
   static Transaction DecodeTx(const Wallet& wallet, const std::string& psbt,
                               const Amount& sub_amount, const Amount& fee,
-                              const Amount& fee_rate);
+                              const Amount& fee_rate,
+                              bool subtract_fee_from_amount = true);
   static std::string CreateRequestToken(const std::string& signature,
                                         const std::string& fingerprint);
   static std::string GetPartialSignature(const SingleSigner& signer,
