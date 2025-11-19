@@ -588,6 +588,16 @@ class NunchukImpl : public Nunchuk {
       const std::string& wallet_id, const std::set<int>& tags,
       const std::set<int>& collections) override;
   int EstimateRollOver11TransactionCount(const std::string& wallet_id) override;
+  std::vector<std::pair<SigningPath, Amount>>
+  EstimateRollOverFeeForSigningPaths(const std::string& old_wallet_id,
+                                     const std::string& new_wallet_id,
+                                     const std::set<int>& tags,
+                                     const std::set<int>& collections,
+                                     Amount fee_rate = -1) override;
+  std::vector<std::pair<SigningPath, Amount>>
+  EstimateRollOver11FeeForSigningPaths(const std::string& old_wallet_id,
+                                       const std::string& new_wallet_id,
+                                       Amount fee_rate = -1) override;
   std::pair<Amount, Amount> EstimateRollOverAmount(
       const std::string& old_wallet_id, const std::string& new_wallet_id,
       const std::set<int>& tags, const std::set<int>& collections,

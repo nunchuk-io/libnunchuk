@@ -1590,9 +1590,6 @@ NunchukImpl::EstimateFeeForSigningPaths(
     const std::string& wallet_id, const std::map<std::string, Amount>& outputs,
     const std::vector<UnspentOutput>& inputs, Amount fee_rate,
     bool subtract_fee_from_amount, const std::string& replace_txid) {
-  auto tx = DraftTransaction(wallet_id, outputs, inputs, fee_rate,
-                             subtract_fee_from_amount, replace_txid, false, {});
-
   auto wallet = GetWallet(wallet_id);
   if (wallet.get_wallet_type() != WalletType::MINISCRIPT) {
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
@@ -1601,6 +1598,9 @@ NunchukImpl::EstimateFeeForSigningPaths(
   auto paths = Utils::GetAllSigningPaths(wallet.get_miniscript());
   std::vector<std::pair<SigningPath, Amount>> rs;
   for (auto&& path : paths) {
+    auto tx =
+        DraftTransaction(wallet_id, outputs, inputs, fee_rate,
+                         subtract_fee_from_amount, replace_txid, true, path);
     rs.push_back({path, tx.get_fee()});
   }
   return rs;
@@ -2663,6 +2663,45 @@ int NunchukImpl::EstimateRollOver11TransactionCount(
     const std::string& wallet_id) {
   auto utxos = storage_->GetUtxos(chain_, wallet_id);
   return utxos.size();
+}
+
+std::vector<std::pair<SigningPath, Amount>>
+NunchukImpl::EstimateRollOverFeeForSigningPaths(
+    const std::string& old_wallet_id, const std::string& new_wallet_id,
+    const std::set<int>& tags, const std::set<int>& collections,
+    Amount fee_rate) {
+  auto wallet = GetWallet(old_wallet_id);
+  if (wallet.get_wallet_type() != WalletType::MINISCRIPT) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Wallet is not a miniscript wallet!");
+  }
+  auto paths = Utils::GetAllSigningPaths(wallet.get_miniscript());
+  std::vector<std::pair<SigningPath, Amount>> rs;
+  for (auto&& path : paths) {
+    auto estimate = EstimateRollOverAmount(old_wallet_id, new_wallet_id, tags,
+                                           collections, fee_rate, true, path);
+    rs.push_back({path, estimate.second});
+  }
+  return rs;
+}
+
+std::vector<std::pair<SigningPath, Amount>>
+NunchukImpl::EstimateRollOver11FeeForSigningPaths(
+    const std::string& old_wallet_id, const std::string& new_wallet_id,
+    Amount fee_rate) {
+  auto wallet = GetWallet(old_wallet_id);
+  if (wallet.get_wallet_type() != WalletType::MINISCRIPT) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Wallet is not a miniscript wallet!");
+  }
+  auto paths = Utils::GetAllSigningPaths(wallet.get_miniscript());
+  std::vector<std::pair<SigningPath, Amount>> rs;
+  for (auto&& path : paths) {
+    auto estimate = EstimateRollOver11Amount(old_wallet_id, new_wallet_id,
+                                             fee_rate, true, path);
+    rs.push_back({path, estimate.second});
+  }
+  return rs;
 }
 
 std::pair<Amount, Amount> NunchukImpl::EstimateRollOverAmount(
