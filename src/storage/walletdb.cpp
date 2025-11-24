@@ -1933,7 +1933,9 @@ bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
 
     for (auto&& i : tag["coins"]) {
       sqlite3_stmt* stmt;
-      std::string sql = "INSERT INTO COINTAGS(COIN, TAGID) VALUES (?1, ?2);";
+      std::string sql =
+          "INSERT INTO COINTAGS(COIN, TAGID) VALUES (?1, ?2) "
+          "ON CONFLICT(COIN, TAGID) DO NOTHING;";
       std::string coin = i.get<std::string>();
       sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
       sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
@@ -1995,7 +1997,8 @@ bool NunchukWalletDb::ImportCoinControlData(const std::string& dataStr,
     for (auto&& i : collection["coins"]) {
       sqlite3_stmt* stmt;
       std::string sql =
-          "INSERT INTO COINCOLLECTIONS(COIN, COLLECTIONID) VALUES (?1, ?2);";
+          "INSERT INTO COINCOLLECTIONS(COIN, COLLECTIONID) VALUES (?1, ?2) "
+          "ON CONFLICT(COIN, COLLECTIONID) DO NOTHING;";
       std::string coin = i.get<std::string>();
       sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
       sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
