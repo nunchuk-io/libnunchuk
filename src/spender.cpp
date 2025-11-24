@@ -3,6 +3,7 @@
 #include <selector.h>
 #include <key_io.h>
 #include <signingprovider.h>
+#include <miniscript/util.h>
 
 namespace wallet {
 
@@ -21,16 +22,19 @@ static bool IsSegwit(const Descriptor& desc) {
  * spending a segwit coin.
  * @param can_grind_r Whether the signer will be able to grind the R of the
  * signature.
+ * @param max_sat_weight The maximum satisfaction weight.
+ * @param max_sat_elems The maximum satisfaction elements.
  */
-static std::optional<int64_t> MaxInputWeight(const Descriptor& desc,
-                                             const bool tx_is_segwit,
-                                             const bool can_grind_r,
-                                             int64_t max_sat_weight = -1) {
-  const std::optional<int64_t> sat_weight =
-      max_sat_weight > 0 ? std::optional<int64_t>{max_sat_weight}
-                         : desc.MaxSatisfactionWeight(!can_grind_r);
-  if (sat_weight) {
-    if (const auto elems_count = desc.MaxSatisfactionElems()) {
+static std::optional<int64_t> MaxInputWeight(
+    const Descriptor& desc, const bool tx_is_segwit, const bool can_grind_r,
+    const std::optional<int64_t>& max_sat_weight = std::nullopt,
+    const std::optional<int64_t>& max_sat_elems = std::nullopt) {
+  const auto weight = max_sat_weight ? max_sat_weight
+                                     : desc.MaxSatisfactionWeight(!can_grind_r);
+  if (weight) {
+    const auto elems =
+        max_sat_elems ? max_sat_elems : desc.MaxSatisfactionElems();
+    if (elems) {
       const bool is_segwit = IsSegwit(desc);
       // Account for the size of the scriptsig and the number of elements on the
       // witness stack. Note that if any input in the transaction is spending a
@@ -41,16 +45,14 @@ static std::optional<int64_t> MaxInputWeight(const Descriptor& desc,
       // be one (since the redeemScript is always a push of the witness program
       // in this case, which is smaller than 253 bytes).
       const int64_t scriptsig_len =
-          is_segwit ? 1
-                    : GetSizeOfCompactSize(*sat_weight / WITNESS_SCALE_FACTOR);
-      const int64_t witstack_len = is_segwit
-                                       ? GetSizeOfCompactSize(*elems_count)
-                                       : (tx_is_segwit ? 1 : 0);
+          is_segwit ? 1 : GetSizeOfCompactSize(*weight / WITNESS_SCALE_FACTOR);
+      const int64_t witstack_len =
+          is_segwit ? GetSizeOfCompactSize(*elems) : (tx_is_segwit ? 1 : 0);
       // previous txid + previous vout + sequence + scriptsig len + witstack
       // size + scriptsig or witness NOTE: sat_weight already accounts for the
       // witness discount accordingly.
       return (32 + 4 + 4 + scriptsig_len) * WITNESS_SCALE_FACTOR +
-             witstack_len + *sat_weight;
+             witstack_len + *weight;
     }
   }
 
@@ -58,12 +60,15 @@ static std::optional<int64_t> MaxInputWeight(const Descriptor& desc,
 }
 
 static COutput CreateCOutput(const UnspentOutput& coin, const Descriptor& desc,
-                             CFeeRate feerate, int64_t max_sat_weight) {
+                             CFeeRate feerate,
+                             const std::optional<int64_t>& max_sat_weight,
+                             const std::optional<int64_t>& max_sat_elems) {
   const bool can_grind_r = false;
   COutPoint outpoint(Txid::FromUint256(*uint256::FromHex(coin.get_txid())),
                      coin.get_vout());
   CTxOut txout{coin.get_amount(), AddressToCScriptPubKey(coin.get_address())};
-  auto input_weight = MaxInputWeight(desc, true, can_grind_r, max_sat_weight);
+  auto input_weight =
+      MaxInputWeight(desc, true, can_grind_r, max_sat_weight, max_sat_elems);
   int input_bytes =
       static_cast<int>(GetVirtualTransactionSize(*input_weight, 0, 0));
 
@@ -74,10 +79,12 @@ static COutput CreateCOutput(const UnspentOutput& coin, const Descriptor& desc,
 util::Result<PreSelectedInputs> FetchSelectedInputs(
     const std::vector<std::unique_ptr<Descriptor>>& desc,
     const std::vector<UnspentOutput>& listSelected, bool subtract_fee_outputs,
-    CFeeRate feerate, int64_t max_sat_weight) {
+    CFeeRate feerate, const std::optional<int64_t>& max_sat_weight,
+    const std::optional<int64_t>& max_sat_elems) {
   PreSelectedInputs result;
   for (const UnspentOutput& coin : listSelected) {
-    auto output = CreateCOutput(coin, *desc.front(), feerate, max_sat_weight);
+    auto output = CreateCOutput(coin, *desc.front(), feerate, max_sat_weight,
+                                max_sat_elems);
     // output.ApplyBumpFee(map_of_bump_fees.at(output.outpoint));
     result.Insert(output, subtract_fee_outputs);
   }
@@ -88,7 +95,9 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
                            const std::vector<UnspentOutput>& coins,
                            const std::vector<UnspentOutput>& listSelected,
                            bool subtract_fee_outputs, CFeeRate feerate,
-                           int64_t max_sat_weight, CAmount remain_target) {
+                           const std::optional<int64_t>& max_sat_weight,
+                           const std::optional<int64_t>& max_sat_elems,
+                           CAmount remain_target) {
   CoinsResult result;
   const bool can_grind_r = false;
   auto isSelected = [&](const UnspentOutput& coin) {
@@ -110,7 +119,8 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
   for (const UnspentOutput& coin : sorted_coins) {
     if (total_amount >= remain_target) break;
     if (isSelected(coin)) continue;
-    auto output = CreateCOutput(coin, *desc.front(), feerate, max_sat_weight);
+    auto output = CreateCOutput(coin, *desc.front(), feerate, max_sat_weight,
+                                max_sat_elems);
     result.Add(OutputType::UNKNOWN, output);  // TODO: get outputtype
 
     total_amount +=
@@ -120,9 +130,10 @@ CoinsResult AvailableCoins(const std::vector<std::unique_ptr<Descriptor>>& desc,
 }
 
 // txouts needs to be in the order of tx.vin
-TxSize CalculateMaximumSignedTxSize(const CTransaction& tx,
-                                    const Descriptor& desc,
-                                    int64_t sat_weight = -1) {
+TxSize CalculateMaximumSignedTxSize(
+    const CTransaction& tx, const Descriptor& desc,
+    const std::optional<int64_t>& max_sat_weight = std::nullopt,
+    const std::optional<int64_t>& max_sat_elems = std::nullopt) {
   // nVersion + nLockTime + input count + output count
   int64_t weight = (4 + 4 + GetSizeOfCompactSize(tx.vin.size()) +
                     GetSizeOfCompactSize(tx.vout.size())) *
@@ -140,7 +151,8 @@ TxSize CalculateMaximumSignedTxSize(const CTransaction& tx,
 
   // Add the size of the transaction inputs as if they were signed.
   for (uint32_t i = 0; i < tx.vin.size(); i++) {
-    const auto txin_weight = MaxInputWeight(desc, is_segwit, false, sat_weight);
+    const auto txin_weight =
+        MaxInputWeight(desc, is_segwit, false, max_sat_weight, max_sat_elems);
     if (!txin_weight) return TxSize{-1, -1};
     assert(*txin_weight > -1);
     weight += *txin_weight;
@@ -151,11 +163,45 @@ TxSize CalculateMaximumSignedTxSize(const CTransaction& tx,
   return TxSize{GetVirtualTransactionSize(weight, 0, 0), weight};
 }
 
+std::pair<int64_t, int64_t> GetStackAndWitnessSize(
+    const std::string& tapscript) {
+  std::pair<int64_t, int64_t> rs = {-1, -1};
+  auto updateRs = [&](const miniscript::NodeRef<std::string>& node) -> bool {
+    bool isValid = node && node->IsValidTopLevel() && node->IsSane() &&
+                   !node->IsNotSatisfiable();
+    if (!isValid) return false;
+    if (node->GetStackSize() && *node->GetStackSize() > rs.first) {
+      rs.first = *node->GetStackSize();
+    }
+    if (node->GetWitnessSize() && *node->GetWitnessSize() > rs.second) {
+      rs.second = *node->GetWitnessSize();
+    }
+    return true;
+  };
+  if (updateRs(ParseMiniscript(tapscript, AddressType::TAPROOT))) return rs;
+
+  std::vector<std::string> names;
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+  std::pair<int, int> eii;
+  std::string error;
+  if (!ParseTapscriptTemplate(tapscript, names, eii, subscripts, depths, error))
+    return rs;
+  if (subscripts.empty()) return rs;
+
+  int keypath_m;
+  for (auto& subscript : subscripts) {
+    if (IsValidMusigTemplate(subscript)) continue;
+    updateRs(ParseMiniscript(subscript, AddressType::TAPROOT));
+  }
+  return rs;
+}
+
 util::Result<CreatedTransactionResult> CreateTransaction(
     const std::vector<UnspentOutput>& coins,
     const std::vector<UnspentOutput>& listSelected,
     const std::vector<TxOutput>& recipients, const bool subtract_fee_outputs,
-    const std::vector<std::string>& descriptors,
+    const std::vector<std::string>& descriptors, const std::string& miniscript,
     const std::string& change_address, const Amount fee_rate, int& change_pos,
     int& signedVSize, bool use_script_path, uint32_t sequence) {
   std::vector<CRecipient> vecSend;
@@ -181,7 +227,8 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     }
   }
 
-  int64_t sat_weight = -1;
+  std::optional<int64_t> max_sat_weight = std::nullopt;
+  std::optional<int64_t> max_sat_elems = std::nullopt;
   if (use_script_path && !provider.tr_trees.empty()) {
     auto spendData = provider.tr_trees.begin()->second.GetSpendData();
     size_t max_control_block_size = 0;
@@ -192,9 +239,15 @@ util::Result<CreatedTransactionResult> CreateTransaction(
         }
       }
     }
-    sat_weight = 1 + 1 + 65 + 1 + 33 +
-                 GetSizeOfCompactSize(max_control_block_size) +
-                 max_control_block_size;
+    int64_t weight = 1 + 65 + 1 + 33;
+    if (!miniscript.empty()) {
+      auto [stack_size, witness_size] = GetStackAndWitnessSize(miniscript);
+      if (stack_size > 0) max_sat_elems = stack_size;
+      if (witness_size > weight) weight = witness_size;
+    }
+    max_sat_weight = std::optional<int64_t>{
+        1 + weight + GetSizeOfCompactSize(max_control_block_size) +
+        max_control_block_size};
   }
 
   // out variables, to be packed into returned result structure
@@ -298,7 +351,7 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // Fetch manually selected coins
   auto res_fetch_inputs = FetchSelectedInputs(
       desc, listSelected, subtract_fee_outputs,
-      coin_selection_params.m_effective_feerate, sat_weight);
+      coin_selection_params.m_effective_feerate, max_sat_weight, max_sat_elems);
   if (!res_fetch_inputs)
     return util::Error{util::ErrorString(res_fetch_inputs)};
   PreSelectedInputs preset_inputs = *res_fetch_inputs;
@@ -311,9 +364,10 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     if (sequence != MAX_BIP125_RBF_SEQUENCE && sequence != 0) {
       remain_target = selection_target - preset_inputs.total_amount;
     }
-    available_coins = AvailableCoins(
-        desc, coins, listSelected, subtract_fee_outputs,
-        coin_selection_params.m_effective_feerate, sat_weight, remain_target);
+    available_coins =
+        AvailableCoins(desc, coins, listSelected, subtract_fee_outputs,
+                       coin_selection_params.m_effective_feerate,
+                       max_sat_weight, max_sat_elems, remain_target);
   }
 
   // Choose coins to use
@@ -364,8 +418,8 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   // Calculate the transaction fee
   // TODO: CalculateMaximumSignedTxSize(CTransaction(txNew), &wallet,
   // &coin_control);
-  TxSize tx_sizes = CalculateMaximumSignedTxSize(CTransaction(txNew),
-                                                 *desc.front(), sat_weight);
+  TxSize tx_sizes = CalculateMaximumSignedTxSize(
+      CTransaction(txNew), *desc.front(), max_sat_weight, max_sat_elems);
   signedVSize = tx_sizes.vsize;
 
   int nBytes = tx_sizes.vsize;

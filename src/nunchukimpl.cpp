@@ -2312,8 +2312,9 @@ std::string NunchukImpl::CreatePsbt(
   auto res = wallet::CreateTransaction(
       utxos, wallet.is_escrow() ? utxos : inputs, selector_outputs,
       subtract_fee_from_amount,
-      {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)}, change_address,
-      fee_rate, change_pos, vsize, use_script_path, sequence);
+      {wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL)},
+      wallet.get_miniscript(), change_address, fee_rate, change_pos, vsize,
+      use_script_path, sequence);
   if (!res) {
     std::string error = util::ErrorString(res).original;
     throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
