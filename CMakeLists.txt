@@ -238,7 +238,7 @@ set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
 set(BUILD_TESTING OFF)
 add_subdirectory(contrib/tap-protocol)
 # Pass Bitcoin random to tap-protocol
-target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
+# target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
 # Allow testnet Tapsigner
 target_compile_definitions(tap-protocol PUBLIC SKIP_BASE58_PREFIX_CHECK=1)
 
