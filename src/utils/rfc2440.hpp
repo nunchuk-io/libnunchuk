@@ -39,15 +39,14 @@ struct BitcoinSignedMessage {
 
 inline std::string ExportBitcoinSignedMessage(
     const BitcoinSignedMessage &signed_msg) {
-  // const char* RFC2440_BITCOIN =(
-  //     "-----BEGIN BITCOIN SIGNED MESSAGE-----\n"
-  //     "%s\n"
-  //     "-----BEGIN BITCOIN SIGNATURE-----\n"
-  //     "%s\n"
-  //     "%s\n"
-  //     "-----END BITCOIN SIGNATURE-----");
-  // return strprintf(RFC2440_BITCOIN, signed_msg.message, signed_msg.address,
-  //                  signed_msg.signature);
+  std::stringstream ss;
+  ss << "-----BEGIN BITCOIN SIGNED MESSAGE-----\n"
+     << signed_msg.message << "\n"
+     << "-----BEGIN BITCOIN SIGNATURE-----\n"
+     << signed_msg.address << "\n"
+     << signed_msg.signature << "\n"
+     << "-----END BITCOIN SIGNATURE-----";
+  return ss.str();
 }
 
 inline BitcoinSignedMessage ParseBitcoinSignedMessage(const std::string &str) {
