@@ -32,6 +32,8 @@
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
 #include <utils/addressutils.hpp>
+#include <utils/silentpayment.hpp>
+#include <script/signingprovider.h>
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/quote.hpp>
@@ -2363,8 +2365,115 @@ std::string NunchukImpl::CreatePsbt(
     utxos.erase(std::remove_if(utxos.begin(), utxos.end(), check), utxos.end());
   }
 
-  std::vector<TxOutput> selector_outputs;
+  // Handle Silent Payment addresses
+  std::map<std::string, Amount> processed_outputs = outputs;
+  std::vector<UnspentOutput> sp_inputs = utxos.empty() ? inputs : utxos;
+  
+  // Check if any outputs are Silent Payment addresses
+  bool has_silent_payment = false;
   for (const auto& output : outputs) {
+    if (IsSilentPaymentAddress(output.first, chain_)) {
+      has_silent_payment = true;
+      break;
+    }
+  }
+  
+  if (has_silent_payment && !sp_inputs.empty()) {
+    // For Silent Payment, we need input keys
+    // This currently only works with software signers that have private keys
+    // TODO: Support hardware signers
+    
+    // Get input public keys and private keys
+    std::vector<CPubKey> input_pubkeys;
+    std::vector<CKey> input_privkeys;
+    
+    // Try to get keys from software signers
+    // We need to expand the descriptor and match addresses
+    FlatSigningProvider provider;
+    std::string error;
+    auto desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
+    auto parsed_desc = Parse(desc, provider, error, true);
+    
+    // Expand descriptor to get keys for multiple indices
+    std::vector<CScript> scripts;
+    FlatSigningProvider expanded_provider;
+    for (const auto& desc_item : parsed_desc) {
+      // Expand for indices 0-1000 to find matching addresses
+      for (int i = 0; i < 1000; i++) {
+        scripts.clear();
+        FlatSigningProvider temp_provider;
+        desc_item->Expand(i, provider, scripts, temp_provider);
+        expanded_provider.Merge(std::move(temp_provider));
+      }
+    }
+    
+    // Now try to get keys for each input
+    for (const auto& utxo : sp_inputs) {
+      CTxDestination dest = DecodeDestination(utxo.get_address());
+      
+      // Try to get key from expanded provider using GetKeyForDestination
+      CKeyID keyid = GetKeyForDestination(expanded_provider, dest);
+      
+      if (!keyid.IsNull() && expanded_provider.HaveKey(keyid)) {
+        CKey key;
+        if (expanded_provider.GetKey(keyid, key)) {
+          CPubKey pubkey = key.GetPubKey();
+          if (key.IsValid() && pubkey.IsValid()) {
+            input_privkeys.push_back(key);
+            input_pubkeys.push_back(pubkey);
+            continue;
+          }
+        }
+      }
+      
+      // If we couldn't get the key, we can't proceed
+      // This might be a hardware wallet or the address doesn't match
+      break;
+    }
+    
+    if (input_pubkeys.size() == sp_inputs.size() && !input_pubkeys.empty()) {
+      // Process each Silent Payment address
+      processed_outputs.clear();
+      size_t sp_output_index = 0;
+      
+      for (const auto& output : outputs) {
+        if (IsSilentPaymentAddress(output.first, chain_)) {
+          CPubKey B = DecodeSilentPaymentAddress(output.first, chain_);
+          if (B.IsValid()) {
+            // Derive outputs for this Silent Payment address
+            // Count how many outputs for this address
+            size_t num_outputs = 1;  // At least one output per address
+            // TODO: Support multiple outputs per Silent Payment address
+            
+            auto derived_outputs = DeriveSilentPaymentOutputs(
+                B, input_privkeys, input_pubkeys, sp_inputs, num_outputs);
+            
+            if (!derived_outputs.empty()) {
+              // Replace Silent Payment address with derived taproot address
+              std::string taproot_addr = CreateTaprootAddress(derived_outputs[0], chain_);
+              processed_outputs[taproot_addr] = output.second;
+            } else {
+              throw NunchukException(NunchukException::INVALID_ADDRESS,
+                                     "Failed to derive Silent Payment output");
+            }
+          } else {
+            throw NunchukException(NunchukException::INVALID_ADDRESS,
+                                   "Invalid Silent Payment address");
+          }
+        } else {
+          processed_outputs[output.first] = output.second;
+        }
+      }
+    } else {
+      // Could not get all required keys - might be hardware wallet
+      // For now, throw error. TODO: Support hardware wallets
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             "Silent Payment requires software signer with access to private keys");
+    }
+  }
+
+  std::vector<TxOutput> selector_outputs;
+  for (const auto& output : processed_outputs) {
     selector_outputs.push_back({output.first, output.second});
   }
 
