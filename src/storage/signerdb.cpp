@@ -370,6 +370,20 @@ std::string NunchukSignerDb::GetMnemonic(const std::string& passphrase) const {
                          "Is not software signer");
 }
 
+std::string NunchukSignerDb::GetMasterXprv() const {
+  auto master_xprv = GetString(DbKeys::MASTER_XPRV);
+  if (!master_xprv.empty()) {
+    auto signer = SoftwareSigner{master_xprv};
+    if (signer.GetMasterFingerprint() != id_) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid signer");
+    }
+    return master_xprv;
+  }
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Is not software signer");
+}
+
 void NunchukSignerDb::InitRemote() {
   CreateTable();
   SQLCHECK(sqlite3_exec(db_,
@@ -424,8 +438,9 @@ SingleSigner NunchukSignerDb::GetRemoteSigner(const std::string& path) const {
     std::string name = std::string((char*)sqlite3_column_text(stmt, 2));
     time_t last_health_check = sqlite3_column_int64(stmt, 3);
     bool used = sqlite3_column_int(stmt, 4) == 1;
-    SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_, last_health_check, {},
-                        used, GetSignerType(), GetTags(), IsVisible());
+    SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_,
+                        last_health_check, {}, used, GetSignerType(), GetTags(),
+                        IsVisible());
     SQLCHECK(sqlite3_finalize(stmt));
     return signer;
   } else {
@@ -516,8 +531,9 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     std::string name = std::string((char*)sqlite3_column_text(stmt, 3));
     time_t last_health_check = sqlite3_column_int64(stmt, 4);
     bool used = sqlite3_column_int(stmt, 5) == 1;
-    SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_, last_health_check, {},
-                        used, GetSignerType(), GetTags(), IsVisible());
+    SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_,
+                        last_health_check, {}, used, GetSignerType(), GetTags(),
+                        IsVisible());
     if (signer.get_type() != SignerType::UNKNOWN) {
       signers.push_back(signer);
     }

@@ -609,6 +609,30 @@ void NunchukImpl::ClearSignerPassphrase(const std::string& mastersigner_id) {
   storage_->ClearSignerPassphrase(chain_, mastersigner_id);
 }
 
+bool NunchukImpl::IsValidSignerPassphrase(const std::string& mastersigner_id,
+                                          const std::string& passphrase) {
+  return storage_->IsValidSignerPassphrase(chain_, mastersigner_id, passphrase);
+}
+
+std::string NunchukImpl::GetSignerMnemonic(const std::string& signer_id,
+                                           const std::string& passphrase) {
+  auto signer = storage_->GetMasterSigner(chain_, signer_id);
+  if (signer.get_type() != SignerType::SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "Invalid signer type");
+  }
+  return storage_->GetMnemonic(chain_, signer_id, passphrase);
+}
+
+std::string NunchukImpl::GetSignerMasterXprv(const std::string& signer_id) {
+  auto signer = storage_->GetMasterSigner(chain_, signer_id);
+  if (signer.get_type() != SignerType::SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "Invalid signer type");
+  }
+  return storage_->GetMasterXprv(chain_, signer_id);
+}
+
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(
     const std::string& mastersigner_id, const WalletType& wallet_type,
     const AddressType& address_type, int index) {

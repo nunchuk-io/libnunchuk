@@ -89,6 +89,7 @@ class NunchukStorage {
   SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);
   std::string GetMnemonic(Chain chain, const std::string &id,
                           const std::string passphrase);
+  std::string GetMasterXprv(Chain chain, const std::string &id);
   int GetHotWalletId();
   bool SetHotWalletId(int value);
   bool HasSigner(Chain chain, const std::string &signer_id);
@@ -212,6 +213,8 @@ class NunchukStorage {
   void SendSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                             const std::string &passphrase);
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
+  bool IsValidSignerPassphrase(Chain chain, const std::string &mastersigner_id,
+                               const std::string &passphrase);
   NunchukRoomDb GetRoomDb(Chain chain);
   std::string ExportBackup();
   bool SyncWithBackup(const std::string &data,

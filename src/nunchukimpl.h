@@ -117,6 +117,11 @@ class NunchukImpl : public Nunchuk {
   void SendSignerPassphrase(const std::string& mastersigner_id,
                             const std::string& passphrase) override;
   void ClearSignerPassphrase(const std::string& mastersigner_id) override;
+  bool IsValidSignerPassphrase(const std::string& mastersigner_id,
+                               const std::string& passphrase) override;
+  std::string GetSignerMnemonic(const std::string& signer_id,
+                                const std::string& passphrase = {}) override;
+  std::string GetSignerMasterXprv(const std::string& signer_id) override;
   SingleSigner GetSignerFromMasterSigner(const std::string& mastersigner_id,
                                          const WalletType& wallet_type,
                                          const AddressType& address_type,
@@ -501,8 +506,7 @@ class NunchukImpl : public Nunchuk {
 
   std::string SignHealthCheckMessage(const SingleSigner& signer,
                                      const std::string& message) override;
-  std::string SignHealthCheckMessage(const Wallet& wallet,
-                                     const Device& device,
+  std::string SignHealthCheckMessage(const Wallet& wallet, const Device& device,
                                      const SingleSigner& signer,
                                      const std::string& message) override;
   std::string SignHealthCheckMessage(tap_protocol::Tapsigner* tapsigner,

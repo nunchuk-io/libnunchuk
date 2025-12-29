@@ -1071,6 +1071,12 @@ std::string NunchukStorage::GetMnemonic(Chain chain, const std::string& id,
   return GetSignerDb(chain, mid).GetMnemonic(passphrase);
 }
 
+std::string NunchukStorage::GetMasterXprv(Chain chain, const std::string& id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto mid = ba::to_lower_copy(id);
+  return GetSignerDb(chain, mid).GetMasterXprv();
+}
+
 bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, wallet.get_id());
@@ -1548,6 +1554,18 @@ std::string NunchukStorage::GetMultisigConfig(Chain chain,
   std::shared_lock<std::shared_mutex> lock(access_);
   return ::GetMultisigConfig(
       GetWalletDb(chain, wallet_id).GetWallet(true, true));
+}
+
+bool NunchukStorage::IsValidSignerPassphrase(Chain chain,
+                                             const std::string& mastersigner_id,
+                                             const std::string& passphrase) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  try {
+    GetSignerDb(chain, mastersigner_id).GetSoftwareSigner(passphrase);
+    return true;
+  } catch (...) {
+    return false;
+  }
 }
 
 void NunchukStorage::SendSignerPassphrase(Chain chain,

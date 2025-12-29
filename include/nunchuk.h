@@ -1611,6 +1611,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void SendSignerPassphrase(const std::string& mastersigner_id,
                                     const std::string& passphrase) = 0;
   virtual void ClearSignerPassphrase(const std::string& mastersigner_id) = 0;
+  virtual bool IsValidSignerPassphrase(const std::string& mastersigner_id,
+                                       const std::string& passphrase) = 0;
+  virtual std::string GetSignerMnemonic(const std::string& signer_id,
+                                        const std::string& passphrase = {}) = 0;
+  virtual std::string GetSignerMasterXprv(const std::string& signer_id) = 0;
   virtual std::string ExportBackup() = 0;
   virtual bool SyncWithBackup(
       const std::string& data,
