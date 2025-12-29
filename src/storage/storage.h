@@ -215,6 +215,8 @@ class NunchukStorage {
   void ClearSignerPassphrase(Chain chain, const std::string &mastersigner_id);
   bool IsValidSignerPassphrase(Chain chain, const std::string &mastersigner_id,
                                const std::string &passphrase);
+  bool HasSignerMnemonic(Chain chain, const std::string &signer_id);
+  bool HasSignerMasterXprv(Chain chain, const std::string &signer_id);
   NunchukRoomDb GetRoomDb(Chain chain);
   std::string ExportBackup();
   bool SyncWithBackup(const std::string &data,

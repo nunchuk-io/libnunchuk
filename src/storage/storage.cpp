@@ -1064,6 +1064,18 @@ SoftwareSigner NunchukStorage::GetSoftwareSigner0(Chain chain,
   return signer_db.GetSoftwareSigner(signer_passphrase_.at(mid));
 }
 
+bool NunchukStorage::HasSignerMnemonic(Chain chain, const std::string& signer_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto mid = ba::to_lower_copy(signer_id);
+  return GetSignerDb(chain, mid).HasMnemonic();
+}
+
+bool NunchukStorage::HasSignerMasterXprv(Chain chain, const std::string& signer_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  auto mid = ba::to_lower_copy(signer_id);
+  return GetSignerDb(chain, mid).HasMasterXprv();
+}
+
 std::string NunchukStorage::GetMnemonic(Chain chain, const std::string& id,
                                         const std::string passphrase) {
   std::shared_lock<std::shared_mutex> lock(access_);

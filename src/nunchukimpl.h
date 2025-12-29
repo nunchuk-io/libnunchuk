@@ -119,6 +119,8 @@ class NunchukImpl : public Nunchuk {
   void ClearSignerPassphrase(const std::string& mastersigner_id) override;
   bool IsValidSignerPassphrase(const std::string& mastersigner_id,
                                const std::string& passphrase) override;
+  bool HasSignerMnemonic(const std::string& signer_id) override;
+  bool HasSignerMasterXprv(const std::string& signer_id) override;
   std::string GetSignerMnemonic(const std::string& signer_id,
                                 const std::string& passphrase = {}) override;
   std::string GetSignerMasterXprv(const std::string& signer_id) override;

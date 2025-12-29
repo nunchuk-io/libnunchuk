@@ -614,22 +614,20 @@ bool NunchukImpl::IsValidSignerPassphrase(const std::string& mastersigner_id,
   return storage_->IsValidSignerPassphrase(chain_, mastersigner_id, passphrase);
 }
 
+bool NunchukImpl::HasSignerMnemonic(const std::string& signer_id) {
+  return storage_->HasSignerMnemonic(chain_, signer_id);
+}
+
+bool NunchukImpl::HasSignerMasterXprv(const std::string& signer_id) {
+  return storage_->HasSignerMasterXprv(chain_, signer_id);
+}
+
 std::string NunchukImpl::GetSignerMnemonic(const std::string& signer_id,
                                            const std::string& passphrase) {
-  auto signer = storage_->GetMasterSigner(chain_, signer_id);
-  if (signer.get_type() != SignerType::SOFTWARE) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "Invalid signer type");
-  }
   return storage_->GetMnemonic(chain_, signer_id, passphrase);
 }
 
 std::string NunchukImpl::GetSignerMasterXprv(const std::string& signer_id) {
-  auto signer = storage_->GetMasterSigner(chain_, signer_id);
-  if (signer.get_type() != SignerType::SOFTWARE) {
-    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
-                           "Invalid signer type");
-  }
   return storage_->GetMasterXprv(chain_, signer_id);
 }
 

@@ -1613,6 +1613,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void ClearSignerPassphrase(const std::string& mastersigner_id) = 0;
   virtual bool IsValidSignerPassphrase(const std::string& mastersigner_id,
                                        const std::string& passphrase) = 0;
+  virtual bool HasSignerMnemonic(const std::string& signer_id) = 0;
+  virtual bool HasSignerMasterXprv(const std::string& signer_id) = 0;
   virtual std::string GetSignerMnemonic(const std::string& signer_id,
                                         const std::string& passphrase = {}) = 0;
   virtual std::string GetSignerMasterXprv(const std::string& signer_id) = 0;

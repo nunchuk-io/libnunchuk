@@ -367,7 +367,7 @@ std::string NunchukSignerDb::GetMnemonic(const std::string& passphrase) const {
     return mnemonic;
   }
   throw NunchukException(NunchukException::INVALID_PARAMETER,
-                         "Is not software signer");
+                         "Mnemonic not found");
 }
 
 std::string NunchukSignerDb::GetMasterXprv() const {
@@ -381,7 +381,15 @@ std::string NunchukSignerDb::GetMasterXprv() const {
     return master_xprv;
   }
   throw NunchukException(NunchukException::INVALID_PARAMETER,
-                         "Is not software signer");
+                         "Master XPRV not found");
+}
+
+bool NunchukSignerDb::HasMnemonic() const {
+  return !GetString(DbKeys::MNEMONIC).empty();
+}
+
+bool NunchukSignerDb::HasMasterXprv() const {
+  return !GetString(DbKeys::MASTER_XPRV).empty();
 }
 
 void NunchukSignerDb::InitRemote() {
