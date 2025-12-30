@@ -2438,15 +2438,15 @@ std::string NunchukImpl::CreatePsbt(
       
       for (const auto& output : outputs) {
         if (IsSilentPaymentAddress(output.first, chain_)) {
-          CPubKey B = DecodeSilentPaymentAddress(output.first, chain_);
-          if (B.IsValid()) {
+          SilentPaymentKeys keys = DecodeSilentPaymentAddress(output.first, chain_);
+          if (keys.IsValid()) {
             // Derive outputs for this Silent Payment address
             // Count how many outputs for this address
             size_t num_outputs = 1;  // At least one output per address
             // TODO: Support multiple outputs per Silent Payment address
             
             auto derived_outputs = DeriveSilentPaymentOutputs(
-                B, input_privkeys, input_pubkeys, sp_inputs, num_outputs);
+                keys.B_scan, keys.B_m, input_privkeys, input_pubkeys, sp_inputs, num_outputs);
             
             if (!derived_outputs.empty()) {
               // Replace Silent Payment address with derived taproot address
