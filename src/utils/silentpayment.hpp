@@ -449,16 +449,15 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   // According to BIP-352: ecdh_shared_secret = input_hash * a_sum * B_scan
   // Multiply B_scan by a_sum (which is now input_hash * a_sum)
   secp256k1_pubkey shared_point = B_scan_point;
-  if (!secp256k1_ec_privkey_tweak_mul(ctx, a_sum, shared_point.data)) {
+  if (!secp256k1_ec_pubkey_tweak_mul(ctx, &shared_point, a_sum)) {
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " a_sum: " << ToHex(std::vector<unsigned char>(a_sum, a_sum + 32)) << std::endl;
   std::cout << " Debug 2.2.11" << std::endl;
   // Serialize shared_point for hashing - must be uncompressed (65 bytes) per BIP-352
-  unsigned char shared_point_bytes[65];
-  size_t shared_point_len = 65;
-  secp256k1_ec_pubkey_serialize(ctx, shared_point_bytes, &shared_point_len, &shared_point, SECP256K1_EC_UNCOMPRESSED);
+  unsigned char shared_point_bytes[33];
+  size_t shared_point_len = 33;
+  secp256k1_ec_pubkey_serialize(ctx, shared_point_bytes, &shared_point_len, &shared_point, SECP256K1_EC_COMPRESSED);
   std::cout << " Debug 2.2.12" << std::endl;
   // Parse B_m as secp256k1_pubkey
   secp256k1_pubkey B_m_point;
@@ -466,7 +465,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " shared_point: " << ToHex(std::vector<unsigned char>(shared_point.data, shared_point.data + 65)) << std::endl;
+  std::cout << " shared_point (correct): " << ToHex(std::vector<unsigned char>(shared_point_bytes, shared_point_bytes + 33)) << std::endl;
   std::cout << " Debug 2.2.13" << std::endl;
   // For each output k, calculate: t_k = hash(shared_point || k), P_km = B_m + t_k * G
   // According to BIP-352: t_k = TaggedHash("BIP0352/SharedSecret", ecdh_shared_secret || k)
@@ -485,7 +484,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     CSHA256 hasher;
     hasher.Write(tag_hash, 32);  // First SHA256(tag)
     hasher.Write(tag_hash, 32);  // Second SHA256(tag)
-    hasher.Write(shared_point_bytes, 65);  // ecdh_shared_secret (uncompressed, 65 bytes)
+    hasher.Write(shared_point_bytes, 33);  // ecdh_shared_secret (uncompressed, 65 bytes)
     
     // Append k as 4-byte big-endian integer (ser_uint32)
     uint32_t k_be = htobe32(static_cast<uint32_t>(k));
