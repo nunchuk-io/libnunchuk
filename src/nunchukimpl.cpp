@@ -2408,8 +2408,13 @@ std::string NunchukImpl::CreatePsbt(
     }
     
     // Now try to get keys for each input
+    std::vector<bool> is_taproot_inputs;
     for (const auto& utxo : sp_inputs) {
       CTxDestination dest = DecodeDestination(utxo.get_address());
+      
+      // Check if this is a taproot address
+      bool is_taproot = std::holds_alternative<WitnessV1Taproot>(dest);
+      is_taproot_inputs.push_back(is_taproot);
       
       // Try to get key from expanded provider using GetKeyForDestination
       CKeyID keyid = GetKeyForDestination(expanded_provider, dest);
@@ -2446,7 +2451,7 @@ std::string NunchukImpl::CreatePsbt(
             // TODO: Support multiple outputs per Silent Payment address
             
             auto derived_outputs = DeriveSilentPaymentOutputs(
-                keys.B_scan, keys.B_m, input_privkeys, input_pubkeys, sp_inputs, num_outputs);
+                keys.B_scan, keys.B_m, input_privkeys, input_pubkeys, sp_inputs, is_taproot_inputs, num_outputs);
             
             if (!derived_outputs.empty()) {
               // Replace Silent Payment address with derived taproot address

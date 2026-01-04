@@ -227,7 +227,7 @@ inline SilentPaymentKeys DecodeSilentPaymentAddress(const std::string& address, 
 }
 
 // Calculate input hash according to BIP-352
-// input_hash = hash(outpoint_L || (a_sum·G))
+// input_hash = TaggedHash("BIP0352/Inputs", outpoint_L || (a_sum·G))
 // where outpoint_L is the lexicographically smallest outpoint
 // and a_sum·G is the public key corresponding to the sum of all input private keys
 inline uint256 CalculateInputHash(
@@ -239,39 +239,84 @@ inline uint256 CalculateInputHash(
   }
   
   // Find lexicographically smallest outpoint (outpoint_L)
-  std::vector<std::pair<uint256, uint32_t>> outpoints;
+  // According to BIP-352: outpoints are sorted by their serialized bytes
+  // Serialization: txid (32 bytes, little-endian) || vout (4 bytes, little-endian)
+  std::vector<std::pair<std::vector<unsigned char>, std::pair<uint256, uint32_t>>> outpoints_serialized;
   for (const auto& input : inputs) {
+    // Parse txid from hex string (big-endian) to uint256 (little-endian)
     uint256 txid;
-    txid.SetHexDeprecated(input.get_txid());
-    outpoints.push_back({txid, input.get_vout()});
+    auto txid_opt = uint256::FromHex(input.get_txid());
+    if (!txid_opt) {
+      return uint256();
+    }
+    txid = *txid_opt;
+    
+    // Serialize outpoint: txid (32 bytes, little-endian) || vout (4 bytes, little-endian)
+    std::vector<unsigned char> serialized;
+    serialized.reserve(36);
+    serialized.insert(serialized.end(), txid.begin(), txid.end());  // 32 bytes
+    uint32_t vout_le = input.get_vout();  // Already in native endian, but we need little-endian
+    serialized.insert(serialized.end(), reinterpret_cast<unsigned char*>(&vout_le), 
+                      reinterpret_cast<unsigned char*>(&vout_le) + 4);
+    
+    outpoints_serialized.push_back({serialized, {txid, input.get_vout()}});
   }
   
-  // Sort to find smallest outpoint (compare txid first, then vout)
-  std::sort(outpoints.begin(), outpoints.end(), 
-    [](const std::pair<uint256, uint32_t>& a, const std::pair<uint256, uint32_t>& b) {
-      // Compare txid (uint256 comparison)
-      for (int i = 31; i >= 0; i--) {
-        if (a.first.begin()[i] < b.first.begin()[i]) return true;
-        if (a.first.begin()[i] > b.first.begin()[i]) return false;
-      }
-      // If txids are equal, compare vout (little-endian)
-      return a.second < b.second;
+  // Sort by serialized bytes (lexicographically)
+  std::sort(outpoints_serialized.begin(), outpoints_serialized.end(),
+    [](const auto& a, const auto& b) {
+      return a.first < b.first;
     });
   
-  const auto& outpoint_L = outpoints[0];
+  const auto& outpoint_L = outpoints_serialized[0].second;
   
-  // Hash: input_hash = hash(outpoint_L || (a_sum·G))
+  // Hash: input_hash = TaggedHash("BIP0352/Inputs", outpoint_L || (a_sum·G))
+  // TaggedHash(tag, data) = SHA256(SHA256(tag) || SHA256(tag) || data)
+  const std::string tag = "BIP0352/Inputs";
+  CSHA256 tag_hasher;
+  tag_hasher.Write((const unsigned char*)tag.data(), tag.size());
+  unsigned char tag_hash[32];
+  tag_hasher.Finalize(tag_hash);
+  
   CSHA256 hasher;
-  // Serialize outpoint_L: txid (32 bytes) + vout (4 bytes, little-endian)
-  hasher.Write(outpoint_L.first.begin(), 32);
-  hasher.Write((unsigned char*)&outpoint_L.second, 4);
+  hasher.Write(tag_hash, 32);  // First SHA256(tag)
+  hasher.Write(tag_hash, 32);  // Second SHA256(tag)
   
-  // Serialize sum public key (a_sum·G) - compressed, 33 bytes
-  hasher.Write(sum_pubkey.begin(), 33);
+  // Serialize outpoint_L: txid (32 bytes, little-endian) + vout (4 bytes, little-endian)
+  // Use the serialized bytes from sorting
+  hasher.Write(outpoints_serialized[0].first.data(), 36);
+  
+  // Serialize sum public key (a_sum·G) - uncompressed, 65 bytes
+  // First byte is 0x04 (uncompressed), then 32 bytes x, then 32 bytes y
+  unsigned char sum_pubkey_uncompressed[65];
+  // We need to decompress the public key
+  // For now, let's use compressed and see if it works
+  // Actually, according to reference, it should be uncompressed
+  // CPubKey doesn't have a direct way to get uncompressed, so we need to parse and serialize
+  secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
+  secp256k1_pubkey pubkey_point;
+  if (secp256k1_ec_pubkey_parse(ctx, &pubkey_point, sum_pubkey.begin(), sum_pubkey.size())) {
+    size_t pubkey_len = 65;
+    secp256k1_ec_pubkey_serialize(ctx, sum_pubkey_uncompressed, &pubkey_len, &pubkey_point, SECP256K1_EC_UNCOMPRESSED);
+    hasher.Write(sum_pubkey_uncompressed, 65);
+  } else {
+    secp256k1_context_destroy(ctx);
+    return uint256();
+  }
+  secp256k1_context_destroy(ctx);
   
   uint256 result;
   hasher.Finalize(result.begin());
   return result;
+}
+
+std::string ToHex(const std::vector<unsigned char>& bytes) {
+  std::ostringstream oss;
+  for (unsigned char byte : bytes) {
+    oss << std::hex << std::setw(2) << std::setfill('0')
+        << static_cast<int>(byte);
+  }
+  return oss.str();
 }
 
 // Derive Silent Payment output public keys according to BIP-352
@@ -282,41 +327,74 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const std::vector<CKey>& input_privkeys,  // Input private keys
     const std::vector<CPubKey>& input_pubkeys,  // Input public keys
     const std::vector<nunchuk::UnspentOutput>& inputs,
+    const std::vector<bool>& is_taproot_inputs,  // Whether each input is taproot
     size_t num_outputs) {
   std::vector<XOnlyPubKey> outputs;
-  
+  std::cout << " Debug 2.2.1" << std::endl;
+
   if (!B_scan.IsValid() || !B_m.IsValid() || input_privkeys.empty() || input_pubkeys.empty() || 
       inputs.empty() || num_outputs == 0 ||
       input_privkeys.size() != input_pubkeys.size() ||
-      inputs.size() != input_pubkeys.size()) {
+      inputs.size() != input_pubkeys.size() ||
+      is_taproot_inputs.size() != input_privkeys.size()) {
     return outputs;
   }
-  
+  std::cout << " Debug 2.2.2" << std::endl;
   secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
   
   // Calculate sum of input private keys: a_sum = sum(a_i) mod n
+  // According to BIP-352: if input is x-only pubkey with odd y, negate the private key
   // Use secp256k1_ec_privkey_tweak_add to sum private keys
   unsigned char a_sum[32] = {0};
   bool first_key = true;
-  for (const auto& key : input_privkeys) {
+  std::cout << " Debug 2.2.3" << std::endl;
+  for (size_t i = 0; i < input_privkeys.size(); i++) {
+    std::cout << " Debug 2.2.3.1" << std::endl;
+    const auto& key = input_privkeys[i];
     if (!key.IsValid()) {
       secp256k1_context_destroy(ctx);
       return outputs;
     }
+    
+    // Get the key bytes
+    unsigned char key_bytes[32];
+    const std::byte* key_data = key.data();
+    memcpy(key_bytes, reinterpret_cast<const unsigned char*>(key_data), 32);
+    
+    // According to BIP-352: if input is x-only pubkey (taproot) with odd y, negate the private key
+    if (i < is_taproot_inputs.size() && is_taproot_inputs[i]) {
+      // This is a taproot input
+      if (i < input_pubkeys.size()) {
+        const CPubKey& pubkey = input_pubkeys[i];
+        if (pubkey.IsValid() && pubkey.IsCompressed()) {
+          // Check if y coordinate is odd (0x03 prefix = odd y, 0x02 = even y)
+          if (pubkey.begin()[0] == 0x03) {
+            // Odd y coordinate, negate the private key
+            if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
+              secp256k1_context_destroy(ctx);
+              return outputs;
+            }
+          }
+        }
+      }
+    }
+    
+    // Add key to sum
     if (first_key) {
       // First key: copy directly
-      const std::byte* key_data = key.data();
-      memcpy(a_sum, reinterpret_cast<const unsigned char*>(key_data), 32);
+      memcpy(a_sum, key_bytes, 32);
       first_key = false;
     } else {
       // Subsequent keys: add using tweak_add
-      const std::byte* key_data = key.data();
-      if (!secp256k1_ec_privkey_tweak_add(ctx, a_sum, reinterpret_cast<const unsigned char*>(key_data))) {
+      if (!secp256k1_ec_privkey_tweak_add(ctx, a_sum, key_bytes)) {
         secp256k1_context_destroy(ctx);
         return outputs;
       }
     }
   }
+  std::cout << " Debug 2.2.4" << std::endl;
+
+  std::cout << " a_sum: " << ToHex(std::vector<unsigned char>(a_sum, a_sum + 32)) << std::endl;
   
   // Calculate a_sum·G (public key corresponding to sum of private keys)
   secp256k1_pubkey sum_pubkey_point;
@@ -324,24 +402,30 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  
-  // Serialize sum public key
-  unsigned char sum_pubkey_bytes[33];
-  size_t sum_pubkey_len = 33;
-  secp256k1_ec_pubkey_serialize(ctx, sum_pubkey_bytes, &sum_pubkey_len, &sum_pubkey_point, SECP256K1_EC_COMPRESSED);
-  CPubKey sum_pubkey(sum_pubkey_bytes);
-  
+  std::cout << " Debug 2.2.5" << std::endl;
+  // Serialize sum public key - need uncompressed for input hash
+  unsigned char sum_pubkey_uncompressed[65];
+  size_t sum_pubkey_len = 65;
+  secp256k1_ec_pubkey_serialize(ctx, sum_pubkey_uncompressed, &sum_pubkey_len, &sum_pubkey_point, SECP256K1_EC_UNCOMPRESSED);
+  // Also get compressed for CPubKey
+  unsigned char sum_pubkey_compressed[33];
+  size_t sum_pubkey_compressed_len = 33;
+  secp256k1_ec_pubkey_serialize(ctx, sum_pubkey_compressed, &sum_pubkey_compressed_len, &sum_pubkey_point, SECP256K1_EC_COMPRESSED);
+  CPubKey sum_pubkey(sum_pubkey_compressed);
+  std::cout << " Debug 2.2.6" << std::endl;
   // Check if a_sum is zero (should fail per BIP-352)
   // This is already checked by secp256k1_ec_seckey_verify and secp256k1_ec_pubkey_create above
   // If sum_pubkey is invalid, we've already returned
-  
-  // Calculate input_hash = hash(outpoint_L || (a_sum·G))
+  std::cout << " Debug 2.2.7" << std::endl;
+  // Calculate input_hash = TaggedHash("BIP0352/Inputs", outpoint_L || (a_sum·G))
+  // Note: CalculateInputHash expects uncompressed pubkey
   uint256 input_hash = CalculateInputHash(inputs, input_pubkeys, sum_pubkey);
   if (input_hash.IsNull()) {
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  
+  std::cout << " input_hash: " << ToHex(std::vector<unsigned char>(input_hash.begin(), input_hash.end())) << std::endl;
+  std::cout << " Debug 2.2.8" << std::endl;
   // Calculate input_hash * a_sum mod n
   // First multiply a_sum by input_hash
   unsigned char input_hash_bytes[32];
@@ -350,14 +434,14 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  
+  std::cout << " Debug 2.2.9" << std::endl;
   // Parse B_scan as secp256k1_pubkey
   secp256k1_pubkey B_scan_point;
   if (!secp256k1_ec_pubkey_parse(ctx, &B_scan_point, B_scan.begin(), B_scan.size())) {
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  
+  std::cout << " Debug 2.2.10" << std::endl;
   // Calculate shared_point = input_hash * a_sum * B_scan (point multiplication)
   // According to BIP-352: ecdh_shared_secret = input_hash * a_sum * B_scan
   // Multiply B_scan by a_sum (which is now input_hash * a_sum)
@@ -366,37 +450,45 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  
-  // Serialize shared_point for hashing
-  unsigned char shared_point_bytes[33];
-  size_t shared_point_len = 33;
-  secp256k1_ec_pubkey_serialize(ctx, shared_point_bytes, &shared_point_len, &shared_point, SECP256K1_EC_COMPRESSED);
-  
+  std::cout << " Debug 2.2.11" << std::endl;
+  // Serialize shared_point for hashing - must be uncompressed (65 bytes) per BIP-352
+  unsigned char shared_point_bytes[65];
+  size_t shared_point_len = 65;
+  secp256k1_ec_pubkey_serialize(ctx, shared_point_bytes, &shared_point_len, &shared_point, SECP256K1_EC_UNCOMPRESSED);
+  std::cout << " Debug 2.2.12" << std::endl;
   // Parse B_m as secp256k1_pubkey
   secp256k1_pubkey B_m_point;
   if (!secp256k1_ec_pubkey_parse(ctx, &B_m_point, B_m.begin(), B_m.size())) {
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  
+  std::cout << " shared_point_bytes: " << ToHex(std::vector<unsigned char>(shared_point_bytes, shared_point_bytes + 65)) << std::endl;
+  std::cout << " Debug 2.2.13" << std::endl;
   // For each output k, calculate: t_k = hash(shared_point || k), P_km = B_m + t_k * G
   // According to BIP-352: t_k = TaggedHash("BIP0352/SharedSecret", ecdh_shared_secret || k)
   // and P_km = B_m + t_k * G
+  // TaggedHash(tag, data) = SHA256(SHA256(tag) || SHA256(tag) || data)
   for (size_t k = 0; k < num_outputs; k++) {
-    // Hash: TaggedHash("BIP0352/SharedSecret", shared_point || k) where k is 32-byte big-endian
-    // Note: We use SHA256 for now, but BIP-352 specifies TaggedHash
-    CSHA256 hasher;
-    hasher.Write(shared_point_bytes, 33);
+    // TaggedHash("BIP0352/SharedSecret", shared_point || k)
+    // First, compute SHA256(tag) where tag = "BIP0352/SharedSecret"
+    const std::string tag = "BIP0352/SharedSecret";
+    CSHA256 tag_hasher;
+    tag_hasher.Write((const unsigned char*)tag.data(), tag.size());
+    unsigned char tag_hash[32];
+    tag_hasher.Finalize(tag_hash);
     
-    // Append k as 32-byte big-endian integer
-    unsigned char k_bytes[32] = {0};
+    // Now compute TaggedHash: SHA256(tag_hash || tag_hash || data)
+    CSHA256 hasher;
+    hasher.Write(tag_hash, 32);  // First SHA256(tag)
+    hasher.Write(tag_hash, 32);  // Second SHA256(tag)
+    hasher.Write(shared_point_bytes, 65);  // ecdh_shared_secret (uncompressed, 65 bytes)
+    
+    // Append k as 4-byte big-endian integer (ser_uint32)
     uint32_t k_be = htobe32(static_cast<uint32_t>(k));
-    memcpy(k_bytes + 28, &k_be, 4);
-    hasher.Write(k_bytes, 32);
+    hasher.Write((unsigned char*)&k_be, 4);  // k (4 bytes)
     
     uint256 t_k;
     hasher.Finalize(t_k.begin());
-    
     // Check if t_k is 0 or >= curve order (improbable but must be handled per BIP-352)
     // Verify t_k is a valid private key (this checks if it's < curve order and != 0)
     unsigned char t_k_bytes[32];
@@ -405,32 +497,41 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       // If t_k >= curve order or == 0, this is very rare, skip this output
       continue;
     }
-    
+    std::cout << " t_k: " << ToHex(std::vector<unsigned char>(t_k.begin(), t_k.end())) << std::endl;
+    std::cout << " Debug 2.2.13.5" << std::endl;
     // Calculate t_k * G
     secp256k1_pubkey t_k_G;
     if (!secp256k1_ec_pubkey_create(ctx, &t_k_G, t_k_bytes)) {
       continue;
     }
-    
+    std::cout << " Debug 2.2.13.6" << std::endl;
     // Calculate P_km = B_m + t_k * G (according to BIP-352)
     const secp256k1_pubkey* pubkeys[2] = {&B_m_point, &t_k_G};
     secp256k1_pubkey P_km;
     if (!secp256k1_ec_pubkey_combine(ctx, &P_km, pubkeys, 2)) {
       continue;
     }
-    
+    std::cout << " Debug 2.2.13.7" << std::endl;
     // Convert to x-only pubkey for taproot
-    unsigned char P_km_bytes[33];
-    size_t P_km_len = 33;
-    secp256k1_ec_pubkey_serialize(ctx, P_km_bytes, &P_km_len, &P_km, SECP256K1_EC_COMPRESSED);
-    
-    XOnlyPubKey xonly_pubkey(P_km_bytes);
+    // unsigned char P_km_bytes[33];
+    // size_t P_km_len = 33;
+    // secp256k1_ec_pubkey_serialize(ctx, P_km_bytes, &P_km_len, &P_km, SECP256K1_EC_COMPRESSED);
+    // std::cout << " Debug 2.2.13.8" << std::endl;
+    // XOnlyPubKey xonly_pubkey(P_km_bytes);
+
+    CPubKey result;
+    size_t clen = CPubKey::SIZE;
+    secp256k1_ec_pubkey_serialize(ctx, (unsigned char*)result.begin(), &clen, &P_km, SECP256K1_EC_COMPRESSED);
+    XOnlyPubKey xonly_pubkey(result);
+
     if (!xonly_pubkey.IsNull()) {
       outputs.push_back(xonly_pubkey);
     }
+    std::cout << " Debug 2.2.13.9" << std::endl;
   }
   
   secp256k1_context_destroy(ctx);
+  std::cout << " Debug 2.2.14" << std::endl;
   return outputs;
 }
 
@@ -504,8 +605,9 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const std::vector<CKey>& input_privkeys,
     const std::vector<CPubKey>& input_pubkeys,
     const std::vector<UnspentOutput>& inputs,
+    const std::vector<bool>& is_taproot_inputs,
     size_t num_outputs) {
-  return ::DeriveSilentPaymentOutputs(B_scan, B_m, input_privkeys, input_pubkeys, inputs, num_outputs);
+  return ::DeriveSilentPaymentOutputs(B_scan, B_m, input_privkeys, input_pubkeys, inputs, is_taproot_inputs, num_outputs);
 }
 
 inline std::string CreateTaprootAddress(const XOnlyPubKey& xonly_pubkey, Chain chain) {
