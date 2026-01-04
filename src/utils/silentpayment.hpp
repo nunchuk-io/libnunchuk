@@ -333,8 +333,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const std::vector<bool>& is_taproot_inputs,  // Whether each input is taproot
     size_t num_outputs) {
   std::vector<XOnlyPubKey> outputs;
-  std::cout << " Debug 2.2.1" << std::endl;
-
   if (!B_scan.IsValid() || !B_m.IsValid() || input_privkeys.empty() || input_pubkeys.empty() || 
       inputs.empty() || num_outputs == 0 ||
       input_privkeys.size() != input_pubkeys.size() ||
@@ -342,7 +340,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       is_taproot_inputs.size() != input_privkeys.size()) {
     return outputs;
   }
-  std::cout << " Debug 2.2.2" << std::endl;
   secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
   
   // Calculate sum of input private keys: a_sum = sum(a_i) mod n
@@ -350,9 +347,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   // Use secp256k1_ec_privkey_tweak_add to sum private keys
   unsigned char a_sum[32] = {0};
   bool first_key = true;
-  std::cout << " Debug 2.2.3" << std::endl;
   for (size_t i = 0; i < input_privkeys.size(); i++) {
-    std::cout << " Debug 2.2.3.1" << std::endl;
     const auto& key = input_privkeys[i];
     if (!key.IsValid()) {
       secp256k1_context_destroy(ctx);
@@ -395,8 +390,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       }
     }
   }
-  std::cout << " Debug 2.2.4" << std::endl;
-
   std::cout << " a_sum: " << ToHex(std::vector<unsigned char>(a_sum, a_sum + 32)) << std::endl;
   
   // Calculate a_sum·G (public key corresponding to sum of private keys)
@@ -405,7 +398,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " Debug 2.2.5" << std::endl;
   // Serialize sum public key - need uncompressed for input hash
   unsigned char sum_pubkey_uncompressed[65];
   size_t sum_pubkey_len = 65;
@@ -415,11 +407,9 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   size_t sum_pubkey_compressed_len = 33;
   secp256k1_ec_pubkey_serialize(ctx, sum_pubkey_compressed, &sum_pubkey_compressed_len, &sum_pubkey_point, SECP256K1_EC_COMPRESSED);
   CPubKey sum_pubkey(sum_pubkey_compressed);
-  std::cout << " Debug 2.2.6" << std::endl;
   // Check if a_sum is zero (should fail per BIP-352)
   // This is already checked by secp256k1_ec_seckey_verify and secp256k1_ec_pubkey_create above
   // If sum_pubkey is invalid, we've already returned
-  std::cout << " Debug 2.2.7" << std::endl;
   // Calculate input_hash = TaggedHash("BIP0352/Inputs", outpoint_L || (a_sum·G))
   // Note: CalculateInputHash expects uncompressed pubkey
   uint256 input_hash = CalculateInputHash(inputs, input_pubkeys, sum_pubkey);
@@ -428,7 +418,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     return outputs;
   }
   std::cout << " input_hash (correct): " << ToHex(std::vector<unsigned char>(input_hash.begin(), input_hash.end())) << std::endl;
-  std::cout << " Debug 2.2.8" << std::endl;
   // Calculate input_hash * a_sum mod n
   // First multiply a_sum by input_hash
   unsigned char input_hash_bytes[32];
@@ -437,14 +426,12 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " Debug 2.2.9" << std::endl;
   // Parse B_scan as secp256k1_pubkey
   secp256k1_pubkey B_scan_point;
   if (!secp256k1_ec_pubkey_parse(ctx, &B_scan_point, B_scan.begin(), B_scan.size())) {
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " Debug 2.2.10" << std::endl;
   // Calculate shared_point = input_hash * a_sum * B_scan (point multiplication)
   // According to BIP-352: ecdh_shared_secret = input_hash * a_sum * B_scan
   // Multiply B_scan by a_sum (which is now input_hash * a_sum)
@@ -453,12 +440,10 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " Debug 2.2.11" << std::endl;
   // Serialize shared_point for hashing - must be uncompressed (65 bytes) per BIP-352
   unsigned char shared_point_bytes[33];
   size_t shared_point_len = 33;
   secp256k1_ec_pubkey_serialize(ctx, shared_point_bytes, &shared_point_len, &shared_point, SECP256K1_EC_COMPRESSED);
-  std::cout << " Debug 2.2.12" << std::endl;
   // Parse B_m as secp256k1_pubkey
   secp256k1_pubkey B_m_point;
   if (!secp256k1_ec_pubkey_parse(ctx, &B_m_point, B_m.begin(), B_m.size())) {
@@ -466,7 +451,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     return outputs;
   }
   std::cout << " shared_point (correct): " << ToHex(std::vector<unsigned char>(shared_point_bytes, shared_point_bytes + 33)) << std::endl;
-  std::cout << " Debug 2.2.13" << std::endl;
   // For each output k, calculate: t_k = hash(shared_point || k), P_km = B_m + t_k * G
   // According to BIP-352: t_k = TaggedHash("BIP0352/SharedSecret", ecdh_shared_secret || k)
   // and P_km = B_m + t_k * G
@@ -501,20 +485,17 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       continue;
     }
     std::cout << " t_k: " << ToHex(std::vector<unsigned char>(t_k.begin(), t_k.end())) << std::endl;
-    std::cout << " Debug 2.2.13.5" << std::endl;
     // Calculate t_k * G
     secp256k1_pubkey t_k_G;
     if (!secp256k1_ec_pubkey_create(ctx, &t_k_G, t_k_bytes)) {
       continue;
     }
-    std::cout << " Debug 2.2.13.6" << std::endl;
     // Calculate P_km = B_m + t_k * G (according to BIP-352)
     const secp256k1_pubkey* pubkeys[2] = {&B_m_point, &t_k_G};
     secp256k1_pubkey P_km;
     if (!secp256k1_ec_pubkey_combine(ctx, &P_km, pubkeys, 2)) {
       continue;
     }
-    std::cout << " Debug 2.2.13.7" << std::endl;
     // Convert to x-only pubkey for taproot
     // unsigned char P_km_bytes[33];
     // size_t P_km_len = 33;
@@ -530,11 +511,9 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     if (!xonly_pubkey.IsNull()) {
       outputs.push_back(xonly_pubkey);
     }
-    std::cout << " Debug 2.2.13.9" << std::endl;
   }
   
   secp256k1_context_destroy(ctx);
-  std::cout << " Debug 2.2.14" << std::endl;
   return outputs;
 }
 

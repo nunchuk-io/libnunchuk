@@ -268,8 +268,6 @@ bool TestWithVectors(const std::string& json_file_path) {
 
         // Test full output derivation if we have proper inputs
         if (inputs.size() == input_privkeys.size() && !inputs.empty()) {
-
-        std::cout << " Debug 1" << std::endl;
           bool output_test_passed = true;
 
           // Group recipients by B_scan (as per BIP-352)
@@ -277,32 +275,26 @@ bool TestWithVectors(const std::string& json_file_path) {
           for (size_t i = 0; i < B_scan_keys.size(); i++) {
             silent_payment_groups[B_scan_keys[i]].push_back(B_m_keys[i]);
           }
-          std::cout << " Debug 2" << std::endl;
 
           // Derive outputs for each group
           std::vector<std::string> derived_outputs;
           for (const auto& [B_scan, B_m_list] : silent_payment_groups) {
-            std::cout << " Debug 2.1" << std::endl;
 
             // For each B_m in the group, derive outputs
             for (size_t k = 0; k < B_m_list.size(); k++) {
-                std::cout << " Debug 2.2" << std::endl;
 
               auto outputs = silentpayment::DeriveSilentPaymentOutputs(
                   B_scan, B_m_list[k], input_privkeys, input_pubkeys, inputs,
                   is_taproot_inputs, 1);
-                std::cout << " Debug 2.3" << std::endl;
               if (!outputs.empty()) {
                 // Convert x-only pubkey to hex string (32 bytes)
                 std::vector<unsigned char> pubkey_bytes(outputs[0].begin(),
                                                         outputs[0].end());
                 std::string output_hex = BytesToHex(pubkey_bytes);
                 derived_outputs.push_back(output_hex);
-                std::cout << " Debug 2.4" << std::endl;
               }
             }
           }
-          std::cout << " Debug 3" << std::endl;
 
           // Compare with expected outputs
           if (expected.contains("outputs") && expected["outputs"].is_array()) {
@@ -328,7 +320,6 @@ bool TestWithVectors(const std::string& json_file_path) {
                 }
               }
             }
-            std::cout << " Debug 4" << std::endl;
 
             if (found_match) {
               std::cout << "  PASS: Output derivation matches expected"
@@ -364,7 +355,6 @@ bool TestWithVectors(const std::string& json_file_path) {
 
         std::cout << std::endl;
       }
-      break; // TODO: Remove this
     }
   }
 
