@@ -287,6 +287,78 @@ std::vector<Wallet> NunchukImpl::GetWallets(
   return wallets;
 }
 
+std::vector<Wallet> NunchukImpl::GetWallets(
+    const std::vector<std::string>& wallet_ids) {
+  std::vector<Wallet> wallets;
+  for (auto&& wallet_id : wallet_ids) {
+    wallets.push_back(GetWallet(wallet_id));
+  }
+  return wallets;
+}
+
+std::vector<std::string> NunchukImpl::ListWalletIds(
+    const std::vector<OrderBy>& orders) {
+  static constexpr auto order_func = [](const Wallet& lhs, const Wallet& rhs,
+                                        OrderBy order) -> int {
+    switch (order) {
+      case OrderBy::NAME_ASC:
+        return lhs.get_name().compare(rhs.get_name());
+      case OrderBy::NAME_DESC:
+        return rhs.get_name().compare(lhs.get_name());
+      case OrderBy::OLDEST_FIRST:
+        return lhs.get_create_date() - rhs.get_create_date();
+      case OrderBy::NEWEST_FIRST:
+        return rhs.get_create_date() - lhs.get_create_date();
+      case OrderBy::MOST_RECENTLY_USED:
+        return rhs.get_last_used() - lhs.get_last_used();
+      case OrderBy::LEAST_RECENTLY_USED:
+        return lhs.get_last_used() - rhs.get_last_used();
+        break;
+    }
+    throw NunchukException(NunchukException::VERSION_NOT_SUPPORTED,
+                           "Version not supported");
+  };
+
+  static constexpr auto less_func =
+      [](const Wallet& lhs, const Wallet& rhs,
+         const std::vector<OrderBy>& orders) -> bool {
+    for (auto&& order : orders) {
+      int order_result = order_func(lhs, rhs, order);
+      if (order_result == 0) {
+        continue;
+      }
+      if (order_result < 0) {
+        return true;
+      }
+      if (order_result > 0) {
+        return false;
+      }
+    }
+    return lhs.get_id() < rhs.get_id();
+  };
+
+  const auto wallet_ids = storage_->ListWallets(chain_);
+  std::vector<Wallet> wallets;
+  for (auto&& wallet_id : wallet_ids) {
+    try {
+      auto wallet = storage_->GetWallet(chain_, wallet_id, false, false, true);
+      if (wallet.get_id() == wallet_id) wallets.push_back(std::move(wallet));
+    } catch (...) {
+    }
+  }
+
+  std::sort(wallets.begin(), wallets.end(),
+            [&](const Wallet& lhs, const Wallet& rhs) {
+              return less_func(lhs, rhs, orders);
+            });
+
+  std::vector<std::string> wallet_ids_sorted;
+  for (auto&& wallet : wallets) {
+    wallet_ids_sorted.push_back(wallet.get_id());
+  }
+  return wallet_ids_sorted;
+}
+
 Wallet NunchukImpl::GetWallet(const std::string& wallet_id) {
   return storage_->GetWallet(chain_, wallet_id);
 }

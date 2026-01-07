@@ -1248,6 +1248,9 @@ class NUNCHUK_EXPORT Nunchuk {
       WalletTemplate wallet_template = WalletTemplate::DEFAULT) = 0;
   virtual std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
                                              OrderBy::OLDEST_FIRST}) = 0;
+  virtual std::vector<Wallet> GetWallets(const std::vector<std::string>& wallet_ids) = 0;
+  virtual std::vector<std::string> ListWalletIds(
+      const std::vector<OrderBy>& orders = {OrderBy::OLDEST_FIRST}) = 0;
   virtual Wallet GetWallet(const std::string& wallet_id) = 0;
   virtual bool HasWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;

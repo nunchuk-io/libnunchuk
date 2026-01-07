@@ -983,10 +983,10 @@ std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
 
 Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                                  bool create_signers_if_not_exist,
-                                 bool fill_extra) {
+                                 bool fill_extra, bool skip_balance) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto wallet_db = GetWalletDb(chain, id);
-  Wallet wallet = wallet_db.GetWallet(false, true);
+  Wallet wallet = wallet_db.GetWallet(skip_balance, true);
   if (!fill_extra) return wallet;
 
   std::vector<SingleSigner> true_signers;
