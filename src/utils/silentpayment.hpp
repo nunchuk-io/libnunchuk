@@ -294,27 +294,6 @@ inline uint256 CalculateInputHash(
   // Serialize outpoint_L: txid (32 bytes, little-endian) + vout (4 bytes, little-endian)
   // Use the serialized bytes from sorting
   hasher.Write(outpoints_serialized[0].first.data(), 36);
-  std::cout << " outpoint_L: " << ToHex(std::vector<unsigned char>(outpoints_serialized[0].first.begin(), outpoints_serialized[0].first.end())) << std::endl;
-
-  // Serialize sum public key (a_sum·G) - uncompressed, 65 bytes
-  // First byte is 0x04 (uncompressed), then 32 bytes x, then 32 bytes y
-  // unsigned char sum_pubkey_uncompressed[65];
-  // We need to decompress the public key
-  // For now, let's use compressed and see if it works
-  // Actually, according to reference, it should be uncompressed
-  // CPubKey doesn't have a direct way to get uncompressed, so we need to parse and serialize
-  // secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
-  // secp256k1_pubkey pubkey_point;
-  // if (secp256k1_ec_pubkey_parse(ctx, &pubkey_point, sum_pubkey.begin(), sum_pubkey.size())) {
-  //   size_t pubkey_len = 65;
-  //   secp256k1_ec_pubkey_serialize(ctx, sum_pubkey_uncompressed, &pubkey_len, &pubkey_point, SECP256K1_EC_UNCOMPRESSED);
-  //   hasher.Write(sum_pubkey_uncompressed, 65);
-  // } else {
-  //   secp256k1_context_destroy(ctx);
-  //   return uint256();
-  // }
-  // secp256k1_context_destroy(ctx);
-  // std::cout << " sum_pubkey_uncompressed: " << ToHex(std::vector<unsigned char>(sum_pubkey.begin(), sum_pubkey.end())) << std::endl;
   hasher.Write(sum_pubkey.begin(), sum_pubkey.size());
 
   uint256 result;
@@ -337,7 +316,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   if (!B_scan.IsValid() || !B_m.IsValid() || input_privkeys.empty() || input_pubkeys.empty() || 
       inputs.empty() || num_outputs == 0 ||
       input_privkeys.size() != input_pubkeys.size() ||
-      inputs.size() != input_pubkeys.size() ||
+      // inputs.size() != input_pubkeys.size() ||
       is_taproot_inputs.size() != input_privkeys.size()) {
     return outputs;
   }
@@ -395,7 +374,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       }
     }
   }
-  std::cout << " a_sum: " << ToHex(std::vector<unsigned char>(a_sum, a_sum + 32)) << std::endl;
   
   // Calculate a_sum·G (public key corresponding to sum of private keys)
   secp256k1_pubkey sum_pubkey_point;
@@ -422,7 +400,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " input_hash (correct): " << ToHex(std::vector<unsigned char>(input_hash.begin(), input_hash.end())) << std::endl;
+
   // Calculate input_hash * a_sum mod n
   // First multiply a_sum by input_hash
   unsigned char input_hash_bytes[32];
@@ -455,7 +433,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     secp256k1_context_destroy(ctx);
     return outputs;
   }
-  std::cout << " shared_point (correct): " << ToHex(std::vector<unsigned char>(shared_point_bytes, shared_point_bytes + 33)) << std::endl;
+
   // For each output k, calculate: t_k = hash(shared_point || k), P_km = B_m + t_k * G
   // According to BIP-352: t_k = TaggedHash("BIP0352/SharedSecret", ecdh_shared_secret || k)
   // and P_km = B_m + t_k * G
@@ -478,7 +456,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     
     // Append k as 4-byte big-endian integer (ser_uint32)
     uint32_t k_be = htobe32(static_cast<uint32_t>(k));
-    std::cout << "  k=" << k << " (starting_k=" << starting_k << ", i=" << i << ")" << std::endl;
     hasher.Write((unsigned char*)&k_be, 4);  // k (4 bytes)
     
     uint256 t_k;
@@ -491,7 +468,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       // If t_k >= curve order or == 0, this is very rare, skip this output
       continue;
     }
-    std::cout << " t_k: " << ToHex(std::vector<unsigned char>(t_k.begin(), t_k.end())) << std::endl;
+
     // Calculate t_k * G
     secp256k1_pubkey t_k_G;
     if (!secp256k1_ec_pubkey_create(ctx, &t_k_G, t_k_bytes)) {
@@ -507,7 +484,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     // unsigned char P_km_bytes[33];
     // size_t P_km_len = 33;
     // secp256k1_ec_pubkey_serialize(ctx, P_km_bytes, &P_km_len, &P_km, SECP256K1_EC_COMPRESSED);
-    // std::cout << " Debug 2.2.13.8" << std::endl;
     // XOnlyPubKey xonly_pubkey(P_km_bytes);
 
     CPubKey result;

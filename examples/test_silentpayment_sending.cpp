@@ -158,6 +158,11 @@ bool TestWithVectors(const std::string& json_file_path) {
             // Invalid private key - skip this input (as per BIP-352)
             continue;
           }
+
+          // Create UnspentOutput with txid and vout
+          UnspentOutput utxo = CreateUnspentOutput(vin);
+          inputs.push_back(utxo);
+   
           
           // Extract public key from scriptPubKey/scriptSig/witness (following reference implementation)
           // According to BIP-352: only inputs with valid compressed public keys are used
@@ -369,10 +374,7 @@ bool TestWithVectors(const std::string& json_file_path) {
           input_privkeys.push_back(privkey);
           input_pubkeys.push_back(pubkey_from_script);
           is_taproot_inputs.push_back(is_taproot);
-          
-          // Create UnspentOutput with txid and vout
-          UnspentOutput utxo = CreateUnspentOutput(vin);
-          inputs.push_back(utxo);
+          std::cout << "  DEBUG: Using input with privkey: " << privkey_hex << std::endl;
         }
 
         // Extract recipients
@@ -429,7 +431,10 @@ bool TestWithVectors(const std::string& json_file_path) {
           }
         }
 
-        std::cout << "  Inputs: " << input_privkeys.size() << std::endl;
+        std::cout << "  Inputs: " << inputs.size() << std::endl;
+        std::cout << "  Inputs privkeys: " << input_privkeys.size() << std::endl;
+        std::cout << "  Inputs pubkeys: " << input_pubkeys.size() << std::endl;
+        std::cout << "  Inputs is_taproot_inputs: " << is_taproot_inputs.size() << std::endl;
         std::cout << "  Recipients: " << recipient_addresses.size()
                   << std::endl;
 
@@ -466,7 +471,7 @@ bool TestWithVectors(const std::string& json_file_path) {
 
         // Test full output derivation if we have proper inputs
         // According to BIP-352: if no valid inputs, no outputs should be generated
-        if (inputs.size() == input_privkeys.size() && !inputs.empty() && input_privkeys.size() > 0) {
+        if (!inputs.empty() && input_privkeys.size() > 0) {
           bool output_test_passed = true;
 
           // Group recipients by B_scan (as per BIP-352)
