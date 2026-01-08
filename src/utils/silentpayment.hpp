@@ -361,18 +361,22 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     memcpy(key_bytes, reinterpret_cast<const unsigned char*>(key_data), 32);
     
     // According to BIP-352: if input is x-only pubkey (taproot) with odd y, negate the private key
+    // We need to check the y coordinate of the pubkey derived from the private key, not from scriptPubKey
     if (i < is_taproot_inputs.size() && is_taproot_inputs[i]) {
       // This is a taproot input
-      if (i < input_pubkeys.size()) {
-        const CPubKey& pubkey = input_pubkeys[i];
-        if (pubkey.IsValid() && pubkey.IsCompressed()) {
-          // Check if y coordinate is odd (0x03 prefix = odd y, 0x02 = even y)
-          if (pubkey.begin()[0] == 0x03) {
-            // Odd y coordinate, negate the private key
-            if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
-              secp256k1_context_destroy(ctx);
-              return outputs;
-            }
+      // Derive pubkey from private key to check y coordinate
+      secp256k1_pubkey pubkey_point;
+      if (secp256k1_ec_pubkey_create(ctx, &pubkey_point, key_bytes)) {
+        // Serialize to get y coordinate
+        unsigned char pubkey_serialized[33];
+        size_t pubkey_len = 33;
+        secp256k1_ec_pubkey_serialize(ctx, pubkey_serialized, &pubkey_len, &pubkey_point, SECP256K1_EC_COMPRESSED);
+        // Check if y coordinate is odd (0x03 prefix = odd y, 0x02 = even y)
+        if (pubkey_serialized[0] == 0x03) {
+          // Odd y coordinate, negate the private key
+          if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
+            secp256k1_context_destroy(ctx);
+            return outputs;
           }
         }
       }

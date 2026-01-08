@@ -9,6 +9,11 @@
 #include <nunchuk.h>
 #include <utils/silentpayment.hpp>
 #include <utils/json.hpp>
+#include <key.h>
+#include <pubkey.h>
+#include <uint256.h>
+#include <hash.h>
+#include <script/script.h>
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -150,26 +155,183 @@ bool TestWithVectors(const std::string& json_file_path) {
           std::string privkey_hex = vin["private_key"];
           CKey privkey = ParsePrivKey(privkey_hex);
           if (!privkey.IsValid()) {
-            std::cerr << "  ERROR: Invalid private key" << std::endl;
-            fail_count++;
+            // Invalid private key - skip this input (as per BIP-352)
             continue;
           }
-          input_privkeys.push_back(privkey);
           
-          // Get public key from private key
-          CPubKey pubkey = privkey.GetPubKey();
-          input_pubkeys.push_back(pubkey);
-          
-          // Check if this is a taproot input by examining prevout scriptPubKey
-          // Taproot (P2TR) scriptPubKey starts with 0x51 0x20 (OP_1 0x20)
+          // Extract public key from scriptPubKey/scriptSig/witness (following reference implementation)
+          // According to BIP-352: only inputs with valid compressed public keys are used
+          CPubKey pubkey_from_script;
           bool is_taproot = false;
-          if (vin.contains("prevout") && vin["prevout"].contains("scriptPubKey")) {
-            std::string script_hex = vin["prevout"]["scriptPubKey"]["hex"];
-            // P2TR starts with 5120 (OP_1 = 0x51, push 32 bytes = 0x20)
-            if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "5120") {
-              is_taproot = true;
+          bool is_valid_input = false;
+          
+          if (!vin.contains("prevout") || !vin["prevout"].contains("scriptPubKey")) {
+            continue;
+          }
+          
+          std::string script_hex = vin["prevout"]["scriptPubKey"]["hex"];
+          std::vector<unsigned char> script_bytes = HexToBytes(script_hex);
+          
+          // P2PKH: Extract pubkey from scriptSig
+          if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "76a9") {
+            // OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
+            if (!vin.contains("scriptSig")) {
+              continue;
+            }
+            std::vector<unsigned char> script_sig_bytes = HexToBytes(vin["scriptSig"]);
+            std::vector<unsigned char> spk_hash(script_bytes.begin() + 3, script_bytes.begin() + 23);
+            
+            // Search scriptSig from back to front for 33-byte compressed pubkey
+            for (int i = script_sig_bytes.size(); i >= 33; i--) {
+              std::vector<unsigned char> pubkey_candidate(script_sig_bytes.begin() + i - 33, script_sig_bytes.begin() + i);
+              uint160 hash160 = Hash160(pubkey_candidate);
+              if (std::equal(hash160.begin(), hash160.end(), spk_hash.begin())) {
+                CPubKey pubkey(pubkey_candidate);
+                if (pubkey.IsValid() && pubkey.IsCompressed()) {
+                  pubkey_from_script = pubkey;
+                  is_valid_input = true;
+                  break;
+                }
+              }
             }
           }
+          // P2SH: Check if redeem script is P2WPKH
+          else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "a914") {
+            // OP_HASH160 <20-byte hash> OP_EQUAL
+            if (!vin.contains("scriptSig") || !vin.contains("txinwitness")) {
+              continue;
+            }
+            std::vector<unsigned char> script_sig_bytes = HexToBytes(vin["scriptSig"]);
+            if (script_sig_bytes.size() < 2) {
+              continue;
+            }
+            // Redeem script starts after OP_PUSHDATA1
+            std::vector<unsigned char> redeem_script(script_sig_bytes.begin() + 1, script_sig_bytes.end());
+            // Check if redeem script is P2WPKH (OP_0 <20-byte hash>)
+            if (redeem_script.size() == 22 && redeem_script[0] == 0x00 && redeem_script[1] == 0x14) {
+              // Extract pubkey from witness stack
+              std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
+              // Parse witness: first byte is number of stack items, then each item is length + data
+              if (witness_bytes.size() > 0 && witness_bytes[0] > 0) {
+                size_t offset = 1;
+                // Skip to last stack item (pubkey)
+                for (int i = 0; i < witness_bytes[0] - 1 && offset < witness_bytes.size(); i++) {
+                  if (offset >= witness_bytes.size()) break;
+                  uint8_t item_len = witness_bytes[offset];
+                  offset += 1 + item_len;
+                }
+                if (offset < witness_bytes.size()) {
+                  uint8_t pubkey_len = witness_bytes[offset];
+                  if (pubkey_len == 33 && offset + 1 + pubkey_len <= witness_bytes.size()) {
+                    std::vector<unsigned char> pubkey_bytes(witness_bytes.begin() + offset + 1, 
+                                                           witness_bytes.begin() + offset + 1 + pubkey_len);
+                    CPubKey pubkey(pubkey_bytes);
+                    if (pubkey.IsValid() && pubkey.IsCompressed()) {
+                      pubkey_from_script = pubkey;
+                      is_valid_input = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          // P2WPKH: Extract pubkey from witness stack
+          else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "0014") {
+            // OP_0 <20-byte hash>
+            if (!vin.contains("txinwitness")) {
+              continue;
+            }
+            std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
+            // Parse witness: first byte is number of stack items, last item is pubkey
+            if (witness_bytes.size() > 0 && witness_bytes[0] > 0) {
+              size_t offset = 1;
+              // Skip to last stack item (pubkey)
+              for (int i = 0; i < witness_bytes[0] - 1 && offset < witness_bytes.size(); i++) {
+                if (offset >= witness_bytes.size()) break;
+                uint8_t item_len = witness_bytes[offset];
+                offset += 1 + item_len;
+              }
+              if (offset < witness_bytes.size()) {
+                uint8_t pubkey_len = witness_bytes[offset];
+                if (pubkey_len == 33 && offset + 1 + pubkey_len <= witness_bytes.size()) {
+                  std::vector<unsigned char> pubkey_bytes(witness_bytes.begin() + offset + 1, 
+                                                           witness_bytes.begin() + offset + 1 + pubkey_len);
+                  CPubKey pubkey(pubkey_bytes);
+                  if (pubkey.IsValid() && pubkey.IsCompressed()) {
+                    pubkey_from_script = pubkey;
+                    is_valid_input = true;
+                  }
+                }
+              }
+            }
+          }
+          // P2TR: Extract pubkey from scriptPubKey, check for NUMS_H in witness
+          else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "5120") {
+            // OP_1 <32-byte x-only pubkey>
+            is_taproot = true;
+            
+            // Check witness for script-path spend and NUMS_H
+            if (vin.contains("txinwitness")) {
+              std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
+              if (witness_bytes.size() > 0 && witness_bytes[0] > 1) {
+                // Has witness stack with more than 1 item (script-path spend)
+                // Check for annex (last item starts with 0x50)
+                size_t stack_count = witness_bytes[0];
+                size_t offset = 1;
+                std::vector<std::vector<unsigned char>> stack_items;
+                
+                // Parse all stack items
+                for (int i = 0; i < stack_count && offset < witness_bytes.size(); i++) {
+                  if (offset >= witness_bytes.size()) break;
+                  uint8_t item_len = witness_bytes[offset];
+                  offset++;
+                  if (offset + item_len <= witness_bytes.size()) {
+                    std::vector<unsigned char> item(witness_bytes.begin() + offset, 
+                                                     witness_bytes.begin() + offset + item_len);
+                    stack_items.push_back(item);
+                    offset += item_len;
+                  }
+                }
+                
+                // Check if last item is annex (starts with 0x50)
+                if (!stack_items.empty() && stack_items.back().size() > 0 && stack_items.back()[0] == 0x50) {
+                  stack_items.pop_back();
+                }
+                
+                // If still more than 1 item, it's a script-path spend
+                if (stack_items.size() > 1) {
+                  // Last item is control block: <control byte> <32-byte internal key> [hashes...]
+                  std::vector<unsigned char> control_block = stack_items.back();
+                  if (control_block.size() >= 33) {
+                    // Extract internal key (bytes 1-33)
+                    std::vector<unsigned char> internal_key(control_block.begin() + 1, control_block.begin() + 33);
+                    // NUMS_H = 0x50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0
+                    // Check if internal key is NUMS_H (big-endian)
+                    std::vector<unsigned char> nums_h = HexToBytes("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0");
+                    if (std::equal(internal_key.begin(), internal_key.end(), nums_h.begin())) {
+                      // Skip NUMS_H - return empty pubkey
+                      continue;
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Extract x-only pubkey from scriptPubKey
+            std::vector<unsigned char> xonly_bytes(script_bytes.begin() + 2, script_bytes.begin() + 34);
+            XOnlyPubKey xonly_pubkey(xonly_bytes);
+            pubkey_from_script = xonly_pubkey.GetEvenCorrespondingCPubKey();
+            is_valid_input = pubkey_from_script.IsValid() && pubkey_from_script.IsCompressed();
+          }
+          
+          // Skip if we couldn't extract a valid compressed pubkey
+          if (!is_valid_input) {
+            continue;
+          }
+          
+          // Only add valid inputs with compressed public keys from scriptPubKey
+          input_privkeys.push_back(privkey);
+          input_pubkeys.push_back(pubkey_from_script);
           is_taproot_inputs.push_back(is_taproot);
           
           // Create UnspentOutput with txid and vout
@@ -267,7 +429,8 @@ bool TestWithVectors(const std::string& json_file_path) {
         }
 
         // Test full output derivation if we have proper inputs
-        if (inputs.size() == input_privkeys.size() && !inputs.empty()) {
+        // According to BIP-352: if no valid inputs, no outputs should be generated
+        if (inputs.size() == input_privkeys.size() && !inputs.empty() && input_privkeys.size() > 0) {
           bool output_test_passed = true;
 
           // Group recipients by B_scan (as per BIP-352)
