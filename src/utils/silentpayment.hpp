@@ -331,7 +331,8 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const std::vector<CPubKey>& input_pubkeys,  // Input public keys
     const std::vector<nunchuk::UnspentOutput>& inputs,
     const std::vector<bool>& is_taproot_inputs,  // Whether each input is taproot
-    size_t num_outputs) {
+    size_t num_outputs,
+    size_t starting_k = 0) {  // Starting value for k (for multiple B_m with same B_scan)
   std::vector<XOnlyPubKey> outputs;
   if (!B_scan.IsValid() || !B_m.IsValid() || input_privkeys.empty() || input_pubkeys.empty() || 
       inputs.empty() || num_outputs == 0 ||
@@ -455,7 +456,8 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   // According to BIP-352: t_k = TaggedHash("BIP0352/SharedSecret", ecdh_shared_secret || k)
   // and P_km = B_m + t_k * G
   // TaggedHash(tag, data) = SHA256(SHA256(tag) || SHA256(tag) || data)
-  for (size_t k = 0; k < num_outputs; k++) {
+  for (size_t i = 0; i < num_outputs; i++) {
+    size_t k = starting_k + i;
     // TaggedHash("BIP0352/SharedSecret", shared_point || k)
     // First, compute SHA256(tag) where tag = "BIP0352/SharedSecret"
     const std::string tag = "BIP0352/SharedSecret";
@@ -472,6 +474,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     
     // Append k as 4-byte big-endian integer (ser_uint32)
     uint32_t k_be = htobe32(static_cast<uint32_t>(k));
+    std::cout << "  k=" << k << " (starting_k=" << starting_k << ", i=" << i << ")" << std::endl;
     hasher.Write((unsigned char*)&k_be, 4);  // k (4 bytes)
     
     uint256 t_k;
@@ -588,8 +591,9 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const std::vector<CPubKey>& input_pubkeys,
     const std::vector<UnspentOutput>& inputs,
     const std::vector<bool>& is_taproot_inputs,
-    size_t num_outputs) {
-  return ::DeriveSilentPaymentOutputs(B_scan, B_m, input_privkeys, input_pubkeys, inputs, is_taproot_inputs, num_outputs);
+    size_t num_outputs,
+    size_t starting_k = 0) {
+  return ::DeriveSilentPaymentOutputs(B_scan, B_m, input_privkeys, input_pubkeys, inputs, is_taproot_inputs, num_outputs, starting_k);
 }
 
 inline std::string CreateTaprootAddress(const XOnlyPubKey& xonly_pubkey, Chain chain) {

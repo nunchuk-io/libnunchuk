@@ -277,15 +277,122 @@ bool TestWithVectors(const std::string& json_file_path) {
           }
 
           // Derive outputs for each group
+          // According to BIP-352: shared_secret is calculated once per B_scan group,
+          // and k increments across all B_m values in the group
           std::vector<std::string> derived_outputs;
           for (const auto& [B_scan, B_m_list] : silent_payment_groups) {
-
-            // For each B_m in the group, derive outputs
-            for (size_t k = 0; k < B_m_list.size(); k++) {
-
+            // Derive outputs for all B_m in this group with k incrementing
+            // We need to call DeriveSilentPaymentOutputs for each B_m, but ensure
+            // that k increments across all B_m. Since DeriveSilentPaymentOutputs
+            // calculates shared_secret each time, we need to handle this differently.
+            // Actually, looking at the reference, it calculates shared_secret once
+            // and then for each B_m, it uses k=0, k=1, etc.
+            // But our function DeriveSilentPaymentOutputs takes one B_m and num_outputs.
+            // For multiple B_m with same B_scan, we need to call it with num_outputs=1
+            // for each B_m, but the k should increment. However, each call recalculates
+            // shared_secret and starts from k=0.
+            // 
+            // The correct approach: For each B_m, we need to derive with k starting
+            // from the cumulative count of previous B_m in the same group.
+            // But our current API doesn't support this.
+            //
+            // Let's check the reference again: it groups by B_scan, calculates
+            // shared_secret once, then for each B_m, it uses k=0, k=1, etc.
+            // So if we have 3 B_m with same B_scan, we get outputs with k=0, k=1, k=2.
+            //
+            // Our current implementation: DeriveSilentPaymentOutputs(B_scan, B_m, ..., num_outputs)
+            // calculates shared_secret and then generates num_outputs outputs with k=0..num_outputs-1.
+            //
+            // For the test case with multiple B_m and same B_scan, we should:
+            // - Call DeriveSilentPaymentOutputs once with the first B_m and num_outputs = B_m_list.size()
+            // - But that would generate multiple outputs for the same B_m, not one per B_m.
+            //
+            // Actually, I think the issue is that we need to modify the logic to:
+            // For each B_m in the group, derive 1 output, but k should increment across the group.
+            // Since we can't easily modify the shared_secret calculation to be reused,
+            // let's try a different approach: call DeriveSilentPaymentOutputs for each B_m
+            // with num_outputs=1, and it should work if the shared_secret calculation is correct.
+            // But wait, the reference shows k increments: k=0 for first B_m, k=1 for second, etc.
+            //
+            // I think the real issue is that when we have multiple B_m with same B_scan,
+            // we should calculate shared_secret once, then for each B_m, use k=0, k=1, etc.
+            // But our function doesn't support this directly.
+            //
+            // Let me check the test output again. The issue is that we're getting duplicate outputs.
+            // This suggests that when we call DeriveSilentPaymentOutputs for each B_m with num_outputs=1,
+            // we're getting the same output (k=0) for each B_m.
+            //
+            // The fix: We need to modify DeriveSilentPaymentOutputs to accept a starting k value,
+            // OR we need to modify the test to call it differently.
+            //
+            // Actually, looking at the reference code more carefully:
+            // ```python
+            // for B_scan, B_m_values in silent_payment_groups.items():
+            //     ecdh_shared_secret = input_hash * a_sum * B_scan
+            //     k = 0
+            //     for B_m in B_m_values:
+            //         t_k = TaggedHash("BIP0352/SharedSecret", ecdh_shared_secret.get_bytes(False) + ser_uint32(k))
+            //         P_km = B_m + t_k * G
+            //         outputs.append(P_km.get_bytes().hex())
+            //         k += 1
+            // ```
+            //
+            // So shared_secret is calculated once per B_scan group, and k increments for each B_m.
+            // Our current implementation calculates shared_secret each time, which is fine,
+            // but we need to ensure k increments. Since we can't easily pass a starting k,
+            // we need to modify the function or the test.
+            //
+            // The simplest fix: Modify the test to call DeriveSilentPaymentOutputs with
+            // num_outputs = B_m_list.size() for the first B_m, then extract the outputs.
+            // But that would generate multiple outputs for the same B_m, not one per B_m.
+            //
+            // Actually, I realize the issue: In BIP-352, when you have multiple recipients
+            // with the same B_scan, you calculate shared_secret once, then for each B_m,
+            // you use k=0, k=1, etc. But each B_m is different, so P_km = B_m + t_k * G
+            // will be different for each B_m even with the same k.
+            //
+            // So the correct approach is: For each B_m, call DeriveSilentPaymentOutputs
+            // with num_outputs=1, and it should use k=0. But then k should increment
+            // across B_m in the same group. Since we can't easily do this with the current API,
+            // we need to either:
+            // 1. Modify DeriveSilentPaymentOutputs to accept a starting k
+            // 2. Create a new function that handles multiple B_m with same B_scan
+            // 3. Modify the test to work around this limitation
+            //
+            // For now, let's try option 3: Call DeriveSilentPaymentOutputs for each B_m
+            // with num_outputs=1, and see if it works. If not, we'll need to modify the function.
+            
+            // Actually, wait. Let me re-read the reference. It shows:
+            // - Group by B_scan
+            // - For each group, calculate shared_secret once
+            // - For each B_m in the group, calculate output with k incrementing
+            //
+            // So if we have B_scan1 with [B_m1, B_m2, B_m3]:
+            // - shared_secret = input_hash * a_sum * B_scan1
+            // - output1 = B_m1 + t_0 * G where t_0 = TaggedHash(shared_secret || 0)
+            // - output2 = B_m2 + t_1 * G where t_1 = TaggedHash(shared_secret || 1)
+            // - output3 = B_m3 + t_2 * G where t_2 = TaggedHash(shared_secret || 2)
+            //
+            // Our current function: DeriveSilentPaymentOutputs(B_scan, B_m, ..., num_outputs)
+            // - Calculates shared_secret = input_hash * a_sum * B_scan
+            // - For k=0 to num_outputs-1: output_k = B_m + t_k * G
+            //
+            // So if we call it for B_m1 with num_outputs=1, we get output with k=0.
+            // If we call it for B_m2 with num_outputs=1, we get output with k=0 again (wrong!).
+            //
+            // The fix: We need to modify the function to accept a starting_k parameter,
+            // OR we need to create a wrapper that handles multiple B_m correctly.
+            //
+            // For now, let's create a helper function or modify the test to work correctly.
+            // Actually, the simplest fix is to modify DeriveSilentPaymentOutputs to accept
+            // an optional starting_k parameter (default 0).
+            
+            // For each B_m in the group, derive 1 output with k incrementing
+            size_t k_offset = 0;
+            for (size_t i = 0; i < B_m_list.size(); i++) {
               auto outputs = silentpayment::DeriveSilentPaymentOutputs(
-                  B_scan, B_m_list[k], input_privkeys, input_pubkeys, inputs,
-                  is_taproot_inputs, 1);
+                  B_scan, B_m_list[i], input_privkeys, input_pubkeys, inputs,
+                  is_taproot_inputs, 1, k_offset);
               if (!outputs.empty()) {
                 // Convert x-only pubkey to hex string (32 bytes)
                 std::vector<unsigned char> pubkey_bytes(outputs[0].begin(),
@@ -293,6 +400,7 @@ bool TestWithVectors(const std::string& json_file_path) {
                 std::string output_hex = BytesToHex(pubkey_bytes);
                 derived_outputs.push_back(output_hex);
               }
+              k_offset++;
             }
           }
 
