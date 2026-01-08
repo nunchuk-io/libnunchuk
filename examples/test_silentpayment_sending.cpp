@@ -181,16 +181,21 @@ bool TestWithVectors(const std::string& json_file_path) {
             std::vector<unsigned char> script_sig_bytes = HexToBytes(vin["scriptSig"]);
             std::vector<unsigned char> spk_hash(script_bytes.begin() + 3, script_bytes.begin() + 23);
             
-            // Search scriptSig from back to front for 33-byte compressed pubkey
+            // Search scriptSig from back to front for compressed pubkey (following reference implementation)
+            // Reference: only check 33-byte compressed pubkey, if not found return empty
+            // Reference checks if pubkey starts with 0x02 or 0x03 before hashing
             for (int i = script_sig_bytes.size(); i >= 33; i--) {
               std::vector<unsigned char> pubkey_candidate(script_sig_bytes.begin() + i - 33, script_sig_bytes.begin() + i);
-              uint160 hash160 = Hash160(pubkey_candidate);
-              if (std::equal(hash160.begin(), hash160.end(), spk_hash.begin())) {
-                CPubKey pubkey(pubkey_candidate);
-                if (pubkey.IsValid() && pubkey.IsCompressed()) {
-                  pubkey_from_script = pubkey;
-                  is_valid_input = true;
-                  break;
+              // Check if it's a compressed pubkey (starts with 0x02 or 0x03)
+              if (pubkey_candidate[0] == 0x02 || pubkey_candidate[0] == 0x03) {
+                uint160 hash160 = Hash160(pubkey_candidate);
+                if (std::equal(hash160.begin(), hash160.end(), spk_hash.begin())) {
+                  CPubKey pubkey(pubkey_candidate);
+                  if (pubkey.IsValid() && pubkey.IsCompressed()) {
+                    pubkey_from_script = pubkey;
+                    is_valid_input = true;
+                    break;
+                  }
                 }
               }
             }
@@ -198,7 +203,7 @@ bool TestWithVectors(const std::string& json_file_path) {
           // P2SH: Check if redeem script is P2WPKH
           else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "a914") {
             // OP_HASH160 <20-byte hash> OP_EQUAL
-            if (!vin.contains("scriptSig") || !vin.contains("txinwitness")) {
+            if (!vin.contains("scriptSig") || !vin.contains("txinwitness") || vin["txinwitness"].empty()) {
               continue;
             }
             std::vector<unsigned char> script_sig_bytes = HexToBytes(vin["scriptSig"]);
@@ -211,51 +216,28 @@ bool TestWithVectors(const std::string& json_file_path) {
             if (redeem_script.size() == 22 && redeem_script[0] == 0x00 && redeem_script[1] == 0x14) {
               // Extract pubkey from witness stack
               std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
-              // Parse witness: first byte is number of stack items, then each item is length + data
+              // Parse witness: first byte is number of stack items
               if (witness_bytes.size() > 0 && witness_bytes[0] > 0) {
                 size_t offset = 1;
-                // Skip to last stack item (pubkey)
-                for (int i = 0; i < witness_bytes[0] - 1 && offset < witness_bytes.size(); i++) {
+                std::vector<std::vector<unsigned char>> stack_items;
+                
+                // Parse all stack items
+                for (int i = 0; i < witness_bytes[0] && offset < witness_bytes.size(); i++) {
                   if (offset >= witness_bytes.size()) break;
                   uint8_t item_len = witness_bytes[offset];
-                  offset += 1 + item_len;
-                }
-                if (offset < witness_bytes.size()) {
-                  uint8_t pubkey_len = witness_bytes[offset];
-                  if (pubkey_len == 33 && offset + 1 + pubkey_len <= witness_bytes.size()) {
-                    std::vector<unsigned char> pubkey_bytes(witness_bytes.begin() + offset + 1, 
-                                                           witness_bytes.begin() + offset + 1 + pubkey_len);
-                    CPubKey pubkey(pubkey_bytes);
-                    if (pubkey.IsValid() && pubkey.IsCompressed()) {
-                      pubkey_from_script = pubkey;
-                      is_valid_input = true;
-                    }
+                  offset++;
+                  if (offset + item_len <= witness_bytes.size()) {
+                    std::vector<unsigned char> item(witness_bytes.begin() + offset, 
+                                                   witness_bytes.begin() + offset + item_len);
+                    stack_items.push_back(item);
+                    offset += item_len;
                   }
                 }
-              }
-            }
-          }
-          // P2WPKH: Extract pubkey from witness stack
-          else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "0014") {
-            // OP_0 <20-byte hash>
-            if (!vin.contains("txinwitness")) {
-              continue;
-            }
-            std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
-            // Parse witness: first byte is number of stack items, last item is pubkey
-            if (witness_bytes.size() > 0 && witness_bytes[0] > 0) {
-              size_t offset = 1;
-              // Skip to last stack item (pubkey)
-              for (int i = 0; i < witness_bytes[0] - 1 && offset < witness_bytes.size(); i++) {
-                if (offset >= witness_bytes.size()) break;
-                uint8_t item_len = witness_bytes[offset];
-                offset += 1 + item_len;
-              }
-              if (offset < witness_bytes.size()) {
-                uint8_t pubkey_len = witness_bytes[offset];
-                if (pubkey_len == 33 && offset + 1 + pubkey_len <= witness_bytes.size()) {
-                  std::vector<unsigned char> pubkey_bytes(witness_bytes.begin() + offset + 1, 
-                                                           witness_bytes.begin() + offset + 1 + pubkey_len);
+                
+                // Last item is pubkey (following reference implementation)
+                // Reference: only check if valid and compressed, if not return empty
+                if (!stack_items.empty()) {
+                  std::vector<unsigned char> pubkey_bytes = stack_items.back();
                   CPubKey pubkey(pubkey_bytes);
                   if (pubkey.IsValid() && pubkey.IsCompressed()) {
                     pubkey_from_script = pubkey;
@@ -265,17 +247,54 @@ bool TestWithVectors(const std::string& json_file_path) {
               }
             }
           }
-          // P2TR: Extract pubkey from scriptPubKey, check for NUMS_H in witness
+          // P2WPKH: Extract pubkey from witness stack
+          else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "0014") {
+            // OP_0 <20-byte hash>
+            if (!vin.contains("txinwitness") || vin["txinwitness"].empty()) {
+              continue;
+            }
+            std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
+            // Parse witness: first byte is number of stack items, last item is pubkey
+            if (witness_bytes.size() > 0 && witness_bytes[0] > 0) {
+              size_t offset = 1;
+              std::vector<std::vector<unsigned char>> stack_items;
+              
+              // Parse all stack items
+              for (int i = 0; i < witness_bytes[0] && offset < witness_bytes.size(); i++) {
+                if (offset >= witness_bytes.size()) break;
+                uint8_t item_len = witness_bytes[offset];
+                offset++;
+                if (offset + item_len <= witness_bytes.size()) {
+                  std::vector<unsigned char> item(witness_bytes.begin() + offset, 
+                                                 witness_bytes.begin() + offset + item_len);
+                  stack_items.push_back(item);
+                  offset += item_len;
+                }
+              }
+              
+              // Last item is pubkey (following reference implementation)
+              // Reference: only check if valid and compressed, if not return empty
+              if (!stack_items.empty()) {
+                std::vector<unsigned char> pubkey_bytes = stack_items.back();
+                CPubKey pubkey(pubkey_bytes);
+                if (pubkey.IsValid() && pubkey.IsCompressed()) {
+                  pubkey_from_script = pubkey;
+                  is_valid_input = true;
+                }
+              }
+            }
+          }
+          // P2TR: Extract pubkey from scriptPubKey, check for NUMS_H in witness (following reference implementation)
           else if (script_hex.length() >= 4 && script_hex.substr(0, 4) == "5120") {
             // OP_1 <32-byte x-only pubkey>
             is_taproot = true;
             
-            // Check witness for script-path spend and NUMS_H
-            if (vin.contains("txinwitness")) {
+            // Check witness for script-path spend and NUMS_H (following reference implementation)
+            // Reference: witnessStack = vin.txinwitness.scriptWitness.stack
+            //            if (len(witnessStack) >= 1):
+            if (vin.contains("txinwitness") && !vin["txinwitness"].empty()) {
               std::vector<unsigned char> witness_bytes = HexToBytes(vin["txinwitness"]);
-              if (witness_bytes.size() > 0 && witness_bytes[0] > 1) {
-                // Has witness stack with more than 1 item (script-path spend)
-                // Check for annex (last item starts with 0x50)
+              if (witness_bytes.size() > 0 && witness_bytes[0] >= 1) {
                 size_t stack_count = witness_bytes[0];
                 size_t offset = 1;
                 std::vector<std::vector<unsigned char>> stack_items;
@@ -293,12 +312,19 @@ bool TestWithVectors(const std::string& json_file_path) {
                   }
                 }
                 
-                // Check if last item is annex (starts with 0x50)
-                if (!stack_items.empty() && stack_items.back().size() > 0 && stack_items.back()[0] == 0x50) {
+                // Reference: if (len(witnessStack) > 1 and witnessStack[-1][0] == 0x50):
+                //            witnessStack.pop()
+                if (stack_items.size() > 1 && !stack_items.empty() && 
+                    stack_items.back().size() > 0 && stack_items.back()[0] == 0x50) {
                   stack_items.pop_back();
                 }
                 
-                // If still more than 1 item, it's a script-path spend
+                // Reference: if (len(witnessStack) > 1):
+                //            # Script-path spend
+                //            control_block = witnessStack[-1]
+                //            internal_key = control_block[1:33]
+                //            if (internal_key == NUMS_H.to_bytes(32, 'big')):
+                //                return ECPubKey()
                 if (stack_items.size() > 1) {
                   // Last item is control block: <control byte> <32-byte internal key> [hashes...]
                   std::vector<unsigned char> control_block = stack_items.back();
@@ -317,8 +343,18 @@ bool TestWithVectors(const std::string& json_file_path) {
               }
             }
             
-            // Extract x-only pubkey from scriptPubKey
+            // Reference: pubkey = ECPubKey().set(vin.prevout[2:])
+            //            if (pubkey.valid) & (pubkey.compressed):
+            //                return pubkey
+            // Always extract pubkey from prevout[2:] after checking witness
+            // prevout[2:] means skip OP_1 (0x51) and 0x20 (32-byte length), get the 32-byte x-only pubkey
             std::vector<unsigned char> xonly_bytes(script_bytes.begin() + 2, script_bytes.begin() + 34);
+            // Check if this is NUMS_H (key-path spend with NUMS_H)
+            std::vector<unsigned char> nums_h = HexToBytes("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0");
+            if (std::equal(xonly_bytes.begin(), xonly_bytes.end(), nums_h.begin())) {
+              // Skip NUMS_H - return empty pubkey
+              continue;
+            }
             XOnlyPubKey xonly_pubkey(xonly_bytes);
             pubkey_from_script = xonly_pubkey.GetEvenCorrespondingCPubKey();
             is_valid_input = pubkey_from_script.IsValid() && pubkey_from_script.IsCompressed();
@@ -670,3 +706,4 @@ int main(int argc, char* argv[]) {
 
   return 0;
 }
+
