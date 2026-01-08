@@ -201,7 +201,7 @@ class NunchukStorage {
                           const std::string &derivation_path);
   bool UpdateRemoteSigner(Chain chain, const SingleSigner &remotesigner);
   bool IsMasterSigner(Chain chain, const std::string &id);
-  int GetAddressIndex(Chain chain, const std::string &wallet_id,
+  std::pair<int, bool> GetAddressIndex(Chain chain, const std::string &wallet_id,
                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);

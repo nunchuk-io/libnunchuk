@@ -1927,7 +1927,7 @@ void NunchukImpl::DisplayAddressOnDevice(
   std::string desc;
   int idx = wallet.is_escrow()
                 ? -1
-                : storage_->GetAddressIndex(chain_, wallet_id, address);
+                : storage_->GetAddressIndex(chain_, wallet_id, address).first;
   for (auto&& device : devices) {
     if (!device_fingerprint.empty() &&
         device_fingerprint != device.get_master_fingerprint()) {
@@ -2377,6 +2377,18 @@ std::string NunchukImpl::CreatePsbt(
       break;
     }
   }
+
+  if (has_silent_payment) {
+    if (wallet.get_wallet_type() != WalletType::SINGLE_SIG) {
+      throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                             "Silent Payment requires a single sig wallet");
+    } 
+    auto mastersigner = GetMasterSigner(wallet.get_signers()[0].get_master_fingerprint());
+    if (mastersigner.get_type() != SignerType::SOFTWARE) {
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             "Silent Payment requires a software signer");
+    }
+  }
   
   if (has_silent_payment && !sp_inputs.empty()) {
     // For Silent Payment, we need input keys
@@ -2738,7 +2750,7 @@ std::string NunchukImpl::GetAddressPath(const std::string& wallet_id,
 
 int NunchukImpl::GetAddressIndex(const std::string& wallet_id,
                                  const std::string& address) {
-  return storage_->GetAddressIndex(chain_, wallet_id, address);
+  return storage_->GetAddressIndex(chain_, wallet_id, address).first;
 }
 
 bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,

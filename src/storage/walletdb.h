@@ -77,7 +77,7 @@ class NunchukWalletDb : public NunchukDb {
   std::string FillPsbt(const std::string &psbt);
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
-  int GetAddressIndex(const std::string &address);
+  std::pair<int, bool> GetAddressIndex(const std::string &address);
   Amount GetAddressBalance(const std::string &address);
   bool MarkAddressAsUsed(const std::string &address);
   std::string GetAddressStatus(const std::string &address) const;

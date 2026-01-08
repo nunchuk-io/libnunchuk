@@ -491,10 +491,10 @@ std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
   return rs;
 }
 
-int NunchukWalletDb::GetAddressIndex(const std::string& address) {
+std::pair<int, bool> NunchukWalletDb::GetAddressIndex(const std::string& address) {
   auto all = GetAllAddressData();
-  if (all.count(address)) return all.at(address).index;
-  return -1;
+  if (all.count(address)) return {all.at(address).index, all.at(address).internal};
+  return {-1, false};
 }
 
 Amount NunchukWalletDb::GetAddressBalance(const std::string& address) {
