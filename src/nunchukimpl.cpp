@@ -2346,6 +2346,7 @@ std::string NunchukImpl::CreatePsbt(
     bool subtract_fee_from_amount, bool utxo_update_psbt, Amount& fee,
     int& vsize, int& change_pos, bool anti_fee_sniping, bool use_script_path,
     const SigningPath& signing_path) {
+  std::cout << "CreatePsbt" << std::endl;
   Wallet wallet = GetWallet(wallet_id);
   if (wallet.get_address_type() != AddressType::TAPROOT ||
       wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH) {
@@ -2366,7 +2367,7 @@ std::string NunchukImpl::CreatePsbt(
   }
 
   // Handle Silent Payment addresses
-  std::map<std::string, Amount> processed_outputs = outputs;
+  std::map<std::string, Amount> processed_outputs;
   std::map<std::string, std::string> temp_outputs;
 
   // Check if any outputs are Silent Payment addresses
