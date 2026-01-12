@@ -18,6 +18,7 @@
 #ifndef NUNCHUK_SILENTPAYMENT_H
 #define NUNCHUK_SILENTPAYMENT_H
 
+#include <compat/endian.h>
 #include <nunchuk.h>
 #include <pubkey.h>
 #include <key.h>
@@ -455,7 +456,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     hasher.Write(shared_point_bytes, 33);  // ecdh_shared_secret (uncompressed, 65 bytes)
     
     // Append k as 4-byte big-endian integer (ser_uint32)
-    uint32_t k_be = htobe32(static_cast<uint32_t>(k));
+    uint32_t k_be = htobe32_internal(static_cast<uint32_t>(k));
     hasher.Write((unsigned char*)&k_be, 4);  // k (4 bytes)
     
     uint256 t_k;
