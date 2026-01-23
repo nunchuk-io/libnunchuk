@@ -80,11 +80,13 @@ class NunchukImpl : public Nunchuk {
       const std::vector<SingleSigner>& signers, AddressType address_type,
       WalletType wallet_type, const std::string& desc = {},
       WalletTemplate wallet_template = WalletTemplate::DEFAULT) override;
-  std::vector<Wallet> GetWallets(const std::vector<OrderBy>& orders = {
-                                     OrderBy::OLDEST_FIRST}) override;
-  std::vector<Wallet> GetWallets(const std::vector<std::string>& wallet_ids) override;
-  std::vector<std::string> ListWalletIds(
-      const std::vector<OrderBy>& orders = {OrderBy::OLDEST_FIRST}) override;
+  std::vector<Wallet> GetWallets(
+      const std::vector<OrderBy>& orders = {OrderBy::OLDEST_FIRST},
+      bool skip_balance = false) override;
+  std::vector<Wallet> GetWallets(const std::vector<std::string>& wallet_ids,
+                                 bool skip_balance = false) override;
+  std::vector<std::string> ListWalletIds(const std::vector<OrderBy>& orders = {
+                                             OrderBy::OLDEST_FIRST}) override;
   Wallet GetWallet(const std::string& wallet_id) override;
   bool HasWallet(const std::string& wallet_id) override;
   bool DeleteWallet(const std::string& wallet_id) override;
