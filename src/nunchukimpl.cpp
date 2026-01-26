@@ -231,7 +231,7 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets(
-    const std::vector<OrderBy>& orders) {
+    const std::vector<OrderBy>& orders, bool skip_balance) {
   static constexpr auto order_func = [](const Wallet& lhs, const Wallet& rhs,
                                         OrderBy order) -> int {
     switch (order) {
@@ -275,7 +275,7 @@ std::vector<Wallet> NunchukImpl::GetWallets(
   std::vector<Wallet> wallets;
   for (auto&& wallet_id : wallet_ids) {
     try {
-      auto wallet = GetWallet(wallet_id);
+      auto wallet = storage_->GetWallet(chain_, wallet_id, false, true, skip_balance);
       if (wallet.get_id() == wallet_id) wallets.push_back(std::move(wallet));
     } catch (...) {
     }
@@ -290,10 +290,10 @@ std::vector<Wallet> NunchukImpl::GetWallets(
 }
 
 std::vector<Wallet> NunchukImpl::GetWallets(
-    const std::vector<std::string>& wallet_ids) {
+    const std::vector<std::string>& wallet_ids, bool skip_balance) {
   std::vector<Wallet> wallets;
   for (auto&& wallet_id : wallet_ids) {
-    wallets.push_back(GetWallet(wallet_id));
+    wallets.push_back(storage_->GetWallet(chain_, wallet_id, false, true, skip_balance));
   }
   return wallets;
 }
