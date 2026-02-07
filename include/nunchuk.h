@@ -2068,6 +2068,18 @@ class NUNCHUK_EXPORT Utils {
       const Wallet& wallet,
       ExportFormat = ExportFormat::DESCRIPTOR_EXTERNAL_ALL,
       int min_version = 1 /*1-40*/, int max_version = 1 /*1-40*/);
+  static std::string GenerateColdCardHealthCheckMessage(
+      const std::string& derivation_path,
+      const std::string& message = Utils::GenerateHealthCheckMessage(),
+      AddressType address_type = AddressType::LEGACY);
+  static std::string ExtractColdcardMessageSignature(
+      const std::vector<std::string>& qr_data);
+  static std::string ExtractColdcardMessageSignature(const std::string& value);
+  static std::vector<std::string> ExportBBQRJSON(const std::string& value,
+                                                 int min_version = 1 /*1-40*/,
+                                                 int max_version = 40 /*1-40*/
+  );
+
   static std::vector<std::string> ExportKeystoneWallet(const Wallet& wallet,
                                                        int fragment_len = 200);
   static std::vector<std::string> ExportBCR2020010Wallet(
