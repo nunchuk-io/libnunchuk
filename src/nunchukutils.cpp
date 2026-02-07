@@ -52,6 +52,7 @@
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
 #include <utils/silentpayment.hpp>
+#include <utils/coldcard.hpp>
 
 #include <random.h>
 #include <ctime>
@@ -915,6 +916,52 @@ std::vector<std::string> Utils::ExportBBQRWallet(const Wallet& wallet,
   option.min_version = min_version;
   option.max_version = max_version;
   auto split_result = bbqr::split_qrs(data, bbqr::FileType::U, option);
+  return split_result.parts;
+}
+
+std::string Utils::GenerateColdCardHealthCheckMessage(
+    const std::string& derivation_path, const std::string& message,
+    AddressType address_type) {
+  return nunchuk::GenerateColdCardHealthCheckMessage(derivation_path, message,
+                                                     address_type);
+}
+
+std::string Utils::ExtractColdcardMessageSignature(
+    const std::vector<std::string>& qr_data) {
+  bool is_simple_qr =
+      qr_data.size() == 1 && "B$" != std::string_view(qr_data[0]).substr(0, 2);
+  if (is_simple_qr) {
+    return qr_data[0];
+  }
+  try {
+    auto join_result = bbqr::join_qrs<std::string>(qr_data);
+    if (!join_result.is_complete ||
+        join_result.file_type != bbqr::FileType::U) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid data");
+    }
+
+    auto msg = ParseBitcoinSignedMessage(join_result.raw);
+    return msg.signature;
+  } catch (NunchukException& e) {
+    throw;
+  } catch (std::exception& e) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
+}
+
+std::string Utils::ExtractColdcardMessageSignature(const std::string& value) {
+  auto msg = ParseBitcoinSignedMessage(value);
+  return msg.signature;
+}
+
+std::vector<std::string> Utils::ExportBBQRJSON(const std::string& value,
+                                               int min_version,
+                                               int max_version) {
+  bbqr::SplitOption option{};
+  option.min_version = min_version;
+  option.max_version = max_version;
+  auto split_result = bbqr::split_qrs(value, bbqr::FileType::J, option);
   return split_result.parts;
 }
 

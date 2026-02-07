@@ -18,10 +18,11 @@
 #ifndef NUNCHUK_COLDCARD_H
 #define NUNCHUK_COLDCARD_H
 
-#include <algorithm>
+#include <utils/json.hpp>
 #include "nunchuk.h"
 #include "utils/rfc2440.hpp"
 
+using json = nlohmann::json;
 namespace nunchuk {
 
 inline std::string GenerateColdCardHealthCheckMessage(
@@ -43,8 +44,12 @@ inline std::string GenerateColdCardHealthCheckMessage(
     }
   };
 
-  return message + "\n" + derivation_path + "\n" +
-         address_type_to_str(address_type);
+  json out = {
+      {"msg", message},
+      {"subpath", derivation_path},
+      {"addr_fmt", address_type_to_str(address_type)},
+  };
+  return out.dump();
 }
 
 struct ColdcardBackupData {
