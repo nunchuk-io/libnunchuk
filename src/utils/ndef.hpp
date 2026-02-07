@@ -151,6 +151,16 @@ inline std::string NDEFRecordsToPSBT(const std::vector<NDEFRecord> &records) {
   return EncodeBase64(raw_psbt);
 }
 
+inline std::string NDEFRecordsToStr(const std::vector<NDEFRecord> &records) {
+  for (const auto &record : records) {
+    if (record.typeNameFormat == NDEFRecord::TNF_WELLKNOWN &&
+        record.type == NDEFRecord::TYPE_TEXT) {
+      return std::string(std::begin(record.payload), std::end(record.payload));
+    }
+  }
+  return {};
+}
+
 inline std::vector<NDEFRecord> NDEFRecordsFromPSBT(const std::string &psbt) {
   auto raw_psbt = DecodeBase64(psbt);
   if (!raw_psbt) {
