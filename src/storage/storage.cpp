@@ -1529,15 +1529,15 @@ bool NunchukStorage::IsMasterSigner(Chain chain, const std::string& id) {
   return GetSignerDb(chain, id).IsMaster();
 }
 
-int NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
+std::pair<int, bool> NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
                                     const std::string& address) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  int index = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
+  auto [index, internal] = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
   if (index < 0)
     throw StorageException(
         StorageException::ADDRESS_NOT_FOUND,
         strprintf("Address not found wallet_id = '%s'", wallet_id));
-  return index;
+  return {index, internal};
 }
 
 Amount NunchukStorage::GetAddressBalance(Chain chain,

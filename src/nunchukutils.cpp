@@ -51,6 +51,7 @@
 #include <cbor-lite.hpp>
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
+#include <utils/silentpayment.hpp>
 #include <utils/coldcard.hpp>
 
 #include <random.h>
@@ -172,6 +173,10 @@ bool Utils::IsDustOutput(const TxOutput& txout) {
 bool Utils::IsValidAddress(const std::string& address) {
   CTxDestination dest = DecodeDestination(address);
   return IsValidDestination(dest);
+}
+
+bool Utils::IsSilentPaymentAddress(const std::string& address) {
+  return silentpayment::IsSilentPaymentAddress(address, Utils::GetChain());
 }
 
 Amount Utils::AmountFromValue(const std::string& value,

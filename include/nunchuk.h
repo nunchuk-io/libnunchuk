@@ -1969,6 +1969,7 @@ class NUNCHUK_EXPORT Utils {
   static bool IsValidFingerPrint(const std::string& value);
   static bool IsDustOutput(const TxOutput& txout);
   static bool IsValidAddress(const std::string& address);
+  static bool IsSilentPaymentAddress(const std::string& address);
   static Amount AmountFromValue(const std::string& value,
                                 const bool allow_negative = false);
   static std::string ValueFromAmount(const Amount& amount);
