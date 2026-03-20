@@ -242,33 +242,32 @@ std::string ToHex(const std::vector<unsigned char>& bytes) {
 // and a_sum·G is the public key corresponding to the sum of all input private keys
 inline uint256 CalculateInputHash(
     const std::vector<nunchuk::UnspentOutput>& inputs,
-    const std::vector<CPubKey>& input_pubkeys,
     const CPubKey& sum_pubkey) {
   if (inputs.empty() || !sum_pubkey.IsValid() || !sum_pubkey.IsCompressed()) {
     return uint256();
   }
   
   // Find lexicographically smallest outpoint (outpoint_L)
-  // According to BIP-352: outpoints are sorted by their serialized bytes
-  // Serialization: txid (32 bytes, little-endian) || vout (4 bytes, little-endian)
+  // According to BIP-352: outpoints are sorted by their serialized bytes.
+  // Serialization: txid (32 bytes, little-endian) || vout (4 bytes, little-endian).
   std::vector<std::pair<std::vector<unsigned char>, std::pair<uint256, uint32_t>>> outpoints_serialized;
   for (const auto& input : inputs) {
-    // Parse txid from hex string (big-endian) to uint256 (little-endian)
     uint256 txid;
     auto txid_opt = uint256::FromHex(input.get_txid());
     if (!txid_opt) {
       return uint256();
     }
     txid = *txid_opt;
-    
-    // Serialize outpoint: txid (32 bytes, little-endian) || vout (4 bytes, little-endian)
+
     std::vector<unsigned char> serialized;
     serialized.reserve(36);
-    serialized.insert(serialized.end(), txid.begin(), txid.end());  // 32 bytes
-    uint32_t vout_le = input.get_vout();  // Already in native endian, but we need little-endian
-    serialized.insert(serialized.end(), reinterpret_cast<unsigned char*>(&vout_le), 
-                      reinterpret_cast<unsigned char*>(&vout_le) + 4);
-    
+    serialized.insert(serialized.end(), txid.begin(), txid.end());  // 32 bytes, LE
+    uint32_t vout = input.get_vout();
+    serialized.push_back(static_cast<unsigned char>(vout & 0xFF));
+    serialized.push_back(static_cast<unsigned char>((vout >> 8) & 0xFF));
+    serialized.push_back(static_cast<unsigned char>((vout >> 16) & 0xFF));
+    serialized.push_back(static_cast<unsigned char>((vout >> 24) & 0xFF));
+
     outpoints_serialized.push_back({serialized, {txid, input.get_vout()}});
   }
   
@@ -302,22 +301,43 @@ inline uint256 CalculateInputHash(
   return result;
 }
 
+inline CKey CalculateTweakedKey(const CKey& key) {
+  secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+
+  unsigned char key_bytes[32];
+  const std::byte* key_data = key.data();
+  memcpy(key_bytes, reinterpret_cast<const unsigned char*>(key_data), 32);
+  
+  // Apply BIP341 TapTweak for keypath spend with no script tree (BIP86-style).
+  // This requires:
+  //  - internal key with even Y (handled above by negating when needed)
+  //  - seckey' = seckey + H_TapTweak(xonly_internal)
+  CPubKey internal_pubkey{key.GetPubKey()};
+  XOnlyPubKey xonly_internal{internal_pubkey};
+  uint256 tweak = xonly_internal.ComputeTapTweakHash(nullptr);
+  if (!secp256k1_ec_privkey_tweak_add(ctx, key_bytes, tweak.begin())) {
+    secp256k1_context_destroy(ctx);
+    return key;
+  }
+  secp256k1_context_destroy(ctx);
+  CKey tweaked_key;
+  tweaked_key.Set(key_bytes, key_bytes + 32, true);
+  return tweaked_key;
+}
+
 // Derive Silent Payment output public keys according to BIP-352
 // Returns vector of derived output public keys (taproot x-only pubkeys)
 inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const CPubKey& B_scan,  // Silent Payment scan public key
     const CPubKey& B_m,     // Silent Payment spend public key
     const std::vector<CKey>& input_privkeys,  // Input private keys
-    const std::vector<CPubKey>& input_pubkeys,  // Input public keys
     const std::vector<nunchuk::UnspentOutput>& inputs,
     const std::vector<bool>& is_taproot_inputs,  // Whether each input is taproot
     size_t num_outputs,
     size_t starting_k = 0) {  // Starting value for k (for multiple B_m with same B_scan)
   std::vector<XOnlyPubKey> outputs;
-  if (!B_scan.IsValid() || !B_m.IsValid() || input_privkeys.empty() || input_pubkeys.empty() || 
+  if (!B_scan.IsValid() || !B_m.IsValid() || input_privkeys.empty() || 
       inputs.empty() || num_outputs == 0 ||
-      input_privkeys.size() != input_pubkeys.size() ||
-      // inputs.size() != input_pubkeys.size() ||
       is_taproot_inputs.size() != input_privkeys.size()) {
     return outputs;
   }
@@ -343,7 +363,6 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     // According to BIP-352: if input is x-only pubkey (taproot) with odd y, negate the private key
     // We need to check the y coordinate of the pubkey derived from the private key, not from scriptPubKey
     if (i < is_taproot_inputs.size() && is_taproot_inputs[i]) {
-      // This is a taproot input
       // Derive pubkey from private key to check y coordinate
       secp256k1_pubkey pubkey_point;
       if (secp256k1_ec_pubkey_create(ctx, &pubkey_point, key_bytes)) {
@@ -396,7 +415,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   // If sum_pubkey is invalid, we've already returned
   // Calculate input_hash = TaggedHash("BIP0352/Inputs", outpoint_L || (a_sum·G))
   // Note: CalculateInputHash expects uncompressed pubkey
-  uint256 input_hash = CalculateInputHash(inputs, input_pubkeys, sum_pubkey);
+  uint256 input_hash = CalculateInputHash(inputs, sum_pubkey);
   if (input_hash.IsNull()) {
     secp256k1_context_destroy(ctx);
     return outputs;
@@ -569,12 +588,11 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     const CPubKey& B_scan,
     const CPubKey& B_m,
     const std::vector<CKey>& input_privkeys,
-    const std::vector<CPubKey>& input_pubkeys,
     const std::vector<UnspentOutput>& inputs,
     const std::vector<bool>& is_taproot_inputs,
     size_t num_outputs,
     size_t starting_k = 0) {
-  return ::DeriveSilentPaymentOutputs(B_scan, B_m, input_privkeys, input_pubkeys, inputs, is_taproot_inputs, num_outputs, starting_k);
+  return ::DeriveSilentPaymentOutputs(B_scan, B_m, input_privkeys, inputs, is_taproot_inputs, num_outputs, starting_k);
 }
 
 inline std::string CreateTaprootAddress(const XOnlyPubKey& xonly_pubkey, Chain chain) {

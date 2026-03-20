@@ -595,7 +595,7 @@ bool TestWithVectors(const std::string& json_file_path) {
             size_t k_offset = 0;
             for (size_t i = 0; i < B_m_list.size(); i++) {
               auto outputs = silentpayment::DeriveSilentPaymentOutputs(
-                  B_scan, B_m_list[i], input_privkeys, input_pubkeys, inputs,
+                  B_scan, B_m_list[i], input_privkeys, inputs,
                   is_taproot_inputs, 1, k_offset);
               if (!outputs.empty()) {
                 // Convert x-only pubkey to hex string (32 bytes)

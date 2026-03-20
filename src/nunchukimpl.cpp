@@ -230,8 +230,8 @@ std::string NunchukImpl::DraftWallet(const std::string& name, int m, int n,
   return wallet.get_descriptor(DefaultDescriptorPath(signers));
 }
 
-std::vector<Wallet> NunchukImpl::GetWallets(
-    const std::vector<OrderBy>& orders, bool skip_balance) {
+std::vector<Wallet> NunchukImpl::GetWallets(const std::vector<OrderBy>& orders,
+                                            bool skip_balance) {
   static constexpr auto order_func = [](const Wallet& lhs, const Wallet& rhs,
                                         OrderBy order) -> int {
     switch (order) {
@@ -275,7 +275,8 @@ std::vector<Wallet> NunchukImpl::GetWallets(
   std::vector<Wallet> wallets;
   for (auto&& wallet_id : wallet_ids) {
     try {
-      auto wallet = storage_->GetWallet(chain_, wallet_id, false, true, skip_balance);
+      auto wallet =
+          storage_->GetWallet(chain_, wallet_id, false, true, skip_balance);
       if (wallet.get_id() == wallet_id) wallets.push_back(std::move(wallet));
     } catch (...) {
     }
@@ -293,7 +294,8 @@ std::vector<Wallet> NunchukImpl::GetWallets(
     const std::vector<std::string>& wallet_ids, bool skip_balance) {
   std::vector<Wallet> wallets;
   for (auto&& wallet_id : wallet_ids) {
-    wallets.push_back(storage_->GetWallet(chain_, wallet_id, false, true, skip_balance));
+    wallets.push_back(
+        storage_->GetWallet(chain_, wallet_id, false, true, skip_balance));
   }
   return wallets;
 }
@@ -2351,6 +2353,7 @@ std::string NunchukImpl::CreatePsbt(
       wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH) {
     use_script_path = true;
   }
+  bool is_taproot = wallet.get_address_type() == AddressType::TAPROOT;
 
   std::vector<UnspentOutput> utxos = inputs;
   if (utxos.empty()) {
@@ -2394,18 +2397,16 @@ std::string NunchukImpl::CreatePsbt(
     std::vector<UnspentOutput> sp_inputs = {utxos[0]};
     std::vector<bool> is_taproot_inputs{};
     std::vector<CKey> input_privkeys{};
-    std::vector<CPubKey> input_pubkeys{};
 
     for (const auto& input : sp_inputs) {
       auto [index, internal] =
           storage_->GetAddressIndex(chain_, wallet_id, input.get_address());
-      is_taproot_inputs.push_back(wallet.get_address_type() ==
-                                  AddressType::TAPROOT);
+      is_taproot_inputs.push_back(is_taproot);
       CExtKey key = software_signer.GetExtKeyAtPath(
           signer_path + "/" + std::to_string(internal ? 1 : 0) + "/" +
           std::to_string(index));
-      input_privkeys.push_back(key.key);
-      input_pubkeys.push_back(key.Neuter().pubkey);
+      input_privkeys.push_back(is_taproot ? CalculateTweakedKey(key.key)
+                                          : key.key);
     }
 
     for (const auto& output : outputs) {
@@ -2413,9 +2414,9 @@ std::string NunchukImpl::CreatePsbt(
         SilentPaymentKeys keys =
             DecodeSilentPaymentAddress(output.first, chain_);
         if (keys.IsValid()) {
-          auto derived_outputs = DeriveSilentPaymentOutputs(
-              keys.B_scan, keys.B_m, input_privkeys, input_pubkeys, sp_inputs,
-              is_taproot_inputs, 1);
+          auto derived_outputs =
+              DeriveSilentPaymentOutputs(keys.B_scan, keys.B_m, input_privkeys,
+                                         sp_inputs, is_taproot_inputs, 1);
 
           if (!derived_outputs.empty()) {
             // Replace Silent Payment address with derived taproot address
@@ -2508,18 +2509,16 @@ std::string NunchukImpl::CreatePsbt(
     std::vector<UnspentOutput> sp_inputs = GetCoinsFromTxInputs(wallet_id, vin);
     std::vector<bool> is_taproot_inputs{};
     std::vector<CKey> input_privkeys{};
-    std::vector<CPubKey> input_pubkeys{};
 
     for (const auto& input : sp_inputs) {
       auto [index, internal] =
           storage_->GetAddressIndex(chain_, wallet_id, input.get_address());
-      is_taproot_inputs.push_back(wallet.get_address_type() ==
-                                  AddressType::TAPROOT);
+      is_taproot_inputs.push_back(is_taproot);
       CExtKey key = software_signer.GetExtKeyAtPath(
           signer_path + "/" + std::to_string(internal ? 1 : 0) + "/" +
           std::to_string(index));
-      input_privkeys.push_back(key.key);
-      input_pubkeys.push_back(key.Neuter().pubkey);
+      input_privkeys.push_back(is_taproot ? CalculateTweakedKey(key.key)
+                                          : key.key);
     }
 
     for (const CTxOut& txout : tx_new->vout) {
@@ -2529,9 +2528,9 @@ std::string NunchukImpl::CreatePsbt(
       if (temp_outputs.count(addr)) {
         SilentPaymentKeys keys =
             DecodeSilentPaymentAddress(temp_outputs[addr], chain_);
-        auto derived_outputs = DeriveSilentPaymentOutputs(
-            keys.B_scan, keys.B_m, input_privkeys, input_pubkeys, sp_inputs,
-            is_taproot_inputs, 1);
+        auto derived_outputs =
+            DeriveSilentPaymentOutputs(keys.B_scan, keys.B_m, input_privkeys,
+                                       sp_inputs, is_taproot_inputs, 1);
 
         if (!derived_outputs.empty()) {
           // Replace Silent Payment address with derived taproot address
