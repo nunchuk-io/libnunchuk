@@ -312,12 +312,43 @@ inline CKey CalculateTweakedKey(const CKey& key) {
   // This requires:
   //  - internal key with even Y (handled above by negating when needed)
   //  - seckey' = seckey + H_TapTweak(xonly_internal)
-  CPubKey internal_pubkey{key.GetPubKey()};
+  secp256k1_pubkey pubkey_point;
+  unsigned char pubkey_serialized[33];
+  if (!secp256k1_ec_pubkey_create(ctx, &pubkey_point, key_bytes)) {
+    secp256k1_context_destroy(ctx);
+    throw std::runtime_error("Failed to create pubkey point");
+  }
+  // Serialize to get y coordinate
+  size_t pubkey_len = 33;
+  if (!secp256k1_ec_pubkey_serialize(ctx, pubkey_serialized, &pubkey_len, &pubkey_point, SECP256K1_EC_COMPRESSED)) {
+    secp256k1_context_destroy(ctx);
+    throw std::runtime_error("Failed to serialize pubkey");
+  }
+  // Check if y coordinate is odd (0x03 prefix = odd y, 0x02 = even y)
+  if (pubkey_serialized[0] == 0x03) {
+    // Odd y coordinate, negate the private key
+    if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
+      secp256k1_context_destroy(ctx);
+      throw std::runtime_error("Failed to negate private key");
+    }
+    // Update pubkey_serialized to match the negated key (same X, even Y)
+    if (!secp256k1_ec_pubkey_create(ctx, &pubkey_point, key_bytes)) {
+      secp256k1_context_destroy(ctx);
+      throw std::runtime_error("Failed to update pubkey_serialized");
+    }
+    pubkey_len = 33;
+    if (!secp256k1_ec_pubkey_serialize(ctx, pubkey_serialized, &pubkey_len, &pubkey_point, SECP256K1_EC_COMPRESSED)) {
+      secp256k1_context_destroy(ctx);
+      throw std::runtime_error("Failed to serialize pubkey");
+    }
+  }
+
+  CPubKey internal_pubkey{pubkey_serialized};
   XOnlyPubKey xonly_internal{internal_pubkey};
   uint256 tweak = xonly_internal.ComputeTapTweakHash(nullptr);
-  if (!secp256k1_ec_privkey_tweak_add(ctx, key_bytes, tweak.begin())) {
+  if (!secp256k1_ec_seckey_tweak_add(ctx, key_bytes, tweak.begin())) {
     secp256k1_context_destroy(ctx);
-    return key;
+    throw std::runtime_error("Failed to add tweak to private key");
   }
   secp256k1_context_destroy(ctx);
   CKey tweaked_key;
@@ -345,7 +376,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   
   // Calculate sum of input private keys: a_sum = sum(a_i) mod n
   // According to BIP-352: if input is x-only pubkey with odd y, negate the private key
-  // Use secp256k1_ec_privkey_tweak_add to sum private keys
+  // Use secp256k1_ec_seckey_tweak_add to sum private keys
   unsigned char a_sum[32] = {0};
   bool first_key = true;
   for (size_t i = 0; i < input_privkeys.size(); i++) {
@@ -365,18 +396,23 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
     if (i < is_taproot_inputs.size() && is_taproot_inputs[i]) {
       // Derive pubkey from private key to check y coordinate
       secp256k1_pubkey pubkey_point;
-      if (secp256k1_ec_pubkey_create(ctx, &pubkey_point, key_bytes)) {
-        // Serialize to get y coordinate
-        unsigned char pubkey_serialized[33];
-        size_t pubkey_len = 33;
-        secp256k1_ec_pubkey_serialize(ctx, pubkey_serialized, &pubkey_len, &pubkey_point, SECP256K1_EC_COMPRESSED);
-        // Check if y coordinate is odd (0x03 prefix = odd y, 0x02 = even y)
-        if (pubkey_serialized[0] == 0x03) {
-          // Odd y coordinate, negate the private key
-          if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
-            secp256k1_context_destroy(ctx);
-            return outputs;
-          }
+      if (!secp256k1_ec_pubkey_create(ctx, &pubkey_point, key_bytes)) {
+        secp256k1_context_destroy(ctx);
+        return outputs;
+      }
+      // Serialize to get y coordinate
+      unsigned char pubkey_serialized[33];
+      size_t pubkey_len = 33;
+      if (!secp256k1_ec_pubkey_serialize(ctx, pubkey_serialized, &pubkey_len, &pubkey_point, SECP256K1_EC_COMPRESSED)) {
+        secp256k1_context_destroy(ctx);
+        return outputs;
+      }
+      // Check if y coordinate is odd (0x03 prefix = odd y, 0x02 = even y)
+      if (pubkey_serialized[0] == 0x03) {
+        // Odd y coordinate, negate the private key
+        if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
+          secp256k1_context_destroy(ctx);
+          return outputs;
         }
       }
     }
@@ -388,7 +424,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       first_key = false;
     } else {
       // Subsequent keys: add using tweak_add
-      if (!secp256k1_ec_privkey_tweak_add(ctx, a_sum, key_bytes)) {
+      if (!secp256k1_ec_seckey_tweak_add(ctx, a_sum, key_bytes)) {
         secp256k1_context_destroy(ctx);
         return outputs;
       }
@@ -425,7 +461,7 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   // First multiply a_sum by input_hash
   unsigned char input_hash_bytes[32];
   memcpy(input_hash_bytes, input_hash.begin(), 32);
-  if (!secp256k1_ec_privkey_tweak_mul(ctx, a_sum, input_hash_bytes)) {
+  if (!secp256k1_ec_seckey_tweak_mul(ctx, a_sum, input_hash_bytes)) {
     secp256k1_context_destroy(ctx);
     return outputs;
   }
