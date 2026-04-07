@@ -1355,6 +1355,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              strprintf("Can not sign with server key "
                                        "mastersigner_id = '%s'",
@@ -1426,6 +1427,7 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              strprintf("Can not sign with server key "
                                        "mastersigner_id = '%s'",
@@ -1467,6 +1469,7 @@ std::string NunchukImpl::SignMessage(const SingleSigner& signer,
     case SignerType::COLDCARD_NFC:
     case SignerType::PORTAL_NFC:
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       break;
   }
   throw NunchukException(
@@ -1834,6 +1837,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
     case SignerType::PORTAL_NFC:
     case SignerType::UNKNOWN:
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       throw NunchukException(
           NunchukException::INVALID_SIGNER_TYPE,
           strprintf("Can not cache xpub for this signer mastersigner_id = '%s'",
@@ -2823,6 +2827,31 @@ std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
     }
   }
   return {id, storage_->ImportDummyTx(chain_, wallet_id, id, body, tokens)};
+}
+
+std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
+    const GroupDummyTransaction& dummy_transaction) {
+  if (dummy_transaction.get_type() !=
+      GroupDummyTransactionType::UPDATE_PLATFORM_KEY_POLICIES) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Unsupported group dummy transaction type");
+  }
+  std::vector<std::string> tokens{};
+  for (auto&& item : dummy_transaction.get_signatures()) {
+    if (!item.get_signature().empty()) {
+      tokens.push_back(item.get_signature());
+    }
+  }
+  if (dummy_transaction.get_wallet_id().empty() ||
+      dummy_transaction.get_id().empty() ||
+      dummy_transaction.get_request_body().empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid dummy transaction");
+  }
+  return {dummy_transaction.get_id(),
+          storage_->ImportDummyTx(chain_, dummy_transaction.get_wallet_id(),
+                                  dummy_transaction.get_id(),
+                                  dummy_transaction.get_request_body(), tokens)};
 }
 
 RequestTokens NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,

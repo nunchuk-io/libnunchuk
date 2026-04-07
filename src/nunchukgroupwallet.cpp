@@ -17,6 +17,7 @@
 
 #include "nunchukimpl.h"
 
+#include <algorithm>
 #include <groupservice.h>
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
@@ -26,6 +27,152 @@
 using json = nlohmann::json;
 
 namespace nunchuk {
+
+namespace {
+
+std::vector<SingleSigner> MarkPlatformSigners(const GroupSandbox& group) {
+  auto signers = group.get_signers();
+  if (!group.get_platform_key().has_value()) return signers;
+
+  if (group.get_wallet_type() == WalletType::MULTI_SIG) {
+    const int platform_index = group.get_n() - 1;
+    if (platform_index >= 0 && platform_index < signers.size() &&
+        !signers[platform_index].get_master_fingerprint().empty()) {
+      signers[platform_index].set_type(SignerType::PLATFORM);
+    }
+    return signers;
+  }
+
+  auto named_signers = group.get_named_signers();
+  for (auto&& slot : group.get_platform_key_slots()) {
+    auto it = named_signers.find(slot);
+    if (it != named_signers.end() &&
+        !it->second.get_master_fingerprint().empty()) {
+      it->second.set_type(SignerType::PLATFORM);
+    }
+  }
+
+  int keypath_m = 0;
+  auto names =
+      Utils::ParseSignerNames(group.get_miniscript_template(), keypath_m);
+  for (int i = 0; i < names.size() && i < signers.size(); i++) {
+    auto it = named_signers.find(names[i]);
+    if (it != named_signers.end() &&
+        !it->second.get_master_fingerprint().empty()) {
+      signers[i] = it->second;
+    }
+  }
+  return signers;
+}
+
+std::map<std::string, SingleSigner> MarkPlatformNamedSigners(
+    const GroupSandbox& group) {
+  auto signers = group.get_named_signers();
+  if (!group.get_platform_key().has_value()) return signers;
+
+  for (auto&& slot : group.get_platform_key_slots()) {
+    auto it = signers.find(slot);
+    if (it != signers.end() && !it->second.get_master_fingerprint().empty()) {
+      it->second.set_type(SignerType::PLATFORM);
+    }
+  }
+  return signers;
+}
+
+Wallet MarkRecoveredPlatformSigners(const Wallet& wallet,
+                                    const GroupWalletConfig& config) {
+  if (!config.get_platform_key().has_value()) return wallet;
+
+  Wallet updated = wallet;
+  auto signers = updated.get_signers();
+  const auto& fingerprint = config.get_platform_key_fingerprint();
+  bool updated_signer = false;
+  if (!fingerprint.empty()) {
+    for (auto&& signer : signers) {
+      if (signer.get_master_fingerprint() == fingerprint) {
+        signer.set_type(SignerType::PLATFORM);
+        updated_signer = true;
+      }
+    }
+  }
+  if (!updated_signer && updated.get_wallet_type() == WalletType::MULTI_SIG) {
+    const int platform_index = updated.get_n() - 1;
+    if (platform_index >= 0 && platform_index < signers.size() &&
+        !signers[platform_index].get_master_fingerprint().empty()) {
+      signers[platform_index].set_type(SignerType::PLATFORM);
+      updated_signer = true;
+    }
+  }
+  if (updated_signer) {
+    updated.set_signers(std::move(signers));
+  }
+  return updated;
+}
+
+std::vector<std::string> GetReplacementPlatformKeySlots(
+    const Wallet& wallet, const GroupWalletConfig& config) {
+  if (wallet.get_wallet_type() != WalletType::MINISCRIPT) {
+    return {};
+  }
+
+  std::vector<std::string> slots{};
+  const auto& fingerprint = config.get_platform_key_fingerprint();
+  for (int i = 0; i < wallet.get_signers().size(); i++) {
+    const auto& signer = wallet.get_signers()[i];
+    if (signer.get_type() == SignerType::PLATFORM ||
+        (!fingerprint.empty() &&
+         signer.get_master_fingerprint() == fingerprint)) {
+      slots.push_back("key_" + std::to_string(i));
+    }
+  }
+  return slots;
+}
+
+void ValidatePlatformKeyPolicies(
+    const GroupPlatformKeyPolicies& policies,
+    const std::set<std::string>& signer_fingerprints) {
+  if (policies.get_global().has_value() && !policies.get_signers().empty()) {
+    throw GroupException(GroupException::INVALID_PARAMETER,
+                         "Global and signer policies must not coexist");
+  }
+  std::set<std::string> policy_fingerprints{};
+  for (auto&& policy : policies.get_signers()) {
+    const auto& fingerprint = policy.get_master_fingerprint();
+    if (fingerprint.empty()) {
+      throw GroupException(GroupException::INVALID_PARAMETER,
+                           "Missing master fingerprint");
+    }
+    if (!signer_fingerprints.contains(fingerprint)) {
+      throw GroupException(GroupException::INVALID_PARAMETER,
+                           "Master fingerprint not found in wallet");
+    }
+    policy_fingerprints.insert(fingerprint);
+  }
+  if (!policies.get_signers().empty()) {
+    for (auto&& fingerprint : signer_fingerprints) {
+      if (!policy_fingerprints.contains(fingerprint)) {
+        throw GroupException(GroupException::INVALID_PARAMETER,
+                             "Missing signer policy");
+      }
+    }
+  }
+}
+
+std::set<std::string> GetPolicySignerFingerprints(
+    const Wallet& wallet, const GroupWalletConfig& config) {
+  std::set<std::string> fingerprints{};
+  auto marked_wallet = MarkRecoveredPlatformSigners(wallet, config);
+  for (auto&& signer : marked_wallet.get_signers()) {
+    if (signer.get_type() == SignerType::PLATFORM) continue;
+    const auto& fingerprint = signer.get_master_fingerprint();
+    if (!fingerprint.empty()) {
+      fingerprints.insert(fingerprint);
+    }
+  }
+  return fingerprints;
+}
+
+}  // namespace
 
 void ThrowIfNotEnable(bool value) {
   if (!value) {
@@ -47,13 +194,14 @@ void NunchukImpl::SubscribeGroups(const std::vector<std::string>& groupIds,
 
 Wallet NunchukImpl::CreateLocalGroupWallet(const GroupSandbox& group) {
   if (group.get_wallet_type() == WalletType::MINISCRIPT) {
-    return CreateMiniscriptWallet(
-        group.get_name(), group.get_miniscript_template(),
-        group.get_named_signers(), group.get_address_type(), {}, true, {});
+    return CreateMiniscriptWallet(group.get_name(),
+                                  group.get_miniscript_template(),
+                                  MarkPlatformNamedSigners(group),
+                                  group.get_address_type(), {}, true, {});
   }
   return CreateWallet(group.get_name(), group.get_m(), group.get_n(),
-                      group.get_signers(), group.get_address_type(), false, {},
-                      true, {}, group.get_wallet_template());
+                      MarkPlatformSigners(group), group.get_address_type(),
+                      false, {}, true, {}, group.get_wallet_template());
 }
 
 bool NunchukImpl::FinalizeGroupLocal(const GroupSandbox& group) {
@@ -176,6 +324,11 @@ void NunchukImpl::StartListenEvents() {
       auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
       auto groupId = data["group_id"];
       group_replace_listener_(walletId, groupId);
+    } else if (payload.contains("wallet_id") &&
+               (type == "dummy_transaction_updated" ||
+                type == "platform_key_policy_changed")) {
+      auto walletId = group_service_.GetWalletIdFromGid(payload["wallet_id"]);
+      group_wallet_dashboard_listener_(walletId);
     }
     return true;
   });
@@ -280,6 +433,9 @@ GroupSandbox NunchukImpl::JoinGroup(const std::string& groupId) {
 GroupSandbox NunchukImpl::CreateReplaceGroup(const std::string& walletId) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto wallet = GetWallet(walletId);
+  auto config = group_service_.GetWalletConfig(walletId);
+  auto replacement_platform_key_slots =
+      GetReplacementPlatformKeySlots(wallet, config);
 
   // Rebuild script template
   std::string script_tmpl = wallet.get_miniscript();
@@ -319,9 +475,28 @@ GroupSandbox NunchukImpl::CreateReplaceGroup(const std::string& walletId) {
       signers.push_back({});
     }
   }
+
+  std::optional<GroupPlatformKey> replacement_platform_key = std::nullopt;
+  if (config.get_platform_key().has_value()) {
+    if (wallet.get_wallet_type() == WalletType::MULTI_SIG && wallet.get_n() > 0) {
+      signers[wallet.get_n() - 1] = {};
+    } else if (wallet.get_wallet_type() == WalletType::MINISCRIPT) {
+      for (auto&& slot : replacement_platform_key_slots) {
+        if (slot.rfind("key_", 0) != 0) continue;
+        int index = std::stoi(slot.substr(4));
+        if (index >= 0 && index < signers.size()) {
+          signers[index] = {};
+        }
+      }
+    }
+
+    replacement_platform_key = config.get_platform_key();
+  }
+
   auto group = group_service_.CreateReplaceGroup(
       wallet.get_name(), wallet.get_m(), wallet.get_n(), script_tmpl,
-      wallet.get_address_type(), signers, walletId);
+      wallet.get_address_type(), signers, replacement_platform_key,
+      replacement_platform_key_slots, walletId);
   storage_->AddGroupSandboxId(chain_, group.get_id());
   // BE auto subcribe new groupId for creator, don't need to call Subscribe
   return group;
@@ -357,7 +532,7 @@ GroupSandbox NunchukImpl::AcceptReplaceGroup(const std::string& walletId,
   auto wallet = GetWallet(walletId);
   std::vector<SingleSigner> signers{};
   for (auto&& signer : wallet.get_signers()) {
-    if (HasSigner(signer)) {
+    if (HasSigner(signer) && signer.get_type() != SignerType::PLATFORM) {
       signers.push_back(signer);
     } else {
       signers.push_back({});
@@ -417,6 +592,99 @@ GroupSandbox NunchukImpl::RemoveSignerFromGroup(const std::string& groupId,
   return group_service_.SetSigner(groupId, {}, index);
 }
 
+GroupSandbox NunchukImpl::EnableGroupPlatformKey(
+    const std::string& groupId, const std::vector<std::string>& names) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto group = group_service_.GetGroup(groupId);
+  if (group.get_wallet_type() == WalletType::MULTI_SIG && !names.empty()) {
+    throw GroupException(GroupException::INVALID_PARAMETER,
+                         "Platform key slots must be empty for multisig");
+  }
+  if (group.get_wallet_type() == WalletType::MULTI_SIG &&
+      group.get_platform_key().has_value()) {
+    throw GroupException(
+        GroupException::INVALID_PARAMETER,
+        "The platform currently supports only one platform key per wallet.");
+  }
+  if (!group.get_platform_key().has_value() &&
+      group.get_wallet_type() == WalletType::MULTI_SIG && group.get_n() > 0) {
+    auto signers = group.get_signers();
+    const int platform_index = group.get_n() - 1;
+    if (platform_index < signers.size() &&
+        !signers[platform_index].get_master_fingerprint().empty()) {
+      signers[platform_index] = {};
+      group.set_signers(std::move(signers));
+      group.remove_occupied(platform_index);
+    }
+  }
+  auto keys = group.get_ephemeral_keys();
+  auto backend_pubkey = group_service_.GetSharedWalletPubKey();
+  if (std::find(keys.begin(), keys.end(), backend_pubkey) == keys.end()) {
+    keys.push_back(backend_pubkey);
+  }
+  group.set_ephemeral_keys(std::move(keys));
+  if (!group.get_platform_key().has_value()) {
+    group.set_platform_key(GroupPlatformKey{});
+  }
+  group.set_platform_key_slots(names);
+  return group_service_.UpdateGroupState(group);
+}
+
+GroupSandbox NunchukImpl::DisableGroupPlatformKey(const std::string& groupId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto group = group_service_.GetGroup(groupId);
+  auto signers = group.get_signers();
+  if (group.get_wallet_type() == WalletType::MULTI_SIG && group.get_n() > 0) {
+    const int platform_index = group.get_n() - 1;
+    if (platform_index < signers.size()) {
+      signers[platform_index] = {};
+      group.remove_occupied(platform_index);
+    }
+  } else if (group.get_wallet_type() == WalletType::MINISCRIPT &&
+             !group.get_platform_key_slots().empty()) {
+    int keypath_m = 0;
+    auto names =
+        Utils::ParseSignerNames(group.get_miniscript_template(), keypath_m);
+    for (int i = 0; i < names.size() && i < signers.size(); i++) {
+      if (std::find(group.get_platform_key_slots().begin(),
+                    group.get_platform_key_slots().end(),
+                    names[i]) != group.get_platform_key_slots().end()) {
+        signers[i] = {};
+        group.remove_occupied(i);
+      }
+    }
+  }
+  group.set_signers(std::move(signers));
+  auto backend_pubkey = group_service_.GetSharedWalletPubKey();
+  auto keys = group.get_ephemeral_keys();
+  keys.erase(std::remove(keys.begin(), keys.end(), backend_pubkey), keys.end());
+  group.set_ephemeral_keys(std::move(keys));
+  group.set_platform_key(std::nullopt);
+  group.set_platform_key_slots({});
+  return group_service_.UpdateGroupState(group);
+}
+
+GroupSandbox NunchukImpl::SetGroupPlatformKeyPolicies(
+    const std::string& groupId, const GroupPlatformKeyPolicies& policies) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto group = group_service_.GetGroup(groupId);
+  std::set<std::string> signer_fingerprints{};
+  for (auto&& signer : group.get_signers()) {
+    if (!signer.get_master_fingerprint().empty()) {
+      signer_fingerprints.insert(signer.get_master_fingerprint());
+    }
+  }
+  if (policies.get_global().has_value() && !policies.get_signers().empty()) {
+    throw GroupException(GroupException::INVALID_PARAMETER,
+                         "Global and signer policies must not coexist");
+  }
+  GroupPlatformKey platform_key = group.get_platform_key().value_or(
+      GroupPlatformKey(GroupPlatformKeyPolicies{}));
+  platform_key.set_policies(policies);
+  group.set_platform_key(platform_key);
+  return group_service_.UpdateGroupState(group);
+}
+
 GroupSandbox NunchukImpl::UpdateGroup(const std::string& groupId,
                                       const std::string& name, int m, int n,
                                       AddressType addressType) {
@@ -437,6 +705,13 @@ GroupSandbox NunchukImpl::FinalizeGroup(const std::string& groupId,
                                         const std::set<size_t>& valueKeyset) {
   ThrowIfNotEnable(group_wallet_enable_);
   auto group = group_service_.GetGroup(groupId);
+  if (group.get_platform_key().has_value()) {
+    const auto& policies = group.get_platform_key()->get_policies();
+    if (!policies.get_global().has_value() && policies.get_signers().empty()) {
+      throw GroupException(GroupException::INVALID_PARAMETER,
+                           "Platform key policies must be set before finalize");
+    }
+  }
   if (group.get_wallet_type() != WalletType::MINISCRIPT &&
       (group.get_m() <= 0 || group.get_n() <= 1 ||
        group.get_m() > group.get_n())) {
@@ -531,6 +806,94 @@ void NunchukImpl::SetGroupWalletConfig(const std::string& walletId,
   return group_service_.SetWalletConfig(walletId, config);
 }
 
+GroupPlatformKeyPolicyUpdateRequirement
+NunchukImpl::PreviewGroupPlatformKeyPolicyUpdate(
+    const std::string& walletId, const GroupPlatformKeyPolicies& policies) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto config = group_service_.GetWalletConfig(walletId);
+  if (!config.get_platform_key().has_value()) {
+    throw GroupException(GroupException::INVALID_PARAMETER,
+                         "Platform key not enabled");
+  }
+  ValidatePlatformKeyPolicies(
+      policies, GetPolicySignerFingerprints(GetWallet(walletId), config));
+  return group_service_.PreviewPlatformKeyPolicyUpdate(walletId, policies);
+}
+
+GroupPlatformKeyPolicyUpdateRequirement
+NunchukImpl::RequestGroupPlatformKeyPolicyUpdate(
+    const std::string& walletId, const GroupPlatformKeyPolicies& policies) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto config = group_service_.GetWalletConfig(walletId);
+  if (!config.get_platform_key().has_value()) {
+    throw GroupException(GroupException::INVALID_PARAMETER,
+                         "Platform key not enabled");
+  }
+  ValidatePlatformKeyPolicies(
+      policies, GetPolicySignerFingerprints(GetWallet(walletId), config));
+  return group_service_.RequestPlatformKeyPolicyUpdate(walletId, policies);
+}
+
+std::vector<GroupDummyTransaction> NunchukImpl::GetGroupDummyTransactions(
+    const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetDummyTransactions(walletId);
+}
+
+GroupDummyTransaction NunchukImpl::GetGroupDummyTransaction(
+    const std::string& walletId, const std::string& dummyTransactionId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetDummyTransaction(walletId, dummyTransactionId);
+}
+
+GroupDummyTransaction NunchukImpl::SignGroupDummyTransaction(
+    const std::string& walletId, const std::string& dummyTransactionId,
+    const std::vector<std::string>& signatures) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.SignDummyTransaction(walletId, dummyTransactionId,
+                                             signatures);
+}
+
+void NunchukImpl::CancelGroupDummyTransaction(
+    const std::string& walletId, const std::string& dummyTransactionId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  group_service_.CancelDummyTransaction(walletId, dummyTransactionId);
+}
+
+GroupTransactionState NunchukImpl::GetGroupTransactionState(
+    const std::string& walletId, const std::string& txId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  auto tx = GetTransaction(walletId, txId);
+  if (tx.get_status() != TransactionStatus::PENDING_SIGNATURES &&
+      tx.get_status() != TransactionStatus::READY_TO_BROADCAST) {
+    return GroupTransactionState{};
+  }
+  return group_service_.GetGroupTransactionState(walletId, txId);
+}
+
+int NunchukImpl::GetGroupWalletAlertCount(const std::string& walletId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetWalletAlertCount(walletId);
+}
+
+std::vector<GroupWalletAlert> NunchukImpl::GetGroupWalletAlerts(
+    const std::string& walletId, int page, int pageSize) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  return group_service_.GetWalletAlerts(walletId, page, pageSize);
+}
+
+void NunchukImpl::MarkGroupWalletAlertViewed(const std::string& walletId,
+                                             const std::string& alertId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  group_service_.MarkWalletAlertViewed(walletId, alertId);
+}
+
+void NunchukImpl::DismissGroupWalletAlert(const std::string& walletId,
+                                          const std::string& alertId) {
+  ThrowIfNotEnable(group_wallet_enable_);
+  group_service_.DismissWalletAlert(walletId, alertId);
+}
+
 bool NunchukImpl::CheckGroupWalletExists(const Wallet& wallet) {
   ThrowIfNotEnable(group_wallet_enable_);
   return group_service_.CheckWalletExists(wallet);
@@ -543,6 +906,13 @@ void NunchukImpl::RecoverGroupWallet(const std::string& walletId) {
     throw GroupException(GroupException::WALLET_NOT_FOUND, "Wallet not found");
   }
   group_service_.SetupKey(wallet);
+  wallet = MarkRecoveredPlatformSigners(
+      wallet, group_service_.GetWalletConfig(walletId));
+  for (auto&& signer : wallet.get_signers()) {
+    if (signer.get_type() == SignerType::PLATFORM) {
+      storage_->UpdateRemoteSignerType(chain_, signer, SignerType::PLATFORM);
+    }
+  }
   group_service_.RecoverWallet(walletId);
   storage_->AddGroupWalletId(chain_, walletId);
   try {
@@ -625,6 +995,11 @@ void NunchukImpl::AddReplaceRequestListener(
                        const std::string& replaceGroupId)>
         listener) {
   group_replace_listener_.connect(listener);
+}
+
+void NunchukImpl::AddGroupWalletDashboardListener(
+    std::function<void(const std::string& walletId)> listener) {
+  group_wallet_dashboard_listener_.connect(listener);
 }
 
 void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {

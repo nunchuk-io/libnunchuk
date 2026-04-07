@@ -514,7 +514,9 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
       // signers to hide on Key Manager, except for COLDCARD_NFC and PORTAL_NFC
       // signers, make them visible to able to sign transaction
       if (signer.get_type() != SignerType::COLDCARD_NFC &&
-          signer.get_type() != SignerType::PORTAL_NFC) {
+          signer.get_type() != SignerType::PORTAL_NFC &&
+          signer.get_type() != SignerType::SERVER &&
+          signer.get_type() != SignerType::PLATFORM) {
         signer.set_name("import");
         signer.set_type(SignerType::UNKNOWN);
       }
@@ -1506,6 +1508,14 @@ std::vector<SingleSigner> NunchukStorage::GetRemoteSigners(Chain chain) {
   return rs;
 }
 
+bool NunchukStorage::UpdateRemoteSignerType(Chain chain,
+                                            const SingleSigner& remotesigner,
+                                            SignerType signer_type) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetSignerDb(chain, remotesigner.get_master_fingerprint())
+      .UpdateSignerType(signer_type);
+}
+
 bool NunchukStorage::DeleteRemoteSigner(Chain chain,
                                         const std::string& master_fingerprint,
                                         const std::string& derivation_path) {
@@ -1601,7 +1611,8 @@ std::string NunchukStorage::ExportBackup() {
     const auto& signers = wallet.get_signers();
     auto server_signer = std::find_if(
         signers.begin(), signers.end(), [](const SingleSigner& signer) {
-          return signer.get_type() == SignerType::SERVER;
+          return signer.get_type() == SignerType::SERVER ||
+                 signer.get_type() == SignerType::PLATFORM;
         });
     return server_signer != signers.end();
   };
@@ -1657,7 +1668,10 @@ std::string NunchukStorage::ExportBackup() {
     for (auto&& id : sids) {
       auto signerDb = GetSignerDb(chain, id);
       if (signerDb.GetId().empty()) continue;
-      if (signerDb.GetSignerType() == SignerType::SERVER) continue;
+      if (signerDb.GetSignerType() == SignerType::SERVER ||
+          signerDb.GetSignerType() == SignerType::PLATFORM) {
+        continue;
+      }
 
       json tags = json::array();
       for (auto&& tag : signerDb.GetTags()) {

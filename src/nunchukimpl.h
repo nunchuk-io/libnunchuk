@@ -583,6 +583,8 @@ class NunchukImpl : public Nunchuk {
   // Dummy transaction
   std::pair<std::string, Transaction> ImportDummyTx(
       const std::string& dummy_transaction) override;
+  std::pair<std::string, Transaction> ImportDummyTx(
+      const GroupDummyTransaction& dummy_transaction) override;
   RequestTokens SaveDummyTxRequestToken(const std::string& wallet_id,
                                         const std::string& id,
                                         const std::string& token) override;
@@ -683,6 +685,13 @@ class NunchukImpl : public Nunchuk {
                                      int index) override;
   GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                      const std::string& name) override;
+  GroupSandbox EnableGroupPlatformKey(
+      const std::string& groupId,
+      const std::vector<std::string>& names = {}) override;
+  GroupSandbox DisableGroupPlatformKey(const std::string& groupId) override;
+  GroupSandbox SetGroupPlatformKeyPolicies(
+      const std::string& groupId,
+      const GroupPlatformKeyPolicies& policies) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, AddressType addressType) override;
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
@@ -696,6 +705,32 @@ class NunchukImpl : public Nunchuk {
   GroupWalletConfig GetGroupWalletConfig(const std::string& walletId) override;
   void SetGroupWalletConfig(const std::string& walletId,
                             const GroupWalletConfig& config) override;
+  GroupPlatformKeyPolicyUpdateRequirement PreviewGroupPlatformKeyPolicyUpdate(
+      const std::string& walletId,
+      const GroupPlatformKeyPolicies& policies) override;
+  GroupPlatformKeyPolicyUpdateRequirement RequestGroupPlatformKeyPolicyUpdate(
+      const std::string& walletId,
+      const GroupPlatformKeyPolicies& policies) override;
+  std::vector<GroupDummyTransaction> GetGroupDummyTransactions(
+      const std::string& walletId) override;
+  GroupDummyTransaction GetGroupDummyTransaction(
+      const std::string& walletId,
+      const std::string& dummyTransactionId) override;
+  GroupDummyTransaction SignGroupDummyTransaction(
+      const std::string& walletId, const std::string& dummyTransactionId,
+      const std::vector<std::string>& signatures) override;
+  void CancelGroupDummyTransaction(const std::string& walletId,
+                                   const std::string& dummyTransactionId)
+      override;
+  GroupTransactionState GetGroupTransactionState(
+      const std::string& walletId, const std::string& txId) override;
+  int GetGroupWalletAlertCount(const std::string& walletId) override;
+  std::vector<GroupWalletAlert> GetGroupWalletAlerts(
+      const std::string& walletId, int page, int pageSize) override;
+  void MarkGroupWalletAlertViewed(const std::string& walletId,
+                                  const std::string& alertId) override;
+  void DismissGroupWalletAlert(const std::string& walletId,
+                               const std::string& alertId) override;
   bool CheckGroupWalletExists(const Wallet& wallet) override;
   void RecoverGroupWallet(const std::string& walletId) override;
   void SendGroupMessage(const std::string& walletId, const std::string& msg,
@@ -723,6 +758,8 @@ class NunchukImpl : public Nunchuk {
       std::function<void(const std::string& walletId,
                          const std::string& replaceGroupId)>
           listener) override;
+  void AddGroupWalletDashboardListener(
+      std::function<void(const std::string& walletId)> listener) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,
@@ -770,6 +807,8 @@ class NunchukImpl : public Nunchuk {
   boost::signals2::signal<void(const std::string&)> group_delete_listener_;
   boost::signals2::signal<void(const std::string&, const std::string&)>
       group_replace_listener_;
+  boost::signals2::signal<void(const std::string&)>
+      group_wallet_dashboard_listener_;
   std::map<std::string, int> group_online_cache_{};
   std::shared_mutex cache_access_;
 

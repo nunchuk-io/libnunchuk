@@ -47,6 +47,7 @@ class GroupService {
   void SetAccessToken(const std::string& token);
   void CheckVersion();
   std::pair<std::string, std::string> GetDeviceInfo();
+  std::string GetSharedWalletPubKey();
 
   std::pair<std::string, std::string> ParseUrl(const std::string& url);
   GroupConfig GetConfig();
@@ -62,6 +63,10 @@ class GroupService {
                                   const std::string& script_tmpl,
                                   AddressType addressType,
                                   const std::vector<SingleSigner>& signers,
+                                  const std::optional<GroupPlatformKey>&
+                                      platform_key,
+                                  const std::vector<std::string>&
+                                      platform_key_slots,
                                   const std::string& walletId);
   std::map<std::string, std::string> GetReplaceStatus(
       const std::string& walletId);
@@ -72,6 +77,7 @@ class GroupService {
   GroupSandbox SetOccupied(const std::string& groupId, int index, bool value);
   GroupSandbox SetSigner(const std::string& groupId, const SingleSigner& signer,
                          int index);
+  GroupSandbox UpdateGroupState(const GroupSandbox& group);
   GroupSandbox UpdateGroup(const std::string& groupId, const std::string& name,
                            int m, int n, const std::string& script_tmpl,
                            AddressType addressType);
@@ -80,6 +86,29 @@ class GroupService {
   GroupWalletConfig GetWalletConfig(const std::string& walletId);
   void SetWalletConfig(const std::string& walletId,
                        const GroupWalletConfig& config);
+  GroupPlatformKeyPolicyUpdateRequirement PreviewPlatformKeyPolicyUpdate(
+      const std::string& walletId, const GroupPlatformKeyPolicies& policies);
+  GroupPlatformKeyPolicyUpdateRequirement RequestPlatformKeyPolicyUpdate(
+      const std::string& walletId, const GroupPlatformKeyPolicies& policies);
+  std::vector<GroupDummyTransaction> GetDummyTransactions(
+      const std::string& walletId);
+  GroupDummyTransaction GetDummyTransaction(const std::string& walletId,
+                                            const std::string& dummyTxId);
+  GroupDummyTransaction SignDummyTransaction(const std::string& walletId,
+                                            const std::string& dummyTxId,
+                                            const std::vector<std::string>&
+                                                signatures);
+  void CancelDummyTransaction(const std::string& walletId,
+                              const std::string& dummyTxId);
+  GroupTransactionState GetGroupTransactionState(
+      const std::string& walletId, const std::string& txId);
+  int GetWalletAlertCount(const std::string& walletId);
+  std::vector<GroupWalletAlert> GetWalletAlerts(const std::string& walletId,
+                                                int page, int pageSize);
+  void MarkWalletAlertViewed(const std::string& walletId,
+                             const std::string& alertId);
+  void DismissWalletAlert(const std::string& walletId,
+                          const std::string& alertId);
   bool CheckWalletExists(const Wallet& wallet);
   void SendChatMessage(const std::string& walletId, const std::string& content,
                        const std::string& signer, const std::string& signature);
@@ -136,6 +165,10 @@ class GroupService {
   std::string TransactionToEvent(const std::string& walletId,
                                  const std::string& txId,
                                  const std::string& psbt);
+  json EncryptWalletPayload(const std::string& walletId,
+                            const nlohmann::json& plaintext);
+  json DecryptWalletPayload(const std::string& walletGid,
+                            const nlohmann::json& payload);
 
   json GetGroupJson(const std::string& groupId);
   json GetModifiedSigners(const json& modified, int n);

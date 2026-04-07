@@ -181,6 +181,7 @@ enum class SignerType {
   COLDCARD_NFC,
   SERVER,
   PORTAL_NFC,
+  PLATFORM,
 };
 
 enum class OrderBy {
@@ -723,6 +724,91 @@ class NUNCHUK_EXPORT UnspentOutput {
   std::vector<int64_t> timelocks_;
 };
 
+enum class GroupSpendingLimitInterval {
+  DAILY,
+  WEEKLY,
+  MONTHLY,
+  YEARLY,
+};
+
+class NUNCHUK_EXPORT GroupSpendingLimit {
+ public:
+  GroupSpendingLimit();
+
+  GroupSpendingLimitInterval get_interval() const;
+  const std::string& get_amount() const;
+  const std::string& get_currency() const;
+
+  void set_interval(GroupSpendingLimitInterval value);
+  void set_amount(const std::string& value);
+  void set_currency(const std::string& value);
+
+ private:
+  GroupSpendingLimitInterval interval_{GroupSpendingLimitInterval::DAILY};
+  std::string amount_{};
+  std::string currency_{};
+};
+
+class NUNCHUK_EXPORT GroupPlatformKeyPolicy {
+ public:
+  GroupPlatformKeyPolicy();
+
+  bool get_auto_broadcast_transaction() const;
+  int get_signing_delay_seconds() const;
+  const std::optional<GroupSpendingLimit>& get_spending_limit() const;
+
+  void set_auto_broadcast_transaction(bool value);
+  void set_signing_delay_seconds(int value);
+  void set_spending_limit(std::optional<GroupSpendingLimit> value);
+
+ private:
+  bool auto_broadcast_transaction_{false};
+  int signing_delay_seconds_{0};
+  std::optional<GroupSpendingLimit> spending_limit_{};
+};
+
+class NUNCHUK_EXPORT GroupPlatformKeySignerPolicy {
+ public:
+  GroupPlatformKeySignerPolicy();
+
+  const std::string& get_master_fingerprint() const;
+  const GroupPlatformKeyPolicy& get_policy() const;
+
+  void set_master_fingerprint(const std::string& value);
+  void set_policy(GroupPlatformKeyPolicy value);
+
+ private:
+  std::string master_fingerprint_{};
+  GroupPlatformKeyPolicy policy_{};
+};
+
+class NUNCHUK_EXPORT GroupPlatformKeyPolicies {
+ public:
+  GroupPlatformKeyPolicies();
+
+  const std::optional<GroupPlatformKeyPolicy>& get_global() const;
+  const std::vector<GroupPlatformKeySignerPolicy>& get_signers() const;
+
+  void set_global(std::optional<GroupPlatformKeyPolicy> value);
+  void set_signers(std::vector<GroupPlatformKeySignerPolicy> value);
+
+ private:
+  std::optional<GroupPlatformKeyPolicy> global_{};
+  std::vector<GroupPlatformKeySignerPolicy> signers_{};
+};
+
+class NUNCHUK_EXPORT GroupPlatformKey {
+ public:
+  GroupPlatformKey();
+  explicit GroupPlatformKey(GroupPlatformKeyPolicies policies);
+
+  const GroupPlatformKeyPolicies& get_policies() const;
+  void set_policies(GroupPlatformKeyPolicies value);
+
+ private:
+  GroupPlatformKeyPolicies policies_{};
+};
+
 class NUNCHUK_EXPORT GroupSandbox {
  public:
   GroupSandbox(const std::string& id);
@@ -744,6 +830,9 @@ class NUNCHUK_EXPORT GroupSandbox {
   const std::map<int, std::pair<time_t, std::string>>& get_occupied() const;
   std::string get_replace_wallet_id() const;
   std::string get_miniscript_template() const;
+  const std::optional<class GroupPlatformKey>& get_platform_key() const;
+  std::optional<int> get_platform_key_index() const;
+  const std::vector<std::string>& get_platform_key_slots() const;
   std::map<std::string, SingleSigner> get_named_signers() const;
   std::map<std::string, std::pair<time_t, std::string>> get_named_occupied()
       const;
@@ -764,6 +853,8 @@ class NUNCHUK_EXPORT GroupSandbox {
   void remove_occupied(int index);
   void set_replace_wallet_id(const std::string& value);
   void set_miniscript_template(const std::string& value);
+  void set_platform_key(std::optional<class GroupPlatformKey> value);
+  void set_platform_key_slots(std::vector<std::string> value);
 
  private:
   std::string id_;
@@ -782,6 +873,8 @@ class NUNCHUK_EXPORT GroupSandbox {
   std::map<int, std::pair<time_t, std::string>> occupied_{};
   std::string replace_wallet_id_{};
   std::string miniscript_template_{};
+  std::optional<class GroupPlatformKey> platform_key_{};
+  std::vector<std::string> platform_key_slots_{};
 };
 
 class NUNCHUK_EXPORT GroupMessage {
@@ -836,10 +929,194 @@ class NUNCHUK_EXPORT GroupWalletConfig {
   GroupWalletConfig();
 
   int get_chat_retention_days() const;
+  const std::optional<GroupPlatformKey>& get_platform_key() const;
+  std::string get_platform_key_fingerprint() const;
   void set_chat_retention_days(int value);
+  void set_platform_key(std::optional<GroupPlatformKey> value);
+  void set_platform_key_fingerprint(const std::string& value);
 
  private:
   int chat_retention_days_{1};
+  std::optional<GroupPlatformKey> platform_key_{};
+  std::string platform_key_fingerprint_{};
+};
+
+enum class GroupDummyTransactionType {
+  UNKNOWN,
+  UPDATE_PLATFORM_KEY_POLICIES,
+};
+
+enum class GroupDummyTransactionStatus {
+  PENDING_SIGNATURES,
+  CONFIRMED,
+};
+
+enum class GroupWalletAlertType {
+  UNKNOWN,
+  POLICY_CHANGE_IN_PROGRESS,
+  POLICY_CHANGED,
+  REPLACE_WALLET,
+};
+
+enum class GroupTransactionStatus {
+  UNKNOWN,
+  COSIGNING,
+  PENDING_DELAY,
+  BLOCKED,
+};
+
+class NUNCHUK_EXPORT GroupDummyTransactionSignature {
+ public:
+  GroupDummyTransactionSignature();
+
+  const std::string& get_master_fingerprint() const;
+  const std::string& get_signature() const;
+
+  void set_master_fingerprint(const std::string& value);
+  void set_signature(const std::string& value);
+
+ private:
+  std::string master_fingerprint_{};
+  std::string signature_{};
+};
+
+class NUNCHUK_EXPORT GroupDummyTransactionPayload {
+ public:
+  GroupDummyTransactionPayload();
+
+  const GroupPlatformKeyPolicies& get_old_policies() const;
+  const GroupPlatformKeyPolicies& get_new_policies() const;
+
+  void set_old_policies(GroupPlatformKeyPolicies value);
+  void set_new_policies(GroupPlatformKeyPolicies value);
+
+ private:
+  GroupPlatformKeyPolicies old_policies_{};
+  GroupPlatformKeyPolicies new_policies_{};
+};
+
+class NUNCHUK_EXPORT GroupDummyTransaction {
+ public:
+  GroupDummyTransaction();
+
+  const std::string& get_id() const;
+  const std::string& get_wallet_id() const;
+  GroupDummyTransactionType get_type() const;
+  GroupDummyTransactionStatus get_status() const;
+  const std::optional<GroupDummyTransactionPayload>& get_payload() const;
+  int get_required_signatures() const;
+  int get_pending_signatures() const;
+  const std::string& get_request_body() const;
+  const std::vector<GroupDummyTransactionSignature>& get_signatures() const;
+  time_t get_created_at() const;
+
+  void set_id(const std::string& value);
+  void set_wallet_id(const std::string& value);
+  void set_type(GroupDummyTransactionType value);
+  void set_status(GroupDummyTransactionStatus value);
+  void set_payload(std::optional<GroupDummyTransactionPayload> value);
+  void set_required_signatures(int value);
+  void set_pending_signatures(int value);
+  void set_request_body(const std::string& value);
+  void set_signatures(std::vector<GroupDummyTransactionSignature> value);
+  void set_created_at(time_t value);
+
+ private:
+  std::string id_{};
+  std::string wallet_id_{};
+  GroupDummyTransactionType type_{GroupDummyTransactionType::UNKNOWN};
+  GroupDummyTransactionStatus status_{
+      GroupDummyTransactionStatus::PENDING_SIGNATURES};
+  std::optional<GroupDummyTransactionPayload> payload_{};
+  int required_signatures_{0};
+  int pending_signatures_{0};
+  std::string request_body_{};
+  std::vector<GroupDummyTransactionSignature> signatures_{};
+  time_t created_at_{0};
+};
+
+class NUNCHUK_EXPORT GroupPlatformKeyPolicyUpdateRequirement {
+ public:
+  GroupPlatformKeyPolicyUpdateRequirement();
+
+  bool get_success() const;
+  int get_delay_apply_in_seconds() const;
+  bool requires_dummy_transaction() const;
+  const std::optional<GroupDummyTransaction>& get_dummy_transaction() const;
+
+  void set_success(bool value);
+  void set_delay_apply_in_seconds(int value);
+  void set_requires_dummy_transaction(bool value);
+  void set_dummy_transaction(std::optional<GroupDummyTransaction> value);
+
+ private:
+  bool success_{false};
+  int delay_apply_in_seconds_{0};
+  bool requires_dummy_transaction_{false};
+  std::optional<GroupDummyTransaction> dummy_transaction_{};
+};
+
+class NUNCHUK_EXPORT GroupTransactionState {
+ public:
+  GroupTransactionState();
+
+  GroupTransactionStatus get_status() const;
+  const std::string& get_message() const;
+  time_t get_cosign_at() const;
+
+  void set_status(GroupTransactionStatus value);
+  void set_message(const std::string& value);
+  void set_cosign_at(time_t value);
+
+ private:
+  GroupTransactionStatus status_{GroupTransactionStatus::UNKNOWN};
+  std::string message_{};
+  time_t cosign_at_{0};
+};
+
+class NUNCHUK_EXPORT GroupWalletAlertPayload {
+ public:
+  GroupWalletAlertPayload();
+
+  const std::string& get_dummy_transaction_id() const;
+  const std::string& get_replacement_group_id() const;
+
+  void set_dummy_transaction_id(const std::string& value);
+  void set_replacement_group_id(const std::string& value);
+
+ private:
+  std::string dummy_transaction_id_{};
+  std::string replacement_group_id_{};
+};
+
+class NUNCHUK_EXPORT GroupWalletAlert {
+ public:
+  GroupWalletAlert();
+
+  const std::string& get_id() const;
+  GroupWalletAlertType get_type() const;
+  bool get_viewable() const;
+  const std::string& get_title() const;
+  const std::string& get_body() const;
+  const std::optional<GroupWalletAlertPayload>& get_payload() const;
+  time_t get_created_at() const;
+
+  void set_id(const std::string& value);
+  void set_type(GroupWalletAlertType value);
+  void set_viewable(bool value);
+  void set_title(const std::string& value);
+  void set_body(const std::string& value);
+  void set_payload(std::optional<GroupWalletAlertPayload> value);
+  void set_created_at(time_t value);
+
+ private:
+  std::string id_{};
+  GroupWalletAlertType type_{GroupWalletAlertType::UNKNOWN};
+  bool viewable_{false};
+  std::string title_{};
+  std::string body_{};
+  std::optional<GroupWalletAlertPayload> payload_{};
+  time_t created_at_{0};
 };
 
 typedef std::map<std::string, bool> KeyStatus;  // xfp-signed map
@@ -1744,6 +2021,8 @@ class NUNCHUK_EXPORT Nunchuk {
   // Dummy transaction
   virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(
       const std::string& dummy_transaction) = 0;
+  virtual std::pair<std::string /* id */, Transaction> ImportDummyTx(
+      const GroupDummyTransaction& dummy_transaction) = 0;
   virtual RequestTokens SaveDummyTxRequestToken(const std::string& wallet_id,
                                                 const std::string& id,
                                                 const std::string& token) = 0;
@@ -1880,6 +2159,14 @@ class NUNCHUK_EXPORT Nunchuk {
                                              int index) = 0;
   virtual GroupSandbox RemoveSignerFromGroup(const std::string& groupId,
                                              const std::string& name) = 0;
+  virtual GroupSandbox EnableGroupPlatformKey(
+      const std::string& groupId,
+      const std::vector<std::string>& names = {}) = 0;
+  virtual GroupSandbox DisableGroupPlatformKey(
+      const std::string& groupId) = 0;
+  virtual GroupSandbox SetGroupPlatformKeyPolicies(
+      const std::string& groupId,
+      const GroupPlatformKeyPolicies& policies) = 0;
   virtual GroupSandbox UpdateGroup(const std::string& groupId,
                                    const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
@@ -1896,6 +2183,35 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::string& walletId) = 0;
   virtual void SetGroupWalletConfig(const std::string& walletId,
                                     const GroupWalletConfig& config) = 0;
+  virtual GroupPlatformKeyPolicyUpdateRequirement
+  PreviewGroupPlatformKeyPolicyUpdate(
+      const std::string& walletId,
+      const GroupPlatformKeyPolicies& policies) = 0;
+  virtual GroupPlatformKeyPolicyUpdateRequirement
+  RequestGroupPlatformKeyPolicyUpdate(
+      const std::string& walletId,
+      const GroupPlatformKeyPolicies& policies) = 0;
+  virtual std::vector<GroupDummyTransaction> GetGroupDummyTransactions(
+      const std::string& walletId) = 0;
+  virtual GroupDummyTransaction GetGroupDummyTransaction(
+      const std::string& walletId,
+      const std::string& dummyTransactionId) = 0;
+  virtual GroupDummyTransaction SignGroupDummyTransaction(
+      const std::string& walletId,
+      const std::string& dummyTransactionId,
+      const std::vector<std::string>& signatures) = 0;
+  virtual void CancelGroupDummyTransaction(
+      const std::string& walletId,
+      const std::string& dummyTransactionId) = 0;
+  virtual GroupTransactionState GetGroupTransactionState(
+      const std::string& walletId, const std::string& txId) = 0;
+  virtual int GetGroupWalletAlertCount(const std::string& walletId) = 0;
+  virtual std::vector<GroupWalletAlert> GetGroupWalletAlerts(
+      const std::string& walletId, int page, int pageSize) = 0;
+  virtual void MarkGroupWalletAlertViewed(const std::string& walletId,
+                                          const std::string& alertId) = 0;
+  virtual void DismissGroupWalletAlert(const std::string& walletId,
+                                       const std::string& alertId) = 0;
   virtual bool CheckGroupWalletExists(const Wallet& wallet) = 0;
   virtual void RecoverGroupWallet(const std::string& walletId) = 0;
   virtual void SendGroupMessage(const std::string& walletId,
@@ -1921,6 +2237,8 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(const std::string& walletId,
                          const std::string& replaceGroupId)>
           listener) = 0;
+  virtual void AddGroupWalletDashboardListener(
+      std::function<void(const std::string& walletId)> listener) = 0;
 
  protected:
   Nunchuk() = default;

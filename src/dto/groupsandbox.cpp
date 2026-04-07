@@ -56,6 +56,18 @@ std::string GroupSandbox::get_replace_wallet_id() const {
 std::string GroupSandbox::get_miniscript_template() const {
   return miniscript_template_;
 }
+const std::optional<GroupPlatformKey>& GroupSandbox::get_platform_key() const {
+  return platform_key_;
+}
+std::optional<int> GroupSandbox::get_platform_key_index() const {
+  if (!platform_key_.has_value() || get_wallet_type() != WalletType::MULTI_SIG) {
+    return std::nullopt;
+  }
+  return n_ > 0 ? std::make_optional(n_ - 1) : std::nullopt;
+}
+const std::vector<std::string>& GroupSandbox::get_platform_key_slots() const {
+  return platform_key_slots_;
+}
 std::map<std::string, SingleSigner> GroupSandbox::get_named_signers() const {
   if (miniscript_template_.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -121,5 +133,11 @@ void GroupSandbox::set_replace_wallet_id(const std::string& value) {
 }
 void GroupSandbox::set_miniscript_template(const std::string& value) {
   miniscript_template_ = value;
+}
+void GroupSandbox::set_platform_key(std::optional<GroupPlatformKey> value) {
+  platform_key_ = std::move(value);
+}
+void GroupSandbox::set_platform_key_slots(std::vector<std::string> value) {
+  platform_key_slots_ = std::move(value);
 }
 }  // namespace nunchuk
