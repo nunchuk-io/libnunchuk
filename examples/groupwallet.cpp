@@ -23,6 +23,8 @@
 #include <iostream>
 #include <iomanip>
 #include <regex>
+#include <thread>
+#include <chrono>
 
 using namespace nunchuk;
 
@@ -47,6 +49,23 @@ inline bool input_bool(const std::string& message) {
   std::string yn;
   std::cin >> yn;
   return (yn != "n" && yn != "N");
+}
+
+inline std::string input_multiline_string(const std::string& message,
+                                          const std::string& terminator =
+                                              "END") {
+  std::cout << "... " << message << std::endl;
+  std::cout << "... Finish input with a line containing only " << terminator
+            << std::endl;
+  std::string line;
+  std::string result;
+  std::getline(std::cin >> std::ws, line);
+  while (line != terminator) {
+    if (!result.empty()) result += "\n";
+    result += line;
+    std::getline(std::cin, line);
+  }
+  return result;
 }
 
 inline AddressType input_address_type(const WalletType& wallet_type) {
@@ -338,6 +357,115 @@ void newsandbox() {
   std::cout << "Join url: " << group.get_url() << std::endl;
 }
 
+void print_platform_key_policies(
+    const std::optional<GroupPlatformKey>& platform_key) {
+  std::cout << "- Platform key policies: " << std::endl;
+  if (!platform_key.has_value()) {
+    return;
+  }
+
+  if (platform_key->get_policies().get_global().has_value()) {
+    const auto& policy = platform_key->get_policies().get_global().value();
+    std::cout << " . Global" << std::endl;
+    std::cout << "   - AutoBroadcast: "
+              << policy.get_auto_broadcast_transaction() << std::endl;
+    std::cout << "   - SigningDelaySeconds: "
+              << policy.get_signing_delay_seconds() << std::endl;
+    if (policy.get_spending_limit().has_value()) {
+      const auto& limit = policy.get_spending_limit().value();
+      std::cout << "   - SpendingLimit:" << std::endl;
+      std::cout << "     . Interval: " << int(limit.get_interval())
+                << std::endl;
+      std::cout << "     . Amount: " << limit.get_amount() << std::endl;
+      std::cout << "     . Currency: " << limit.get_currency() << std::endl;
+    }
+  }
+
+  int i = 0;
+  for (auto&& signer_policy : platform_key->get_policies().get_signers()) {
+    const auto& policy = signer_policy.get_policy();
+    std::cout << " . Signer " << i++ << std::endl;
+    std::cout << "   - MasterFingerprint: "
+              << signer_policy.get_master_fingerprint() << std::endl;
+    std::cout << "   - AutoBroadcast: "
+              << policy.get_auto_broadcast_transaction() << std::endl;
+    std::cout << "   - SigningDelaySeconds: "
+              << policy.get_signing_delay_seconds() << std::endl;
+    if (policy.get_spending_limit().has_value()) {
+      const auto& limit = policy.get_spending_limit().value();
+      std::cout << "   - SpendingLimit:" << std::endl;
+      std::cout << "     . Interval: " << int(limit.get_interval())
+                << std::endl;
+      std::cout << "     . Amount: " << limit.get_amount() << std::endl;
+      std::cout << "     . Currency: " << limit.get_currency() << std::endl;
+    }
+  }
+}
+
+void print_platform_key_policies(const GroupPlatformKeyPolicies& policies) {
+  print_platform_key_policies(GroupPlatformKey(policies));
+}
+
+void print_group_dummy_transaction(const GroupDummyTransaction& tx) {
+  std::cout << "DummyTransaction ID: " << tx.get_id() << std::endl;
+  std::cout << "- Wallet ID: " << tx.get_wallet_id() << std::endl;
+  std::cout << "- Type: " << int(tx.get_type()) << std::endl;
+  std::cout << "- Status: " << int(tx.get_status()) << std::endl;
+  std::cout << "- RequiredSignatures: " << tx.get_required_signatures()
+            << std::endl;
+  std::cout << "- PendingSignatures: " << tx.get_pending_signatures()
+            << std::endl;
+  std::cout << "- RequestBody: " << tx.get_request_body() << std::endl;
+  std::cout << "- CreatedAt: " << tx.get_created_at() << std::endl;
+  std::cout << "- Signatures:" << std::endl;
+  for (auto&& signature : tx.get_signatures()) {
+    std::cout << " . " << signature.get_master_fingerprint() << ": "
+              << signature.get_signature() << std::endl;
+  }
+  if (tx.get_payload().has_value()) {
+    std::cout << "- OldPolicies:" << std::endl;
+    print_platform_key_policies(tx.get_payload()->get_old_policies());
+    std::cout << "- NewPolicies:" << std::endl;
+    print_platform_key_policies(tx.get_payload()->get_new_policies());
+  }
+}
+
+void print_group_wallet_alert(const GroupWalletAlert& alert) {
+  std::cout << "Alert ID: " << alert.get_id() << std::endl;
+  std::cout << "- Type: " << int(alert.get_type()) << std::endl;
+  std::cout << "- Viewable: " << alert.get_viewable() << std::endl;
+  std::cout << "- Title: " << alert.get_title() << std::endl;
+  std::cout << "- Body: " << alert.get_body() << std::endl;
+  if (alert.get_payload().has_value()) {
+    std::cout << "- DummyTransactionId: "
+              << alert.get_payload()->get_dummy_transaction_id()
+              << std::endl;
+    std::cout << "- ReplacementGroupId: "
+              << alert.get_payload()->get_replacement_group_id()
+              << std::endl;
+  }
+  std::cout << "- CreatedAt: " << alert.get_created_at() << std::endl;
+}
+
+void print_group_transaction_state(const GroupTransactionState& state) {
+  std::cout << "- Status: " << int(state.get_status()) << std::endl;
+  std::cout << "- Message: " << state.get_message() << std::endl;
+  std::cout << "- CosignAt: " << state.get_cosign_at() << std::endl;
+}
+
+Wallet choose_group_wallet(const std::string& message) {
+  auto wallets = nu.get()->GetGroupWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any group wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int(message);
+  if (wallet_idx < 0 || wallet_idx >= wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+  return wallets[wallet_idx];
+}
+
 void printGroup(const GroupSandbox& group) {
   std::cout << std::endl;
   std::cout << "Group ID: " << group.get_id() << std::endl;
@@ -347,6 +475,8 @@ void printGroup(const GroupSandbox& group) {
   std::cout << "- AddressType: " << int(group.get_address_type()) << std::endl;
   std::cout << "- State: " << group.get_state_id() << std::endl;
   std::cout << "- Finalized: " << group.is_finalized() << std::endl;
+  std::cout << "- HasPlatformKey: " << group.get_platform_key().has_value()
+            << std::endl;
   std::cout << "- ReplaceWallet: " << group.get_replace_wallet_id()
             << std::endl;
   std::cout << "- Signers: " << std::endl;
@@ -367,6 +497,17 @@ void printGroup(const GroupSandbox& group) {
     std::cout << " . " << i << ": ts " << v.first << " by " << v.second
               << std::endl;
   }
+  std::cout << "- Platform key slots: " << std::endl;
+  for (auto&& slot : group.get_platform_key_slots()) {
+    std::cout << " . " << slot << std::endl;
+  }
+  std::cout << "- Platform key index: ";
+  if (group.get_platform_key_index().has_value()) {
+    std::cout << group.get_platform_key_index().value() << std::endl;
+  } else {
+    std::cout << "(none)" << std::endl;
+  }
+  print_platform_key_policies(group.get_platform_key());
   std::cout << std::endl;
   std::cout << std::endl;
 }
@@ -462,6 +603,239 @@ void addkeytosandbox() {
   }
 
   nu.get()->AddSignerToGroup(group.get_id(), signer, slot);
+}
+
+void enableplatformkey() {
+  auto groups = nu.get()->GetGroups();
+  if (groups.empty()) {
+    throw std::runtime_error("You don't have any group sandbox");
+  }
+  print_list_sandbox(groups);
+  int group_idx = input_int("Choose sandbox to enable platform key");
+  if (group_idx < 0 || group_idx > groups.size()) {
+    throw std::runtime_error("Invalid group");
+  }
+  auto chosen = groups[group_idx];
+  std::vector<std::string> slot_names{};
+  if (chosen.get_wallet_type() == WalletType::MINISCRIPT) {
+    int count = input_int("Platform key slot count");
+    if (count < 0) {
+      throw std::runtime_error("Invalid platform key slot count");
+    }
+    for (int i = 0; i < count; i++) {
+      slot_names.push_back(input_string("Enter platform key slot name"));
+    }
+  }
+  auto group =
+      nu.get()->EnableGroupPlatformKey(chosen.get_id(), slot_names);
+  printGroup(group);
+}
+
+void disableplatformkey() {
+  auto groups = nu.get()->GetGroups();
+  if (groups.empty()) {
+    throw std::runtime_error("You don't have any group sandbox");
+  }
+  print_list_sandbox(groups);
+  int group_idx = input_int("Choose sandbox to disable platform key");
+  if (group_idx < 0 || group_idx > groups.size()) {
+    throw std::runtime_error("Invalid group");
+  }
+  auto group = nu.get()->DisableGroupPlatformKey(groups[group_idx].get_id());
+  printGroup(group);
+}
+
+GroupSpendingLimit input_group_spending_limit() {
+  std::cout << "... Choose spending limit interval: " << std::endl;
+  std::cout << "1: Daily" << std::endl;
+  std::cout << "2: Weekly" << std::endl;
+  std::cout << "3: Monthly" << std::endl;
+  std::cout << "4: Yearly" << std::endl;
+  int input;
+  std::cin >> input;
+
+  GroupSpendingLimit limit{};
+  switch (input) {
+    case 1:
+      limit.set_interval(GroupSpendingLimitInterval::DAILY);
+      break;
+    case 2:
+      limit.set_interval(GroupSpendingLimitInterval::WEEKLY);
+      break;
+    case 3:
+      limit.set_interval(GroupSpendingLimitInterval::MONTHLY);
+      break;
+    case 4:
+      limit.set_interval(GroupSpendingLimitInterval::YEARLY);
+      break;
+    default:
+      throw std::runtime_error("Invalid interval");
+  }
+  limit.set_amount(input_string("Enter spending limit amount"));
+  limit.set_currency(input_string("Enter spending limit currency"));
+  return limit;
+}
+
+GroupPlatformKeyPolicy input_platform_key_global_policy() {
+  GroupPlatformKeyPolicy policy{};
+  policy.set_auto_broadcast_transaction(
+      input_bool("Auto broadcast transaction"));
+  policy.set_signing_delay_seconds(input_int("Enter signing delay seconds"));
+  if (input_bool("Set spending limit")) {
+    policy.set_spending_limit(input_group_spending_limit());
+  }
+  return policy;
+}
+
+GroupPlatformKeySignerPolicy input_platform_key_signer_policy(
+    const std::string& fingerprint) {
+  GroupPlatformKeySignerPolicy signer_policy{};
+  signer_policy.set_master_fingerprint(fingerprint);
+  GroupPlatformKeyPolicy policy{};
+  policy.set_auto_broadcast_transaction(
+      input_bool("Auto broadcast transaction"));
+  policy.set_signing_delay_seconds(input_int("Enter signing delay seconds"));
+  if (input_bool("Set spending limit")) {
+    policy.set_spending_limit(input_group_spending_limit());
+  }
+  signer_policy.set_policy(std::move(policy));
+  return signer_policy;
+}
+
+GroupPlatformKeyPolicies input_platform_key_policies(
+    const GroupSandbox& group, const GroupPlatformKeyPolicies& current) {
+  std::cout << "... Choose platform key policy type: " << std::endl;
+  std::cout << "1: Global" << std::endl;
+  std::cout << "2: Signer" << std::endl;
+  int input;
+  std::cin >> input;
+
+  GroupPlatformKeyPolicies policies = current;
+  switch (input) {
+    case 1: {
+      policies.set_global(input_platform_key_global_policy());
+      policies.set_signers({});
+      break;
+    }
+    case 2: {
+      std::vector<GroupPlatformKeySignerPolicy> signers{};
+      auto named_signers = group.get_wallet_type() == WalletType::MINISCRIPT
+                               ? group.get_named_signers()
+                               : std::map<std::string, SingleSigner>{};
+      for (int i = 0; i < group.get_signers().size(); i++) {
+        auto signer = group.get_signers()[i];
+        if (signer.get_master_fingerprint().empty()) {
+          continue;
+        }
+        if (group.get_platform_key_index().has_value() &&
+            i == group.get_platform_key_index().value()) {
+          continue;
+        }
+        if (group.get_wallet_type() == WalletType::MINISCRIPT) {
+          bool is_platform_slot = false;
+          for (auto&& slot : group.get_platform_key_slots()) {
+            auto it = named_signers.find(slot);
+            if (it != named_signers.end() &&
+                it->second.get_master_fingerprint() ==
+                    signer.get_master_fingerprint()) {
+              is_platform_slot = true;
+              break;
+            }
+          }
+          if (is_platform_slot) {
+            continue;
+          }
+        }
+        std::cout << "... Enter platform key policy for signer ["
+                  << signer.get_master_fingerprint() << "]" << std::endl;
+        signers.push_back(
+            input_platform_key_signer_policy(signer.get_master_fingerprint()));
+      }
+      if (signers.empty()) {
+        throw std::runtime_error("Sandbox has no signer to configure");
+      }
+      policies.set_global(std::nullopt);
+      policies.set_signers(std::move(signers));
+      break;
+    }
+    default:
+      throw std::runtime_error("Invalid policy type");
+  }
+  return policies;
+}
+
+GroupPlatformKeyPolicies input_wallet_platform_key_policies(
+    const Wallet& wallet, const GroupWalletConfig& config,
+    const GroupPlatformKeyPolicies& current) {
+  std::cout << "... Choose platform key policy type: " << std::endl;
+  std::cout << "1: Global" << std::endl;
+  std::cout << "2: Signer" << std::endl;
+  int input;
+  std::cin >> input;
+
+  GroupPlatformKeyPolicies policies = current;
+  switch (input) {
+    case 1: {
+      policies.set_global(input_platform_key_global_policy());
+      policies.set_signers({});
+      break;
+    }
+    case 2: {
+      std::vector<GroupPlatformKeySignerPolicy> signers{};
+      const auto& platform_fingerprint = config.get_platform_key_fingerprint();
+      const int multisig_platform_index =
+          (config.get_platform_key().has_value() &&
+           wallet.get_wallet_type() == WalletType::MULTI_SIG)
+              ? wallet.get_n() - 1
+              : -1;
+      for (int i = 0; i < wallet.get_signers().size(); i++) {
+        auto signer = wallet.get_signers()[i];
+        if (signer.get_master_fingerprint().empty()) continue;
+        if (!platform_fingerprint.empty() &&
+            signer.get_master_fingerprint() == platform_fingerprint) {
+          continue;
+        }
+        if (platform_fingerprint.empty() && i == multisig_platform_index) {
+          continue;
+        }
+        std::cout << "... Enter platform key policy for signer ["
+                  << signer.get_master_fingerprint() << "]" << std::endl;
+        signers.push_back(
+            input_platform_key_signer_policy(signer.get_master_fingerprint()));
+      }
+      if (signers.empty()) {
+        throw std::runtime_error("Wallet has no signer to configure");
+      }
+      policies.set_global(std::nullopt);
+      policies.set_signers(std::move(signers));
+      break;
+    }
+    default:
+      throw std::runtime_error("Invalid policy type");
+  }
+  return policies;
+}
+
+void setplatformkeypolicy() {
+  auto groups = nu.get()->GetGroups();
+  if (groups.empty()) {
+    throw std::runtime_error("You don't have any group sandbox");
+  }
+  print_list_sandbox(groups);
+  int group_idx = input_int("Choose sandbox to set platform key policy");
+  if (group_idx < 0 || group_idx > groups.size()) {
+    throw std::runtime_error("Invalid group");
+  }
+
+  auto group = groups[group_idx];
+  GroupPlatformKeyPolicies policies{};
+  if (group.get_platform_key().has_value() &&
+      !input_bool("Replace existing platform key policies")) {
+    policies = group.get_platform_key()->get_policies();
+  }
+  policies = input_platform_key_policies(group, policies);
+  group = nu.get()->SetGroupPlatformKeyPolicies(group.get_id(), policies);
+  printGroup(group);
 }
 
 void finalizesandbox() {
@@ -601,6 +975,15 @@ void groupconfig() {
   auto config = nu.get()->GetGroupWalletConfig(wallet_id);
   std::cout << "- Current chat retention days: "
             << config.get_chat_retention_days() << std::endl;
+  std::cout << "- Has platform key: "
+            << config.get_platform_key().has_value() << std::endl;
+  std::cout << "- Platform key fingerprint: "
+            << config.get_platform_key_fingerprint() << std::endl;
+  print_platform_key_policies(config.get_platform_key());
+
+  if (!input_bool("Do you want to change config")) {
+    return;
+  }
 
   auto options = nu.get()->GetGroupConfig().get_retention_days_options();
 
@@ -612,18 +995,275 @@ void groupconfig() {
   nu.get()->SetGroupWalletConfig(wallet_id, config);
 }
 
+void loopgroupconfig() {
+  auto wallets = nu.get()->GetGroupWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any group wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose wallet to loop get config");
+  if (wallet_idx < 0 || wallet_idx >= wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+
+  auto wallet_id = wallets[wallet_idx].get_id();
+  int iterations =
+      input_int("Enter loop count (0 or negative means infinite)");
+  int delay_ms = input_int("Enter delay in milliseconds between calls");
+
+  std::cout << "Looping GetGroupWalletConfig for wallet " << wallet_id
+            << std::endl;
+  for (int i = 0; iterations <= 0 || i < iterations; ++i) {
+    try {
+      auto config = nu.get()->GetGroupWalletConfig(wallet_id);
+      if (i == 0 || (i + 1) % 10 == 0) {
+        std::cout << "Success iteration " << (i + 1)
+                  << ": retention=" << config.get_chat_retention_days()
+                  << ", hasPlatformKey="
+                  << config.get_platform_key().has_value() << std::endl;
+      }
+    } catch (const std::exception& e) {
+      std::cout << "Failed at iteration " << (i + 1) << ": " << e.what()
+                << std::endl;
+      return;
+    }
+
+    if (delay_ms > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
+  }
+  std::cout << "Loop finished without error." << std::endl;
+}
+
+void getwallet() {
+  auto wallets = nu.get()->GetWallets();
+  if (wallets.empty()) {
+    throw std::runtime_error("You don't have any wallet");
+  }
+  print_list_wallets(wallets);
+  int wallet_idx = input_int("Choose wallet to show detail");
+  if (wallet_idx < 0 || wallet_idx >= wallets.size()) {
+    throw std::runtime_error("Invalid wallet");
+  }
+
+  const auto& wallet = wallets[wallet_idx];
+  std::cout << "Wallet ID: " << wallet.get_id() << std::endl;
+  std::cout << "Wallet Name: " << wallet.get_name() << std::endl;
+  std::cout << "Descriptor:" << std::endl;
+  std::cout << nu.get()->GetWalletExportData(wallet.get_id(),
+                                             ExportFormat::DESCRIPTOR)
+            << std::endl;
+  std::cout << "BSMS:" << std::endl;
+  std::cout << nu.get()->GetWalletExportData(wallet.get_id(),
+                                             ExportFormat::BSMS)
+            << std::endl;
+}
+
+void previewplatformkeypolicyupdate() {
+  auto wallet = choose_group_wallet("Choose group wallet to preview policy update");
+  auto config = nu.get()->GetGroupWalletConfig(wallet.get_id());
+  if (!config.get_platform_key().has_value()) {
+    throw std::runtime_error("Wallet does not have platform key");
+  }
+  GroupPlatformKeyPolicies current = config.get_platform_key()->get_policies();
+  auto policies = input_wallet_platform_key_policies(wallet, config, current);
+  auto result =
+      nu.get()->PreviewGroupPlatformKeyPolicyUpdate(wallet.get_id(), policies);
+  std::cout << "- Success: " << result.get_success() << std::endl;
+  std::cout << "- DelayApplyInSeconds: "
+            << result.get_delay_apply_in_seconds() << std::endl;
+  std::cout << "- RequiresDummyTransaction: "
+            << result.requires_dummy_transaction() << std::endl;
+  if (result.get_dummy_transaction().has_value()) {
+    print_group_dummy_transaction(result.get_dummy_transaction().value());
+  }
+}
+
+void requestplatformkeypolicyupdate() {
+  auto wallet = choose_group_wallet("Choose group wallet to request policy update");
+  auto config = nu.get()->GetGroupWalletConfig(wallet.get_id());
+  if (!config.get_platform_key().has_value()) {
+    throw std::runtime_error("Wallet does not have platform key");
+  }
+  GroupPlatformKeyPolicies current = config.get_platform_key()->get_policies();
+  auto policies = input_wallet_platform_key_policies(wallet, config, current);
+  auto result =
+      nu.get()->RequestGroupPlatformKeyPolicyUpdate(wallet.get_id(), policies);
+  std::cout << "- Success: " << result.get_success() << std::endl;
+  std::cout << "- DelayApplyInSeconds: "
+            << result.get_delay_apply_in_seconds() << std::endl;
+  std::cout << "- RequiresDummyTransaction: "
+            << result.requires_dummy_transaction() << std::endl;
+  if (result.get_dummy_transaction().has_value()) {
+    print_group_dummy_transaction(result.get_dummy_transaction().value());
+  }
+}
+
+void listgroupdummytxs() {
+  auto wallet = choose_group_wallet("Choose group wallet to list dummy transactions");
+  auto txs = nu.get()->GetGroupDummyTransactions(wallet.get_id());
+  int i = 0;
+  for (auto&& tx : txs) {
+    std::cout << i++ << ": [" << tx.get_id() << "] type=" << int(tx.get_type())
+              << " status=" << int(tx.get_status())
+              << " pending=" << tx.get_pending_signatures() << std::endl;
+  }
+}
+
+void getgroupdummytx() {
+  auto wallet = choose_group_wallet("Choose group wallet to show dummy transaction");
+  auto tx_id = input_string("Enter dummy transaction id");
+  auto tx = nu.get()->GetGroupDummyTransaction(wallet.get_id(), tx_id);
+  print_group_dummy_transaction(tx);
+}
+
+void signgroupdummytx() {
+  auto wallet =
+      choose_group_wallet("Choose group wallet to sign and update dummy transaction");
+  auto group_dummy_tx_id = input_string("Enter dummy transaction id");
+  auto group_dummy_tx =
+      nu.get()->GetGroupDummyTransaction(wallet.get_id(), group_dummy_tx_id);
+
+  auto devices = nu.get()->GetDevices();
+  auto master_signers = nu.get()->GetMasterSigners();
+  for (auto&& signer : master_signers) {
+    if (signer.is_software()) devices.push_back(signer.get_device());
+  }
+  if (devices.empty()) {
+    throw std::runtime_error("No signer device available");
+  }
+
+  print_list_devices(devices);
+  int device_idx = input_int("Choose device to sign dummy transaction");
+  if (device_idx < 0 || device_idx >= devices.size()) {
+    throw std::runtime_error("Invalid device");
+  }
+
+  auto fingerprint = devices[device_idx].get_master_fingerprint();
+  auto signer_it = std::find_if(
+      wallet.get_signers().begin(), wallet.get_signers().end(),
+      [&](const SingleSigner& signer) {
+        return signer.get_master_fingerprint() == fingerprint;
+      });
+  if (signer_it == wallet.get_signers().end()) {
+    throw std::runtime_error("Signer not found in wallet");
+  }
+
+  auto dummy = Utils::GetHealthCheckDummyTx(wallet, group_dummy_tx.get_request_body());
+
+  auto signature = nu.get()->SignHealthCheckMessage(
+      wallet, devices[device_idx], *signer_it, dummy);
+  auto request_token = Utils::CreateRequestToken(signature, fingerprint);
+  auto updated = nu.get()->SignGroupDummyTransaction(wallet.get_id(),
+                                                     group_dummy_tx_id,
+                                                     {request_token});
+  print_group_dummy_transaction(updated);
+}
+
+
+void cancelgroupdummytx() {
+  auto wallet =
+      choose_group_wallet("Choose group wallet to cancel dummy transaction");
+  auto tx_id = input_string("Enter dummy transaction id");
+  nu.get()->CancelGroupDummyTransaction(wallet.get_id(), tx_id);
+}
+
+void alertcount() {
+  auto wallet = choose_group_wallet("Choose group wallet to get alert count");
+  std::cout << "AlertCount: "
+            << nu.get()->GetGroupWalletAlertCount(wallet.get_id())
+            << std::endl;
+}
+
+void listalerts() {
+  auto wallet = choose_group_wallet("Choose group wallet to list alerts");
+  int page = input_int("Enter page");
+  int page_size = input_int("Enter page size");
+  auto alerts = nu.get()->GetGroupWalletAlerts(wallet.get_id(), page, page_size);
+  int i = 0;
+  for (auto&& alert : alerts) {
+    std::cout << i++ << ": [" << alert.get_id() << "] type="
+              << int(alert.get_type()) << " title=" << alert.get_title()
+              << std::endl;
+  }
+}
+
+void getalert() {
+  auto wallet = choose_group_wallet("Choose group wallet to show alerts");
+  int page = input_int("Enter page");
+  int page_size = input_int("Enter page size");
+  auto alerts = nu.get()->GetGroupWalletAlerts(wallet.get_id(), page, page_size);
+  if (alerts.empty()) {
+    throw std::runtime_error("No alerts");
+  }
+  int idx = input_int("Choose alert index");
+  if (idx < 0 || idx >= alerts.size()) {
+    throw std::runtime_error("Invalid alert");
+  }
+  print_group_wallet_alert(alerts[idx]);
+}
+
+void viewalert() {
+  auto wallet = choose_group_wallet("Choose group wallet to mark alert viewed");
+  auto alert_id = input_string("Enter alert id");
+  nu.get()->MarkGroupWalletAlertViewed(wallet.get_id(), alert_id);
+}
+
+void dismissalert() {
+  auto wallet = choose_group_wallet("Choose group wallet to dismiss alert");
+  auto alert_id = input_string("Enter alert id");
+  nu.get()->DismissGroupWalletAlert(wallet.get_id(), alert_id);
+}
+
+void getgrouptxplatformkeystatus() {
+  auto wallet =
+      choose_group_wallet("Choose group wallet to get transaction platform key status");
+  auto tx_id = input_string("Enter transaction id");
+  auto state = nu.get()->GetGroupTransactionState(wallet.get_id(), tx_id);
+  print_group_transaction_state(state);
+}
+
+void recovergroupwallet() {
+  auto descriptor = input_multiline_string(
+      "Paste wallet descriptor or BSMS payload", "END");
+  auto wallet = Utils::ParseWalletDescriptor(descriptor);
+
+  std::cout << "Parsed wallet:" << std::endl;
+  std::cout << "- Id: " << wallet.get_id() << std::endl;
+  std::cout << "- Name: " << wallet.get_name() << std::endl;
+
+  bool exists = nu.get()->CheckGroupWalletExists(wallet);
+  std::cout << "- Group wallet exists on backend: " << exists << std::endl;
+  if (!exists) {
+    return;
+  }
+
+  if (nu.get()->HasWallet(wallet.get_id())) {
+    wallet = nu.get()->GetWallet(wallet.get_id());
+  } else {
+    wallet = nu.get()->CreateWallet(wallet, true);
+  }
+
+  nu.get()->RecoverGroupWallet(wallet.get_id());
+  std::cout << "Recover group wallet requested for: " << wallet.get_id()
+            << std::endl;
+}
+
 void init() {
   auto account = input_string("Enter account name");
   auto token = input_string("Enter token");
 
   AppSettings settings;
   settings.set_chain(Chain::MAIN);
-  settings.set_hwi_path("lib/bin/hwi");
+  settings.set_chain(Chain::TESTNET);
+  settings.set_hwi_path("/home/giahuy/Documents/nunchuk/HWI/hwi.py");
   settings.enable_proxy(false);
   settings.set_testnet_servers({"testnet.nunchuk.io:50001"});
+  //settings.set_testnet_servers({"signet.nunchuk.io:50002"});
   settings.set_mainnet_servers({"mainnet.nunchuk.io:51001"});
   settings.set_storage_path("/home/bringer/libnunchuk/examples/playground.cpp");
-  settings.set_group_server("https://api.nunchuk.io");
+  settings.set_group_server("https://api-testnet.nunchuk.io");
+  //settings.set_group_server("http://localhost:8080");
   nu = MakeNunchukForAccount(settings, {}, account);
   nu->EnableGroupWallet("ubuntu", "22.04", "1.0.0", "desktop", account, token);
 }
@@ -658,11 +1298,38 @@ void interactive() {
       {joinsandbox, "joinsandbox", "join group sandbox"},
       {deletesandbox, "deletesandbox", "delete sandbox"},
       {addkeytosandbox, "addkeytosandbox", "add key to group sandbox"},
+      {enableplatformkey, "enableplatformkey", "enable platform key"},
+      {disableplatformkey, "disableplatformkey", "disable platform key"},
+      {setplatformkeypolicy, "setplatformkeypolicy",
+       "set platform key policy on sandbox"},
       {finalizesandbox, "finalizesandbox", "finalize group sandbox"},
       {listgroups, "listgroups", "list group wallets"},
       {sendchat, "sendchat", "send group chat"},
       {deletetransaction, "deletetransaction", "delete transaction"},
-      {groupconfig, "setgroupconfig", "set group config"},
+      {groupconfig, "getgroupconfig",
+       "show group config and optionally update it"},
+      {loopgroupconfig, "loopgroupconfig",
+       "loop GetGroupWalletConfig until failure or completion"},
+      {getwallet, "getwallet", "show wallet descriptor and BSMS"},
+      {previewplatformkeypolicyupdate, "previewplatformkeypolicyupdate",
+       "preview wallet platform key policy update"},
+      {requestplatformkeypolicyupdate, "requestplatformkeypolicyupdate",
+       "request wallet platform key policy update"},
+      {listgroupdummytxs, "listgroupdummytxs",
+       "list wallet dummy transactions"},
+      {getgroupdummytx, "getgroupdummytx", "show wallet dummy transaction"},
+      {signgroupdummytx, "signgroupdummytx", "sign wallet dummy transaction"},
+      {cancelgroupdummytx, "cancelgroupdummytx",
+       "cancel wallet dummy transaction"},
+      {getgrouptxplatformkeystatus, "getgrouptxplatformkeystatus",
+       "show platform key status for a group wallet transaction"},
+      {recovergroupwallet, "recovergroupwallet",
+       "recover group wallet from pasted descriptor"},
+      {alertcount, "alertcount", "get group wallet alert count"},
+      {listalerts, "listalerts", "list group wallet alerts"},
+      {getalert, "getalert", "show one group wallet alert"},
+      {viewalert, "viewalert", "mark group wallet alert viewed"},
+      {dismissalert, "dismissalert", "dismiss group wallet alert"},
       {replacewallet, "replacewallet", "create replace sandbox"},
       {getreplacestatus, "getreplacestatus", "get replace sandbox"},
       {acceptreplace, "acceptreplace", "accept replace sandbox"},
@@ -698,11 +1365,11 @@ void interactive() {
             << "Error: Invalid command. Type \"#help\" for more information."
             << std::endl;
       } else {
-        try {
+        //try {
           (*c).second->actor_();
-        } catch (std::exception& e) {
-          std::cout << "Error: " << e.what() << std::endl;
-        }
+        //} catch (std::exception& e) {
+        //  std::cout << "Error: " << e.what() << std::endl;
+        //}
       }
     }
   }
@@ -732,6 +1399,32 @@ void replaceLisnter(const std::string& wallet_id, const std::string& group_id) {
   std::cout << std::endl;
 }
 
+void dashboardListener(const std::string& wallet_id) {
+  std::cout << "\n--- Group wallet dashboard update ";
+  std::cout << "(" << wallet_id << ")";
+  std::cout << std::endl;
+  try {
+    auto count = nu->GetGroupWalletAlertCount(wallet_id);
+    auto alerts = nu->GetGroupWalletAlerts(wallet_id, 0, 10);
+    auto dummy_txs = nu->GetGroupDummyTransactions(wallet_id);
+    std::cout << "AlertCount: " << count << std::endl;
+    std::cout << "Alerts: " << alerts.size() << std::endl;
+    for (auto&& alert : alerts) {
+      std::cout << " . [" << alert.get_id() << "] type="
+                << int(alert.get_type()) << " title=" << alert.get_title() << " body=" << alert.get_body() << " viewable=" << alert.get_viewable()
+                << std::endl;
+    }
+    std::cout << "DummyTransactions: " << dummy_txs.size() << std::endl;
+    for (auto&& tx : dummy_txs) {
+      std::cout << " . [" << tx.get_id() << "] type=" << int(tx.get_type())
+                << " status=" << int(tx.get_status())
+                << " pending=" << tx.get_pending_signatures() << std::endl;
+    }
+  } catch (std::exception& e) {
+    std::cout << "DashboardListenerError: " << e.what() << std::endl;
+  }
+}
+
 int main(int argc, char** argv) {
   loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
   init();
@@ -740,6 +1433,7 @@ int main(int argc, char** argv) {
   nu->AddGroupMessageListener(messageListener);
   nu->AddTransactionListener(transactionListener);
   nu->AddReplaceRequestListener(replaceLisnter);
+  nu->AddGroupWalletDashboardListener(dashboardListener);
 
   interactive();
   nu->StopConsumeGroupEvent();

@@ -197,6 +197,8 @@ class NunchukStorage {
   std::vector<SingleSigner> GetRemoteSigners(Chain chain,
                                              const std::string &xfp);
   std::vector<SingleSigner> GetRemoteSigners(Chain chain);
+  bool UpdateRemoteSignerType(Chain chain, const SingleSigner &remotesigner,
+                              SignerType signer_type);
   bool DeleteRemoteSigner(Chain chain, const std::string &master_fingerprint,
                           const std::string &derivation_path);
   bool UpdateRemoteSigner(Chain chain, const SingleSigner &remotesigner);

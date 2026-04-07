@@ -27,8 +27,25 @@ int GroupWalletConfig::get_chat_retention_days() const {
   return chat_retention_days_;
 }
 
+const std::optional<GroupPlatformKey>& GroupWalletConfig::get_platform_key()
+    const {
+  return platform_key_;
+}
+
+std::string GroupWalletConfig::get_platform_key_fingerprint() const {
+  return platform_key_fingerprint_;
+}
+
 void GroupWalletConfig::set_chat_retention_days(int value) {
   chat_retention_days_ = value;
+}
+
+void GroupWalletConfig::set_platform_key(std::optional<GroupPlatformKey> value) {
+  platform_key_ = std::move(value);
+}
+
+void GroupWalletConfig::set_platform_key_fingerprint(const std::string& value) {
+  platform_key_fingerprint_ = value;
 }
 
 }  // namespace nunchuk

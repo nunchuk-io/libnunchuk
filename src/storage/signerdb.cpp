@@ -593,18 +593,20 @@ bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
         return 1;
       case SignerType::SERVER:
         return 2;
-      case SignerType::FOREIGN_SOFTWARE:
+      case SignerType::PLATFORM:
         return 3;
-      case SignerType::COLDCARD_NFC:
+      case SignerType::FOREIGN_SOFTWARE:
         return 4;
-      case SignerType::PORTAL_NFC:
+      case SignerType::COLDCARD_NFC:
         return 5;
-      case SignerType::NFC:
+      case SignerType::PORTAL_NFC:
         return 6;
-      case SignerType::HARDWARE:
+      case SignerType::NFC:
         return 7;
-      case SignerType::SOFTWARE:
+      case SignerType::HARDWARE:
         return 8;
+      case SignerType::SOFTWARE:
+        return 9;
     }
     return -1;
   };

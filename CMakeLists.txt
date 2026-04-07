@@ -174,6 +174,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/dto/groupsandbox.cpp
     src/dto/groupmessage.cpp
     src/dto/groupconfig.cpp
+    src/dto/groupdummytx.cpp
+    src/dto/groupplatformkey.cpp
     src/dto/groupwalletconfig.cpp
     src/dto/scriptnode.cpp
     src/dto/timelock.cpp

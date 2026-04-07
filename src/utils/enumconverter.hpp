@@ -78,6 +78,8 @@ inline std::string SignerTypeToStr(nunchuk::SignerType value) {
       return "COLDCARD_NFC";
     case nunchuk::SignerType::SERVER:
       return "SERVER";
+    case nunchuk::SignerType::PLATFORM:
+      return "PLATFORM";
     case nunchuk::SignerType::PORTAL_NFC:
       return "PORTAL_NFC";
   }
@@ -95,6 +97,7 @@ inline nunchuk::SignerType SignerTypeFromStr(const std::string& value) {
   if (value == "NFC") return nunchuk::SignerType::NFC;
   if (value == "COLDCARD_NFC") return nunchuk::SignerType::COLDCARD_NFC;
   if (value == "SERVER") return nunchuk::SignerType::SERVER;
+  if (value == "PLATFORM") return nunchuk::SignerType::PLATFORM;
   if (value == "PORTAL_NFC") return nunchuk::SignerType::PORTAL_NFC;
 
   throw nunchuk::NunchukException(

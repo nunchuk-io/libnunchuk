@@ -87,6 +87,416 @@ json GetHttpResponseData(const std::string& resp) {
   return parsed["data"];
 }
 
+static std::string GetHttpError(const std::string& url,
+                                const httplib::Result& res) {
+  if (res) {
+    const auto body =
+        res->body.empty() ? std::string{} : res->body.substr(0, 500);
+    return
+        body.empty()
+            ? strprintf("%s failed with HTTP %d", url.c_str(), res->status)
+            : strprintf("%s failed with HTTP %d: %s", url.c_str(), res->status,
+                        body.c_str());
+  }
+  return strprintf("%s failed: transport error=%d", url.c_str(),
+                   static_cast<int>(res.error()));
+}
+
+static std::string ToGroupSpendingLimitIntervalString(
+    GroupSpendingLimitInterval interval) {
+  switch (interval) {
+    case GroupSpendingLimitInterval::DAILY:
+      return "DAILY";
+    case GroupSpendingLimitInterval::WEEKLY:
+      return "WEEKLY";
+    case GroupSpendingLimitInterval::MONTHLY:
+      return "MONTHLY";
+    case GroupSpendingLimitInterval::YEARLY:
+      return "YEARLY";
+  }
+  throw GroupException(GroupException::INVALID_PARAMETER,
+                       "Invalid spending limit interval");
+}
+
+static GroupSpendingLimitInterval ParseGroupSpendingLimitInterval(
+    const json& value) {
+  if (value.is_number_integer()) {
+    return GroupSpendingLimitInterval(value.get<int>());
+  }
+  const auto interval = value.get<std::string>();
+  if (interval == "DAILY") {
+    return GroupSpendingLimitInterval::DAILY;
+  }
+  if (interval == "WEEKLY") {
+    return GroupSpendingLimitInterval::WEEKLY;
+  }
+  if (interval == "MONTHLY") {
+    return GroupSpendingLimitInterval::MONTHLY;
+  }
+  if (interval == "YEARLY") {
+    return GroupSpendingLimitInterval::YEARLY;
+  }
+  throw GroupException(GroupException::INVALID_PARAMETER,
+                       "Invalid spending limit interval");
+}
+
+static json GroupSpendingLimitToJson(const GroupSpendingLimit& limit) {
+  return {
+      {"interval", ToGroupSpendingLimitIntervalString(limit.get_interval())},
+      {"amount", limit.get_amount()},
+      {"currency", limit.get_currency()},
+  };
+}
+
+static GroupSpendingLimit GroupSpendingLimitFromJson(const json& value) {
+  GroupSpendingLimit limit{};
+  limit.set_interval(ParseGroupSpendingLimitInterval(value["interval"]));
+  limit.set_amount(value["amount"]);
+  limit.set_currency(value["currency"]);
+  return limit;
+}
+
+template <typename T>
+static void FillGroupPlatformKeyCommonPolicy(const json& value, T& policy) {
+  if (auto spending_limit = value.find("spendingLimit");
+      spending_limit != value.end() && (*spending_limit) != nullptr) {
+    policy.set_spending_limit(GroupSpendingLimitFromJson(*spending_limit));
+  }
+  if (auto autob = value.find("autoBroadcastTransaction");
+      autob != value.end() && (*autob) != nullptr) {
+    policy.set_auto_broadcast_transaction(autob->get<bool>());
+  }
+  if (auto delay = value.find("signingDelaySeconds");
+      delay != value.end() && (*delay) != nullptr) {
+    policy.set_signing_delay_seconds(delay->get<int>());
+  }
+}
+
+static json GroupPlatformKeyPolicyToJson(const GroupPlatformKeyPolicy& policy) {
+  json result = {
+      {"autoBroadcastTransaction", policy.get_auto_broadcast_transaction()},
+      {"signingDelaySeconds", policy.get_signing_delay_seconds()},
+      {"spendingLimit", nullptr},
+  };
+  if (policy.get_spending_limit().has_value()) {
+    result["spendingLimit"] =
+        GroupSpendingLimitToJson(policy.get_spending_limit().value());
+  }
+  return result;
+}
+
+static GroupPlatformKeyPolicy GroupPlatformKeyPolicyFromJson(const json& value) {
+  GroupPlatformKeyPolicy policy{};
+  FillGroupPlatformKeyCommonPolicy(value, policy);
+  return policy;
+}
+
+static json GroupPlatformKeySignerPolicyToJson(
+    const GroupPlatformKeySignerPolicy& policy) {
+  json result = GroupPlatformKeyPolicyToJson(policy.get_policy());
+  result["masterFingerprint"] = policy.get_master_fingerprint();
+  return result;
+}
+
+static GroupPlatformKeySignerPolicy GroupPlatformKeySignerPolicyFromJson(
+    const json& value) {
+  GroupPlatformKeySignerPolicy policy{};
+  if (auto fingerprint = value.find("masterFingerprint");
+      fingerprint != value.end() && (*fingerprint) != nullptr) {
+    policy.set_master_fingerprint(fingerprint->get<std::string>());
+  }
+  policy.set_policy(GroupPlatformKeyPolicyFromJson(value));
+  return policy;
+}
+
+static json GroupPlatformKeyPoliciesToJson(
+    const GroupPlatformKeyPolicies& policies) {
+  json result = {
+      {"global", nullptr},
+      {"signers", nullptr},
+  };
+  if (policies.get_global().has_value()) {
+    result["global"] =
+        GroupPlatformKeyPolicyToJson(policies.get_global().value());
+  }
+  if (!policies.get_signers().empty()) {
+    json signers = json::array();
+    for (auto&& policy : policies.get_signers()) {
+      signers.push_back(GroupPlatformKeySignerPolicyToJson(policy));
+    }
+    result["signers"] = std::move(signers);
+  }
+  return result;
+}
+
+static void ClearGroupPlatformKeySignerPolicies(json& plaintext) {
+  auto platform_key = plaintext.find("platformKey");
+  if (platform_key == plaintext.end() || (*platform_key) == nullptr) {
+    return;
+  }
+  auto policies = platform_key->find("policies");
+  if (policies == platform_key->end() || (*policies) == nullptr) {
+    return;
+  }
+  (*policies)["signers"] = nullptr;
+}
+
+static void ClearGroupPlatformKeyPolicies(json& plaintext) {
+  auto platform_key = plaintext.find("platformKey");
+  if (platform_key == plaintext.end() || (*platform_key) == nullptr) {
+    return;
+  }
+  (*platform_key)["policies"] = {
+      {"global", nullptr},
+      {"signers", nullptr},
+  };
+}
+
+static GroupPlatformKeyPolicies GroupPlatformKeyPoliciesFromJson(
+    const json& value) {
+  GroupPlatformKeyPolicies policies{};
+  if (auto global = value.find("global");
+      global != value.end() && (*global) != nullptr) {
+    policies.set_global(GroupPlatformKeyPolicyFromJson(*global));
+  }
+  if (auto signers = value.find("signers");
+      signers != value.end() && (*signers) != nullptr) {
+    std::vector<GroupPlatformKeySignerPolicy> items{};
+    for (auto&& policy : *signers) {
+      items.push_back(GroupPlatformKeySignerPolicyFromJson(policy));
+    }
+    policies.set_signers(std::move(items));
+  }
+  return policies;
+}
+
+static json GroupPlatformKeyToJson(const GroupPlatformKey& platform_key) {
+  return {{"policies", GroupPlatformKeyPoliciesToJson(platform_key.get_policies())}};
+}
+
+static GroupPlatformKey GroupPlatformKeyFromJson(const json& value) {
+  GroupPlatformKeyPolicies policies{};
+  if (auto policy_items = value.find("policies");
+      policy_items != value.end() && (*policy_items) != nullptr) {
+    policies = GroupPlatformKeyPoliciesFromJson(*policy_items);
+  }
+  return GroupPlatformKey(std::move(policies));
+}
+
+static GroupDummyTransactionType ParseGroupDummyTransactionType(
+    const json& value) {
+  if (value.is_number_integer()) {
+    return GroupDummyTransactionType(value.get<int>());
+  }
+  const auto type = value.get<std::string>();
+  if (type == "UPDATE_PLATFORM_KEY_POLICIES") {
+    return GroupDummyTransactionType::UPDATE_PLATFORM_KEY_POLICIES;
+  }
+  return GroupDummyTransactionType::UNKNOWN;
+}
+
+static GroupDummyTransactionStatus ParseGroupDummyTransactionStatus(
+    const json& value) {
+  if (value.is_number_integer()) {
+    return GroupDummyTransactionStatus(value.get<int>());
+  }
+  const auto status = value.get<std::string>();
+  if (status == "CONFIRMED") {
+    return GroupDummyTransactionStatus::CONFIRMED;
+  }
+  return GroupDummyTransactionStatus::PENDING_SIGNATURES;
+}
+
+static GroupWalletAlertType ParseGroupWalletAlertType(const json& value) {
+  if (value.is_number_integer()) {
+    return GroupWalletAlertType(value.get<int>());
+  }
+  const auto type = value.get<std::string>();
+  if (type == "POLICY_CHANGE_IN_PROGRESS") {
+    return GroupWalletAlertType::POLICY_CHANGE_IN_PROGRESS;
+  }
+  if (type == "POLICY_CHANGED") {
+    return GroupWalletAlertType::POLICY_CHANGED;
+  }
+  if (type == "REPLACE_WALLET") {
+    return GroupWalletAlertType::REPLACE_WALLET;
+  }
+  return GroupWalletAlertType::UNKNOWN;
+}
+
+static GroupTransactionStatus ParseGroupTransactionStatus(const json& value) {
+  const auto status = value.get<std::string>();
+  if (status == "COSIGNING") {
+    return GroupTransactionStatus::COSIGNING;
+  }
+  if (status == "PENDING_DELAY") {
+    return GroupTransactionStatus::PENDING_DELAY;
+  }
+  if (status == "BLOCKED") {
+    return GroupTransactionStatus::BLOCKED;
+  }
+  return GroupTransactionStatus::UNKNOWN;
+}
+
+static GroupDummyTransactionSignature GroupDummyTransactionSignatureFromJson(
+    const json& value) {
+  GroupDummyTransactionSignature signature{};
+  if (auto fingerprint = value.find("masterFingerprint");
+      fingerprint != value.end() && (*fingerprint) != nullptr) {
+    signature.set_master_fingerprint(fingerprint->get<std::string>());
+  }
+  if (auto sig = value.find("signature");
+      sig != value.end() && (*sig) != nullptr) {
+    signature.set_signature(sig->get<std::string>());
+  }
+  return signature;
+}
+
+static GroupDummyTransactionPayload GroupDummyTransactionPayloadFromJson(
+    const json& value) {
+  GroupDummyTransactionPayload data{};
+  if (auto old_policies = value.find("oldPolicies");
+      old_policies != value.end() && (*old_policies) != nullptr) {
+    data.set_old_policies(GroupPlatformKeyPoliciesFromJson(*old_policies));
+  }
+  if (auto new_policies = value.find("newPolicies");
+      new_policies != value.end() && (*new_policies) != nullptr) {
+    data.set_new_policies(GroupPlatformKeyPoliciesFromJson(*new_policies));
+  }
+  return data;
+}
+
+static GroupDummyTransaction GroupDummyTransactionFromJson(const json& value) {
+  GroupDummyTransaction tx{};
+  if (auto id = value.find("id"); id != value.end() && (*id) != nullptr) {
+    tx.set_id(id->get<std::string>());
+  }
+  if (auto wallet_id = value.find("walletId");
+      wallet_id != value.end() && (*wallet_id) != nullptr) {
+    tx.set_wallet_id(wallet_id->get<std::string>());
+  }
+  if (auto type = value.find("type"); type != value.end() && (*type) != nullptr) {
+    tx.set_type(ParseGroupDummyTransactionType(*type));
+  }
+  if (auto status = value.find("status");
+      status != value.end() && (*status) != nullptr) {
+    tx.set_status(ParseGroupDummyTransactionStatus(*status));
+  }
+  if (auto payload = value.find("payload");
+      payload != value.end() && (*payload) != nullptr) {
+    tx.set_payload(GroupDummyTransactionPayloadFromJson(*payload));
+  }
+  if (auto required = value.find("requiredSignatures");
+      required != value.end() && (*required) != nullptr) {
+    tx.set_required_signatures(required->get<int>());
+  }
+  if (auto pending = value.find("pendingSignatures");
+      pending != value.end() && (*pending) != nullptr) {
+    tx.set_pending_signatures(pending->get<int>());
+  }
+  if (auto body = value.find("requestBody");
+      body != value.end() && (*body) != nullptr) {
+    tx.set_request_body(body->get<std::string>());
+  }
+  if (auto signatures = value.find("signatures");
+      signatures != value.end() && (*signatures) != nullptr) {
+    std::vector<GroupDummyTransactionSignature> items{};
+    for (auto&& item : *signatures) {
+      items.push_back(GroupDummyTransactionSignatureFromJson(item));
+    }
+    tx.set_signatures(std::move(items));
+  }
+  if (auto created = value.find("createdAt");
+      created != value.end() && (*created) != nullptr) {
+    tx.set_created_at(created->get<time_t>());
+  }
+  return tx;
+}
+
+static GroupPlatformKeyPolicyUpdateRequirement
+GroupPlatformKeyPolicyUpdateRequirementFromJson(const json& value,
+                                                const std::string& walletId) {
+  GroupPlatformKeyPolicyUpdateRequirement requirement{};
+  if (auto success = value.find("success");
+      success != value.end() && (*success) != nullptr) {
+    requirement.set_success(success->get<bool>());
+  } else {
+    requirement.set_success(true);
+  }
+  if (auto requires_dummy = value.find("requiresDummyTransaction");
+      requires_dummy != value.end() && (*requires_dummy) != nullptr) {
+    requirement.set_requires_dummy_transaction(requires_dummy->get<bool>());
+  }
+  if (auto delay = value.find("delayApplyInSeconds");
+      delay != value.end() && (*delay) != nullptr) {
+    requirement.set_delay_apply_in_seconds(delay->get<int>());
+  }
+  if (auto dummy = value.find("dummyTransaction");
+      dummy != value.end() && (*dummy) != nullptr) {
+    auto tx = GroupDummyTransactionFromJson(*dummy);
+    tx.set_wallet_id(walletId);
+    requirement.set_dummy_transaction(std::move(tx));
+  }
+  return requirement;
+}
+
+static GroupWalletAlert GroupWalletAlertFromJson(const json& value) {
+  GroupWalletAlert alert{};
+  if (auto id = value.find("id"); id != value.end() && (*id) != nullptr) {
+    alert.set_id(id->get<std::string>());
+  }
+  if (auto type = value.find("type"); type != value.end() && (*type) != nullptr) {
+    alert.set_type(ParseGroupWalletAlertType(*type));
+  }
+  if (auto viewable = value.find("viewable");
+      viewable != value.end() && (*viewable) != nullptr) {
+    alert.set_viewable(viewable->get<bool>());
+  }
+  if (auto title = value.find("title");
+      title != value.end() && (*title) != nullptr) {
+    alert.set_title(title->get<std::string>());
+  }
+  if (auto body = value.find("body");
+      body != value.end() && (*body) != nullptr) {
+    alert.set_body(body->get<std::string>());
+  }
+  if (auto payload = value.find("payload");
+      payload != value.end() && (*payload) != nullptr) {
+    GroupWalletAlertPayload data{};
+    if (auto dummy = payload->find("dummyTransactionId");
+        dummy != payload->end() && (*dummy) != nullptr) {
+      data.set_dummy_transaction_id(dummy->get<std::string>());
+    }
+    if (auto replacement = payload->find("replacementGroupId");
+        replacement != payload->end() && (*replacement) != nullptr) {
+      data.set_replacement_group_id(replacement->get<std::string>());
+    }
+    alert.set_payload(std::move(data));
+  }
+  if (auto created = value.find("createdAt");
+      created != value.end() && (*created) != nullptr) {
+    alert.set_created_at(created->get<time_t>());
+  }
+  return alert;
+}
+
+static GroupTransactionState GroupTransactionStateFromJson(const json& value) {
+  GroupTransactionState state{};
+  if (auto status = value.find("status");
+      status != value.end() && (*status) != nullptr) {
+    state.set_status(ParseGroupTransactionStatus(*status));
+  }
+  if (auto message = value.find("message");
+      message != value.end() && (*message) != nullptr) {
+    state.set_message(message->get<std::string>());
+  }
+  if (auto cosign_at = value.find("cosignAt");
+      cosign_at != value.end() && (*cosign_at) != nullptr) {
+    state.set_cosign_at(cosign_at->get<time_t>());
+  }
+  return state;
+}
+
 std::shared_ptr<httplib::Client> MakeClient(const std::string& baseUrl) {
   auto cli = std::make_shared<httplib::Client>(baseUrl.c_str());
   cli->enable_server_certificate_verification(false);
@@ -150,12 +560,30 @@ std::pair<std::string, std::string> GroupService::GetDeviceInfo() {
   return {deviceToken_, uid_};
 }
 
+std::string GroupService::GetSharedWalletPubKey() {
+  auto data = GetHttpResponseData(Get("/v1.1/shared-wallets/pubkey"));
+  if (data.is_string()) {
+    return data.get<std::string>();
+  }
+  if (auto pubkey = data.find("pubkey");
+      pubkey != data.end() && (*pubkey) != nullptr) {
+    return pubkey->get<std::string>();
+  }
+  if (auto public_key = data.find("public_key");
+      public_key != data.end() && (*public_key) != nullptr) {
+    return public_key->get<std::string>();
+  }
+  throw GroupException(GroupException::SERVER_REQUEST_ERROR,
+                       "Invalid shared-wallet pubkey response");
+}
+
 void GroupService::CheckVersion() {
   auto cli = GetClient();
-  auto res = cli->Get("/v1.1/shared-wallets/version");
+  std::string url = "/v1.1/shared-wallets/version";
+  auto res = cli->Get(url.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         res ? res->body : "Server error");
+                         GetHttpError(url, res));
   }
   json data = GetHttpResponseData(res->body);
   int version = data["version"];
@@ -206,7 +634,7 @@ std::pair<std::string, std::string> GroupService::RegisterDevice(
                        body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         res ? res->body : "Server error");
+                         GetHttpError(url, res));
   }
   auto data = GetHttpResponseData(res->body);
   deviceToken_ = data["device_token"];
@@ -309,6 +737,14 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
     }
   }
   rs.set_signers(signers);
+  if (auto platform_key = state.find("platformKey");
+      platform_key != state.end() && (*platform_key) != nullptr) {
+    rs.set_platform_key(GroupPlatformKeyFromJson(*platform_key));
+  }
+  if (auto slots = state.find("platformKeySlots");
+      slots != state.end() && (*slots) != nullptr) {
+    rs.set_platform_key_slots(slots->get<std::vector<std::string>>());
+  }
 
   if (rs.is_finalized()) {
     rs.set_pubkey(state["pubkey"]);
@@ -365,6 +801,13 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group) {
     occupied.push_back({{"i", i}, {"uid", v.second}, {"ts", v.first}});
   }
   json plaintext = {{"signers", signers}};
+  if (group.get_platform_key().has_value()) {
+    plaintext["platformKey"] =
+        GroupPlatformKeyToJson(group.get_platform_key().value());
+  }
+  if (!group.get_platform_key_slots().empty()) {
+    plaintext["platformKeySlots"] = group.get_platform_key_slots();
+  }
   if (group.is_finalized()) {
     if (group.get_pubkey().empty() || group.get_wallet_id().empty()) {
       throw GroupException(GroupException::INVALID_PARAMETER,
@@ -489,6 +932,41 @@ std::string GroupService::TransactionToEvent(const std::string& walletId,
   return body.dump();
 }
 
+json GroupService::EncryptWalletPayload(const std::string& walletId,
+                                        const json& plaintext) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto msg = walletSigner->EncryptMessage(plaintext.dump());
+  auto sig = walletSigner->SignMessage(msg, KEYPAIR_PATH);
+  return {
+      {"version", VERSION},
+      {"msg", msg},
+      {"sig", sig},
+  };
+}
+
+json GroupService::DecryptWalletPayload(const std::string& walletGid,
+                                        const json& payload) {
+  const json* data = &payload;
+  if (auto nested = payload.find("data");
+      nested != payload.end() && (*nested) != nullptr && nested->is_object()) {
+    data = &(*nested);
+  }
+  if (!data->is_object()) {
+    return payload;
+  }
+  auto msg = data->find("msg");
+  auto sig = data->find("sig");
+  if (msg == data->end() || sig == data->end() || (*msg) == nullptr ||
+      (*sig) == nullptr) {
+    return payload;
+  }
+  auto [walletSigner, walletId] = GetWalletSignerAndWalletIdFromGid(walletGid);
+  if (!CoreUtils::getInstance().VerifyMessage(walletGid, *sig, *msg)) {
+    throw GroupException(GroupException::INVALID_SIGNATURE, "Invalid message");
+  }
+  return json::parse(walletSigner->DecryptMessage(*msg));
+}
+
 GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
                                        const std::string& script_tmpl,
                                        AddressType addressType) {
@@ -516,6 +994,8 @@ GroupSandbox GroupService::CreateGroup(const std::string& name, int m, int n,
 GroupSandbox GroupService::CreateReplaceGroup(
     const std::string& name, int m, int n, const std::string& script_tmpl,
     AddressType addressType, const std::vector<SingleSigner>& signers,
+    const std::optional<GroupPlatformKey>& platform_key,
+    const std::vector<std::string>& platform_key_slots,
     const std::string& walletId) {
   if (!script_tmpl.empty()) {
     n = Utils::ParseSignerNames(script_tmpl, m).size();
@@ -534,7 +1014,17 @@ GroupSandbox GroupService::CreateReplaceGroup(
   group.set_n(n);
   group.set_address_type(addressType);
   group.set_signers(signers);
-  group.set_ephemeral_keys({ephemeralPub_});
+  auto ephemeral_keys = std::vector<std::string>{ephemeralPub_};
+  if (platform_key.has_value()) {
+    auto backend_pubkey = GetSharedWalletPubKey();
+    if (std::find(ephemeral_keys.begin(), ephemeral_keys.end(),
+                  backend_pubkey) == ephemeral_keys.end()) {
+      ephemeral_keys.push_back(backend_pubkey);
+    }
+    group.set_platform_key(platform_key);
+    group.set_platform_key_slots(platform_key_slots);
+  }
+  group.set_ephemeral_keys(std::move(ephemeral_keys));
   group.set_miniscript_template(script_tmpl);
   std::string body = GroupToEvent(group);
   std::string rs = Post(url, {body.begin(), body.end()});
@@ -611,8 +1101,9 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
   int n = group["init"]["pubstate"]["n"];
   std::string ciphertext = group["init"]["state"][ephemeralPub_];
   if (!ciphertext.empty()) {
-    json signers = json::parse(
-        Publicbox(ephemeralPub_, ephemeralPriv_).Open(ciphertext))["signers"];
+    json plaintext =
+        json::parse(Publicbox(ephemeralPub_, ephemeralPriv_).Open(ciphertext));
+    json signers = plaintext["signers"];
 
     // merge modified signers
     for (auto& [key, value] : group["init"]["modified"].items()) {
@@ -626,8 +1117,7 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
     }
     group["init"]["modified"] = json::object();
 
-    json plaintext = {
-        {"signers", UpdateSignersJson(signers, signer, index, n)}};
+    plaintext["signers"] = UpdateSignersJson(signers, signer, index, n);
     for (auto& [key, value] : group["init"]["state"].items()) {
       group["init"]["state"][key] =
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
@@ -644,8 +1134,7 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
                           ? group["init"]["modified"][ephemeralPub_]
                           : json::object();
     json signers = GetModifiedSigners(mymodified, n);
-    json plaintext = {
-        {"signers", UpdateSignersJson(signers, signer, index, n)}};
+    json plaintext = {{"signers", UpdateSignersJson(signers, signer, index, n)}};
     json modified{};
     for (auto& [key, value] : group["init"]["state"].items()) {
       modified[key] =
@@ -656,6 +1145,20 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
   group["init"]["pubstate"]["occupied"] =
       UpdateOccupiedJson(group["init"]["pubstate"]["occupied"], false, index);
   return SendGroupEvent(groupId, group);
+}
+
+GroupSandbox GroupService::UpdateGroupState(const GroupSandbox& group) {
+  if (group.is_finalized()) {
+    throw GroupException(GroupException::INVALID_PARAMETER,
+                         "Use wallet config update for finalized wallet");
+  }
+  json server_group = GetGroupJson(group.get_id());
+  auto data = json::parse(GroupToEvent(group))["data"];
+  server_group["init"]["state"] = data["state"];
+  server_group["init"]["pubstate"] = data["pubstate"];
+  server_group["init"]["modified"] = data["modified"];
+  server_group["init"]["version"] = data["version"];
+  return SendGroupEvent(group.get_id(), server_group);
 }
 
 GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
@@ -673,17 +1176,27 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
   auto curScriptTmpl = group["init"]["pubstate"]["miniscriptTemplate"];
   int curN = group["init"]["pubstate"]["n"];
   std::string ciphertext = group["init"]["state"][ephemeralPub_];
+  json plaintext = json::object();
+  if (!ciphertext.empty()) {
+    plaintext = json::parse(
+        Publicbox(ephemeralPub_, ephemeralPriv_).Open(ciphertext));
+  }
 
   bool shouldClearSigners =
       (curAt != addressType && (curAt == AddressType::TAPROOT ||
                                 addressType == AddressType::TAPROOT)) ||
       (curScriptTmpl != script_tmpl);
+  bool shouldClearPlatformPolicies =
+      (curN != n) || (curScriptTmpl != script_tmpl);
   if (shouldClearSigners) {
     json signers = json::array();
     for (int i = 0; i < n; i++) {
       signers.push_back("[]");
     }
-    json plaintext = {{"signers", signers}};
+    plaintext["signers"] = signers;
+    if (shouldClearPlatformPolicies) {
+      ClearGroupPlatformKeyPolicies(plaintext);
+    }
     for (auto& [key, value] : group["init"]["state"].items()) {
       group["init"]["state"][key] =
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
@@ -691,8 +1204,7 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
     group["init"]["modified"] = json::object();
     group["init"]["pubstate"]["added"] = json::array();
   } else if (!ciphertext.empty()) {
-    json signers = json::parse(
-        Publicbox(ephemeralPub_, ephemeralPriv_).Open(ciphertext))["signers"];
+    json signers = plaintext["signers"];
 
     // merge modified signers
     for (auto& [key, value] : group["init"]["modified"].items()) {
@@ -707,7 +1219,10 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
     group["init"]["modified"] = json::object();
 
     // update signers size to n
-    json plaintext = {{"signers", UpdateSignersJson(signers, {}, -1, n)}};
+    plaintext["signers"] = UpdateSignersJson(signers, {}, -1, n);
+    if (shouldClearPlatformPolicies) {
+      ClearGroupPlatformKeyPolicies(plaintext);
+    }
     for (auto& [key, value] : group["init"]["state"].items()) {
       group["init"]["state"][key] =
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
@@ -724,7 +1239,10 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
                           ? group["init"]["modified"][ephemeralPub_]
                           : json::object();
     json signers = GetModifiedSigners(mymodified, n);
-    json plaintext = {{"signers", UpdateSignersJson(signers, {}, -1, n)}};
+    plaintext["signers"] = UpdateSignersJson(signers, {}, -1, n);
+    if (shouldClearPlatformPolicies) {
+      ClearGroupPlatformKeyPolicies(plaintext);
+    }
     for (auto& [key, value] : group["init"]["state"].items()) {
       group["init"]["state"][key] =
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
@@ -776,6 +1294,14 @@ GroupWalletConfig GroupService::GetWalletConfig(const std::string& walletId) {
   auto wallet = GetHttpResponseData(Get(url))["wallet"];
   GroupWalletConfig rs{};
   rs.set_chat_retention_days(wallet["chat_retention_days"]);
+  if (auto platform_key = wallet.find("platformKey");
+      platform_key != wallet.end() && (*platform_key) != nullptr) {
+    rs.set_platform_key(GroupPlatformKeyFromJson(*platform_key));
+  }
+  if (auto fingerprint = wallet.find("platformKeyFingerprint");
+      fingerprint != wallet.end() && (*fingerprint) != nullptr) {
+    rs.set_platform_key_fingerprint(*fingerprint);
+  }
   return rs;
 }
 
@@ -802,6 +1328,180 @@ void GroupService::SetWalletConfig(const std::string& walletId,
   };
   std::string body = json(postbody).dump();
   GetHttpResponseData(Post(url, {body.begin(), body.end()}));
+}
+
+GroupPlatformKeyPolicyUpdateRequirement
+GroupService::PreviewPlatformKeyPolicyUpdate(
+    const std::string& walletId, const GroupPlatformKeyPolicies& policies) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url =
+      "/v1.1/shared-wallets/wallets/" + walletGid +
+      "/platform-key/policies/preview";
+  json body = EncryptWalletPayload(
+      walletId, {{"policies", GroupPlatformKeyPoliciesToJson(policies)}});
+  auto body_str = body.dump();
+  json data =
+      DecryptWalletPayload(walletGid,
+                           GetHttpResponseData(Post(url, {body_str.begin(),
+                                                          body_str.end()})));
+  if (auto requirement = data.find("requirement");
+      requirement != data.end() && (*requirement) != nullptr) {
+    return GroupPlatformKeyPolicyUpdateRequirementFromJson(*requirement,
+                                                           walletId);
+  }
+  return GroupPlatformKeyPolicyUpdateRequirementFromJson(data, walletId);
+}
+
+GroupPlatformKeyPolicyUpdateRequirement
+GroupService::RequestPlatformKeyPolicyUpdate(
+    const std::string& walletId, const GroupPlatformKeyPolicies& policies) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url =
+      "/v1.1/shared-wallets/wallets/" + walletGid +
+      "/platform-key/policies";
+  json body = EncryptWalletPayload(
+      walletId, {{"policies", GroupPlatformKeyPoliciesToJson(policies)}});
+  auto body_str = body.dump();
+  json data =
+      DecryptWalletPayload(walletGid,
+                           GetHttpResponseData(Post(url, {body_str.begin(),
+                                                          body_str.end()})));
+  if (auto requirement = data.find("requirement");
+      requirement != data.end() && (*requirement) != nullptr) {
+    return GroupPlatformKeyPolicyUpdateRequirementFromJson(*requirement,
+                                                           walletId);
+  }
+  return GroupPlatformKeyPolicyUpdateRequirementFromJson(data, walletId);
+}
+
+std::vector<GroupDummyTransaction> GroupService::GetDummyTransactions(
+    const std::string& walletId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url =
+      "/v1.1/shared-wallets/wallets/" + walletGid + "/dummy-transactions";
+  json data = DecryptWalletPayload(walletGid, GetHttpResponseData(Get(url)));
+  json items = data.contains("dummyTransactions") ? data["dummyTransactions"]
+                                                  : data["dummy_transactions"];
+  std::vector<GroupDummyTransaction> rs{};
+  if (items != nullptr) {
+    for (auto&& item : items) {
+      auto tx = GroupDummyTransactionFromJson(item);
+      tx.set_wallet_id(walletId);
+      rs.push_back(std::move(tx));
+    }
+  }
+  return rs;
+}
+
+GroupDummyTransaction GroupService::GetDummyTransaction(
+    const std::string& walletId, const std::string& dummyTxId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid +
+                    "/dummy-transactions/" + dummyTxId;
+  json data = DecryptWalletPayload(walletGid, GetHttpResponseData(Get(url)));
+  auto tx = GroupDummyTransactionFromJson(
+      data.contains("dummyTransaction") ? data["dummyTransaction"] : data);
+  tx.set_wallet_id(walletId);
+  return tx;
+}
+
+GroupDummyTransaction GroupService::SignDummyTransaction(
+    const std::string& walletId, const std::string& dummyTxId,
+    const std::vector<std::string>& signatures) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid +
+                    "/dummy-transactions/" + dummyTxId;
+  json body = EncryptWalletPayload(walletId, {{"signatures", signatures}});
+  auto body_str = body.dump();
+  json data =
+      DecryptWalletPayload(walletGid,
+                           GetHttpResponseData(Post(url, {body_str.begin(),
+                                                          body_str.end()})));
+  auto tx = GroupDummyTransactionFromJson(
+      data.contains("dummyTransaction") ? data["dummyTransaction"] : data);
+  tx.set_wallet_id(walletId);
+  return tx;
+}
+
+void GroupService::CancelDummyTransaction(const std::string& walletId,
+                                          const std::string& dummyTxId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid +
+                    "/dummy-transactions/" + dummyTxId;
+  auto body = EncryptWalletPayload(walletId, {{"ts", std::time(0)}});
+  auto body_str = body.dump();
+  GetHttpResponseData(Delete(url, {body_str.begin(), body_str.end()}));
+}
+
+GroupTransactionState GroupService::GetGroupTransactionState(
+    const std::string& walletId, const std::string& txId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  auto txGid = walletSigner->HashMessage(txId);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid +
+                    "/transactions/" + txGid + "/platform-key-status";
+  json data = DecryptWalletPayload(walletGid, GetHttpResponseData(Get(url)));
+  if (auto status = data.find("platformKeyStatus");
+      status != data.end() && (*status) != nullptr) {
+    return GroupTransactionStateFromJson(*status);
+  }
+  return GroupTransactionStateFromJson(data);
+}
+
+int GroupService::GetWalletAlertCount(const std::string& walletId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid +
+                    "/alerts/count";
+  json data = DecryptWalletPayload(walletGid, GetHttpResponseData(Get(url)));
+  if (auto count = data.find("count"); count != data.end() && (*count) != nullptr) {
+    return count->get<int>();
+  }
+  return data.get<int>();
+}
+
+std::vector<GroupWalletAlert> GroupService::GetWalletAlerts(
+    const std::string& walletId, int page, int pageSize) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid +
+                    "/alerts?page=" + std::to_string(page) +
+                    "&page_size=" + std::to_string(pageSize);
+  json data = DecryptWalletPayload(walletGid, GetHttpResponseData(Get(url)));
+  json items = data.contains("alerts") ? data["alerts"] : json::array();
+  std::vector<GroupWalletAlert> rs{};
+  for (auto&& item : items) {
+    rs.push_back(GroupWalletAlertFromJson(item));
+  }
+  return rs;
+}
+
+void GroupService::MarkWalletAlertViewed(const std::string& walletId,
+                                         const std::string& alertId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid + "/alerts/" +
+                    alertId + "/view";
+  json body = EncryptWalletPayload(walletId, {{"ts", std::time(0)}});
+  auto body_str = body.dump();
+  GetHttpResponseData(Post(url, {body_str.begin(), body_str.end()}));
+}
+
+void GroupService::DismissWalletAlert(const std::string& walletId,
+                                      const std::string& alertId) {
+  auto walletSigner = GetWalletSignerFromWalletId(walletId, true);
+  auto walletGid = walletSigner->GetAddressAtPath(KEYPAIR_PATH);
+  std::string url = "/v1.1/shared-wallets/wallets/" + walletGid + "/alerts/" +
+                    alertId + "/dismiss";
+  json body = EncryptWalletPayload(walletId, {{"ts", std::time(0)}});
+  auto body_str = body.dump();
+  GetHttpResponseData(Post(url, {body_str.begin(), body_str.end()}));
 }
 
 bool GroupService::CheckWalletExists(const Wallet& wallet) {
@@ -967,7 +1667,7 @@ std::string GroupService::Post(const std::string& url,
                        body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         res ? res->body : "Server error");
+                         GetHttpError(url, res));
   }
   return res->body;
 }
@@ -980,7 +1680,7 @@ std::string GroupService::Get(const std::string& url) {
   auto res = cli->Get(url.c_str(), headers);
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         res ? res->body : "Server error");
+                         GetHttpError(url, res));
   }
   return res->body;
 }
@@ -997,7 +1697,7 @@ std::string GroupService::Delete(const std::string& url,
                                body.size(), MIME_TYPE.c_str());
   if (!res || res->status != 200) {
     throw GroupException(GroupException::SERVER_REQUEST_ERROR,
-                         res ? res->body : "Server error");
+                         GetHttpError(url, res));
   }
   return res->body;
 }
