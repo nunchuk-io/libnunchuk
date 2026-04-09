@@ -114,7 +114,8 @@ class GroupService {
                        const std::string& signer, const std::string& signature);
   std::vector<GroupMessage> GetMessages(const std::string& walletId, int page,
                                         int pageSize, bool latest);
-  void StartListenEvents(std::function<bool(const nlohmann::json&)> callback);
+  void StartListenEvents(std::function<bool(const nlohmann::json&)> callback,
+                         std::function<void()> on_reconnect = {});
   void StopListenEvents();
   void StopHttpClients();
   std::pair<std::vector<std::string>, std::vector<std::string>> Subscribe(

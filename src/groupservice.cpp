@@ -1548,7 +1548,8 @@ std::vector<GroupMessage> GroupService::GetMessages(const std::string& walletId,
 }
 
 void GroupService::StartListenEvents(
-    std::function<bool(const nlohmann::json&)> callback) {
+    std::function<bool(const nlohmann::json&)> callback,
+    std::function<void()> on_reconnect) {
   auto handle_event = [callback =
                            std::move(callback)](std::string_view event_data) {
     size_t data_pos = event_data.find("data:");
@@ -1571,7 +1572,8 @@ void GroupService::StartListenEvents(
     StopListenEvents();
   }
 
-  sse_thread_ = std::thread([&, handle_event = std::move(handle_event)] {
+  sse_thread_ = std::thread([&, handle_event = std::move(handle_event),
+                             on_reconnect = std::move(on_reconnect)] {
     std::string auth = (std::string("Bearer ") + accessToken_);
     httplib::Headers headers = {{"Device-Token", deviceToken_},
                                 {"Authorization", auth},
@@ -1581,11 +1583,20 @@ void GroupService::StartListenEvents(
     sse_client_->set_read_timeout(std::chrono::hours(24));
     sse_client_->set_keep_alive(true);
     stop_ = false;
+    bool has_connected = false;
     while (!stop_) {
       std::string buffer;
+      bool connected_this_attempt = false;
       sse_client_->Get(
           "/v1.1/shared-wallets/events/sse", headers,
           [&](const char* data, size_t data_length) {
+            if (!connected_this_attempt) {
+              connected_this_attempt = true;
+              if (has_connected && on_reconnect) {
+                on_reconnect();
+              }
+              has_connected = true;
+            }
             buffer.append(data, data_length);
             size_t pos;
             while ((pos = buffer.find("\n\n")) != std::string::npos) {
