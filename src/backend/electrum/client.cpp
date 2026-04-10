@@ -139,8 +139,10 @@ ElectrumClient::~ElectrumClient() {
 
 void ElectrumClient::handle_error(const std::string& where,
                                   const std::string& message) {
+  if (stopped_.exchange(true)) {
+    return;
+  }
   LOG_F(ERROR, "%s: %s", where.c_str(), message.c_str());
-  stopped_ = true;
   for (auto &&it = callback_.begin(), next = it; it != callback_.end();
        it = next) {
     ++next;

@@ -55,6 +55,7 @@ void ElectrumSynchronizer::Run() {
   {
     std::lock_guard<std::mutex> guard(status_mutex_);
     if (status_ == Status::STOPPED) return;
+    if (status_ == Status::CONNECTING) return;
     status_ = Status::CONNECTING;
     status_cv_.notify_all();
   }
@@ -63,6 +64,10 @@ void ElectrumSynchronizer::Run() {
   scripthash_to_wallet_address_.clear();
 
   io_service_.post([&]() {
+    {
+      std::lock_guard<std::mutex> guard(status_mutex_);
+      if (status_ != Status::CONNECTING) return;
+    }
     try {
       client_ = std::unique_ptr<ElectrumClient>(
           new ElectrumClient(app_settings_, [&]() {
