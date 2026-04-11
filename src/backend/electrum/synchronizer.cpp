@@ -91,11 +91,28 @@ void ElectrumSynchronizer::Run() {
       status_ = Status::SYNCING;
       status_cv_.notify_all();
     }
+    bool sync_completed = false;
     try {
       BlockchainSync(app_settings_.get_chain());
+      sync_completed = true;
     } catch (...) {
       // TODO(Bakaoh): more elegant exeption handling
       // storage and CoreUtils chain-switch may cause exeption here
+    }
+    if (!sync_completed) {
+      bool notify_offline = false;
+      {
+        std::lock_guard<std::mutex> guard(status_mutex_);
+        if (status_ == Status::SYNCING) {
+          status_ = Status::UNINITIALIZED;
+          status_cv_.notify_all();
+          notify_offline = true;
+        }
+      }
+      if (notify_offline) {
+        connection_listener_(ConnectionStatus::OFFLINE, 0);
+      }
+      return;
     }
     std::lock_guard<std::mutex> guard(status_mutex_);
     if (status_ != Status::SYNCING) return;

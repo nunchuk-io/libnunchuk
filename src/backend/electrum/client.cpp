@@ -146,15 +146,36 @@ void ElectrumClient::handle_error(const std::string& where,
   for (auto &&it = callback_.begin(), next = it; it != callback_.end();
        it = next) {
     ++next;
-    it->second.set_value(
-        {{"error", {{"code", 1}, {"message", "Disconnected"}}}});
+    try {
+      it->second.set_value(
+          {{"error", {{"code", 1}, {"message", "Disconnected"}}}});
+    } catch (const std::exception& e) {
+      LOG_F(ERROR, "ElectrumClient::handle_error callback cleanup: %s",
+            e.what());
+    } catch (...) {
+      LOG_F(ERROR, "ElectrumClient::handle_error callback cleanup");
+    }
   }
   for (auto &&it = batch_callback_.begin(), next = it;
        it != batch_callback_.end(); it = next) {
     ++next;
-    it->second.set_value(json::array());
+    try {
+      it->second.set_value(json::array());
+    } catch (const std::exception& e) {
+      LOG_F(ERROR, "ElectrumClient::handle_error batch callback cleanup: %s",
+            e.what());
+    } catch (...) {
+      LOG_F(ERROR, "ElectrumClient::handle_error batch callback cleanup");
+    }
   }
-  disconnect_signal_();
+  try {
+    disconnect_signal_();
+  } catch (const std::exception& e) {
+    LOG_F(ERROR, "ElectrumClient::handle_error disconnect signal: %s",
+          e.what());
+  } catch (...) {
+    LOG_F(ERROR, "ElectrumClient::handle_error disconnect signal");
+  }
 }
 
 void ElectrumClient::subscribe(const std::string& method,
