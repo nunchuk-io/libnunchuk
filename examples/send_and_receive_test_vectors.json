@@ -110,6 +110,124 @@
         ]
     },
     {
+        "comment": "Issue #33: input-key sum order-independence when intermediate sum hits zero",
+        "sending": [
+            {
+                "given": {
+                    "vin": [
+                        {
+                            "txid": "3a286147b25e16ae80aff406f2673c6e565418c40f45c071245cdebc8a94174e",
+                            "vout": 0,
+                            "scriptSig": "483046022100ad79e6801dd9a8727f342f31c71c4912866f59dc6e7981878e92c5844a0ce929022100fb0d2393e813968648b9753b7e9871d90ab3d815ebf91820d704b19f4ed224d621025a1e61f898173040e20616d43e9f496fba90338a39faa1ed98fcbaeee4dd9be5",
+                            "txinwitness": "",
+                            "prevout": {
+                                "scriptPubKey": {
+                                    "hex": "76a91419c2f3ae0ca3b642bd3e49598b8da89f50c1416188ac"
+                                }
+                            },
+                            "private_key": "a6df6a0bb448992a301df4258e06a89fe7cf7146f59ac3bd5ff26083acb22ceb"
+                        },
+                        {
+                            "txid": "3a286147b25e16ae80aff406f2673c6e565418c40f45c071245cdebc8a94174e",
+                            "vout": 1,
+                            "scriptSig": "483046022100ad79e6801dd9a8727f342f31c71c4912866f59dc6e7981878e92c5844a0ce929022100fb0d2393e813968648b9753b7e9871d90ab3d815ebf91820d704b19f4ed224d621025a1e61f898173040e20616d43e9f496fba90338a39faa1ed98fcbaeee4dd9be5",
+                            "txinwitness": "",
+                            "prevout": {
+                                "scriptPubKey": {
+                                    "hex": "76a91419c2f3ae0ca3b642bd3e49598b8da89f50c1416188ac"
+                                }
+                            },
+                            "private_key": "592095f44bb766d5cfe20bda71f9575ed2df6b9fb9addc7e5fdffe0923841456"
+                        },
+                        {
+                            "txid": "3a286147b25e16ae80aff406f2673c6e565418c40f45c071245cdebc8a94174e",
+                            "vout": 2,
+                            "scriptSig": "483046022100ad79e6801dd9a8727f342f31c71c4912866f59dc6e7981878e92c5844a0ce929022100fb0d2393e813968648b9753b7e9871d90ab3d815ebf91820d704b19f4ed224d621025a1e61f898173040e20616d43e9f496fba90338a39faa1ed98fcbaeee4dd9be5",
+                            "txinwitness": "",
+                            "prevout": {
+                                "scriptPubKey": {
+                                    "hex": "76a91419c2f3ae0ca3b642bd3e49598b8da89f50c1416188ac"
+                                }
+                            },
+                            "private_key": "a6df6a0bb448992a301df4258e06a89fe7cf7146f59ac3bd5ff26083acb22ceb"
+                        }
+                    ],
+                    "recipients": [
+                        {
+                            "address": "sp1qqff5hsrl78sdhmk0dtrgugx6l5c9kdgsk8fsuvkexcvrvqvxqhy06qlcyv8gz3q59vr3ytsjspnuafnad8awetq4rwg7axwp9qsg5yhwpc9ff5f3",
+                            "scan_pub_key": "02534bc07ff1e0dbeecf6ac68e20dafd305b3510b1d30e32d9361836018605c8fd",
+                            "spend_pub_key": "03f8230e8144142b07122e128067cea67d69faecac151b91ee99c128208a12ee0e"
+                        }
+                    ]
+                },
+                "expected": {
+                    "outputs": [
+                        [
+                            "4f7358f59cae5e639ae23d20e105a701cf4380638dbec459e4fb674616485682"
+                        ]
+                    ]
+                }
+            },
+            {
+                "given": {
+                    "vin": [
+                        {
+                            "txid": "3a286147b25e16ae80aff406f2673c6e565418c40f45c071245cdebc8a94174e",
+                            "vout": 0,
+                            "scriptSig": "483046022100ad79e6801dd9a8727f342f31c71c4912866f59dc6e7981878e92c5844a0ce929022100fb0d2393e813968648b9753b7e9871d90ab3d815ebf91820d704b19f4ed224d621025a1e61f898173040e20616d43e9f496fba90338a39faa1ed98fcbaeee4dd9be5",
+                            "txinwitness": "",
+                            "prevout": {
+                                "scriptPubKey": {
+                                    "hex": "76a91419c2f3ae0ca3b642bd3e49598b8da89f50c1416188ac"
+                                }
+                            },
+                            "private_key": "a6df6a0bb448992a301df4258e06a89fe7cf7146f59ac3bd5ff26083acb22ceb"
+                        },
+                        {
+                            "txid": "3a286147b25e16ae80aff406f2673c6e565418c40f45c071245cdebc8a94174e",
+                            "vout": 1,
+                            "scriptSig": "483046022100ad79e6801dd9a8727f342f31c71c4912866f59dc6e7981878e92c5844a0ce929022100fb0d2393e813968648b9753b7e9871d90ab3d815ebf91820d704b19f4ed224d621025a1e61f898173040e20616d43e9f496fba90338a39faa1ed98fcbaeee4dd9be5",
+                            "txinwitness": "",
+                            "prevout": {
+                                "scriptPubKey": {
+                                    "hex": "76a91419c2f3ae0ca3b642bd3e49598b8da89f50c1416188ac"
+                                }
+                            },
+                            "private_key": "a6df6a0bb448992a301df4258e06a89fe7cf7146f59ac3bd5ff26083acb22ceb"
+                        },
+                        {
+                            "txid": "3a286147b25e16ae80aff406f2673c6e565418c40f45c071245cdebc8a94174e",
+                            "vout": 2,
+                            "scriptSig": "483046022100ad79e6801dd9a8727f342f31c71c4912866f59dc6e7981878e92c5844a0ce929022100fb0d2393e813968648b9753b7e9871d90ab3d815ebf91820d704b19f4ed224d621025a1e61f898173040e20616d43e9f496fba90338a39faa1ed98fcbaeee4dd9be5",
+                            "txinwitness": "",
+                            "prevout": {
+                                "scriptPubKey": {
+                                    "hex": "76a91419c2f3ae0ca3b642bd3e49598b8da89f50c1416188ac"
+                                }
+                            },
+                            "private_key": "592095f44bb766d5cfe20bda71f9575ed2df6b9fb9addc7e5fdffe0923841456"
+                        }
+                    ],
+                    "recipients": [
+                        {
+                            "address": "sp1qqff5hsrl78sdhmk0dtrgugx6l5c9kdgsk8fsuvkexcvrvqvxqhy06qlcyv8gz3q59vr3ytsjspnuafnad8awetq4rwg7axwp9qsg5yhwpc9ff5f3",
+                            "scan_pub_key": "02534bc07ff1e0dbeecf6ac68e20dafd305b3510b1d30e32d9361836018605c8fd",
+                            "spend_pub_key": "03f8230e8144142b07122e128067cea67d69faecac151b91ee99c128208a12ee0e"
+                        }
+                    ]
+                },
+                "expected": {
+                    "outputs": [
+                        [
+                            "4f7358f59cae5e639ae23d20e105a701cf4380638dbec459e4fb674616485682"
+                        ]
+                    ]
+                }
+            }
+        ],
+        "receiving": []
+    },
+    {
         "comment": "Simple send: two inputs, order reversed",
         "sending": [
             {

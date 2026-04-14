@@ -33,6 +33,7 @@
 #include <secp256k1_schnorrsig.h>
 #include <addresstype.h>
 #include <key_io.h>
+#include <openssl/bn.h>
 #include <string>
 #include <vector>
 #include <map>
@@ -376,12 +377,52 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
   
   // Calculate sum of input private keys: a_sum = sum(a_i) mod n
   // According to BIP-352: if input is x-only pubkey with odd y, negate the private key
-  // Use secp256k1_ec_seckey_tweak_add to sum private keys
+  //
+  // IMPORTANT: secp256k1_ec_seckey_tweak_add() fails if the *intermediate* sum hits 0 (invalid seckey),
+  // we therefore sum all eligible input keys modulo curve order (n) using big-integer
+  // arithmetic and only reject if the final sum is 0.
   unsigned char a_sum[32] = {0};
-  bool first_key = true;
+  // secp256k1 curve order n (32-byte big-endian):
+  // 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+  static const unsigned char SECP256K1_ORDER_BE[32] = {
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+      0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B,
+      0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
+  };
+
+  BN_CTX* bn_ctx = BN_CTX_new();
+  if (bn_ctx == nullptr) {
+    secp256k1_context_destroy(ctx);
+    return outputs;
+  }
+
+  BN_CTX_start(bn_ctx);
+  BIGNUM* bn_order = BN_CTX_get(bn_ctx);
+  BIGNUM* bn_sum = BN_CTX_get(bn_ctx);
+  BIGNUM* bn_key = BN_CTX_get(bn_ctx);
+  if (bn_order == nullptr || bn_sum == nullptr || bn_key == nullptr) {
+    BN_CTX_end(bn_ctx);
+    BN_CTX_free(bn_ctx);
+    secp256k1_context_destroy(ctx);
+    return outputs;
+  }
+
+  if (BN_bin2bn(SECP256K1_ORDER_BE, 32, bn_order) == nullptr) {
+    BN_CTX_end(bn_ctx);
+    BN_CTX_free(bn_ctx);
+    secp256k1_context_destroy(ctx);
+    return outputs;
+  }
+
+  BN_zero(bn_sum);
+  // Best-effort: ask OpenSSL to use constant-time operations for this value.
+  BN_set_flags(bn_sum, BN_FLG_CONSTTIME);
   for (size_t i = 0; i < input_privkeys.size(); i++) {
     const auto& key = input_privkeys[i];
     if (!key.IsValid()) {
+      BN_CTX_end(bn_ctx);
+      BN_CTX_free(bn_ctx);
       secp256k1_context_destroy(ctx);
       return outputs;
     }
@@ -411,25 +452,53 @@ inline std::vector<XOnlyPubKey> DeriveSilentPaymentOutputs(
       if (pubkey_serialized[0] == 0x03) {
         // Odd y coordinate, negate the private key
         if (!secp256k1_ec_seckey_negate(ctx, key_bytes)) {
+          BN_CTX_end(bn_ctx);
+          BN_CTX_free(bn_ctx);
           secp256k1_context_destroy(ctx);
           return outputs;
         }
       }
     }
     
-    // Add key to sum
-    if (first_key) {
-      // First key: copy directly
-      memcpy(a_sum, key_bytes, 32);
-      first_key = false;
-    } else {
-      // Subsequent keys: add using tweak_add
-      if (!secp256k1_ec_seckey_tweak_add(ctx, a_sum, key_bytes)) {
-        secp256k1_context_destroy(ctx);
-        return outputs;
-      }
+    // Validate seckey bytes before BN math (must be in [1, n-1]).
+    if (!secp256k1_ec_seckey_verify(ctx, key_bytes)) {
+      BN_CTX_end(bn_ctx);
+      BN_CTX_free(bn_ctx);
+      secp256k1_context_destroy(ctx);
+      return outputs;
+    }
+
+    if (BN_bin2bn(key_bytes, 32, bn_key) == nullptr) {
+      BN_CTX_end(bn_ctx);
+      BN_CTX_free(bn_ctx);
+      secp256k1_context_destroy(ctx);
+      return outputs;
+    }
+    // bn_sum = (bn_sum + bn_key) mod n
+    int ok = BN_mod_add(bn_sum, bn_sum, bn_key, bn_order, bn_ctx);
+    if (ok != 1) {
+      BN_CTX_end(bn_ctx);
+      BN_CTX_free(bn_ctx);
+      secp256k1_context_destroy(ctx);
+      return outputs;
     }
   }
+
+  // Reject final sum == 0 (invalid seckey) per BIP-352.
+  if (BN_is_zero(bn_sum)) {
+    BN_CTX_end(bn_ctx);
+    BN_CTX_free(bn_ctx);
+    secp256k1_context_destroy(ctx);
+    return outputs;
+  }
+  if (BN_bn2binpad(bn_sum, a_sum, 32) != 32) {
+    BN_CTX_end(bn_ctx);
+    BN_CTX_free(bn_ctx);
+    secp256k1_context_destroy(ctx);
+    return outputs;
+  }
+  BN_CTX_end(bn_ctx);
+  BN_CTX_free(bn_ctx);
   
   // Calculate a_sum·G (public key corresponding to sum of private keys)
   secp256k1_pubkey sum_pubkey_point;
