@@ -36,6 +36,7 @@
 #include <descriptor.h>
 #include <coreutils.h>
 
+#include <musig.h>
 #include <secp256k1_musig.h>
 
 extern "C" {
@@ -330,9 +331,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
         SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, sigversion,
                              txdata, MissingDataBehavior::FAIL);
 
-        HashWriter hasher;
-        hasher << agg << part << hash;
-        uint256 session_id = hasher.GetSHA256();
+        const uint256 session_id = MuSig2SessionID(agg, part, hash);
 
         XOnlyPubKey xpart(part);
         std::string pubkey = HexStr(xpart);
