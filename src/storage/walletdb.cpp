@@ -491,9 +491,11 @@ std::vector<std::string> NunchukWalletDb::GetAddresses(bool used,
   return rs;
 }
 
-std::pair<int, bool> NunchukWalletDb::GetAddressIndex(const std::string& address) {
+std::pair<int, bool> NunchukWalletDb::GetAddressIndex(
+    const std::string& address) {
   auto all = GetAllAddressData();
-  if (all.count(address)) return {all.at(address).index, all.at(address).internal};
+  if (all.count(address))
+    return {all.at(address).index, all.at(address).internal};
   return {-1, false};
 }
 
@@ -1090,7 +1092,8 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
   for (int i = 0; i < nin; i++) {
-    SignPSBTInput(provider, psbt, i, &txdata, std::nullopt, nullptr, false);
+    const std::optional<int> sighash = psbt.inputs[i].sighash_type;
+    SignPSBTInput(provider, psbt, i, &txdata, sighash, nullptr, false);
   }
 
   // Update script/keypath information using descriptor data.
