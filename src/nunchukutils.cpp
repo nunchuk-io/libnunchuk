@@ -754,7 +754,7 @@ std::string Utils::GetHealthCheckDummyTx(const Wallet& wallet,
   psbt.inputs[0].witness_utxo = prev_psbt.tx->vout[0];
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
-  SignPSBTInput(provider, psbt, 0, &txdata, 1);
+  SignPSBTInput(provider, psbt, 0, &txdata, std::nullopt);
   UpdatePSBTOutput(provider, psbt, 0);
 
   for (auto&& signer : wallet.get_signers()) {

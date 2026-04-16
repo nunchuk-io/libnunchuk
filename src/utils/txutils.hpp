@@ -36,11 +36,22 @@
 #include <signingprovider.h>
 #include <script/sign.h>
 #include <policy/policy.h>
+#include <common/messages.h>
 #include <util/bip32.h>
 
 #include <boost/algorithm/string.hpp>
 
 namespace {
+
+inline void ThrowOnPSBTError(PSBTError err, int input_index,
+                            const std::string& context) {
+  if (err == PSBTError::OK || err == PSBTError::INCOMPLETE) return;
+  const auto msg = common::PSBTErrorString(err).original;
+  throw nunchuk::NunchukException(
+      nunchuk::NunchukException::INVALID_PSBT,
+      context + ": SignPSBTInput failed at input " + std::to_string(input_index) +
+          " (" + msg + ")");
+}
 
 inline int64_t GetBlockTime(const std::string& raw_header) {
   using namespace nunchuk;

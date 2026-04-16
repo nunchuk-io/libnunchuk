@@ -211,7 +211,8 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   }
 
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
-    SignPSBTInput(provider, psbtx, i, &txdata);
+    const auto res = SignPSBTInput(provider, psbtx, i, &txdata);
+    ThrowOnPSBTError(res, static_cast<int>(i), "SoftwareSigner::SignTx");
   }
   return EncodePsbt(psbtx);
 }
@@ -348,7 +349,10 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
 
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
-    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr, false);
+    const auto res =
+        SignPSBTInput(provider, psbtx, i, &txdata, std::nullopt, nullptr, false);
+    ThrowOnPSBTError(res, static_cast<int>(i),
+                     "SoftwareSigner::SignTaprootTx");
 
     for (auto&& [session_id, secnonce] : musig2_secnonces) {
       db.SetMuSig2SecNonce(session_id, std::move(secnonce));

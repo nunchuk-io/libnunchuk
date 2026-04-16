@@ -1061,7 +1061,8 @@ Transaction NunchukImpl::SweepSatscardSlots(
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
   for (int i = 0; i < nin; i++) {
-    SignPSBTInput(provider, psbt, i, &txdata, 1);
+    const auto res = SignPSBTInput(provider, psbt, i, &txdata, std::nullopt);
+    ThrowOnPSBTError(res, i, "NunchukImpl::SweepSatscardSlots");
   }
 
   // Update script/keypath information using descriptor data.
