@@ -1066,13 +1066,15 @@ SoftwareSigner NunchukStorage::GetSoftwareSigner0(Chain chain,
   return signer_db.GetSoftwareSigner(signer_passphrase_.at(mid));
 }
 
-bool NunchukStorage::HasSignerMnemonic(Chain chain, const std::string& signer_id) {
+bool NunchukStorage::HasSignerMnemonic(Chain chain,
+                                       const std::string& signer_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto mid = ba::to_lower_copy(signer_id);
   return GetSignerDb(chain, mid).HasMnemonic();
 }
 
-bool NunchukStorage::HasSignerMasterXprv(Chain chain, const std::string& signer_id) {
+bool NunchukStorage::HasSignerMasterXprv(Chain chain,
+                                         const std::string& signer_id) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto mid = ba::to_lower_copy(signer_id);
   return GetSignerDb(chain, mid).HasMasterXprv();
@@ -1539,10 +1541,11 @@ bool NunchukStorage::IsMasterSigner(Chain chain, const std::string& id) {
   return GetSignerDb(chain, id).IsMaster();
 }
 
-std::pair<int, bool> NunchukStorage::GetAddressIndex(Chain chain, const std::string& wallet_id,
-                                    const std::string& address) {
+std::pair<int, bool> NunchukStorage::GetAddressIndex(
+    Chain chain, const std::string& wallet_id, const std::string& address) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  auto [index, internal] = GetWalletDb(chain, wallet_id).GetAddressIndex(address);
+  auto [index, internal] =
+      GetWalletDb(chain, wallet_id).GetAddressIndex(address);
   if (index < 0)
     throw StorageException(
         StorageException::ADDRESS_NOT_FOUND,
@@ -2264,11 +2267,16 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
   const WalletType wt = wallet.get_wallet_type();
 
   const auto save_true_signer = [&](SingleSigner signer) {
-    const std::string master_id = signer.get_master_fingerprint();
-    NunchukSignerDb signer_db{
-        chain, master_id, GetSignerDir(chain, master_id).string(), passphrase_};
+    if (signer.get_xpub().empty()) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "XPUB is empty");
+    }
+    const std::string id = signer.get_master_fingerprint();
+    bfs::path signer_file = GetSignerDir(chain, id);
+    bfs::path decoy_file = GetSignerDir0(db_folder, chain, id);
 
-    if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
+    NunchukSignerDb signer_db{chain, id, signer_file.string(), passphrase_};
+    if (!bfs::exists(decoy_file) && signer_db.IsMaster()) {
       int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
       if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
           FormalizePath(signer.get_derivation_path())) {
@@ -2279,26 +2287,29 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
         signer_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
                           "custom");
       }
+      if (passphrase_.empty()) {
+        bfs::copy_file(signer_file, decoy_file);
+      } else {
+        signer_db.DecryptDb(decoy_file.string());
+      }
       return signer;
     }
-
-    try {
-      signer_db.GetRemoteSigner(signer.get_derivation_path());
-      signer_db.UseRemote(signer.get_derivation_path());
-    } catch (StorageException& se) {
-      if (se.code() != StorageException::SIGNER_NOT_FOUND) throw;
-      // Import/Recover wallet, signers may not exist => we create as UNKNOWN
-      // signers to hide on Key Manager, except for COLDCARD_NFC and PORTAL_NFC
-      // signers, make them visible to able to sign transaction
-      if (signer.get_type() != SignerType::COLDCARD_NFC &&
-          signer.get_type() != SignerType::PORTAL_NFC) {
-        signer.set_name("import");
-        signer.set_type(SignerType::UNKNOWN);
+    NunchukSignerDb decoy_db{chain, id, decoy_file.string(), ""};
+    if (decoy_db.IsMaster()) {
+      int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
+      if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
+          FormalizePath(signer.get_derivation_path())) {
+        decoy_db.AddXPub(wt, at, index, signer.get_xpub());
+        decoy_db.UseIndex(wt, at, index, true);
+      } else {
+        // custom derivation path
+        decoy_db.AddXPub(signer.get_derivation_path(), signer.get_xpub(),
+                         "custom");
       }
-      signer_db.AddRemote(signer.get_name(), signer.get_xpub(),
-                          signer.get_public_key(), signer.get_derivation_path(),
-                          true, signer.get_type());
-      return signer;
+    } else {
+      decoy_db.AddRemote(signer.get_name(), signer.get_xpub(),
+                         signer.get_public_key(), signer.get_derivation_path(),
+                         true, signer.get_type());
     }
     return signer;
   };
@@ -2313,22 +2324,11 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
   auto true_taprotocol_db = GetTaprotocolDb(chain);
   std::vector<SingleSigner> true_signers;
   for (auto&& signer : wallet.get_signers()) {
-    auto true_signer = save_true_signer(signer);
-    auto signer_id = true_signer.get_master_fingerprint();
-    bfs::path decoy_signer_file = GetSignerDir0(db_folder, chain, signer_id);
-    if (!bfs::exists(decoy_signer_file)) {
-      if (passphrase_.empty()) {
-        bfs::copy_file(GetSignerDir(chain, signer_id), decoy_signer_file);
-      } else {
-        auto signer_db = GetSignerDb(chain, signer_id);
-        signer_db.DecryptDb(decoy_signer_file.string());
-      }
-    }
-    true_signers.emplace_back(true_signer);
+    true_signers.emplace_back(save_true_signer(signer));
     try {
-      auto tapsigner_status =
-          true_taprotocol_db.GetTapsignerStatusFromMasterSigner(signer_id);
-      taprotocol_db.AddTapsigner(tapsigner_status);
+      taprotocol_db.AddTapsigner(
+          true_taprotocol_db.GetTapsignerStatusFromMasterSigner(
+              signer.get_master_fingerprint()));
     } catch (...) {
     }
   }
