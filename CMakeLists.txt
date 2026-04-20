@@ -64,12 +64,8 @@ else()
         set_target_properties(libevent::libevent PROPERTIES IMPORTED_LOCATION ${event_lib})
     endif()
 
-    if (NOT WIN32)
-        if(NOT TARGET libevent::pthreads)
-            find_library(event_pthreads_lib NAMES libevent_pthreads.a event_pthreads REQUIRED)
-            add_library(libevent::pthreads STATIC IMPORTED)
-            set_target_properties(libevent::pthreads PROPERTIES IMPORTED_LOCATION ${event_pthreads_lib})
-        endif()
+    if(EXISTS "${PROJECT_SOURCE_DIR}/contrib/openssl/lib")
+        set(OPENSSL_ROOT_DIR "${PROJECT_SOURCE_DIR}/contrib/openssl/lib" CACHE PATH "OpenSSL root directory" FORCE)
     endif()
 endif()
 
@@ -242,7 +238,7 @@ set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
 set(BUILD_TESTING OFF)
 add_subdirectory(contrib/tap-protocol)
 # Pass Bitcoin random to tap-protocol
-# target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
+target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
 # Allow testnet Tapsigner
 target_compile_definitions(tap-protocol PUBLIC SKIP_BASE58_PREFIX_CHECK=1)
 
