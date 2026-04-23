@@ -98,6 +98,8 @@ target_include_directories(trezor-crypto PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
 )
 
+option(NUNCHUK_BUILD_TESTS "Build libnunchuk unit tests" OFF)
+
 if(WIN32)
     include(TestBigEndian)
     test_big_endian(BYTE_ORDER_BIG_ENDIAN)
@@ -257,3 +259,8 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
+
+if(NUNCHUK_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

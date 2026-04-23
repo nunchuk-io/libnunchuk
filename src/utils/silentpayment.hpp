@@ -708,6 +708,37 @@ inline std::string CreateTaprootAddress(const XOnlyPubKey& xonly_pubkey, Chain c
   return ::CreateTaprootAddress(xonly_pubkey, chain);
 }
 
+// Derive taproot recipient addresses for a set of Silent Payment recipients, grouped
+// by B_scan with k incrementing across the group (BIP-352).
+//
+// Returns: map from original Silent Payment address -> derived taproot address.
+// Non-silent-payment outputs are ignored.
+inline std::map<std::string, std::string> DeriveSilentPaymentTaprootAddresses(
+    const std::map<std::string, Amount>& outputs,
+    Chain chain,
+    const std::vector<UnspentOutput>& inputs,
+    const std::vector<CKey>& input_privkeys,
+    const std::vector<bool>& is_taproot_inputs) {
+  std::map<std::string, std::string> derived_by_original;
+  std::map<CPubKey, size_t> next_k_by_scan;
+
+  for (const auto& output : outputs) {
+    if (!::IsSilentPaymentAddress(output.first, chain)) continue;
+    auto keys = ::DecodeSilentPaymentAddress(output.first, chain);
+    if (!keys.IsValid()) continue;
+
+    size_t k = next_k_by_scan[keys.B_scan]++;
+    auto derived_outputs = ::DeriveSilentPaymentOutputs(
+        keys.B_scan, keys.B_m, input_privkeys, inputs, is_taproot_inputs, 1, k);
+    if (derived_outputs.empty()) continue;
+
+    derived_by_original[output.first] =
+        ::CreateTaprootAddress(derived_outputs[0], chain);
+  }
+
+  return derived_by_original;
+}
+
 }  // namespace silentpayment
 }  // namespace nunchuk
 

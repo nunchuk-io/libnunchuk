@@ -2413,29 +2413,19 @@ std::string NunchukImpl::CreatePsbt(
                                           : key.key);
     }
 
+    const auto derived_initial =
+        silentpayment::DeriveSilentPaymentTaprootAddresses(
+            outputs, chain_, sp_inputs, input_privkeys, is_taproot_inputs);
+
     for (const auto& output : outputs) {
       if (IsSilentPaymentAddress(output.first, chain_)) {
-        SilentPaymentKeys keys =
-            DecodeSilentPaymentAddress(output.first, chain_);
-        if (keys.IsValid()) {
-          auto derived_outputs =
-              DeriveSilentPaymentOutputs(keys.B_scan, keys.B_m, input_privkeys,
-                                         sp_inputs, is_taproot_inputs, 1);
-
-          if (!derived_outputs.empty()) {
-            // Replace Silent Payment address with derived taproot address
-            std::string taproot_addr =
-                CreateTaprootAddress(derived_outputs[0], chain_);
-            processed_outputs[taproot_addr] = output.second;
-            temp_outputs[taproot_addr] = output.first;
-          } else {
-            throw NunchukException(NunchukException::INVALID_ADDRESS,
-                                   "Failed to derive Silent Payment output");
-          }
-        } else {
+        if (!derived_initial.count(output.first)) {
           throw NunchukException(NunchukException::INVALID_ADDRESS,
-                                 "Invalid Silent Payment address");
+                                 "Failed to derive Silent Payment output");
         }
+        const std::string& taproot_addr = derived_initial.at(output.first);
+        processed_outputs[taproot_addr] = output.second;
+        temp_outputs[taproot_addr] = output.first;
       } else {
         processed_outputs[output.first] = output.second;
       }
@@ -2525,26 +2515,22 @@ std::string NunchukImpl::CreatePsbt(
                                           : key.key);
     }
 
+    const auto derived_final =
+        silentpayment::DeriveSilentPaymentTaprootAddresses(
+            outputs, chain_, sp_inputs, input_privkeys, is_taproot_inputs);
+
     for (const CTxOut& txout : tx_new->vout) {
       CTxDestination address;
       ExtractDestination(txout.scriptPubKey, address);
       std::string addr = EncodeDestination(address);
       if (temp_outputs.count(addr)) {
-        SilentPaymentKeys keys =
-            DecodeSilentPaymentAddress(temp_outputs[addr], chain_);
-        auto derived_outputs =
-            DeriveSilentPaymentOutputs(keys.B_scan, keys.B_m, input_privkeys,
-                                       sp_inputs, is_taproot_inputs, 1);
-
-        if (!derived_outputs.empty()) {
-          // Replace Silent Payment address with derived taproot address
-          std::string taproot_addr =
-              CreateTaprootAddress(derived_outputs[0], chain_);
-          vout.push_back({taproot_addr, txout.nValue});
-        } else {
+        const std::string& original_sp = temp_outputs[addr];
+        if (!derived_final.count(original_sp)) {
           throw NunchukException(NunchukException::INVALID_ADDRESS,
                                  "Failed to derive Silent Payment output");
         }
+        const std::string& taproot_addr = derived_final.at(original_sp);
+        vout.push_back({taproot_addr, txout.nValue});
       } else {
         vout.push_back({addr, txout.nValue});
       }
@@ -2848,10 +2834,11 @@ std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid dummy transaction");
   }
-  return {dummy_transaction.get_id(),
-          storage_->ImportDummyTx(chain_, dummy_transaction.get_wallet_id(),
-                                  dummy_transaction.get_id(),
-                                  dummy_transaction.get_request_body(), tokens)};
+  return {
+      dummy_transaction.get_id(),
+      storage_->ImportDummyTx(chain_, dummy_transaction.get_wallet_id(),
+                              dummy_transaction.get_id(),
+                              dummy_transaction.get_request_body(), tokens)};
 }
 
 RequestTokens NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
