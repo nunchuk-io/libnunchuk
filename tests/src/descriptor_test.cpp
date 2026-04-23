@@ -24,11 +24,7 @@
 TEST_CASE("testing ParseDescriptors") {
   using namespace nunchuk;
   CoreUtils::getInstance().SetChain(Chain::REGTEST);
-  AddressType address_type;
-  WalletType wallet_type;
-  int m;
-  int n;
-  std::vector<SingleSigner> signers;
+  std::string error;
 
   std::string legacySingle =
       "pkh([423faab6/44'/1'/0']"
@@ -38,20 +34,20 @@ TEST_CASE("testing ParseDescriptors") {
       "tpubDC74mC2mXearamPqwV1T8PkhKLBZEEve9t9DTXT674v3pVQrLxxY5ksfvcK2FT2PCa91"
       "TagW9Q6kMy2xbmKsV9nqCsbD2jjLWDqXyibc5q2/1/*)#0ysfeqg7";
 
-  CHECK(
-      ParseDescriptors(legacySingle, address_type, wallet_type, m, n, signers));
-  CHECK(m == 1);
-  CHECK(n == 1);
-  CHECK(address_type == AddressType::LEGACY);
-  CHECK(wallet_type == WalletType::SINGLE_SIG);
-  CHECK(signers.size() == 1);
-  CHECK(signers[0].get_xpub() ==
+  auto w1 = ParseDescriptors(legacySingle, error);
+  CHECK(w1.has_value());
+  CHECK(error.empty());
+  CHECK(w1->get_m() == 1);
+  CHECK(w1->get_n() == 1);
+  CHECK(w1->get_address_type() == AddressType::LEGACY);
+  CHECK(w1->get_wallet_type() == WalletType::SINGLE_SIG);
+  CHECK(w1->get_signers().size() == 1);
+  CHECK(w1->get_signers()[0].get_xpub() ==
         "tpubDC74mC2mXearamPqwV1T8PkhKLBZEEve9t9DTXT674v3pVQrLxxY5ksfvcK2FT2PCa"
         "91TagW9Q6kMy2xbmKsV9nqCsbD2jjLWDqXyibc5q2");
-  CHECK(signers[0].get_public_key() == "");
-  CHECK(signers[0].get_master_fingerprint() == "423faab6");
-  CHECK(signers[0].get_derivation_path() == "m/44h/1h/0h");
-  signers.clear();
+  CHECK(w1->get_signers()[0].get_public_key() == "");
+  CHECK(w1->get_signers()[0].get_master_fingerprint() == "423faab6");
+  CHECK(w1->get_signers()[0].get_derivation_path() == "m/44h/1h/0h");
 
   std::string nested1of3 =
       "sh(wsh(sortedmulti(1,[423faab6/48'/1'/6']"
@@ -69,32 +65,34 @@ TEST_CASE("testing ParseDescriptors") {
       "tpubDDcE2gjg1bWMzPiLtMgGp4iBV4ZTeCnQxWj2qsbz7cJW4mqVFBMpZpsmidLwV1T7MCWR"
       "aBwhNFHuv6iJNFRcCKD2aLG4pkrVNzY3TDyW75j/1/*)))#nqfsesz5";
 
-  CHECK(ParseDescriptors(nested1of3, address_type, wallet_type, m, n, signers));
-  CHECK(m == 1);
-  CHECK(n == 3);
-  CHECK(address_type == AddressType::NESTED_SEGWIT);
-  CHECK(wallet_type == WalletType::MULTI_SIG);
-  CHECK(signers.size() == 3);
-  CHECK(signers[0].get_xpub() ==
+  error.clear();
+  auto w2 = ParseDescriptors(nested1of3, error);
+  CHECK(w2.has_value());
+  CHECK(error.empty());
+  CHECK(w2->get_m() == 1);
+  CHECK(w2->get_n() == 3);
+  CHECK(w2->get_address_type() == AddressType::NESTED_SEGWIT);
+  CHECK(w2->get_wallet_type() == WalletType::MULTI_SIG);
+  CHECK(w2->get_signers().size() == 3);
+  CHECK(w2->get_signers()[0].get_xpub() ==
         "tpubDD4VXPr1QFidEe6xJSjz1xw7V4GtKmWKzNaGLp5Ko4Aqf18FA7XkDMqmsHA6kefMFH"
         "TgF2jEH4b2oyTUmw116wjZmPNWo8E725ZqdPgK58G");
-  CHECK(signers[0].get_public_key() == "");
-  CHECK(signers[0].get_master_fingerprint() == "423faab6");
-  CHECK(signers[0].get_derivation_path() == "m/48h/1h/6h");
-  CHECK(signers[1].get_xpub() ==
+  CHECK(w2->get_signers()[0].get_public_key() == "");
+  CHECK(w2->get_signers()[0].get_master_fingerprint() == "423faab6");
+  CHECK(w2->get_signers()[0].get_derivation_path() == "m/48h/1h/6h");
+  CHECK(w2->get_signers()[1].get_xpub() ==
         "tpubDDHA32QuyKQXdUJQcrhVjD4DwHrTCLCFKkAGf3q4vEPPZKLU2XjnuuF4XwCxxBJMqn"
         "P7484SyhEtnCyK4WcMei8MRvewrY7GtbgkjXG9R16");
-  CHECK(signers[1].get_public_key() == "");
+  CHECK(w2->get_signers()[1].get_public_key() == "");
 
-  CHECK(signers[1].get_master_fingerprint() == "0b93c52e");
-  CHECK(signers[1].get_derivation_path() == "m/48h/1h/1h");
-  CHECK(signers[2].get_xpub() ==
+  CHECK(w2->get_signers()[1].get_master_fingerprint() == "0b93c52e");
+  CHECK(w2->get_signers()[1].get_derivation_path() == "m/48h/1h/1h");
+  CHECK(w2->get_signers()[2].get_xpub() ==
         "tpubDDcE2gjg1bWMzPiLtMgGp4iBV4ZTeCnQxWj2qsbz7cJW4mqVFBMpZpsmidLwV1T7MC"
         "WRaBwhNFHuv6iJNFRcCKD2aLG4pkrVNzY3TDyW75j");
-  CHECK(signers[2].get_public_key() == "");
-  CHECK(signers[2].get_master_fingerprint() == "a43bb737");
-  CHECK(signers[2].get_derivation_path() == "m/48h/1h/6h");
-  signers.clear();
+  CHECK(w2->get_signers()[2].get_public_key() == "");
+  CHECK(w2->get_signers()[2].get_master_fingerprint() == "a43bb737");
+  CHECK(w2->get_signers()[2].get_derivation_path() == "m/48h/1h/6h");
 
   std::string nativeEscrow2of2 =
       "wsh(sortedmulti(2,[423faab6/48'/1'/6']"
@@ -103,22 +101,23 @@ TEST_CASE("testing ParseDescriptors") {
       "03cd1289fa27f2d5a9dd4af68782bb703280ca86e4f6b91f8eb7a067c86875eb28))#"
       "k57nsxg2";
 
-  CHECK(ParseDescriptors(nativeEscrow2of2, address_type, wallet_type, m, n,
-                         signers));
-  CHECK(m == 2);
-  CHECK(n == 2);
-  CHECK(address_type == AddressType::NATIVE_SEGWIT);
-  CHECK(wallet_type == WalletType::ESCROW);
-  CHECK(signers.size() == 2);
-  CHECK(signers[0].get_xpub() == "");
-  CHECK(signers[0].get_public_key() ==
+  error.clear();
+  auto w3 = ParseDescriptors(nativeEscrow2of2, error);
+  CHECK(w3.has_value());
+  CHECK(error.empty());
+  CHECK(w3->get_m() == 2);
+  CHECK(w3->get_n() == 2);
+  CHECK(w3->get_address_type() == AddressType::NATIVE_SEGWIT);
+  CHECK(w3->get_wallet_type() == WalletType::ESCROW);
+  CHECK(w3->get_signers().size() == 2);
+  CHECK(w3->get_signers()[0].get_xpub() == "");
+  CHECK(w3->get_signers()[0].get_public_key() ==
         "02841c0aafa8728be24a2649a9d84912f1cef794c85434dbcc5c689e2eb9cbd5f1");
-  CHECK(signers[0].get_master_fingerprint() == "423faab6");
-  CHECK(signers[0].get_derivation_path() == "m/48h/1h/6h");
-  CHECK(signers[1].get_xpub() == "");
-  CHECK(signers[1].get_public_key() ==
+  CHECK(w3->get_signers()[0].get_master_fingerprint() == "423faab6");
+  CHECK(w3->get_signers()[0].get_derivation_path() == "m/48h/1h/6h");
+  CHECK(w3->get_signers()[1].get_xpub() == "");
+  CHECK(w3->get_signers()[1].get_public_key() ==
         "03cd1289fa27f2d5a9dd4af68782bb703280ca86e4f6b91f8eb7a067c86875eb28");
-  CHECK(signers[1].get_master_fingerprint() == "a43bb737");
-  CHECK(signers[1].get_derivation_path() == "m/48h/1h/6h");
-  signers.clear();
+  CHECK(w3->get_signers()[1].get_master_fingerprint() == "a43bb737");
+  CHECK(w3->get_signers()[1].get_derivation_path() == "m/48h/1h/6h");
 }

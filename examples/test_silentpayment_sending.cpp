@@ -685,6 +685,27 @@ int main(int argc, char* argv[]) {
   std::cout << "===========================\n\n";
 
   try {
+    // Regression: long Silent Payment addresses must verify Bech32m checksum.
+    {
+      const std::string valid_long_sp =
+          "sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv";
+      const std::string invalid_long_sp_mutated =
+          "sp1qq2ste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv";
+
+      auto ok = silentpayment::DecodeSilentPaymentAddress(valid_long_sp, Chain::MAIN);
+      if (!ok.IsValid()) {
+        std::cerr << "FAIL: Valid long sp address did not decode (checksum regression)\n";
+        return 1;
+      }
+
+      auto bad = silentpayment::DecodeSilentPaymentAddress(invalid_long_sp_mutated, Chain::MAIN);
+      if (bad.IsValid()) {
+        std::cerr << "FAIL: Invalid long sp address decoded successfully (checksum regression)\n";
+        return 1;
+      }
+      std::cout << "PASS: Long Silent Payment checksum regression\n\n";
+    }
+
     // If JSON file path provided, test with vectors
     if (argc > 1) {
       std::string json_file = argv[1];

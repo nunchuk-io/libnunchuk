@@ -51,6 +51,45 @@ inline bool IsSilentPaymentAddress(const std::string& address, nunchuk::Chain ch
   return addr_lower.substr(0, prefix.length()) == prefix;
 }
 
+// Minimal Bech32/Bech32m checksum verification without length limits.
+// (BIP173/BIP350; adapted from Bitcoin Core's bech32 implementation.)
+inline uint32_t Bech32Polymod(const std::vector<uint8_t>& values) {
+  uint32_t chk = 1;
+  for (uint8_t v : values) {
+    uint8_t top = chk >> 25;
+    chk = (chk & 0x1ffffff) << 5 ^ v;
+    if (top & 1) chk ^= 0x3b6a57b2;
+    if (top & 2) chk ^= 0x26508e6d;
+    if (top & 4) chk ^= 0x1ea119fa;
+    if (top & 8) chk ^= 0x3d4233dd;
+    if (top & 16) chk ^= 0x2a1462b3;
+  }
+  return chk;
+}
+
+inline std::vector<uint8_t> Bech32HrpExpand(const std::string& hrp) {
+  std::vector<uint8_t> ret;
+  ret.reserve(hrp.size() * 2 + 1);
+  for (unsigned char c : hrp) ret.push_back(c >> 5);
+  ret.push_back(0);
+  for (unsigned char c : hrp) ret.push_back(c & 0x1f);
+  return ret;
+}
+
+inline bech32::Encoding VerifyBech32ChecksumNoLimit(const std::string& hrp, const std::vector<uint8_t>& values) {
+  // Checksum needs at least 6 values.
+  if (values.size() < bech32::CHECKSUM_SIZE) return bech32::Encoding::INVALID;
+
+  std::vector<uint8_t> enc = Bech32HrpExpand(hrp);
+  enc.insert(enc.end(), values.begin(), values.end());
+  const uint32_t check = Bech32Polymod(enc);
+
+  // Encoding constants per BIP173/BIP350.
+  if (check == 1) return bech32::Encoding::BECH32;
+  if (check == 0x2bc830a3) return bech32::Encoding::BECH32M;
+  return bech32::Encoding::INVALID;
+}
+
 // Structure to hold decoded Silent Payment address keys
 struct SilentPaymentKeys {
   CPubKey B_scan;  // Scan public key (33 bytes)
@@ -63,7 +102,7 @@ struct SilentPaymentKeys {
 
 // Helper function to decode bech32m without length limit (for Silent Payment addresses)
 // This is needed because Silent Payment addresses can be longer than 90 chars
-// We manually decode and verify checksum by re-encoding and comparing
+// We manually decode and verify checksum (BIP173/BIP350) without length limits.
 inline bech32::DecodeResult DecodeBech32MNoLimit(const std::string& str) {
   bech32::DecodeResult result;
   
@@ -117,57 +156,16 @@ inline bech32::DecodeResult DecodeBech32MNoLimit(const std::string& str) {
     hrp += (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
   }
   
-  // Extract data (without checksum - last 6 chars are checksum)
-  std::vector<uint8_t> data(values.begin(), values.end() - 6);
-  
-  // For Silent Payment addresses, we know they use BECH32M
-  // Since bech32::Encode might also have length limits, we'll skip checksum verification
-  // for addresses longer than 90 chars and assume BECH32M if HRP matches
-  // (In production, proper checksum verification should be implemented)
-  if (hrp == "sp" || hrp == "tsp") {
-    if (data.size() > 0) {
-      result.encoding = bech32::Encoding::BECH32M;
-      result.hrp = hrp;
-      result.data = data;
-      return result;
-    } else {
-      // Data is empty, something went wrong
-      return result;
-    }
-  }
-  
-  // Try to verify checksum by re-encoding (only if address is short enough)
-  if (str.size() <= 90) {
-    // Try BECH32M first (Silent Payment uses BECH32M)
-    std::string reencoded = bech32::Encode(bech32::Encoding::BECH32M, hrp, data);
-    
-    // Compare case-insensitively
-    std::string str_lower = str;
-    std::transform(str_lower.begin(), str_lower.end(), str_lower.begin(), ::tolower);
-    std::string reencoded_lower = reencoded;
-    std::transform(reencoded_lower.begin(), reencoded_lower.end(), reencoded_lower.begin(), ::tolower);
-    
-    if (reencoded_lower == str_lower) {
-      result.encoding = bech32::Encoding::BECH32M;
-      result.hrp = hrp;
-      result.data = data;
-      return result;
-    }
-    
-    // Try BECH32 as fallback
-    reencoded = bech32::Encode(bech32::Encoding::BECH32, hrp, data);
-    reencoded_lower = reencoded;
-    std::transform(reencoded_lower.begin(), reencoded_lower.end(), reencoded_lower.begin(), ::tolower);
-    
-    if (reencoded_lower == str_lower) {
-      result.encoding = bech32::Encoding::BECH32;
-      result.hrp = hrp;
-      result.data = data;
-      return result;
-    }
-  }
-  
-  // Checksum verification failed or address too long
+  const bech32::Encoding enc = VerifyBech32ChecksumNoLimit(hrp, values);
+  if (enc == bech32::Encoding::INVALID) return result;
+
+  // Return payload without checksum.
+  std::vector<uint8_t> data(values.begin(), values.end() - bech32::CHECKSUM_SIZE);
+  if (data.empty()) return result;
+
+  result.encoding = enc;
+  result.hrp = hrp;
+  result.data = std::move(data);
   return result;
 }
 
@@ -178,6 +176,12 @@ inline bech32::DecodeResult DecodeBech32MNoLimit(const std::string& str) {
 inline SilentPaymentKeys DecodeSilentPaymentAddress(const std::string& address, nunchuk::Chain chain) {
   SilentPaymentKeys keys;
   std::string expected_hrp = (chain == nunchuk::Chain::MAIN) ? "sp" : "tsp";
+
+  // BIP-352 recommends capping Silent Payment address length to 1023 characters.
+  // This matches Bech32 checksum design assumptions (BIP173) and avoids pathological inputs.
+  if (address.size() > 1023) {
+    return keys;
+  }
   
   // Try standard decode first
   auto dec = bech32::Decode(address, bech32::CharLimit::BECH32);
