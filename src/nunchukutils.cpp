@@ -176,7 +176,7 @@ bool Utils::IsValidAddress(const std::string& address) {
 }
 
 bool Utils::IsSilentPaymentAddress(const std::string& address) {
-  return silentpayment::IsSilentPaymentAddress(address, Utils::GetChain());
+  return silentpayment::IsValidSilentPaymentAddress(address, Utils::GetChain());
 }
 
 Amount Utils::AmountFromValue(const std::string& value,

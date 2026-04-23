@@ -232,6 +232,13 @@ inline SilentPaymentKeys DecodeSilentPaymentAddress(const std::string& address, 
   return keys;
 }
 
+// Full Silent Payment address validation.
+// This verifies Bech32m checksum (including long addresses), applies the 1023-char cap,
+// and checks that embedded pubkeys are well-formed.
+inline bool IsValidSilentPaymentAddress(const std::string& address, nunchuk::Chain chain) {
+  return DecodeSilentPaymentAddress(address, chain).IsValid();
+}
+
 std::string ToHex(const std::vector<unsigned char>& bytes) {
   std::ostringstream oss;
   for (unsigned char byte : bytes) {
@@ -679,6 +686,10 @@ struct SilentPaymentKeys {
 // Wrapper functions
 inline bool IsSilentPaymentAddress(const std::string& address, Chain chain) {
   return ::IsSilentPaymentAddress(address, chain);
+}
+
+inline bool IsValidSilentPaymentAddress(const std::string& address, Chain chain) {
+  return ::IsValidSilentPaymentAddress(address, chain);
 }
 
 inline SilentPaymentKeys DecodeSilentPaymentAddress(const std::string& address, Chain chain) {
