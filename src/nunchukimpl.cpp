@@ -1355,6 +1355,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              strprintf("Can not sign with server key "
                                        "mastersigner_id = '%s'",
@@ -1426,6 +1427,7 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              strprintf("Can not sign with server key "
                                        "mastersigner_id = '%s'",
@@ -1467,6 +1469,7 @@ std::string NunchukImpl::SignMessage(const SingleSigner& signer,
     case SignerType::COLDCARD_NFC:
     case SignerType::PORTAL_NFC:
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       break;
   }
   throw NunchukException(
@@ -1834,6 +1837,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
     case SignerType::PORTAL_NFC:
     case SignerType::UNKNOWN:
     case SignerType::SERVER:
+    case SignerType::PLATFORM:
       throw NunchukException(
           NunchukException::INVALID_SIGNER_TYPE,
           strprintf("Can not cache xpub for this signer mastersigner_id = '%s'",
@@ -2410,29 +2414,19 @@ std::string NunchukImpl::CreatePsbt(
                                           : key.key);
     }
 
+    const auto derived_initial =
+        silentpayment::DeriveSilentPaymentTaprootAddresses(
+            outputs, chain_, sp_inputs, input_privkeys, is_taproot_inputs);
+
     for (const auto& output : outputs) {
       if (IsSilentPaymentAddress(output.first, chain_)) {
-        SilentPaymentKeys keys =
-            DecodeSilentPaymentAddress(output.first, chain_);
-        if (keys.IsValid()) {
-          auto derived_outputs =
-              DeriveSilentPaymentOutputs(keys.B_scan, keys.B_m, input_privkeys,
-                                         sp_inputs, is_taproot_inputs, 1);
-
-          if (!derived_outputs.empty()) {
-            // Replace Silent Payment address with derived taproot address
-            std::string taproot_addr =
-                CreateTaprootAddress(derived_outputs[0], chain_);
-            processed_outputs[taproot_addr] = output.second;
-            temp_outputs[taproot_addr] = output.first;
-          } else {
-            throw NunchukException(NunchukException::INVALID_ADDRESS,
-                                   "Failed to derive Silent Payment output");
-          }
-        } else {
+        if (!derived_initial.count(output.first)) {
           throw NunchukException(NunchukException::INVALID_ADDRESS,
-                                 "Invalid Silent Payment address");
+                                 "Failed to derive Silent Payment output");
         }
+        const std::string& taproot_addr = derived_initial.at(output.first);
+        processed_outputs[taproot_addr] = output.second;
+        temp_outputs[taproot_addr] = output.first;
       } else {
         processed_outputs[output.first] = output.second;
       }
@@ -2525,26 +2519,22 @@ std::string NunchukImpl::CreatePsbt(
                                           : key.key);
     }
 
+    const auto derived_final =
+        silentpayment::DeriveSilentPaymentTaprootAddresses(
+            outputs, chain_, sp_inputs, input_privkeys, is_taproot_inputs);
+
     for (const CTxOut& txout : tx_new->vout) {
       CTxDestination address;
       ExtractDestination(txout.scriptPubKey, address);
       std::string addr = EncodeDestination(address);
       if (temp_outputs.count(addr)) {
-        SilentPaymentKeys keys =
-            DecodeSilentPaymentAddress(temp_outputs[addr], chain_);
-        auto derived_outputs =
-            DeriveSilentPaymentOutputs(keys.B_scan, keys.B_m, input_privkeys,
-                                       sp_inputs, is_taproot_inputs, 1);
-
-        if (!derived_outputs.empty()) {
-          // Replace Silent Payment address with derived taproot address
-          std::string taproot_addr =
-              CreateTaprootAddress(derived_outputs[0], chain_);
-          vout.push_back({taproot_addr, txout.nValue});
-        } else {
+        const std::string& original_sp = temp_outputs[addr];
+        if (!derived_final.count(original_sp)) {
           throw NunchukException(NunchukException::INVALID_ADDRESS,
                                  "Failed to derive Silent Payment output");
         }
+        const std::string& taproot_addr = derived_final.at(original_sp);
+        vout.push_back({taproot_addr, txout.nValue});
       } else {
         vout.push_back({addr, txout.nValue});
       }
@@ -2827,6 +2817,32 @@ std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
     }
   }
   return {id, storage_->ImportDummyTx(chain_, wallet_id, id, body, tokens)};
+}
+
+std::pair<std::string, Transaction> NunchukImpl::ImportDummyTx(
+    const GroupDummyTransaction& dummy_transaction) {
+  if (dummy_transaction.get_type() !=
+      GroupDummyTransactionType::UPDATE_PLATFORM_KEY_POLICIES) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Unsupported group dummy transaction type");
+  }
+  std::vector<std::string> tokens{};
+  for (auto&& item : dummy_transaction.get_signatures()) {
+    if (!item.get_signature().empty()) {
+      tokens.push_back(item.get_signature());
+    }
+  }
+  if (dummy_transaction.get_wallet_id().empty() ||
+      dummy_transaction.get_id().empty() ||
+      dummy_transaction.get_request_body().empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid dummy transaction");
+  }
+  return {
+      dummy_transaction.get_id(),
+      storage_->ImportDummyTx(chain_, dummy_transaction.get_wallet_id(),
+                              dummy_transaction.get_id(),
+                              dummy_transaction.get_request_body(), tokens)};
 }
 
 RequestTokens NunchukImpl::SaveDummyTxRequestToken(const std::string& wallet_id,
@@ -3238,27 +3254,6 @@ std::vector<SingleSigner> NunchukImpl::GetTransactionSigners(
   if (!tx.get_psbt().empty()) return tx.get_signed();
   auto utxos = GetCoinsFromTxInputs(wallet_id, tx.get_inputs());
   return GetRawTxSigners(tx.get_raw(), utxos, wallet);
-}
-
-// Liquid wallet
-Wallet NunchukImpl::CreateLiquidWallet(const std::string& mnemonic,
-                                       const std::string& passphrase,
-                                       bool need_backup, bool replace) {
-  // return Wallet::CreateLiquidWallet(mnemonic, passphrase, need_backup,
-  // replace);
-  return Wallet{};
-}
-
-Wallet NunchukImpl::CreateLiquidWallet(const std::string& softwaresigner_id,
-                                       bool need_backup, bool replace) {
-  // return Wallet::CreateLiquidWallet(softwaresigner_id, need_backup, replace);
-  return Wallet{};
-}
-
-std::map<AssetId, Amount> NunchukImpl::GetAddressAssets(
-    const std::string& wallet_id, const std::string& address) {
-  // return Wallet::GetAddressAssets(wallet_id, address);
-  return std::map<AssetId, Amount>{};
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
