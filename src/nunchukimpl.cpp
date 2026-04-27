@@ -2471,6 +2471,9 @@ std::string NunchukImpl::CreatePsbt(
       }
     };
     getTimelock(script_node);
+    if (locktime == 0 && anti_fee_sniping) {
+      locktime = GetChainTip();
+    }
   } else if (anti_fee_sniping) {
     locktime = GetChainTip();
     sequence = MAX_BIP125_RBF_SEQUENCE;
