@@ -1943,7 +1943,8 @@ void NunchukImpl::DisplayAddressOnDevice(
       if (signer.get_master_fingerprint() == device.get_master_fingerprint()) {
         if (device.get_type() == "bitbox02") {
           desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-        } else if (device.get_type() == "ledger") {
+        } else if (device.get_type() == "ledger" ||
+                   device.get_type() == "jade") {
           desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_XPUB, idx);
         } else {
           desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_PUBKEY, idx);
