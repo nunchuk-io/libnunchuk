@@ -331,45 +331,6 @@ inline nunchuk::Transaction ParseCMutableTransaction(
   return tx;
 }
 
-// MuSig2 PSBT maps pubnonces/partial sigs by (plain_pub, leaf_hash). plain_pub
-// may differ from the aggregate key listed in m_musig2_participants after
-// BIP32 derivation or taproot tweaking (see Bitcoin CreateTaprootScriptSig).
-// Match status updates to the keyset by participant pubkeys instead.
-template <typename PartMap>
-inline std::optional<std::string> ResolveMusigKeysetNameForParticipants(
-    const PSBTInput& input,
-    const std::map<CPubKey, std::string>& keyset_name,
-    const PartMap& part_map) {
-  if (part_map.empty()) return std::nullopt;
-  std::optional<std::string> best_name;
-  size_t best_parts_size = std::numeric_limits<size_t>::max();
-  for (const auto& [agg, parts] : input.m_musig2_participants) {
-    bool all_in = true;
-    for (const auto& [pk, _] : part_map) {
-      if (std::find(parts.begin(), parts.end(), pk) == parts.end()) {
-        all_in = false;
-        break;
-      }
-    }
-    if (!all_in) continue;
-    auto it = keyset_name.find(agg);
-    if (it == keyset_name.end()) continue;
-    if (parts.size() < best_parts_size) {
-      best_parts_size = parts.size();
-      best_name = it->second;
-    }
-  }
-  return best_name;
-}
-
-inline std::optional<std::string> ResolveMusigKeysetNameFromSigningKey(
-    const std::map<CPubKey, std::string>& keyset_name,
-    const CPubKey& signing_key) {
-  auto it = keyset_name.find(signing_key);
-  if (it != keyset_name.end()) return it->second;
-  return std::nullopt;
-}
-
 inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
     const PartiallySignedTransaction& psbtx, const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
@@ -435,13 +396,8 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
 
   // check pubnonces
   for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-    std::optional<std::string> opt_name =
-        ResolveMusigKeysetNameForParticipants(input, keyset_name, part_pubnonce);
-    if (!opt_name) {
-      opt_name = ResolveMusigKeysetNameFromSigningKey(keyset_name, agg_lh.first);
-    }
-    if (!opt_name || !keysets.count(*opt_name)) continue;
-    const std::string& name = *opt_name;
+    const auto& [agg, lh] = agg_lh;
+    const std::string& name = lh.IsNull() ? valuekeyset : keyset_name[agg];
     if (part_pubnonce.size() == keysets[name].second.size()) {
       keysets[name].first = TransactionStatus::PENDING_SIGNATURES;
     } else {
@@ -453,15 +409,13 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
 
   // check partial sigs
   for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
-    std::optional<std::string> opt_name =
-        ResolveMusigKeysetNameForParticipants(input, keyset_name, part_psig);
-    if (!opt_name) {
-      opt_name = ResolveMusigKeysetNameFromSigningKey(keyset_name, agg_lh.first);
-    }
-    if (!opt_name || !keysets.count(*opt_name)) continue;
-    const std::string& name = *opt_name;
+    const auto& [agg, lh] = agg_lh;
+    const std::string& name = lh.IsNull() ? valuekeyset : keyset_name[agg];
     if (part_psig.size() == keysets[name].second.size()) {
       keysets[name].first = TransactionStatus::READY_TO_BROADCAST;
+      for (auto& xfp_signed : keysets[name].second) {
+        xfp_signed.second = true;
+      }
     } else {
       for (const auto& [part, psig] : part_psig) {
         keysets[name].second[getXfp(part)] = true;
