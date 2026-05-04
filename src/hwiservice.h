@@ -44,6 +44,9 @@ class HWIService {
                           const std::string &derivation_path) const;
   std::string DisplayAddress(const Device &device,
                              const std::string &desc) const;
+  std::string DisplayAddress(const Wallet &wallet, const Device &device,
+                             const std::string &desc, int index,
+                             bool internal) const;
   void PromptPin(const Device &device) const;
   void SendPin(const Device &device, const std::string &pin) const;
   void SendPassphrase(const Device &device,

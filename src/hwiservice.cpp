@@ -269,6 +269,45 @@ std::string HWIService::DisplayAddress(const Device &device,
   return rs["address"];
 }
 
+std::string HWIService::DisplayAddress(const Wallet &wallet,
+                                       const Device &device,
+                                       const std::string &desc,
+                                       int index,
+                                       bool internal) const {
+  if (wallet.get_wallet_type() != WalletType::MINISCRIPT ||
+      device.get_type() != "ledger") {
+    return DisplayAddress(device, desc);
+  }
+
+  ValidateDevice(device);
+  auto bip388 = GetBip388Policy(wallet);
+  std::string name_quoted = quoted_copy(wallet.get_name());
+  std::string desc_quoted = "\"" + bip388.descriptor_template + "\"";
+
+  std::vector<std::string> register_args = PrependDeviceID(
+      {"register", "--desc", desc_quoted, "--name", name_quoted}, device);
+  for (auto &&key_info : bip388.keys_info) {
+    register_args.push_back("--key");
+    register_args.push_back(key_info);
+  }
+
+  json register_rs = ParseResponse(RunCmd(register_args));
+
+  std::vector<std::string> display_args =
+      PrependDeviceID({"displayaddress", "--policy-desc", desc_quoted,
+                       "--policy-name", name_quoted, "--hmac",
+                       register_rs["hmac"], "--change",
+                       internal ? "1" : "0", "--index", std::to_string(index)},
+                      device);
+  for (auto &&key_info : bip388.keys_info) {
+    display_args.push_back("--key");
+    display_args.push_back(key_info);
+  }
+
+  json rs = ParseResponse(RunCmd(display_args));
+  return rs["address"];
+}
+
 void HWIService::PromptPin(const Device &device) const {
   ValidateDevice(device);
   std::vector<std::string> cmd_args = {"-t", device.get_type(), "-d",
