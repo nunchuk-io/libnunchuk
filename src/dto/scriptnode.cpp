@@ -131,6 +131,7 @@ bool ScriptNode::is_satisfiable(const Transaction& tx) const {
 }
 
 bool ScriptNode::is_satisfiable(const std::string& psbt) const {
+  if (psbt.empty()) return false;
   auto psbtx = DecodePsbt(psbt);
   auto tx = GetTransactionFromCMutableTransaction(psbtx.tx.value(), -1);
   return is_satisfiable(tx);
