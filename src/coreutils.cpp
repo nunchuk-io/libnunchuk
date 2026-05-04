@@ -151,6 +151,8 @@ std::string CoreUtils::DeriveAddress(const std::string &descriptor, int index) {
 
 std::vector<std::string> CoreUtils::DeriveAddresses(
     const std::string &descriptor, int fromIndex, int toIndex) {
+  if (fromIndex < 0) fromIndex = 0;
+  if (toIndex <= fromIndex) toIndex = fromIndex + 1;
   json params = json::array({descriptor, json::array({fromIndex, toIndex})});
   std::string resp = SendRequest("deriveaddresses", params);
   return ParseResponse(resp);
