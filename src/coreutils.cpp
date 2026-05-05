@@ -145,17 +145,25 @@ std::string CoreUtils::DeriveAddress(const std::string &descriptor, int index) {
   json params = index >= 0
                     ? json::array({descriptor, json::array({index, index})})
                     : json::array({descriptor});
-  std::string resp = SendRequest("deriveaddresses", params);
-  return ParseResponse(resp)[0];
+  try {
+    std::string resp = SendRequest("deriveaddresses", params);
+    return ParseResponse(resp)[0];
+  } catch (const std::exception &e) {
+    return "";
+  }
 }
 
 std::vector<std::string> CoreUtils::DeriveAddresses(
     const std::string &descriptor, int fromIndex, int toIndex) {
   if (fromIndex < 0) fromIndex = 0;
-  if (toIndex <= fromIndex) toIndex = fromIndex + 1;
+  if (toIndex < fromIndex) toIndex = fromIndex;
   json params = json::array({descriptor, json::array({fromIndex, toIndex})});
-  std::string resp = SendRequest("deriveaddresses", params);
-  return ParseResponse(resp);
+  try {
+    std::string resp = SendRequest("deriveaddresses", params);
+    return ParseResponse(resp);
+  } catch (const std::exception &e) {
+    return {};
+  }
 }
 
 bool CoreUtils::VerifyMessage(const std::string &address,
