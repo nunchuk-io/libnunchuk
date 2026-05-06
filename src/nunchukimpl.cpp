@@ -3170,21 +3170,27 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
   std::string error;
   bool is_taproot = address_type == AddressType::TAPROOT;
   std::vector<SingleSigner> used_signers{};
+  std::map<std::string, SingleSigner> sanitized_signers{};
+  for (auto&& signer : signers) {
+    sanitized_signers[signer.first] =
+        Utils::SanitizeSingleSigner(signer.second);
+  }
 
   int keypath_m = 0;
   if (Utils::IsValidMiniscriptTemplate(tmpl, address_type)) {
-    script = Utils::MiniscriptTemplateToMiniscript(tmpl, signers);
+    script = Utils::MiniscriptTemplateToMiniscript(tmpl, sanitized_signers);
   } else if (Utils::IsValidPolicy(tmpl)) {
-    script = Utils::PolicyToMiniscript(tmpl, signers, address_type);
+    script = Utils::PolicyToMiniscript(tmpl, sanitized_signers, address_type);
   } else if (is_taproot && Utils::IsValidTapscriptTemplate(tmpl, error)) {
     std::vector<std::string> keypath;
-    script = Utils::TapscriptTemplateToTapscript(tmpl, signers, keypath);
+    script =
+        Utils::TapscriptTemplateToTapscript(tmpl, sanitized_signers, keypath);
     for (auto&& key : keypath) {
-      if (!signers.count(key)) {
+      if (!sanitized_signers.count(key)) {
         throw NunchukException(NunchukException::INVALID_PARAMETER,
                                "Invalid keypath");
       }
-      used_signers.push_back(signers.at(key));
+      used_signers.push_back(sanitized_signers.at(key));
       used_signers.back().set_name(key);
     }
     keypath_m = keypath.size();
@@ -3193,7 +3199,7 @@ Wallet NunchukImpl::CreateMiniscriptWallet(
                            "Invalid miniscript " + error);
   }
 
-  for (auto&& key : signers) {
+  for (auto&& key : sanitized_signers) {
     auto desc = key.second.get_descriptor();
     if (std::find_if(used_signers.begin(), used_signers.end(),
                      [&](const SingleSigner& signer) {

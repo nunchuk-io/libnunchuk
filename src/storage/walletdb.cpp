@@ -26,6 +26,7 @@
 #include <utils/stringutils.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
+#include <regex>
 #include <sstream>
 #include "storage/common.h"
 
@@ -215,8 +216,7 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
 
   Wallet wallet;
   if (wallet_type == WalletType::MINISCRIPT) {
-    wallet =
-        Wallet(GetString(DbKeys::MINISCRIPT), GetSigners(), address_type, m);
+    wallet = Wallet(GetMiniscript(), GetSigners(), address_type, m);
     wallet.set_name(GetString(DbKeys::NAME));
     wallet.set_create_date(create_date);
   } else {
@@ -2466,7 +2466,34 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
 }
 
 std::string NunchukWalletDb::GetMiniscript() {
-  return GetString(DbKeys::MINISCRIPT);
+  std::string miniscript = GetString(DbKeys::MINISCRIPT);
+  if (miniscript.empty()) return miniscript;
+  const std::string target_format = chain_ == Chain::MAIN ? "xpub" : "tpub";
+  static const std::regex kXpubRegex(R"(\b(xpub[1-9A-HJ-NP-Za-km-z]{10,})\b)");
+  static const std::regex kTpubRegex(R"(\b(tpub[1-9A-HJ-NP-Za-km-z]{10,})\b)");
+  const std::regex& wrong_format =
+      target_format == "xpub" ? kTpubRegex : kXpubRegex;
+  if (!std::regex_search(miniscript, wrong_format)) return miniscript;
+
+  std::string out;
+  out.reserve(miniscript.size());
+  size_t last = 0;
+  for (std::sregex_iterator
+           it(miniscript.begin(), miniscript.end(), wrong_format),
+       end;
+       it != end; ++it) {
+    const std::smatch& m = *it;
+    out.append(miniscript, last, static_cast<size_t>(m.position()) - last);
+    const std::string extpub = m.str(1);
+    try {
+      out.append(Utils::SanitizeBIP32Input(extpub, target_format));
+    } catch (...) {
+      out.append(extpub);
+    }
+    last = static_cast<size_t>(m.position() + m.length());
+  }
+  out.append(miniscript, last, std::string::npos);
+  return out;
 }
 
 }  // namespace nunchuk
