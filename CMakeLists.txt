@@ -86,6 +86,18 @@ set(SECP256K1_ENABLE_MODULE_ECDH ON)
 set(ENABLE_IPC OFF)
 add_subdirectory(contrib/bitcoin)
 
+# Bitcoin Core enables AArch64 BTI via core_interface, but some Apple clang
+# versions can emit C++ EH landing pads without BTI markers. That makes caught
+# exceptions abort during unwinding on iOS. See:
+# https://github.com/llvm/llvm-project/issues/149267
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    get_target_property(bitcoin_core_options core_interface INTERFACE_COMPILE_OPTIONS)
+    if(bitcoin_core_options)
+        list(FILTER bitcoin_core_options EXCLUDE REGEX "^-mbranch-protection=.*")
+        set_target_properties(core_interface PROPERTIES INTERFACE_COMPILE_OPTIONS "${bitcoin_core_options}")
+    endif()
+endif()
+
 add_subdirectory(embedded)
 
 set(UR__DISABLE_TESTS ON)
