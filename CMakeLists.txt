@@ -120,7 +120,6 @@ target_include_directories(trezor-crypto PUBLIC
 )
 
 option(NUNCHUK_BUILD_TESTS "Build libnunchuk unit tests" OFF)
-option(NUNCHUK_USE_BITCOIN_CORE_FLAGS "Build libnunchuk with Bitcoin Core compile/link flags" OFF)
 
 if(WIN32)
     include(TestBigEndian)
@@ -263,10 +262,6 @@ if(ANDROID)
     target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group tap-protocol bbqr-cpp)
 else()
     target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol bbqr-cpp)
-endif()
-
-if(NUNCHUK_USE_BITCOIN_CORE_FLAGS)
-    target_link_libraries("${PROJECT_NAME}" PUBLIC core_interface)
 endif()
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
