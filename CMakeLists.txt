@@ -64,12 +64,8 @@ else()
         set_target_properties(libevent::libevent PROPERTIES IMPORTED_LOCATION ${event_lib})
     endif()
 
-    if (NOT WIN32)
-        if(NOT TARGET libevent::pthreads)
-            find_library(event_pthreads_lib NAMES libevent_pthreads.a event_pthreads REQUIRED)
-            add_library(libevent::pthreads STATIC IMPORTED)
-            set_target_properties(libevent::pthreads PROPERTIES IMPORTED_LOCATION ${event_pthreads_lib})
-        endif()
+    if(EXISTS "${PROJECT_SOURCE_DIR}/contrib/openssl/lib")
+        set(OPENSSL_ROOT_DIR "${PROJECT_SOURCE_DIR}/contrib/openssl/lib" CACHE PATH "OpenSSL root directory" FORCE)
     endif()
 endif()
 
@@ -89,6 +85,18 @@ set(SECP256K1_ENABLE_MODULE_ECDH ON)
 # set(BUILD_CLI ON)
 set(ENABLE_IPC OFF)
 add_subdirectory(contrib/bitcoin)
+
+# Bitcoin Core enables AArch64 BTI via core_interface, but some Apple clang
+# versions can emit C++ EH landing pads without BTI markers. That makes caught
+# exceptions abort during unwinding on iOS. See:
+# https://github.com/llvm/llvm-project/issues/149267
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    get_target_property(bitcoin_core_options core_interface INTERFACE_COMPILE_OPTIONS)
+    if(bitcoin_core_options)
+        list(FILTER bitcoin_core_options EXCLUDE REGEX "^-mbranch-protection=.*")
+        set_target_properties(core_interface PROPERTIES INTERFACE_COMPILE_OPTIONS "${bitcoin_core_options}")
+    endif()
+endif()
 
 add_subdirectory(embedded)
 
@@ -242,7 +250,7 @@ set(BUILD_SHARED_LIB_TAPPROTOCOL OFF)
 set(BUILD_TESTING OFF)
 add_subdirectory(contrib/tap-protocol)
 # Pass Bitcoin random to tap-protocol
-# target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
+target_compile_definitions(tap-protocol PUBLIC LIB_TAPPROTOCOL_USE_BITCOIN_RANDOM=1)
 # Allow testnet Tapsigner
 target_compile_definitions(tap-protocol PUBLIC SKIP_BASE58_PREFIX_CHECK=1)
 
