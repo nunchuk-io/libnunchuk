@@ -2101,6 +2101,9 @@ class NUNCHUK_EXPORT Nunchuk {
                                const std::string& pin) = 0;
   virtual void SendPassphraseToDevice(const Device& device,
                                       const std::string& passphrase) = 0;
+  /** Best-effort: terminate the HWI child process if one is running (e.g. user
+   *  cancel during a long device operation). Safe from another thread. */
+  virtual void KillHwiProcess() = 0;
   virtual void VerifySingleSigner(const Device& device,
                                   const SingleSigner& signer) = 0;
 

@@ -20,6 +20,8 @@
 
 #include <nunchuk.h>
 
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -29,6 +31,7 @@ namespace nunchuk {
 class HWIService {
  public:
   HWIService(std::string path = "hwi", Chain chain = Chain::TESTNET);
+  ~HWIService();
 
   void SetPath(const std::string &path);
   void SetChain(Chain chain);
@@ -49,12 +52,20 @@ class HWIService {
   void SendPassphrase(const Device &device,
                       const std::string &passphrase) const;
 
+  /** Request termination of the HWI child process started by the current
+   *  RunCmd invocation (e.g. user cancel while device is waiting). No-op if
+   *  no HWI process is running. Safe to call from another thread. */
+  void KillHwiProcess() const;
+
  private:
+  struct HwiChildHandle;
   void CheckVersion();
   std::string RunCmd(const std::vector<std::string> &) const;
   std::string hwi_;
   Chain chain_;
   int version_{};
+  mutable std::mutex hwi_child_mutex_;
+  mutable std::unique_ptr<HwiChildHandle> active_hwi_child_;
 };
 
 }  // namespace nunchuk

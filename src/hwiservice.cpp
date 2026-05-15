@@ -43,6 +43,13 @@ namespace bp = boost::process;
 
 namespace nunchuk {
 
+struct HWIService::HwiChildHandle {
+  bp::child proc;
+  explicit HwiChildHandle(bp::child&& c) : proc(std::move(c)) {}
+};
+
+HWIService::~HWIService() = default;
+
 static void ValidateDevice(const Device &device) {
   if (device.get_master_fingerprint().empty() &&
       (device.get_type().empty() || device.get_path().empty())) {
@@ -121,8 +128,7 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
     cmd << " " << args[i];
   }
 
-  // run command and get output
-  int exitcode;
+  int exitcode = -1;
   std::string result;
   const std::string cmd_str = cmd.str();
   try {
@@ -134,12 +140,26 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
 #else
     bp::child c(cmd_str.c_str(), bp::std_out > out);
 #endif
+    {
+      std::lock_guard<std::mutex> lock(hwi_child_mutex_);
+      active_hwi_child_ = std::make_unique<HwiChildHandle>(std::move(c));
+    }
     std::getline(out, result);
-    c.wait();
-    exitcode = c.exit_code();
-  } catch (bp::process_error &pe) {
+    active_hwi_child_->proc.wait();
+    exitcode = active_hwi_child_->proc.exit_code();
+  } catch (const bp::process_error& pe) {
+    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
+    active_hwi_child_.reset();
     throw HWIException(HWIException::RUN_ERROR,
                        NormalizeErrorMessage(pe.what()));
+  } catch (...) {
+    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
+    active_hwi_child_.reset();
+    throw;
+  }
+  {
+    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
+    active_hwi_child_.reset();
   }
 
   if (exitcode != 0) {
@@ -151,6 +171,16 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   LOG_F(INFO, "Run hwi command '%s' result: %s", cmd_str.c_str(),
         result.c_str());
   return result;
+}
+
+void HWIService::KillHwiProcess() const {
+  std::lock_guard<std::mutex> lock(hwi_child_mutex_);
+  if (!active_hwi_child_) return;
+  try {
+    active_hwi_child_->proc.terminate();
+  } catch (const std::exception& e) {
+    LOG_F(WARNING, "KillHwiProcess terminate: %s", e.what());
+  }
 }
 
 std::vector<Device> HWIService::Enumerate() const {

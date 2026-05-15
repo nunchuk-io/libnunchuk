@@ -550,6 +550,8 @@ void NunchukImpl::SendPassphraseToDevice(const Device& device,
   hwi_.SendPassphrase(device, passphrase);
 }
 
+void NunchukImpl::KillHwiProcess() { hwi_.KillHwiProcess(); }
+
 void NunchukImpl::VerifySingleSigner(const Device& device,
                                      const SingleSigner& signer) {
   auto xpub = hwi_.GetXpubAtPath(device, signer.get_derivation_path());

@@ -308,6 +308,7 @@ class NunchukImpl : public Nunchuk {
   void SendPinToDevice(const Device& device, const std::string& pin) override;
   void SendPassphraseToDevice(const Device& device,
                               const std::string& passphrase) override;
+  void KillHwiProcess() override;
   void VerifySingleSigner(const Device& device,
                           const SingleSigner& signer) override;
   std::string ExportBackup() override;
