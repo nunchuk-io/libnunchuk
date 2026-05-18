@@ -1933,9 +1933,13 @@ void NunchukImpl::DisplayAddressOnDevice(
   Wallet wallet = GetWallet(wallet_id);
   auto devices = GetDevices();
   std::string desc;
-  int idx = wallet.is_escrow()
-                ? -1
-                : storage_->GetAddressIndex(chain_, wallet_id, address).first;
+  int idx = -1;
+  bool internal = false;
+  if (!wallet.is_escrow()) {
+    auto address_index = storage_->GetAddressIndex(chain_, wallet_id, address);
+    idx = address_index.first;
+    internal = address_index.second;
+  }
   for (auto&& device : devices) {
     if (!device_fingerprint.empty() &&
         device_fingerprint != device.get_master_fingerprint()) {
@@ -1951,7 +1955,7 @@ void NunchukImpl::DisplayAddressOnDevice(
         } else {
           desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_PUBKEY, idx);
         }
-        hwi_.DisplayAddress(device, desc);
+        hwi_.DisplayAddress(wallet, device, desc, idx, internal);
       }
     }
   }
