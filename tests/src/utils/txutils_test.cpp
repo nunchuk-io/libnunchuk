@@ -50,3 +50,7 @@ TEST_CASE("testing transaction utils") {
       tx.get_outputs()[0] ==
       nunchuk::TxOutput{"tb1qy9htg6adln6lthgswd92dz2scl8vtke05jtvcj", 199828});
 }
+
+TEST_CASE("DecodePsbt rejects empty base64 string") {
+  CHECK_THROWS_AS(DecodePsbt(""), const nunchuk::NunchukException&);
+}

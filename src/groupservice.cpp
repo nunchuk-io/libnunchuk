@@ -31,6 +31,7 @@
 #include <descriptor.h>
 #include <boost/algorithm/string.hpp>
 #include <coreutils.h>
+#include <tinyformat.h>
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #define CPPHTTPLIB_CONNECTION_TIMEOUT_SECOND 5

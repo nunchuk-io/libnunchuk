@@ -24,7 +24,7 @@
 
 extern "C" {
 void randombytes(unsigned char *buf, unsigned long long len) {
-  Span<unsigned char> bytes(buf, len);
+  std::span<unsigned char> bytes(buf, len);
   GetStrongRandBytes(bytes);
 }
 #include <utils/tweetnacl.h>

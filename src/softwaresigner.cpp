@@ -36,6 +36,7 @@
 #include <descriptor.h>
 #include <coreutils.h>
 
+#include <musig.h>
 #include <secp256k1_musig.h>
 
 extern "C" {
@@ -210,7 +211,8 @@ std::string SoftwareSigner::SignTx(const std::string& base64_psbt) const {
   }
 
   for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
-    SignPSBTInput(provider, psbtx, i, &txdata);
+    const auto res = SignPSBTInput(provider, psbtx, i, &txdata);
+    ThrowOnPSBTError(res, static_cast<int>(i), "SoftwareSigner::SignTx");
   }
   return EncodePsbt(psbtx);
 }
@@ -330,9 +332,7 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
         SignatureHashSchnorr(hash, execdata, tx, i, SIGHASH_DEFAULT, sigversion,
                              txdata, MissingDataBehavior::FAIL);
 
-        HashWriter hasher;
-        hasher << agg << part << hash;
-        uint256 session_id = hasher.GetSHA256();
+        const uint256 session_id = MuSig2SessionID(agg, part, hash);
 
         XOnlyPubKey xpart(part);
         std::string pubkey = HexStr(xpart);
@@ -349,7 +349,10 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
 
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
-    SignPSBTInput(provider, psbtx, i, &txdata, SIGHASH_DEFAULT, nullptr, false);
+    const std::optional<int> sighash = input.sighash_type;
+    const auto res =
+        SignPSBTInput(provider, psbtx, i, &txdata, sighash, nullptr, false);
+    ThrowOnPSBTError(res, static_cast<int>(i), "SoftwareSigner::SignTaprootTx");
 
     for (auto&& [session_id, secnonce] : musig2_secnonces) {
       db.SetMuSig2SecNonce(session_id, std::move(secnonce));

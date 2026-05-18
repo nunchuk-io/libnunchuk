@@ -24,6 +24,9 @@
 #include <utils/addressutils.hpp>
 #include <utils/errorutils.hpp>
 #include <utils/stringutils.hpp>
+#include <algorithm>
+#include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 #include <psbt.h>
@@ -33,11 +36,22 @@
 #include <signingprovider.h>
 #include <script/sign.h>
 #include <policy/policy.h>
+#include <common/messages.h>
 #include <util/bip32.h>
 
 #include <boost/algorithm/string.hpp>
 
 namespace {
+
+inline void ThrowOnPSBTError(PSBTError err, int input_index,
+                            const std::string& context) {
+  if (err == PSBTError::OK || err == PSBTError::INCOMPLETE) return;
+  const auto msg = common::PSBTErrorString(err).original;
+  throw nunchuk::NunchukException(
+      nunchuk::NunchukException::INVALID_PSBT,
+      context + ": SignPSBTInput failed at input " + std::to_string(input_index) +
+          " (" + msg + ")");
+}
 
 inline int64_t GetBlockTime(const std::string& raw_header) {
   using namespace nunchuk;
@@ -135,8 +149,8 @@ class PubkeyExtractorChecker final : public DeferringSignatureChecker {
     return false;
   }
 
-  bool CheckSchnorrSignature(Span<const unsigned char> sig,
-                             Span<const unsigned char> pubkey,
+  bool CheckSchnorrSignature(std::span<const unsigned char> sig,
+                             std::span<const unsigned char> pubkey,
                              SigVersion sigversion,
                              ScriptExecutionData& execdata,
                              ScriptError* serror) const override {
@@ -382,7 +396,8 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
 
   // check pubnonces
   for (const auto& [agg_lh, part_pubnonce] : input.m_musig2_pubnonces) {
-    auto name = keyset_name[agg_lh.first];
+    const auto& [agg, lh] = agg_lh;
+    const std::string& name = lh.IsNull() ? valuekeyset : keyset_name[agg];
     if (part_pubnonce.size() == keysets[name].second.size()) {
       keysets[name].first = TransactionStatus::PENDING_SIGNATURES;
     } else {
@@ -394,9 +409,13 @@ inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
 
   // check partial sigs
   for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
-    auto name = keyset_name[agg_lh.first];
+    const auto& [agg, lh] = agg_lh;
+    const std::string& name = lh.IsNull() ? valuekeyset : keyset_name[agg];
     if (part_psig.size() == keysets[name].second.size()) {
       keysets[name].first = TransactionStatus::READY_TO_BROADCAST;
+      for (auto& xfp_signed : keysets[name].second) {
+        xfp_signed.second = true;
+      }
     } else {
       for (const auto& [part, psig] : part_psig) {
         keysets[name].second[getXfp(part)] = true;
