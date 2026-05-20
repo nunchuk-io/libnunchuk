@@ -491,9 +491,12 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
     return std::nullopt;
   }
   if (subscripts.empty()) {
+    // WalletType::MULTI_SIG
+    if (keypath.size() > 1) {
+      return ParseMusigWallet(desc, WalletTemplate::DEFAULT);
+    }
     // WalletType::SINGLE_SIG
-    if (keypath.size() != 1 || keypath[0] == H_POINT ||
-        IsUnspendableXpub(keypath[0])) {
+    if (keypath[0] == H_POINT || IsUnspendableXpub(keypath[0])) {
       error = "invalid single-sig descriptor: " + desc;
       return std::nullopt;
     }
