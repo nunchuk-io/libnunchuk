@@ -510,7 +510,8 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
       continue;
     }
     signers.push_back(ParseSignerString(key));
-    if (eii != std::make_pair(0,0)) signers.back().set_external_internal_index(eii);
+    if (eii != std::make_pair(0, 0))
+      signers.back().set_external_internal_index(eii);
     signers_map[key] = signers.back();
   }
 
@@ -550,11 +551,19 @@ std::optional<Wallet> ParseTrDescriptor(const std::string& desc,
   // Maybe WalletType::MULTI_SIG
   WalletTemplate t = WalletTemplate::DEFAULT;
   auto miniscript_desc = wallet.get_descriptor(DescriptorPath::NONE);
-  if (keypath.size() == 1 && keypath[0] == H_POINT) {
-    t = WalletTemplate::DISABLE_KEY_PATH;
-    miniscript_desc =
-        GetDescriptorForMiniscript(wallet.get_miniscript(DescriptorPath::NONE),
-                                   H_POINT, wallet.get_address_type());
+  if (keypath.size() == 1) {
+    if (keypath[0] == H_POINT) {
+      t = WalletTemplate::DISABLE_KEY_PATH;
+      miniscript_desc = GetDescriptorForMiniscript(
+          wallet.get_miniscript(DescriptorPath::NONE), H_POINT,
+          wallet.get_address_type());
+    } else {
+      std::stringstream ss;
+      ss << "musig(" << ParseSignerString(keypath[0]).get_descriptor() << ")";
+      miniscript_desc = GetDescriptorForMiniscript(
+          wallet.get_miniscript(DescriptorPath::NONE), ss.str(),
+          wallet.get_address_type());
+    }
   }
   Wallet musig_wallet = ParseMusigWallet(desc, t);
   auto musig_desc = musig_wallet.get_descriptor(DescriptorPath::NONE);

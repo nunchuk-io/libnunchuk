@@ -529,7 +529,7 @@ bool IsValidMusigTemplate(const std::string& musig_template) {
   if (musig_template.find(")", 9) > musig_template.size() - 2) return false;
   std::string inner = musig_template.substr(9, musig_template.find(")", 9) - 9);
   std::vector<std::string> inner_parts = split(inner, ',');
-  if (inner_parts.size() < 2) return false;
+  if (inner_parts.empty()) return false;
   if (join(inner_parts, ',') != inner) return false;
   return true;
 }
