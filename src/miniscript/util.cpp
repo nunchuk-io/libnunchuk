@@ -276,7 +276,7 @@ bool ParseTapscriptTemplate(const std::string& tapscript_template,
       keypath.push_back(tmpl);
     }
     if (!Const(",", expr)) {
-      if (expr.empty() && expr[0] == ')') {
+      if (expr.empty()) {
         // empty tapscript
         return true;
       }
