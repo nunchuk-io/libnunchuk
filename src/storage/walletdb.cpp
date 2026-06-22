@@ -925,6 +925,10 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
     std::string memo = std::string((char*)sqlite3_column_text(stmt, 4));
     int change_pos = sqlite3_column_int(stmt, 5);
     time_t blocktime = sqlite3_column_int64(stmt, 6);
+    std::string extra = sqlite3_column_text(stmt, 7)
+                            ? std::string((char*)sqlite3_column_text(stmt, 7))
+                            : "";
+    SQLCHECK(sqlite3_finalize(stmt));
 
     auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
     tx.set_txid(tx_id);
@@ -948,11 +952,9 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
       tx.set_psbt(value);
     }
 
-    if (sqlite3_column_text(stmt, 7)) {
-      std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
+    if (!extra.empty()) {
       FillExtra(extra, tx);
     }
-    SQLCHECK(sqlite3_finalize(stmt));
     for (auto&& output : tx.get_outputs()) UseAddress(output.first);
     auto new_memo = GetTransactionMemo(tx_id);
     if (new_memo) {
