@@ -292,8 +292,16 @@ inline nunchuk::Transaction ParseCMutableTransaction(
         tx.set_signer(signer.get_master_fingerprint(), false);
       }
       auto agg = mtx.vin[0].scriptWitness.stack[1];
+      if (agg.size() < 2) {
+        tx.set_signed(signed_signers);
+        return tx;
+      }
       agg.erase(agg.begin());
       agg.pop_back();
+      if (agg.size() != 32) {
+        tx.set_signed(signed_signers);
+        return tx;
+      }
 
       auto desc = GetDescriptorsImportString(wallet);
       auto provider = SigningProviderCache::getInstance().GetProvider(desc);
