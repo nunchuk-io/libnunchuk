@@ -323,19 +323,28 @@ void send() {
 // Group wallet commands
 void newsandbox() {
   auto name = input_string("Enter wallet name");
-  auto n = input_int("Total signers");
-  auto m = input_int("Required signatures");
-  check_m_n(m, n);
-  if (n < 2) {
-    throw std::runtime_error("Group wallet must have at least 2 signers");
-  }
   WalletType wallet_type = WalletType::MULTI_SIG;
   AddressType address_type = input_address_type();
 
-  auto group = nu.get()->CreateGroup(name, m, n, address_type);
-  std::cout << "\nGroup sandbox create success. Group id: " << group.get_id()
-            << std::endl;
-  std::cout << "Join url: " << group.get_url() << std::endl;
+  bool is_miniscript = input_bool("Is it miniscript wallet");
+  if (is_miniscript) {
+    auto miniscript_template = input_string("Enter miniscript template");
+    auto group = nu.get()->CreateGroup(name, miniscript_template, address_type);
+    std::cout << "\nGroup sandbox create success. Group id: " << group.get_id()
+              << std::endl;
+    std::cout << "Join url: " << group.get_url() << std::endl;
+  } else {
+    auto n = input_int("Total signers");
+    auto m = input_int("Required signatures");
+    check_m_n(m, n);
+    if (n < 2) {
+      throw std::runtime_error("Group wallet must have at least 2 signers");
+    }
+    auto group = nu.get()->CreateGroup(name, m, n, address_type);
+    std::cout << "\nGroup sandbox create success. Group id: " << group.get_id()
+              << std::endl;
+    std::cout << "Join url: " << group.get_url() << std::endl;
+  }
 }
 
 void printGroup(const GroupSandbox& group) {
@@ -345,6 +354,7 @@ void printGroup(const GroupSandbox& group) {
   std::cout << "- URL: " << group.get_url() << std::endl;
   std::cout << "- M/N: " << group.get_m() << "/" << group.get_n() << std::endl;
   std::cout << "- AddressType: " << int(group.get_address_type()) << std::endl;
+  std::cout << "- Miniscript: " << group.get_miniscript_template() << std::endl;
   std::cout << "- State: " << group.get_state_id() << std::endl;
   std::cout << "- Finalized: " << group.is_finalized() << std::endl;
   std::cout << "- ReplaceWallet: " << group.get_replace_wallet_id()
