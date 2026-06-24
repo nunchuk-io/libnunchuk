@@ -479,14 +479,38 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     return tx;
   }
   if (!input.m_tap_script_sigs.empty()) {
-    auto getOrigin = [&input](const XOnlyPubKey& xonly) -> KeyOriginInfo {
-      auto leaf_origin = input.m_tap_bip32_paths.at(xonly);
-      const auto& [leaf_hashes, origin] = leaf_origin;
-      return origin;
+    auto addSignedFromMusigAgg = [&](const XOnlyPubKey& xonly,
+                                     const uint256& leaf_hash) {
+      for (const auto& [agg_key, parts] : input.m_musig2_participants) {
+        if (XOnlyPubKey(agg_key) != xonly) continue;
+        for (const auto& [agg_lh, part_psig] : input.m_musig2_partial_sigs) {
+          const auto& [agg2, lh] = agg_lh;
+          if (XOnlyPubKey(agg2) != xonly || lh != leaf_hash) continue;
+          for (const auto& [part, psig] : part_psig) {
+            auto it = input.m_tap_bip32_paths.find(XOnlyPubKey(part));
+            if (it != input.m_tap_bip32_paths.end()) {
+              addSigned(it->second.second);
+            }
+          }
+          return;
+        }
+        for (const auto& pub : parts) {
+          auto it = input.m_tap_bip32_paths.find(XOnlyPubKey(pub));
+          if (it != input.m_tap_bip32_paths.end()) {
+            addSigned(it->second.second);
+          }
+        }
+        return;
+      }
     };
     for (const auto& [pubkey_leaf, sig] : input.m_tap_script_sigs) {
       const auto& [xonly, leaf_hash] = pubkey_leaf;
-      addSigned(getOrigin(xonly));
+      auto path_it = input.m_tap_bip32_paths.find(xonly);
+      if (path_it != input.m_tap_bip32_paths.end()) {
+        addSigned(path_it->second.second);
+      } else {
+        addSignedFromMusigAgg(xonly, leaf_hash);
+      }
     }
   }
   if (!input.final_script_witness.IsNull() || !input.final_script_sig.empty()) {
