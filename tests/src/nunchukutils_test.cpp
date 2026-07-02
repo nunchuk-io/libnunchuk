@@ -67,6 +67,54 @@ TEST_CASE("testing SanitizeBIP32Input") {
   CHECK_THROWS(Utils::SanitizeBIP32Input("", "tpub"));
 }
 
+TEST_CASE("testing IsValidAddress") {
+  using namespace nunchuk;
+
+  Utils::SetChain(Chain::MAIN);
+
+  // P2PKH (legacy, starts with 1)
+  CHECK(Utils::IsValidAddress("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"));
+  CHECK(Utils::IsValidAddress("1FBLY2vL926FBAPAk6KDCRdfRz1QXtLoHe"));
+
+  // P2SH (starts with 3)
+  CHECK(Utils::IsValidAddress("3Q1vXyPhgzT7jgp92dUHaR3Vrc69Lsw4Aq"));
+  CHECK(Utils::IsValidAddress("36WYpDG8JtZBV6vezdDDyNMDg2JAvd1vi1"));
+
+  // Bech32 P2WPKH (starts with bc1q)
+  CHECK(Utils::IsValidAddress("bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt"));
+  CHECK(Utils::IsValidAddress("bc1qvyq0cc6rahyvsazfdje0twl7ez82ndmuac2lhv"));
+
+  // Bech32 P2WSH (starts with bc1q, longer witness program)
+  CHECK(Utils::IsValidAddress(
+      "bc1qyucykdlhp62tezs0hagqury402qwhk589q80tqs5myh3rxq34nwqhkdhv7"));
+
+  // P2TR / Bech32m (starts with bc1p)
+  CHECK(Utils::IsValidAddress(
+      "bc1pj6gaw944fy0xpmzzu45ugqde4rz7mqj5kj0tg8kmr5f0pjq8vnaqgynnge"));
+  CHECK(Utils::IsValidAddress(
+      "bc1p83n3au0rjylefxq2nc2xh2y4jzz4pm6zxj4mw5pagdjjr2a9f36s6jjnnu"));
+
+  CHECK_FALSE(Utils::IsValidAddress("2NA1yEBoC92mDxR57gUGmxFC6dtk9qPLFmr"));
+  CHECK_FALSE(Utils::IsValidAddress(
+      "tb1qjf0kx33yemeu0u95ra9wext6ucrtrjqffzragtsxnyg9ys2m0t8star24z"));
+  CHECK_FALSE(Utils::IsValidAddress(""));
+  CHECK_FALSE(Utils::IsValidAddress("not-an-address"));
+
+  Utils::SetChain(Chain::TESTNET);
+
+  CHECK(Utils::IsValidAddress("2NA1yEBoC92mDxR57gUGmxFC6dtk9qPLFmr"));
+  CHECK(Utils::IsValidAddress("tb1qy9htg6adln6lthgswd92dz2scl8vtke05jtvcj"));
+  CHECK(Utils::IsValidAddress(
+      "tb1qjf0kx33yemeu0u95ra9wext6ucrtrjqffzragtsxnyg9ys2m0t8star24z"));
+  CHECK(Utils::IsValidAddress(
+      "tb1phw4cgpt6cd30kz9k4wkpwm872cdvhss29jga2xpmftelhqll62mscq0k4g"));
+  CHECK_FALSE(Utils::IsValidAddress("3Q1vXyPhgzT7jgp92dUHaR3Vrc69Lsw4Aq"));
+  CHECK_FALSE(Utils::IsValidAddress("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"));
+  CHECK_FALSE(Utils::IsValidAddress("bc1q6apr55wrxtdtk3cj6m69mxayw99vvgtvdnvunt"));
+  CHECK_FALSE(Utils::IsValidAddress(
+      "bc1p83n3au0rjylefxq2nc2xh2y4jzz4pm6zxj4mw5pagdjjr2a9f36s6jjnnu"));
+}
+
 TEST_CASE("testing IsValid...") {
   using namespace nunchuk;
   Utils::SetChain(Chain::MAIN);

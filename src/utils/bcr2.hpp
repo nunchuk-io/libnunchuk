@@ -256,6 +256,12 @@ size_t encodeCryptoHDKey(Buffer& buffer, const CryptoHDKey& m) {
 struct CryptoAccount {
   uint32_t masterFingerprint;
   std::vector<CryptoHDKey> outputDescriptors;
+
+  std::string get_master_fingerprint() const {
+    std::ostringstream iss;
+    iss << std::setfill('0') << std::setw(8) << std::hex << masterFingerprint;
+    return iss.str();
+  }
 };
 
 template <typename InputIterator>
