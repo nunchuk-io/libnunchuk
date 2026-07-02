@@ -75,6 +75,13 @@ std::string PolicyToMiniscript(const Policy& node,
   std::string miniscript =
       Abbreviate(*(ret->ToString<CompilerContext>(COMPILER_CTX)));
   if (address_type == AddressType::TAPROOT) {
+    // This compiles the whole policy into a single Tapscript leaf (Or/Thresh
+    // branches become OP_IF/NOTIF). To instead decompose branches into separate
+    // IF-free TapTree leaves, call CompileTrNative() (see compiler.h) here and
+    // build a tr(internal_key, {subscripts...}) descriptor from its result. That
+    // path is opt-in: adopting it means choosing the key-path policy (a promoted
+    // key vs a NUMS/musig internal key) and the descriptor assembly, so it is
+    // left to the caller rather than wired in by default.
     miniscript =
         std::regex_replace(miniscript, std::regex("multi\\("), "multi_a(");
   }

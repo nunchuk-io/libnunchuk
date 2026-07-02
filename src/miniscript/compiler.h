@@ -8,6 +8,8 @@
 #include <nunchuk.h>
 #include <miniscript/miniscript.h>
 #include <string>
+#include <vector>
+#include <optional>
 
 namespace nunchuk {
 struct Policy {
@@ -23,7 +25,8 @@ struct Policy {
     SHA256,
     AND,
     OR,
-    THRESH
+    THRESH,
+    UNSATISFIABLE
   };
 
   Type node_type = Type::NONE;
@@ -122,5 +125,39 @@ nunchuk::Policy ParsePolicy(const std::string& policy);
 bool CompilePolicy(const nunchuk::Policy& policy,
                    nunchuk::miniscript::NodeRef<CompilerContext::Key>& ret,
                    double& avgcost);
+
+// Native Taproot (Taptree-native) policy compilation.
+//
+// Port of rust-miniscript's `Policy::compile_tr_native` (rust-bitcoin/
+// rust-miniscript#906). Unlike the standard taproot path which compiles the
+// whole policy into a single leaf (using OP_IF/NOTIF for Or/Thresh branches),
+// this decomposes all Or and Thresh branches (including those nested inside
+// And) into separate TapTree leaves, each containing only non-branching
+// (IF-free) Miniscript. The leaves are assembled into a Huffman-weighted
+// TapTree. `max_leaves` caps the number of leaves (clamped to 1024).
+enum class TrNativeError {
+  NONE,
+  TOO_MANY_TAPLEAVES,
+  IF_FRAGMENT_IN_NATIVE_LEAF,
+  NO_INTERNAL_KEY,
+  NON_BINARY,
+  COMPILE_FAILED,
+};
+
+struct TrNativeResult {
+  bool ok = false;
+  TrNativeError error = TrNativeError::NONE;
+  std::string message;
+  // Internal (key-path) key for the resulting tr() descriptor.
+  std::string internal_key;
+  // Tapscript leaves and their TapTree depths (as consumed by
+  // SubScriptsToString / SubScriptsToScriptNode).
+  std::vector<std::string> subscripts;
+  std::vector<int> depths;
+};
+
+TrNativeResult CompileTrNative(const std::string& policy,
+                               const std::optional<std::string>& unspendable_key,
+                               size_t max_leaves);
 
 #endif

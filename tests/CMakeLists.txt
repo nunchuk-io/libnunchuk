@@ -18,6 +18,7 @@ set(files
     src/utils/bip32_test.cpp
     src/utils/silentpayment_test.cpp
     src/utils/silentpayment_kgroup_test.cpp
+    src/utils/trnative_test.cpp
     src/utils/txutils_test.cpp)
 
 foreach(file ${files})

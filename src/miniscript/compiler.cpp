@@ -6,6 +6,13 @@
 #include <vector>
 #include <unordered_map>
 #include <regex>
+#include <set>
+#include <map>
+#include <queue>
+#include <memory>
+#include <functional>
+#include <optional>
+#include <utility>
 #include <script/script.h>
 #include <miniscript/miniscript.h>
 #include <script/parsing.h>
@@ -263,6 +270,9 @@ const Strat* ComputeStrategy(const Policy& node, std::unordered_map<const Policy
     switch (node.node_type) {
         case Policy::Type::NONE:
             return {};
+        case Policy::Type::UNSATISFIABLE:
+            strats.push_back(STRAT_FALSE);
+            break;
         case Policy::Type::PK_K:
             strats.push_back(MakeStrat(store, Strat::Type::PK_K, node.keys));
             break;
@@ -1036,4 +1046,475 @@ std::string Abbreviate(std::string str) {
 std::string Disassemble(const CScript& script) {
     auto it = script.begin();
     return Disassembler(it, script.end());
+}
+
+// ---------------------------------------------------------------------------
+// Native Taproot (Taptree-native) policy compilation.
+//
+// Port of rust-miniscript's Policy::compile_tr_native and its supporting
+// helpers (rust-bitcoin/rust-miniscript#906). See compiler.h for the public
+// entry point CompileTrNative().
+// ---------------------------------------------------------------------------
+namespace {
+
+using TrNode = nunchuk::miniscript::NodeRef<CompilerContext::Key>;
+using TrFragment = nunchuk::miniscript::Fragment;
+using nunchuk::Policy;
+
+// Maximum policy-tree nesting depth accepted by CompileTrNative. Bounds every
+// recursive walker below (PolicyId, EnumeratePolNative, HasIfFragment,
+// TapleafProbIter, TranslateUnsatisfiable, check_binary) so a deeply nested
+// policy string cannot overflow the stack.
+constexpr int MAX_TR_POLICY_DEPTH = 1024;
+
+// Returns false if the policy tree nests deeper than MAX_TR_POLICY_DEPTH. Itself
+// bounded: it stops descending once the cap is exceeded.
+bool PolicyWithinDepth(const Policy& node, int depth) {
+    if (depth > MAX_TR_POLICY_DEPTH) return false;
+    for (const auto& s : node.sub) {
+        if (!PolicyWithinDepth(s, depth + 1)) return false;
+    }
+    return true;
+}
+
+// Canonical identity string for a policy, used to deduplicate sub-policies
+// during leaf enumeration (mirrors structural equality in rust-miniscript).
+std::string PolicyId(const Policy& node) {
+    using Type = Policy::Type;
+    switch (node.node_type) {
+        case Type::UNSATISFIABLE: return "0";
+        case Type::PK_K: return "pk(" + node.keys[0] + ")";
+        case Type::AFTER: return "after(" + std::to_string(node.k) + ")";
+        case Type::OLDER: return "older(" + std::to_string(node.k) + ")";
+        case Type::HASH160: return "hash160(" + HexStr(node.data) + ")";
+        case Type::HASH256: return "hash256(" + HexStr(node.data) + ")";
+        case Type::RIPEMD160: return "ripemd160(" + HexStr(node.data) + ")";
+        case Type::SHA256: return "sha256(" + HexStr(node.data) + ")";
+        case Type::AND:
+            return "and(" + PolicyId(node.sub[0]) + "," + PolicyId(node.sub[1]) + ")";
+        case Type::OR:
+            return "or(" + std::to_string(node.prob[0]) + "@" + PolicyId(node.sub[0]) +
+                   "," + std::to_string(node.prob[1]) + "@" + PolicyId(node.sub[1]) + ")";
+        case Type::THRESH: {
+            std::string s = "thresh(" + std::to_string(node.k);
+            for (const auto& c : node.sub) s += "," + PolicyId(c);
+            return s + ")";
+        }
+        case Type::NONE: return "";
+    }
+    return "";
+}
+
+bool ThreshIsOr(const Policy& n) { return n.k == 1; }
+bool ThreshIsAnd(const Policy& n) { return n.k == n.sub.size(); }
+
+// thresh(k, x_1..x_n) := thresh(1, thresh(k, x_2..x_n), .., thresh(k, x_1..x_{n-1}))
+std::vector<std::pair<double, Policy>> GenerateCombination(const Policy& thresh, double prob) {
+    std::vector<std::pair<double, Policy>> ret;
+    double prob_over_n = prob / thresh.sub.size();
+    for (size_t i = 0; i < thresh.sub.size(); ++i) {
+        std::vector<Policy> subs;
+        for (size_t j = 0; j < thresh.sub.size(); ++j) {
+            if (j != i) subs.push_back(thresh.sub[j].Clone());
+        }
+        ret.emplace_back(prob_over_n, Policy(Policy::Type::THRESH, std::move(subs), thresh.k));
+    }
+    return ret;
+}
+
+// Like enumerate_pol but also distributes And over Or/Thresh children, so that
+// Or branches nested inside And are decomposed into separate IF-free leaves.
+std::vector<std::pair<double, Policy>> EnumeratePolNative(const Policy& node, double prob) {
+    using Type = Policy::Type;
+    std::vector<std::pair<double, Policy>> ret;
+    switch (node.node_type) {
+        case Type::OR: {
+            double total = (double)node.prob[0] + (double)node.prob[1];
+            ret.emplace_back(prob * (double)node.prob[0] / total, node.sub[0].Clone());
+            ret.emplace_back(prob * (double)node.prob[1] / total, node.sub[1].Clone());
+            return ret;
+        }
+        case Type::THRESH: {
+            if (ThreshIsOr(node)) {
+                double total = (double)node.sub.size();
+                for (const auto& s : node.sub) ret.emplace_back(prob / total, s.Clone());
+                return ret;
+            }
+            if (!ThreshIsAnd(node)) return GenerateCombination(node, prob);
+            ret.emplace_back(prob, node.Clone());
+            return ret;
+        }
+        case Type::AND: {
+            for (size_t i = 0; i < node.sub.size(); ++i) {
+                auto child = EnumeratePolNative(node.sub[i], 1.0);
+                if (child.size() > 1) {
+                    for (auto& [cprob, cpol] : child) {
+                        std::vector<Policy> new_subs;
+                        for (size_t j = 0; j < node.sub.size(); ++j) {
+                            if (j == i) new_subs.push_back(std::move(cpol));
+                            else new_subs.push_back(node.sub[j].Clone());
+                        }
+                        ret.emplace_back(prob * cprob, Policy(Type::AND, std::move(new_subs)));
+                    }
+                    return ret;
+                }
+            }
+            ret.emplace_back(prob, node.Clone());
+            return ret;
+        }
+        default:
+            ret.emplace_back(prob, node.Clone());
+            return ret;
+    }
+}
+
+using ExpandFn = std::vector<std::pair<double, Policy>> (*)(const Policy&, double);
+
+struct LeafEntry {
+    double prob;
+    std::string id;
+};
+struct LeafCmp {
+    bool operator()(const LeafEntry& a, const LeafEntry& b) const {
+        if (a.prob != b.prob) return a.prob > b.prob;  // Reverse(prob): higher prob first
+        return a.id < b.id;
+    }
+};
+
+// Fixed-point leaf enumeration parameterized by the expansion function and leaf
+// limit. Iteratively expands policies until no further splits are possible or
+// the number of leaves exceeds max_leaves. Direct port of enumerate_leaves.
+std::vector<std::pair<double, Policy>> EnumerateLeaves(const Policy& self, double prob,
+                                                       size_t max_leaves, ExpandFn expand) {
+    std::set<LeafEntry, LeafCmp> oset;
+    std::map<std::string, Policy> id2pol;
+    std::map<std::string, double> probmap;
+    std::map<std::string, size_t> finalized;  // id -> index in ret
+
+    std::string id0 = PolicyId(self);
+    oset.insert({prob, id0});
+    id2pol.emplace(id0, self.Clone());
+    probmap[id0] = prob;
+
+    size_t prev_len = 0;
+    size_t enum_len = oset.size();
+    std::vector<std::pair<double, Policy>> ret;
+
+    while (true) {
+        double cprob = 0;
+        std::string cid;
+        std::vector<std::pair<double, Policy>> replace;
+        bool no_more = false;
+        std::vector<std::pair<double, std::string>> to_del;
+
+        size_t idx = 0, n = oset.size();
+        for (auto it = oset.begin(); it != oset.end(); ++it, ++idx) {
+            auto rep = expand(id2pol.at(it->id), it->prob);
+            enum_len += rep.size() - 1;
+            if (prev_len < enum_len) {
+                cprob = it->prob;
+                cid = it->id;
+                replace = std::move(rep);
+                break;
+            } else if (idx == n - 1) {
+                no_more = true;
+            } else {
+                to_del.emplace_back(it->prob, it->id);
+            }
+        }
+
+        if (enum_len > max_leaves || no_more) {
+            for (const auto& e : oset) ret.emplace_back(e.prob, id2pol.at(e.id).Clone());
+            break;
+        }
+
+        oset.erase({cprob, cid});
+        probmap.erase(cid);
+        for (auto& [p, id] : to_del) {
+            oset.erase({p, id});
+            probmap.erase(id);
+            finalized[id] = ret.size();
+            ret.emplace_back(p, id2pol.at(id).Clone());
+        }
+        for (auto& [p, pol] : replace) {
+            std::string pid = PolicyId(pol);
+            auto pmIt = probmap.find(pid);
+            if (pmIt != probmap.end()) {
+                double prev = pmIt->second;
+                oset.erase({prev, pid});
+                oset.insert({prev + p, pid});
+                pmIt->second = prev + p;
+            } else {
+                auto fIt = finalized.find(pid);
+                if (fIt != finalized.end()) {
+                    // Already finalized as a terminal leaf; merge probability
+                    // instead of re-inserting (which would duplicate the leaf).
+                    ret[fIt->second].first += p;
+                } else {
+                    oset.insert({p, pid});
+                    probmap[pid] = p;
+                    id2pol.emplace(pid, std::move(pol));
+                }
+            }
+        }
+        prev_len = enum_len;
+    }
+    return ret;
+}
+
+// Whether a compiled Tapscript contains any OP_IF/NOTIF fragments. OrB (OP_BOOLOR)
+// is intentionally excluded: both branches are always evaluated, no branching.
+bool HasIfFragment(const TrNode& node) {
+    if (!node) return false;
+    switch (node->fragment) {
+        case TrFragment::WRAP_D:  // DupIf
+        case TrFragment::WRAP_J:  // NonZero
+        case TrFragment::ANDOR:
+        case TrFragment::OR_C:
+        case TrFragment::OR_D:
+        case TrFragment::OR_I:
+            return true;
+        default:
+            break;
+    }
+    for (const auto& s : node->subs) {
+        if (HasIfFragment(s)) return true;
+    }
+    return false;
+}
+
+struct HNode {
+    bool leaf = false;
+    std::string script;
+    std::shared_ptr<HNode> l, r;
+};
+
+void FlattenHuffman(const std::shared_ptr<HNode>& n, int depth,
+                    std::vector<std::string>& subs, std::vector<int>& depths) {
+    if (n->leaf) {
+        subs.push_back(n->script);
+        depths.push_back(depth);
+        return;
+    }
+    FlattenHuffman(n->l, depth + 1, subs, depths);
+    FlattenHuffman(n->r, depth + 1, subs, depths);
+}
+
+// Build a Huffman tree from (probability, leaf script) pairs and flatten it to
+// the (subscripts, depths) representation consumed by SubScriptsToString.
+void WithHuffmanTree(std::vector<std::pair<double, std::string>> leaves,
+                     std::vector<std::string>& subs, std::vector<int>& depths) {
+    struct Item {
+        double prob;
+        long seq;
+        std::shared_ptr<HNode> node;
+    };
+    struct Cmp {
+        bool operator()(const Item& a, const Item& b) const {
+            if (a.prob != b.prob) return a.prob > b.prob;  // min-heap on prob
+            return a.seq > b.seq;
+        }
+    };
+    std::priority_queue<Item, std::vector<Item>, Cmp> heap;
+    long seq = 0;
+    for (auto& [p, s] : leaves) {
+        auto node = std::make_shared<HNode>();
+        node->leaf = true;
+        node->script = s;
+        heap.push({p, seq++, node});
+    }
+    if (heap.empty()) return;
+    while (heap.size() > 1) {
+        Item a = heap.top();
+        heap.pop();
+        Item b = heap.top();
+        heap.pop();
+        auto parent = std::make_shared<HNode>();
+        parent->l = a.node;
+        parent->r = b.node;
+        heap.push({a.prob + b.prob, seq++, parent});
+    }
+    FlattenHuffman(heap.top().node, 0, subs, depths);
+}
+
+// Collects (probability, &policy) for every non-disjunction node reachable from
+// the root through Or / Thresh-as-or branches. Mirrors tapleaf_probability_iter
+// and is used to pick the internal key.
+void TapleafProbIter(const Policy& node, double prob,
+                     std::vector<std::pair<double, const Policy*>>& out) {
+    using Type = Policy::Type;
+    if (node.node_type == Type::OR) {
+        double total = (double)node.prob[0] + (double)node.prob[1];
+        TapleafProbIter(node.sub[0], prob * (double)node.prob[0] / total, out);
+        TapleafProbIter(node.sub[1], prob * (double)node.prob[1] / total, out);
+    } else if (node.node_type == Type::THRESH && ThreshIsOr(node)) {
+        double n = (double)node.sub.size();
+        for (const auto& s : node.sub) TapleafProbIter(s, prob / n, out);
+    } else {
+        out.emplace_back(prob, &node);
+    }
+}
+
+// Replaces every Key matching `key` with Unsatisfiable (translate_unsatisfiable_pk).
+Policy TranslateUnsatisfiable(const Policy& node, const std::string& key) {
+    using Type = Policy::Type;
+    if (node.node_type == Type::PK_K && !node.keys.empty() && node.keys[0] == key) {
+        return Policy(Type::UNSATISFIABLE);
+    }
+    switch (node.node_type) {
+        case Type::AND:
+        case Type::OR:
+        case Type::THRESH: {
+            std::vector<Policy> subs;
+            for (const auto& s : node.sub) subs.push_back(TranslateUnsatisfiable(s, key));
+            Policy out;
+            out.node_type = node.node_type;
+            out.k = node.k;
+            out.prob = node.prob;
+            out.sub = std::move(subs);
+            return out;
+        }
+        default:
+            return node.Clone();
+    }
+}
+
+// Extracts the internal key: the highest-probability bare key reachable through
+// top-level disjunctions (ties resolved to the last such key, matching Rust's
+// max_by_key). If found, that key is promoted to the key path and replaced by
+// Unsatisfiable in the script tree; otherwise the provided unspendable key is used.
+bool ExtractKey(const Policy& policy, const std::optional<std::string>& unspendable,
+                std::string& internal_key, Policy& out_policy) {
+    std::vector<std::pair<double, const Policy*>> leaves;
+    TapleafProbIter(policy, 1.0, leaves);
+    bool have = false;
+    double best = -1.0;
+    std::string bestkey;
+    for (auto& [p, polptr] : leaves) {
+        if (polptr->node_type == Policy::Type::PK_K && !polptr->keys.empty()) {
+            if (!have || p >= best) {
+                best = p;
+                bestkey = polptr->keys[0];
+                have = true;
+            }
+        }
+    }
+    if (have) {
+        internal_key = bestkey;
+        out_policy = TranslateUnsatisfiable(policy, bestkey);
+        return true;
+    }
+    if (unspendable) {
+        internal_key = *unspendable;
+        out_policy = policy.Clone();
+        return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+TrNativeResult CompileTrNative(const std::string& policy_str,
+                               const std::optional<std::string>& unspendable_key,
+                               size_t max_leaves) {
+    TrNativeResult res;
+    if (max_leaves == 0) {
+        res.error = TrNativeError::TOO_MANY_TAPLEAVES;
+        res.message = "max_leaves must be greater than 0";
+        return res;
+    }
+    if (max_leaves > 1024) max_leaves = 1024;
+
+    Policy policy = ParsePolicy(policy_str);
+    if (!policy()) {
+        res.error = TrNativeError::COMPILE_FAILED;
+        res.message = "invalid policy";
+        return res;
+    }
+
+    if (!PolicyWithinDepth(policy, 0)) {
+        res.error = TrNativeError::COMPILE_FAILED;
+        res.message = "policy nesting exceeds maximum depth";
+        return res;
+    }
+
+    std::function<bool(const Policy&)> check_binary = [&](const Policy& n) -> bool {
+        if ((n.node_type == Policy::Type::AND || n.node_type == Policy::Type::OR) &&
+            n.sub.size() != 2) {
+            return false;
+        }
+        for (const auto& s : n.sub) {
+            if (!check_binary(s)) return false;
+        }
+        return true;
+    };
+    if (!check_binary(policy)) {
+        res.error = TrNativeError::NON_BINARY;
+        res.message = "And/Or nodes must be binary";
+        return res;
+    }
+
+    std::string internal_key;
+    Policy reduced;
+    if (!ExtractKey(policy, unspendable_key, internal_key, reduced)) {
+        res.error = TrNativeError::NO_INTERNAL_KEY;
+        res.message = "policy has no internal key and no unspendable key was provided";
+        return res;
+    }
+
+    std::vector<std::pair<double, std::string>> leaf_compilations;
+    if (reduced.node_type != Policy::Type::UNSATISFIABLE) {
+        auto leaves = EnumerateLeaves(reduced, 1.0, max_leaves, &EnumeratePolNative);
+        if (leaves.size() > max_leaves) {
+            res.error = TrNativeError::TOO_MANY_TAPLEAVES;
+            res.message = "policy produced too many tapleaves (found " +
+                          std::to_string(leaves.size()) + ", maximum " +
+                          std::to_string(max_leaves) + ")";
+            return res;
+        }
+        size_t leaf_idx = 0;
+        for (auto& [prob, pol] : leaves) {
+            if (pol.node_type == Policy::Type::UNSATISFIABLE) {
+                ++leaf_idx;
+                continue;
+            }
+            TrNode node;
+            double avgcost;
+            if (!CompilePolicy(pol, node, avgcost)) {
+                res.error = TrNativeError::COMPILE_FAILED;
+                res.message = "leaf compilation failed";
+                return res;
+            }
+            if (HasIfFragment(node)) {
+                res.error = TrNativeError::IF_FRAGMENT_IN_NATIVE_LEAF;
+                res.message = "native Taproot compilation produced a leaf with OP_IF/NOTIF "
+                              "at leaf index " +
+                              std::to_string(leaf_idx) + "; try increasing max_leaves";
+                return res;
+            }
+            auto ms_opt = node->ToString<CompilerContext>(COMPILER_CTX);
+            if (!ms_opt) {
+                res.error = TrNativeError::COMPILE_FAILED;
+                res.message = "leaf serialization failed";
+                return res;
+            }
+            // Leaves are compiled in P2WSH context (MakeNode hardcodes
+            // MiniscriptContext::P2WSH) and only textually rewritten to multi_a().
+            // P2WSH multi()/CHECKMULTISIG caps at MAX_PUBKEYS_PER_MULTISIG (20)
+            // keys, so a leaf that would form a valid tapscript multi_a (up to 999
+            // keys) with more than 20 keys fails P2WSH compilation above and
+            // returns COMPILE_FAILED rather than producing the larger multi_a leaf.
+            std::string ms = Abbreviate(*ms_opt);
+            ms = std::regex_replace(ms, std::regex("multi\\("), "multi_a(");
+            leaf_compilations.emplace_back(prob, ms);
+            ++leaf_idx;
+        }
+    }
+
+    res.internal_key = internal_key;
+    if (!leaf_compilations.empty()) {
+        WithHuffmanTree(std::move(leaf_compilations), res.subscripts, res.depths);
+    }
+    res.ok = true;
+    return res;
 }
