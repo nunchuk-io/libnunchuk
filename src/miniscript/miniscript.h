@@ -521,6 +521,10 @@ struct Node {
         while (!subs.empty()) {
             auto node = std::move(subs.back());
             subs.pop_back();
+            // Only flatten children we uniquely own. The compiler memoizes and
+            // shares subnodes (use_count > 1); gutting a shared child's (mutable)
+            // subs here would corrupt the trees still referencing it.
+            if (node.use_count() != 1) continue;
             while (!node->subs.empty()) {
                 subs.push_back(std::move(node->subs.back()));
                 node->subs.pop_back();
