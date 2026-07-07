@@ -1256,11 +1256,11 @@ Transaction NunchukImpl::CreateTransaction(
 bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
                                     const std::string& tx_id,
                                     const std::string& file_path) {
-  std::string psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
-  if (psbt.empty()) {
+  auto [value, is_hex_tx] = storage_->GetPsbtOrRawTx(chain_, wallet_id, tx_id);
+  if (value.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
-  return storage_->WriteFile(file_path, psbt);
+  return storage_->WriteFile(file_path, value);
 }
 
 Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
@@ -3418,9 +3418,8 @@ Amount NunchukImpl::EstimateFeeForLiquidTransaction(
     const std::map<AssetId, std::map<std::string, Amount>>& outputs,
     Amount fee_rate, bool subtract_fee_from_amount) {
   if (fee_rate <= 0) fee_rate = EstimateFee();
-  return storage_->EstimateFeeForLiquidTransaction(chain_, wallet_id, outputs,
-                                                   fee_rate,
-                                                   subtract_fee_from_amount);
+  return storage_->EstimateFeeForLiquidTransaction(
+      chain_, wallet_id, outputs, fee_rate, subtract_fee_from_amount);
 }
 
 Transaction NunchukImpl::SignLiquidTransaction(const std::string& wallet_id,
