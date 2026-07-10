@@ -510,7 +510,7 @@ class NunchukImpl : public Nunchuk {
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus, int)> listener) override;
+      std::function<void(ConnectionStatus, int, bool)> listener) override;
   void AddStorageUpdateListener(std::function<void()> listener) override;
 
   std::string SignHealthCheckMessage(const SingleSigner& signer,

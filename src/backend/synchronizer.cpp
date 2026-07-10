@@ -104,7 +104,7 @@ void Synchronizer::AddTransactionListener(
 }
 
 void Synchronizer::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus, int)> listener) {
+    std::function<void(ConnectionStatus, int, bool)> listener) {
   connection_listener_.connect(MakeSafeSlot(listener));
 }
 

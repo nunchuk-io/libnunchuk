@@ -130,7 +130,7 @@ void ElectrumSynchronizer::Run() {
         }
       }
       if (notify_offline) {
-        connection_listener_(ConnectionStatus::OFFLINE, 0);
+        connection_listener_(ConnectionStatus::OFFLINE, 0, false);
       }
       return;
     }
@@ -375,11 +375,11 @@ std::map<std::string, std::string> ElectrumSynchronizer::SubscribeAddresses(
 }
 
 void ElectrumSynchronizer::BlockchainSync(Chain chain) {
-  connection_listener_(ConnectionStatus::OFFLINE, 0);
+  connection_listener_(ConnectionStatus::OFFLINE, 0, false);
   {
     std::unique_lock<std::mutex> lock_(status_mutex_);
     if (status_ != Status::READY && status_ != Status::SYNCING) return;
-    connection_listener_(ConnectionStatus::SYNCING, 0);
+    connection_listener_(ConnectionStatus::SYNCING, 0, false);
     if (client_) {
       auto header = client_->blockchain_headers_subscribe([&](json rs) {
         chain_tip_ = rs[0]["height"];
@@ -452,9 +452,9 @@ void ElectrumSynchronizer::BlockchainSync(Chain chain) {
     }
     NotifyBalancesUpdate(chain, wallet_id);
     connection_listener_(ConnectionStatus::SYNCING,
-                         ++process * 100 / wallet_ids.size());
+                         ++process * 100 / wallet_ids.size(), false);
   }
-  connection_listener_(ConnectionStatus::ONLINE, 100);
+  connection_listener_(ConnectionStatus::ONLINE, 100, false);
 }
 
 void ElectrumSynchronizer::Broadcast(const std::string& raw_tx) {

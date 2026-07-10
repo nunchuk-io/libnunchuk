@@ -61,7 +61,7 @@ class Synchronizer {
       std::function<void(std::string, TransactionStatus, std::string)>
           listener);
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus, int)> listener);
+      std::function<void(ConnectionStatus, int, bool)> listener);
   void NotifyTransactionUpdate(const std::string& wallet_id,
                                const std::string& tx_id,
                                TransactionStatus status);
@@ -112,7 +112,7 @@ class Synchronizer {
   boost::signals2::signal<void(int, std::string, bool)> block_listener_;
   boost::signals2::signal<void(std::string, TransactionStatus, std::string)>
       transaction_listener_;
-  boost::signals2::signal<void(ConnectionStatus, int)> connection_listener_;
+  boost::signals2::signal<void(ConnectionStatus, int, bool)> connection_listener_;
 };
 
 std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,

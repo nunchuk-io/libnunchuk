@@ -37,7 +37,7 @@ CoreRpcSynchronizer::~CoreRpcSynchronizer() {
 }
 
 void CoreRpcSynchronizer::Run() {
-  connection_listener_(ConnectionStatus::OFFLINE, 0);
+  connection_listener_(ConnectionStatus::OFFLINE, 0, false);
   client_ = std::unique_ptr<CoreRpcClient>(new CoreRpcClient(app_settings_));
   timer_.async_wait(boost::bind(&CoreRpcSynchronizer::BlockchainSync, this,
                                 placeholders::error));
@@ -105,7 +105,7 @@ int CoreRpcSynchronizer::BatchLookAhead(
 
 void CoreRpcSynchronizer::RescanBlockchain(int start_height, int stop_height) {
   if (stopped) return;
-  connection_listener_(ConnectionStatus::SYNCING, 0);
+  connection_listener_(ConnectionStatus::SYNCING, 0, false);
   client_->RescanBlockchain(start_height, stop_height);
 }
 
@@ -117,13 +117,13 @@ bool CoreRpcSynchronizer::IsRpcReady() {
       return true;
     } else {
       int progress = info["scanning"]["progress"].get<double>() * 100;
-      connection_listener_(ConnectionStatus::SYNCING, progress);
+      connection_listener_(ConnectionStatus::SYNCING, progress, false);
       return false;
     }
   } catch (RPCException& re) {
     if (re.code() != RPCException::RPC_WALLET_NOT_FOUND) {
       if (re.code() == RPCException::RPC_REQUEST_ERROR) {
-        connection_listener_(ConnectionStatus::OFFLINE, 0);
+        connection_listener_(ConnectionStatus::OFFLINE, 0, false);
       }
       throw;
     }
@@ -246,10 +246,10 @@ void CoreRpcSynchronizer::BlockchainSync(
 
   if (stopped) return;
   if (!descriptors.empty()) {
-    connection_listener_(ConnectionStatus::SYNCING, 0);
+    connection_listener_(ConnectionStatus::SYNCING, 0, false);
     client_->ImportDescriptors(descriptors.dump());
   } else {
-    connection_listener_(ConnectionStatus::ONLINE, 100);
+    connection_listener_(ConnectionStatus::ONLINE, 100, false);
   }
 }
 

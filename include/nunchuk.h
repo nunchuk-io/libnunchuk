@@ -2094,7 +2094,9 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(std::string /* fingerprint */, bool /* connected */)>
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus, int /* percent */)> listener) = 0;
+      std::function<void(ConnectionStatus, int /* percent */,
+                         bool /* liquid */)>
+          listener) = 0;
   virtual void AddStorageUpdateListener(std::function<void()> listener) = 0;
 
   // The following methods use HWI to interact with the devices. They might take

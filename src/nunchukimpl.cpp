@@ -2420,7 +2420,7 @@ void NunchukImpl::AddDeviceListener(
 }
 
 void NunchukImpl::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus, int)> listener) {
+    std::function<void(ConnectionStatus, int, bool)> listener) {
   synchronizer_->AddBlockchainConnectionListener(listener);
 }
 
