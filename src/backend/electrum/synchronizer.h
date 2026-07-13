@@ -27,7 +27,8 @@ namespace nunchuk {
 
 class ElectrumSynchronizer : public Synchronizer {
  public:
-  using Synchronizer::Synchronizer;
+  ElectrumSynchronizer(const AppSettings& appsettings,
+                       const std::string& account, bool liquid);
   ElectrumSynchronizer(const ElectrumSynchronizer&) = delete;
   ElectrumSynchronizer& operator=(const ElectrumSynchronizer&) = delete;
   ~ElectrumSynchronizer();
@@ -35,7 +36,7 @@ class ElectrumSynchronizer : public Synchronizer {
   void Broadcast(const std::string& raw_tx) override;
   void BroadcastLiquidTransaction(const std::string& raw_tx) override;
   Amount EstimateFee(int conf_target) override;
-  time_t GetMedianTimePast(bool liquid) override;
+  time_t GetMedianTimePast() override;
   Amount RelayFee() override;
   bool LookAhead(Chain chain, const std::string& wallet_id,
                  const std::string& address, int index, bool internal) override;
@@ -81,10 +82,12 @@ class ElectrumSynchronizer : public Synchronizer {
       const std::string& wallet_id, const std::vector<std::string>& addresses);
   void BlockchainSync(Chain chain);
   void WaitForReady();
-  ElectrumClient* GetClient(Chain chain, const std::string& wallet_id);
+  void EnsureReady() const;
+  void EnsureBitcoin() const;
+  void EnsureLiquid() const;
+  bool MatchesWalletNetwork(Chain chain, const std::string& wallet_id) const;
 
   std::unique_ptr<ElectrumClient> client_;
-  std::unique_ptr<ElectrumClient> liquid_client_;
 
   Status status_ = Status::UNINITIALIZED;
   std::mutex status_mutex_;

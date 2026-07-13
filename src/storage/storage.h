@@ -84,7 +84,8 @@ class NunchukStorage {
                                        const SingleSigner &signer);
 
   std::vector<std::string> ListWallets(Chain chain);
-  std::vector<std::string> ListRecentlyUsedWallets(Chain chain);
+  // When liquid is true, returns Liquid wallets only; otherwise Bitcoin wallets.
+  std::vector<std::string> ListRecentlyUsedWallets(Chain chain, bool liquid);
   std::vector<std::string> ListMasterSigners(Chain chain);
 
   Wallet GetWallet(Chain chain, const std::string &id,

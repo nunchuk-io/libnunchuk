@@ -49,7 +49,7 @@ class Synchronizer {
   virtual ~Synchronizer();
 
   bool NeedRecreate(const AppSettings& appsettings);
-  int GetChainTip(bool liquid = false);
+  int GetChainTip();
   std::string NewAddress(Chain chain, const std::string& wallet_id,
                          bool internal);
 
@@ -72,7 +72,7 @@ class Synchronizer {
     Broadcast(raw_tx);
   }
   virtual Amount EstimateFee(int conf_target) = 0;
-  virtual time_t GetMedianTimePast(bool liquid = false) = 0;
+  virtual time_t GetMedianTimePast() = 0;
   virtual Amount RelayFee() = 0;
   virtual bool LookAhead(Chain chain, const std::string& wallet_id,
                          const std::string& address, int index,
@@ -102,8 +102,9 @@ class Synchronizer {
       sync_worker_;
 
   // Cache
-  std::atomic<int> chain_tip_;
-  std::atomic<int> liquid_chain_tip_;
+  std::atomic<int> chain_tip_{0};
+  // When true, this synchronizer is Liquid-only (Electrum). Bitcoin otherwise.
+  bool liquid_ = false;
 
   // Listener
   boost::signals2::signal<void(std::string, Amount, Amount,
@@ -117,6 +118,9 @@ class Synchronizer {
 
 std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,
                                                const std::string& account);
+// Always Electrum (CoreRPC has no Liquid support).
+std::unique_ptr<Synchronizer> MakeLiquidSynchronizer(
+    const AppSettings& appsettings, const std::string& account);
 
 }  // namespace nunchuk
 

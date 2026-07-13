@@ -818,6 +818,8 @@ class NunchukImpl : public Nunchuk {
   std::shared_ptr<NunchukStorage> storage_;
   std::unique_ptr<tap_protocol::HWITapsigner> hwi_tapsigner_;
   std::unique_ptr<Synchronizer> synchronizer_;
+  std::unique_ptr<Synchronizer> liquid_synchronizer_;
+  Synchronizer* SyncForLiquid(bool liquid) const;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
   boost::signals2::signal<void()> storage_listener_;
   std::vector<std::future<void>> scan_wallet_;

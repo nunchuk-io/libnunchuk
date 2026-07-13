@@ -31,8 +31,14 @@ std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,
         new CoreRpcSynchronizer(appsettings, account));
   } else {
     return std::unique_ptr<ElectrumSynchronizer>(
-        new ElectrumSynchronizer(appsettings, account));
+        new ElectrumSynchronizer(appsettings, account, false));
   }
+}
+
+std::unique_ptr<Synchronizer> MakeLiquidSynchronizer(
+    const AppSettings& appsettings, const std::string& account) {
+  return std::unique_ptr<ElectrumSynchronizer>(
+      new ElectrumSynchronizer(appsettings, account, true));
 }
 
 Synchronizer::Synchronizer(const AppSettings& appsettings,
@@ -55,8 +61,12 @@ Synchronizer::Synchronizer(const AppSettings& appsettings,
 Synchronizer::~Synchronizer() {}
 
 bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
-  if (app_settings_.get_backend_type() != new_settings.get_backend_type() ||
-      app_settings_.get_chain() != new_settings.get_chain())
+  if (app_settings_.get_chain() != new_settings.get_chain())
+    throw NunchukException(NunchukException::APP_RESTART_REQUIRED,
+                           "App restart required");
+  // Liquid sync is always Electrum; backend_type switches only apply to Bitcoin.
+  if (!liquid_ &&
+      app_settings_.get_backend_type() != new_settings.get_backend_type())
     throw NunchukException(NunchukException::APP_RESTART_REQUIRED,
                            "App restart required");
 
@@ -69,7 +79,10 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
        app_settings_.get_proxy_password() != new_settings.get_proxy_password()))
     return true;
 
-  if (new_settings.get_backend_type() == BackendType::CORERPC) {
+  if (liquid_) {
+    if (app_settings_.get_liquid_servers() != new_settings.get_liquid_servers())
+      return true;
+  } else if (new_settings.get_backend_type() == BackendType::CORERPC) {
     if (app_settings_.get_corerpc_host() != new_settings.get_corerpc_host() ||
         app_settings_.get_corerpc_port() != new_settings.get_corerpc_port() ||
         app_settings_.get_corerpc_username() !=
@@ -79,8 +92,7 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
       return true;
   } else {
     if (app_settings_.get_electrum_servers() !=
-            new_settings.get_electrum_servers() ||
-        app_settings_.get_liquid_servers() != new_settings.get_liquid_servers())
+        new_settings.get_electrum_servers())
       return true;
   }
   return false;
@@ -121,9 +133,9 @@ void Synchronizer::NotifyBalancesUpdate(Chain chain,
                      balances.asset_balances);
 }
 
-int Synchronizer::GetChainTip(bool liquid) {
-  int rs = liquid ? liquid_chain_tip_ : chain_tip_;
-  if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain(), liquid);
+int Synchronizer::GetChainTip() {
+  int rs = chain_tip_;
+  if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain(), liquid_);
   return rs;
 }
 

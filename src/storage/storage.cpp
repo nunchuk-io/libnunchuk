@@ -961,7 +961,8 @@ std::vector<std::string> NunchukStorage::ListWallets(Chain chain) {
   return ListWallets0(chain);
 }
 
-std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
+std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain,
+                                                                 bool liquid) {
   std::shared_lock<std::shared_mutex> lock(access_);
   auto ids = ListWallets0(chain);
 
@@ -969,6 +970,7 @@ std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain) {
   for (auto&& id : ids) {
     try {
       auto wallet_db = GetWalletDb(chain, id);
+      if (wallet_db.IsSupportLiquid() != liquid) continue;
       auto wallet = wallet_db.GetWallet(true, true);
       if (!wallet.is_archived()) {
         last_used_map.insert({id, wallet.get_last_used()});
