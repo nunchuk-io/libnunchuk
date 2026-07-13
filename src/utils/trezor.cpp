@@ -103,7 +103,7 @@ std::string TrezorGetPublicKey(WalletType wallet_type, AddressType address_type,
   std::replace(path.begin(), path.end(), 'h', '\'');
   json params = {
       {"path", path},
-      {"coin", "btc"},
+      {"coin", Utils::GetChain() == Chain::MAIN ? "btc" : "test"},
   };
   auto params_encoded = httplib::detail::encode_query_param(params.dump());
   auto callback = httplib::detail::encode_query_param(
@@ -144,7 +144,7 @@ static std::pair<std::string, json> TrezorSignParams(
   const CMutableTransaction &mtx = *psbt.tx;
 
   json out = {
-      {"coin", "btc"},
+      {"coin", Utils::GetChain() == Chain::MAIN ? "btc" : "test"},
       {"version", mtx.version},
       {"lock_time", mtx.nLockTime},
       {"serialize", false},
@@ -443,7 +443,7 @@ std::string TrezorSignMessage(const SingleSigner &signer,
   formalized_path += "/0/0";
   json params = {
       {"path", formalized_path},
-      {"coin", "btc"},
+      {"coin", Utils::GetChain() == Chain::MAIN ? "btc" : "test"},
       {"message", message},
   };
   auto params_encoded = httplib::detail::encode_query_param(params.dump());
@@ -469,7 +469,7 @@ std::pair<std::string, std::string> TrezorParseSignMessage(
 }
 
 static json get_multisig_pubkeys(const Wallet &wallet,
-                                  const std::string &address_path) {
+                                 const std::string &address_path) {
   std::vector<uint32_t> address_path_n;
   if (!ParseHDKeypath(address_path, address_path_n)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
@@ -493,8 +493,7 @@ static json get_multisig_pubkeys(const Wallet &wallet,
         {"public_key", HexStr(xpub.pubkey)},
     };
   };
-  auto derive_pubkey = [&](CExtPubKey xpub,
-                           const std::vector<uint32_t> &path) {
+  auto derive_pubkey = [&](CExtPubKey xpub, const std::vector<uint32_t> &path) {
     for (auto &&child_num : path) {
       if (!xpub.Derive(xpub, child_num)) {
         throw NunchukException(NunchukException::INVALID_BIP32_PATH,
@@ -517,8 +516,8 @@ static json get_multisig_pubkeys(const Wallet &wallet,
       throw NunchukException(NunchukException::INVALID_PARAMETER,
                              "Invalid derivation path");
     }
-    return std::vector<uint32_t>(
-        address_path_n.begin() + signer_path_n.size(), address_path_n.end());
+    return std::vector<uint32_t>(address_path_n.begin() + signer_path_n.size(),
+                                 address_path_n.end());
   };
 
   auto get_derived_pubkey = [&](const SingleSigner &signer) {
@@ -570,7 +569,7 @@ std::string TrezorGetAddress(const Wallet &wallet, const std::string &address,
   json params = {
       {"address", address},
       {"path", formalized_path},
-      {"coin", "btc"},
+      {"coin", Utils::GetChain() == Chain::MAIN ? "btc" : "test"},
       {"scriptType",
        get_script_type(wallet.get_address_type(), wallet.get_wallet_type())},
   };
