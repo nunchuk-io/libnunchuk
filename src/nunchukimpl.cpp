@@ -1075,17 +1075,13 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
 
   if (auto pubkey = DecodeExtPubKey(signer.get_xpub());
       pubkey.Derive(pubkey, 0) && pubkey.Derive(pubkey, 0)) {
-    for (auto address_type :
-         {AddressType::NATIVE_SEGWIT, AddressType::NESTED_SEGWIT,
-          AddressType::TAPROOT}) {
-      auto derived_signer = SingleSigner(
-          signer.get_name(), EncodeExtPubKey(pubkey), signer.get_public_key(),
-          signer.get_derivation_path() + "/0/0",
-          signer.get_external_internal_index(), signer.get_master_fingerprint(),
-          signer.get_last_health_check());
-      auto descriptor = GetDescriptor(derived_signer, address_type);
-      addresses.push_back(CoreUtils::getInstance().DeriveAddress(descriptor));
-    }
+    auto derived_signer = SingleSigner(
+        signer.get_name(), EncodeExtPubKey(pubkey), signer.get_public_key(),
+        signer.get_derivation_path() + "/0/0",
+        signer.get_external_internal_index(), signer.get_master_fingerprint(),
+        signer.get_last_health_check());
+    auto descriptor = GetDescriptor(derived_signer, AddressType::LEGACY);
+    addresses.push_back(CoreUtils::getInstance().DeriveAddress(descriptor));
   }
 
   for (auto&& address : addresses) {
