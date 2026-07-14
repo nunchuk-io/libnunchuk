@@ -38,6 +38,8 @@
 #include <base58.h>
 #include <util/strencodings.h>
 #include <util/bip32.h>
+#include <liquid/wallysigner.hpp>
+#include <liquid/wallyutils.hpp>
 
 using json = nlohmann::json;
 namespace ba = boost::algorithm;
@@ -56,6 +58,34 @@ std::map<std::string, std::map<std::pair<int, int>, bool>>
     NunchukWalletDb::collection_auto_add_;
 std::map<std::string, std::map<std::string, Transaction>>
     NunchukWalletDb::txs_cache_;
+
+void NunchukWalletDb::SetWallySigner(
+    std::shared_ptr<wally::WallySigner> signer) {
+  wally_signer_ = std::move(signer);
+  if (!wally_signer_ || !IsSupportLiquid()) return;
+  // The new signer instance starts with an empty script-pubkey cache. Re-derive
+  // the wallet's external/internal addresses up to the current index plus the
+  // gap limit so it can recognize wallet outputs immediately. We skip the
+  // signing-provider path (skip_provider=true) to avoid recursing back into
+  // GetAllAddressData which can short-circuit on the static cache.
+  try {
+    auto wallet = GetWallet(/*skip_balance=*/true, /*skip_provider=*/true);
+    if (wallet.get_wallet_type() != WalletType::LIQUID) return;
+    const std::string path = wallet.get_signers()[0].get_derivation_path();
+    const int gap = wallet.get_gap_limit();
+    int internal_end = GetCurrentAddressIndex(true) + gap;
+    int external_end = GetCurrentAddressIndex(false) + gap;
+    if (internal_end > 0) {
+      wally_signer_->CacheAddresses(path, 0, internal_end, /*is_change=*/true);
+    }
+    if (external_end > 0) {
+      wally_signer_->CacheAddresses(path, 0, external_end, /*is_change=*/false);
+    }
+  } catch (...) {
+    // Best-effort: callers that need addresses will trigger GetAllAddressData
+    // which can still populate the cache lazily.
+  }
+}
 
 void NunchukWalletDb::InitWallet(const Wallet& wallet) {
   CreateTable();
@@ -229,18 +259,21 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   wallet.set_need_backup(GetInt(DbKeys::NEED_BACKUP) == 1);
   wallet.set_archived(GetInt(DbKeys::ARCHIVED) == 1);
   wallet.set_wallet_template(wallet_template);
-  if (!skip_provider) {
+  if (!skip_provider && wallet.get_wallet_type() == WalletType::LIQUID) {
+    GetAllAddressData(true);
+  } else if (!skip_provider) {
     GetAllAddressData(false);  // update range to max address index
     auto desc = GetDescriptorsImportString(wallet);
     SigningProviderCache::getInstance().PreCalculate(desc);
     // workaround for GetTransactionFromPartiallySignedTransaction bug
     auto txs = GetTransactions();
     for (auto&& tx : txs) {
-      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+      for (auto&& output : tx.get_outputs()) UseAddress(output.address);
     }
     try {
       sqlite3_stmt* stmt;
-      std::string sql = "SELECT ADDR FROM ADDRESS WHERE USED = 1;";
+      std::string sql = std::string("SELECT ADDR FROM ") + AddressTable() +
+                        " WHERE USED = 1;";
       sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
       sqlite3_step(stmt);
       while (sqlite3_column_text(stmt, 0)) {
@@ -255,6 +288,10 @@ Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   if (!skip_balance) {
     wallet.set_balance(GetBalance(false));
     wallet.set_unconfirmed_balance(GetBalance(true));
+    auto asset_balances = GetAssetBalances();
+    for (auto&& asset_balance : asset_balances) {
+      wallet.set_asset_balance(asset_balance.first, asset_balance.second);
+    }
   }
   if (!txs_cache_.count(db_file_name_)) txs_cache_[db_file_name_] = {};
   return wallet;
@@ -298,13 +335,19 @@ std::vector<SingleSigner> NunchukWalletDb::GetSigners() const {
   return signers;
 }
 
+const char* NunchukWalletDb::TxTable() const { return "VTX"; }
+
+const char* NunchukWalletDb::AddressTable() const { return "ADDRESS"; }
+
 void NunchukWalletDb::SetAddress(const std::string& address, int index,
                                  bool internal, const std::string& utxos) {
+  if (address.empty()) return;
   sqlite3_stmt* stmt;
-  std::string sql =
-      "INSERT INTO ADDRESS(ADDR, IDX, INTERNAL, USED, UTXO)"
-      "VALUES (?1, ?2, ?3, ?4, ?5)"
-      "ON CONFLICT(ADDR) DO UPDATE SET USED=excluded.USED, UTXO=excluded.UTXO;";
+  std::string sql = std::string("INSERT INTO ") + AddressTable() +
+                    "(ADDR, IDX, INTERNAL, USED, UTXO)"
+                    "VALUES (?1, ?2, ?3, ?4, ?5)"
+                    "ON CONFLICT(ADDR) DO UPDATE SET USED=excluded.USED, "
+                    "UTXO=excluded.UTXO;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
   sqlite3_bind_int(stmt, 2, index);
@@ -317,6 +360,7 @@ void NunchukWalletDb::SetAddress(const std::string& address, int index,
 
 bool NunchukWalletDb::AddAddress(const std::string& address, int index,
                                  bool internal) {
+  if (address.empty()) return false;
   auto all = GetAllAddressData();
   if (all.count(address) && all[address].used) return true;
   SetAddress(address, index, internal);
@@ -383,6 +427,30 @@ std::string NunchukWalletDb::GetAddressPath(const std::string& address) {
   return path.str();
 }
 
+std::string NunchukWalletDb::GetAddressPath(const std::string& address,
+                                            const SingleSigner& signer) {
+  auto all = GetAllAddressData();
+  if (!all.count(address)) {
+    throw StorageException(StorageException::ADDRESS_NOT_FOUND,
+                           "Address not found!");
+  }
+
+  const auto signer_key = GetSingleSignerKey(signer);
+  for (auto&& wallet_signer : GetSigners()) {
+    if (GetSingleSignerKey(wallet_signer) != signer_key) continue;
+
+    const auto data = all.at(address);
+    auto eii = wallet_signer.get_external_internal_index();
+    std::stringstream path;
+    path << "m" << FormalizePath(wallet_signer.get_derivation_path()) << "/"
+         << (data.internal ? eii.second : eii.first) << "/" << data.index;
+    return path.str();
+  }
+
+  throw StorageException(StorageException::SIGNER_NOT_FOUND,
+                         "Signer not found!");
+}
+
 bool NunchukWalletDb::IsMyChange(const std::string& address) {
   auto all = GetAllAddressData();
   return all.count(address) && all.at(address).internal;
@@ -399,6 +467,26 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData(
     auto addr = CoreUtils::getInstance().DeriveAddress(
         wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL));
     addresses[addr] = {addr, 0, false, false};
+  } else if (wallet.get_wallet_type() == WalletType::LIQUID) {
+    if (!wally_signer_) {
+      throw NunchukException(
+          NunchukException::INVALID_PARAMETER,
+          "Liquid wallet signer is not available (unlock signer passphrase "
+          "before opening the wallet)");
+    }
+    std::string path = wallet.get_signers()[0].get_derivation_path();
+    int index = GetCurrentAddressIndex(true) + wallet.get_gap_limit();
+    auto internal_addr = wally_signer_->CacheAddresses(path, 0, index, true);
+    for (auto&& addr : internal_addr) {
+      addresses[addr.address] = {addr.address, int(addr.index), true, false};
+    }
+    SigningProviderCache::getInstance().SetMaxIndex(id_, index);
+    index = GetCurrentAddressIndex(false) + wallet.get_gap_limit();
+    auto external_addr = wally_signer_->CacheAddresses(path, 0, index, false);
+    for (auto&& addr : external_addr) {
+      addresses[addr.address] = {addr.address, int(addr.index), false, false};
+    }
+    SigningProviderCache::getInstance().SetMaxIndex(id_, index);
   } else {
     int index = 0;
     auto internal_addr = CoreUtils::getInstance().DeriveAddresses(
@@ -421,11 +509,12 @@ std::map<std::string, AddressData> NunchukWalletDb::GetAllAddressData(
   if (check_used) {
     auto txs = GetTransactions();
     for (auto&& tx : txs) {
-      for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+      for (auto&& output : tx.get_outputs()) UseAddress(output.address);
     }
     try {
       sqlite3_stmt* stmt;
-      std::string sql = "SELECT ADDR FROM ADDRESS WHERE USED = 1;";
+      std::string sql = std::string("SELECT ADDR FROM ") + AddressTable() +
+                        " WHERE USED = 1;";
       sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
       sqlite3_step(stmt);
       while (sqlite3_column_text(stmt, 0)) {
@@ -500,6 +589,9 @@ std::pair<int, bool> NunchukWalletDb::GetAddressIndex(
 }
 
 Amount NunchukWalletDb::GetAddressBalance(const std::string& address) {
+  if (IsSupportLiquid()) {
+    return 0;
+  }
   auto coins = GetCoins();
   Amount balance = 0;
   for (auto&& coin : coins) {
@@ -511,6 +603,38 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) {
     balance += coin.get_amount();
   }
   return balance;
+}
+
+std::map<AssetId, Amount> NunchukWalletDb::GetAddressAssets(
+    const std::string& address) {
+  if (!IsSupportLiquid()) {
+    return {};
+  }
+
+  std::vector<std::string> txs = GetVtxValues();
+  std::vector<wally::LiquidUtxos> utxos{};
+  for (auto&& tx : txs) {
+    utxos.push_back(wally_signer_->GetUtxosFromTx(tx, address));
+  }
+
+  std::set<std::pair<std::vector<unsigned char>, uint32_t>> spent_utxos;
+  for (auto&& utxo : utxos) {
+    for (size_t i = 0; i < utxo.vins_tx_id.size(); i++) {
+      spent_utxos.insert({utxo.vins_tx_id[i], utxo.vins_vout[i]});
+    }
+  }
+
+  std::map<AssetId, Amount> asset_balances{};
+  for (auto&& utxo : utxos) {
+    for (size_t i = 0; i < utxo.values_in.size(); i++) {
+      if (spent_utxos.count({utxo.tx_id, utxo.vouts_in[i]})) continue;
+      AssetId asset_id(utxo.asset_ids_in.begin() + i * 32,
+                       utxo.asset_ids_in.begin() + i * 32 + 32);
+      Amount amount(utxo.values_in[i]);
+      asset_balances[asset_id] += amount;
+    }
+  }
+  return asset_balances;
 }
 
 bool NunchukWalletDb::MarkAddressAsUsed(const std::string& address) {
@@ -526,8 +650,8 @@ bool NunchukWalletDb::MarkAddressAsUsed(const std::string& address) {
 std::string NunchukWalletDb::GetAddressStatus(
     const std::string& address) const {
   sqlite3_stmt* stmt;
-  std::string sql =
-      "SELECT UTXO FROM ADDRESS WHERE ADDR = ? AND UTXO IS NOT NULL;";
+  std::string sql = std::string("SELECT UTXO FROM ") + AddressTable() +
+                    " WHERE ADDR = ? AND UTXO IS NOT NULL;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, address.c_str(), address.size(), NULL);
   std::string status = "";
@@ -550,8 +674,8 @@ std::vector<std::string> NunchukWalletDb::GetAllAddresses() {
 
 int NunchukWalletDb::GetCurrentAddressIndex(bool internal) const {
   sqlite3_stmt* stmt;
-  std::string sql =
-      "SELECT MAX(IDX) FROM ADDRESS WHERE INTERNAL = ? GROUP BY INTERNAL";
+  std::string sql = std::string("SELECT MAX(IDX) FROM ") + AddressTable() +
+                    " WHERE INTERNAL = ? GROUP BY INTERNAL";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_int(stmt, 1, internal ? 1 : 0);
   int current_index = -1;
@@ -569,13 +693,14 @@ Transaction NunchukWalletDb::InsertTransaction(const std::string& raw_tx,
                                                int change_pos) {
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO VTX(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, "
-      "EXTRA)"
+      std::string("INSERT INTO ") + TxTable() +
+      "(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, EXTRA)"
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '')"
       "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE, "
       "HEIGHT=excluded.HEIGHT;";
-  CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
-  std::string tx_id = mtx.GetHash().GetHex();
+  std::string tx_id = IsSupportLiquid()
+                          ? wally::WallyUtils::GetTxid(raw_tx)
+                          : DecodeRawTransaction(raw_tx).GetHash().GetHex();
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_bind_text(stmt, 2, raw_tx.c_str(), raw_tx.size(), NULL);
@@ -597,7 +722,8 @@ void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
                                     const std::string& new_txid) {
   // Get replaced tx extra
   sqlite3_stmt* select_stmt;
-  std::string select_sql = "SELECT EXTRA FROM VTX WHERE ID = ?;";
+  std::string select_sql =
+      std::string("SELECT EXTRA FROM ") + TxTable() + " WHERE ID = ?;";
   sqlite3_prepare_v2(db_, select_sql.c_str(), -1, &select_stmt, NULL);
   sqlite3_bind_text(select_stmt, 1, old_txid.c_str(), old_txid.size(), NULL);
   sqlite3_step(select_stmt);
@@ -609,7 +735,8 @@ void NunchukWalletDb::SetReplacedBy(const std::string& old_txid,
     extra = extra_json.dump();
 
     sqlite3_stmt* update_stmt;
-    std::string update_sql = "UPDATE VTX SET EXTRA = ?1 WHERE ID = ?2;";
+    std::string update_sql =
+        std::string("UPDATE ") + TxTable() + " SET EXTRA = ?1 WHERE ID = ?2;";
     sqlite3_prepare_v2(db_, update_sql.c_str(), -1, &update_stmt, NULL);
     sqlite3_bind_text(update_stmt, 1, extra.c_str(), extra.size(), NULL);
     sqlite3_bind_text(update_stmt, 2, old_txid.c_str(), old_txid.size(), NULL);
@@ -625,11 +752,12 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
                                         const std::string& reject_msg) {
   auto wallet = GetWallet(true, true);
   if (height == -1) {
-    auto [tx, is_hex_tx] = GetTransactionFromStr(raw_tx, wallet, -1);
+    auto tx = GetTransactionFromVtxValue(raw_tx, wallet, -1);
     std::string tx_id = tx.get_txid();
 
     sqlite3_stmt* stmt;
-    std::string sql = "SELECT EXTRA FROM VTX WHERE ID = ? AND HEIGHT = -1;";
+    std::string sql = std::string("SELECT EXTRA FROM ") + TxTable() +
+                      " WHERE ID = ? AND HEIGHT = -1;";
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
     sqlite3_step(stmt);
@@ -647,9 +775,10 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
       throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
     }
 
-    sql = extra.empty()
-              ? "UPDATE VTX SET VALUE = ?1 WHERE ID = ?2;"
-              : "UPDATE VTX SET VALUE = ?1, EXTRA = ?3 WHERE ID = ?2;";
+    sql = extra.empty() ? (std::string("UPDATE ") + TxTable() +
+                           " SET VALUE = ?1 WHERE ID = ?2;")
+                        : (std::string("UPDATE ") + TxTable() +
+                           " SET VALUE = ?1, EXTRA = ?3 WHERE ID = ?2;");
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, raw_tx.c_str(), raw_tx.size(), NULL);
     sqlite3_bind_text(stmt, 2, tx_id.c_str(), tx_id.size(), NULL);
@@ -665,22 +794,23 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
     return updated;
   }
 
-  CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
-  std::string tx_id = mtx.GetHash().GetHex();
+  std::string tx_id = IsSupportLiquid()
+                          ? wally::WallyUtils::GetTxid(raw_tx)
+                          : DecodeRawTransaction(raw_tx).GetHash().GetHex();
 
   std::string extra = "";
   if (height <= 0) {
     // Persist signers to extra if the psbt existed
     sqlite3_stmt* stmt;
-    std::string sql =
-        "SELECT VALUE, EXTRA FROM VTX WHERE ID = ? AND HEIGHT = -1;";
+    std::string sql = std::string("SELECT VALUE, EXTRA FROM ") + TxTable() +
+                      " WHERE ID = ? AND HEIGHT = -1;";
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
     sqlite3_step(stmt);
     if (sqlite3_column_text(stmt, 1)) {
       std::string value = std::string((char*)sqlite3_column_text(stmt, 0));
       extra = std::string((char*)sqlite3_column_text(stmt, 1));
-      auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, -1);
+      auto tx = GetTransactionFromVtxValue(value, wallet, -1);
 
       json extra_json = extra.empty() ? json{} : json::parse(extra);
       extra_json["signers"] = tx.get_signers();
@@ -697,10 +827,12 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
 
   sqlite3_stmt* stmt;
   std::string sql =
-      extra.empty() ? "UPDATE VTX SET VALUE = ?1, HEIGHT = ?2, BLOCKTIME = ?3 "
-                      "WHERE ID = ?4;"
-                    : "UPDATE VTX SET VALUE = ?1, HEIGHT = ?2, BLOCKTIME = ?3, "
-                      "EXTRA = ?5 WHERE ID = ?4;";
+      extra.empty()
+          ? (std::string("UPDATE ") + TxTable() +
+             " SET VALUE = ?1, HEIGHT = ?2, BLOCKTIME = ?3 WHERE ID = ?4;")
+          : (std::string("UPDATE ") + TxTable() +
+             " SET VALUE = ?1, HEIGHT = ?2, BLOCKTIME = ?3, EXTRA = ?5 WHERE "
+             "ID = ?4;");
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, raw_tx.c_str(), raw_tx.size(), NULL);
   sqlite3_bind_int64(stmt, 2, height);
@@ -720,7 +852,8 @@ bool NunchukWalletDb::UpdateTransaction(const std::string& raw_tx, int height,
 bool NunchukWalletDb::UpdateTransactionSchedule(const std::string& tx_id,
                                                 time_t value) {
   sqlite3_stmt* select_stmt;
-  std::string select_sql = "SELECT EXTRA FROM VTX WHERE ID = ?;";
+  std::string select_sql =
+      std::string("SELECT EXTRA FROM ") + TxTable() + " WHERE ID = ?;";
   sqlite3_prepare_v2(db_, select_sql.c_str(), -1, &select_stmt, NULL);
   sqlite3_bind_text(select_stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(select_stmt);
@@ -732,7 +865,8 @@ bool NunchukWalletDb::UpdateTransactionSchedule(const std::string& tx_id,
     extra = extra_json.dump();
 
     sqlite3_stmt* update_stmt;
-    std::string update_sql = "UPDATE VTX SET EXTRA = ?1 WHERE ID = ?2;";
+    std::string update_sql =
+        std::string("UPDATE ") + TxTable() + " SET EXTRA = ?1 WHERE ID = ?2;";
     sqlite3_prepare_v2(db_, update_sql.c_str(), -1, &update_stmt, NULL);
     sqlite3_bind_text(update_stmt, 1, extra.c_str(), extra.size(), NULL);
     sqlite3_bind_text(update_stmt, 2, tx_id.c_str(), tx_id.size(), NULL);
@@ -749,6 +883,10 @@ Transaction NunchukWalletDb::CreatePsbt(
     int change_pos, const std::map<std::string, Amount>& outputs,
     Amount fee_rate, bool subtract_fee_from_amount,
     const std::string& replace_tx) {
+  if (IsSupportLiquid()) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported psbt creation");
+  }
   PartiallySignedTransaction psbtx = DecodePsbt(psbt);
   std::string tx_id = psbtx.tx.value().GetHash().GetHex();
 
@@ -762,8 +900,8 @@ Transaction NunchukWalletDb::CreatePsbt(
 
   sqlite3_stmt* stmt;
   std::string sql =
-      "INSERT INTO "
-      "VTX(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, EXTRA)"
+      std::string("INSERT INTO ") + TxTable() +
+      "(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, EXTRA)"
       "VALUES (?1, ?2, -1, ?3, ?4, ?5, ?6, ?7)"
       "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE, "
       "HEIGHT=excluded.HEIGHT;";
@@ -785,9 +923,471 @@ Transaction NunchukWalletDb::CreatePsbt(
   return tx;
 }
 
+void NunchukWalletDb::PrepareLiquidTransaction(
+    const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+    Amount fee_rate, bool allow_insufficient_lbtc, bool subtract_fee_from_amount,
+    std::string* unsigned_hex, uint64_t& fee_sats) {
+  if (!IsSupportLiquid() || !wally_signer_) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Wallet is not a Liquid wallet");
+  }
+  if (outputs.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "outputs must be non-empty");
+  }
+  if (fee_rate <= 0) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "fee_rate must be > 0 sat/kvB");
+  }
+
+  const AssetId LBTC = wally::WallyUtils::C().LBTC_ASSET_ID;
+
+  // 1) Per-asset targets and destination map for wally::WallySigner::CreateTx.
+  std::map<AssetId, Amount> targets;
+  wally::WallySigner::AssetDestinations destinations;
+  for (const auto& [aid, dest_map] : outputs) {
+    if (aid.size() != 32) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Invalid asset id (must be 32 bytes)");
+    }
+    Amount sum = 0;
+    for (const auto& [addr, amount] : dest_map) {
+      if (!Utils::IsLiquidAddress(addr)) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Invalid liquid address");
+      }
+      if (amount <= 0) {
+        throw NunchukException(NunchukException::INVALID_PARAMETER,
+                               "Output amount must be > 0");
+      }
+      destinations[aid][addr] = static_cast<uint64_t>(amount);
+      sum += amount;
+    }
+    targets[aid] = sum;
+  }
+  if (!targets.count(LBTC)) targets[LBTC] = 0;  // still needed to pay fee
+
+  // 2) Load all known transactions and unblind their outputs that belong to
+  // this wallet. Each call returns one LiquidUtxos per source tx that contains
+  // every wallet-owned output of that tx (multi-asset capable).
+  std::vector<std::string> tx_hexes = GetVtxValues();
+  std::vector<wally::LiquidUtxos> per_tx_utxos;
+  per_tx_utxos.reserve(tx_hexes.size());
+  for (const auto& hex : tx_hexes) {
+    per_tx_utxos.push_back(wally_signer_->GetUtxosFromTx(hex));
+  }
+
+  // 3) Compute the set of spent outpoints by scanning inputs of every known tx.
+  std::set<std::pair<std::vector<unsigned char>, uint32_t>> spent;
+  for (const auto& u : per_tx_utxos) {
+    for (size_t i = 0; i < u.vins_tx_id.size(); ++i) {
+      spent.insert({u.vins_tx_id[i], u.vins_vout[i]});
+    }
+  }
+
+  // 4) Flatten available coins (txIdx, k) for greedy selection.
+  struct Coin {
+    size_t tx_idx;
+    size_t k;
+    AssetId asset_id;
+    Amount value;
+  };
+  std::vector<Coin> coins;
+  for (size_t t = 0; t < per_tx_utxos.size(); ++t) {
+    const auto& u = per_tx_utxos[t];
+    for (size_t k = 0; k < u.vouts_in.size(); ++k) {
+      if (spent.count({u.tx_id, u.vouts_in[k]})) continue;
+      AssetId aid(u.asset_ids_in.begin() + k * 32,
+                  u.asset_ids_in.begin() + (k + 1) * 32);
+      coins.push_back({t, k, std::move(aid), Amount(u.values_in[k])});
+    }
+  }
+
+  std::map<AssetId, std::vector<size_t>> coins_by_asset;
+  for (size_t i = 0; i < coins.size(); ++i) {
+    coins_by_asset[coins[i].asset_id].push_back(i);
+  }
+  for (auto& [_, v] : coins_by_asset) {
+    std::sort(v.begin(), v.end(), [&](size_t a, size_t b) {
+      return coins[a].value > coins[b].value;  // largest-first
+    });
+  }
+
+  // 5) Change address: prefer an unused internal address already tracked by
+  // the wallet; otherwise derive a fresh one via the WallySigner.
+  std::string change_addr;
+  {
+    auto unused_internal = GetAddresses(/*used=*/false, /*internal=*/true);
+    if (!unused_internal.empty()) {
+      change_addr = unused_internal.front();
+    } else {
+      auto wallet_dto =
+          GetWallet(/*skip_balance=*/true, /*skip_provider=*/true);
+      const std::string path =
+          wallet_dto.get_signers()[0].get_derivation_path();
+      int idx = GetCurrentAddressIndex(/*internal=*/true) + 1;
+      if (idx < 0) idx = 0;
+      auto fresh = wally_signer_->CacheAddresses(
+          path, static_cast<uint32_t>(idx), static_cast<uint32_t>(idx + 1),
+          /*is_change=*/true);
+      if (fresh.empty()) {
+        throw NunchukException(
+            NunchukException::INVALID_ADDRESS,
+            "Failed to derive a fresh internal Liquid change address");
+      }
+      change_addr = fresh.front().address;
+    }
+  }
+
+  // 6) Helpers.
+  auto select_for_asset = [&](const AssetId& aid,
+                              Amount needed) -> std::vector<size_t> {
+    std::vector<size_t> picked;
+    auto it = coins_by_asset.find(aid);
+    if (it == coins_by_asset.end()) {
+      if (needed > 0) {
+        throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                               "No UTXOs available for an asset");
+      }
+      return picked;
+    }
+    Amount accum = 0;
+    for (auto ci : it->second) {
+      picked.push_back(ci);
+      accum += coins[ci].value;
+      if (accum >= needed) break;
+    }
+    if (accum < needed) {
+      throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                             "Insufficient balance for an asset");
+    }
+    return picked;
+  };
+
+  auto build_inputs = [&](const std::vector<size_t>& selected_idx) {
+    std::map<size_t, std::vector<size_t>> by_src;
+    for (auto ci : selected_idx) {
+      by_src[coins[ci].tx_idx].push_back(coins[ci].k);
+    }
+    std::vector<wally::LiquidUtxos> rs;
+    rs.reserve(by_src.size());
+    for (auto& [src, k_list] : by_src) {
+      std::sort(k_list.begin(), k_list.end());
+      const auto& s = per_tx_utxos[src];
+      wally::LiquidUtxos picked;
+      picked.tx_id = s.tx_id;
+      picked.vins_tx_id = s.vins_tx_id;
+      picked.vins_vout = s.vins_vout;
+      for (auto k : k_list) {
+        picked.asset_generators_in.insert(
+            picked.asset_generators_in.end(),
+            s.asset_generators_in.begin() + k * ASSET_GENERATOR_LEN,
+            s.asset_generators_in.begin() + (k + 1) * ASSET_GENERATOR_LEN);
+        picked.asset_ids_in.insert(picked.asset_ids_in.end(),
+                                   s.asset_ids_in.begin() + k * 32,
+                                   s.asset_ids_in.begin() + (k + 1) * 32);
+        picked.values_in.push_back(s.values_in[k]);
+        picked.abfs_in.insert(picked.abfs_in.end(), s.abfs_in.begin() + k * 32,
+                              s.abfs_in.begin() + (k + 1) * 32);
+        picked.vbfs_in.insert(picked.vbfs_in.end(), s.vbfs_in.begin() + k * 32,
+                              s.vbfs_in.begin() + (k + 1) * 32);
+        picked.script_pubkeys_in.push_back(s.script_pubkeys_in[k]);
+        picked.value_commitments_in.push_back(s.value_commitments_in[k]);
+        picked.vouts_in.push_back(s.vouts_in[k]);
+      }
+      rs.push_back(std::move(picked));
+    }
+    return rs;
+  };
+
+  auto select_non_lbtc = [&]() {
+    std::vector<size_t> picked;
+    for (const auto& [aid, target] : targets) {
+      if (aid == LBTC) continue;
+      auto sel = select_for_asset(aid, target);
+      picked.insert(picked.end(), sel.begin(), sel.end());
+    }
+    return picked;
+  };
+
+  auto total_lbtc_balance = [&]() -> Amount {
+    auto it = coins_by_asset.find(LBTC);
+    if (it == coins_by_asset.end()) return 0;
+    Amount sum = 0;
+    for (auto ci : it->second) sum += coins[ci].value;
+    return sum;
+  };
+
+  auto append_inputs = [](std::vector<wally::LiquidUtxos>& dst,
+                          const std::vector<wally::LiquidUtxos>& extra) {
+    dst.insert(dst.end(), extra.begin(), extra.end());
+  };
+
+  struct FeeInputs {
+    uint64_t fee_sats;
+    std::vector<wally::LiquidUtxos> inputs;
+  };
+
+  const auto non_lbtc_selected = select_non_lbtc();
+
+  auto compute_trial_fee =
+      [&](const std::vector<wally::LiquidUtxos>& dummies) -> uint64_t {
+    auto lbtc_it = coins_by_asset.find(LBTC);
+    std::vector<size_t> trial = non_lbtc_selected;
+    if (lbtc_it != coins_by_asset.end()) {
+      trial.insert(trial.end(), lbtc_it->second.begin(), lbtc_it->second.end());
+    }
+    auto trial_inputs = build_inputs(trial);
+    append_inputs(trial_inputs, dummies);
+    const size_t vsize = wally_signer_->EstimateSignedVsize(
+        trial_inputs, destinations, change_addr);
+    return wally::WallySigner::FeeSatsFromVsizeAndKvBRate(
+        vsize, static_cast<uint64_t>(fee_rate));
+  };
+
+  auto compute_fee_and_inputs =
+      [&](const std::vector<size_t>& non_lbtc_selected,
+          const std::vector<wally::LiquidUtxos>& estimate_dummies)
+      -> FeeInputs {
+    auto lbtc_it = coins_by_asset.find(LBTC);
+    if (lbtc_it == coins_by_asset.end() && estimate_dummies.empty()) {
+      throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                             "No LBTC UTXOs available to pay fee");
+    }
+
+    uint64_t feeSats = compute_trial_fee(estimate_dummies);
+
+    std::vector<size_t> lbtc_sel;
+    try {
+      lbtc_sel =
+          select_for_asset(LBTC, targets[LBTC] + static_cast<Amount>(feeSats));
+    } catch (const NunchukException& e) {
+      if (e.code() != NunchukException::COIN_SELECTION_ERROR ||
+          estimate_dummies.empty()) {
+        throw;
+      }
+      // Estimate with dummy fee input: real LBTC covers destinations only.
+      lbtc_sel = select_for_asset(LBTC, targets[LBTC]);
+    }
+    auto with_lbtc = [&]() {
+      std::vector<size_t> all = non_lbtc_selected;
+      all.insert(all.end(), lbtc_sel.begin(), lbtc_sel.end());
+      return all;
+    };
+    auto final_inputs = build_inputs(with_lbtc());
+    append_inputs(final_inputs, estimate_dummies);
+    {
+      size_t vsize = wally_signer_->EstimateSignedVsize(
+          final_inputs, destinations, change_addr, feeSats);
+      uint64_t refined = wally::WallySigner::FeeSatsFromVsizeAndKvBRate(
+          vsize, static_cast<uint64_t>(fee_rate));
+      if (refined > feeSats) {
+        try {
+          lbtc_sel = select_for_asset(LBTC, targets[LBTC] +
+                                              static_cast<Amount>(refined));
+        } catch (const NunchukException& e) {
+          if (e.code() != NunchukException::COIN_SELECTION_ERROR ||
+              estimate_dummies.empty()) {
+            throw;
+          }
+          lbtc_sel = select_for_asset(LBTC, targets[LBTC]);
+        }
+        final_inputs = build_inputs(with_lbtc());
+        append_inputs(final_inputs, estimate_dummies);
+      }
+      feeSats = refined;
+    }
+    return {feeSats, std::move(final_inputs)};
+  };
+
+  auto apply_subtract_fee_lbtc_dests =
+      [&](wally::WallySigner::AssetDestinations& dests, uint64_t gross_balance,
+          uint64_t fee_sats) {
+        if (fee_sats >= gross_balance) {
+          throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                                 "Insufficient balance for an asset");
+        }
+        const uint64_t net = gross_balance - fee_sats;
+        auto& lbtc_dests = dests[LBTC];
+        uint64_t dest_sum = 0;
+        for (const auto& [addr, amt] : lbtc_dests) dest_sum += amt;
+        if (dest_sum == 0) {
+          throw NunchukException(NunchukException::INVALID_PARAMETER,
+                                 "LBTC destination amount must be > 0");
+        }
+        for (auto& [addr, amt] : lbtc_dests) {
+          amt = (amt * net) / dest_sum;
+        }
+        uint64_t new_sum = 0;
+        for (const auto& [addr, amt] : lbtc_dests) new_sum += amt;
+        if (new_sum < net) {
+          lbtc_dests.begin()->second += net - new_sum;
+        }
+      };
+
+  if (subtract_fee_from_amount && targets[LBTC] > 0) {
+    const Amount gross_balance = total_lbtc_balance();
+    if (gross_balance <= 0) {
+      throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                             "No LBTC UTXOs available to pay fee");
+    }
+    auto lbtc_it = coins_by_asset.find(LBTC);
+    std::vector<size_t> selected = non_lbtc_selected;
+    selected.insert(selected.end(), lbtc_it->second.begin(),
+                    lbtc_it->second.end());
+    auto inputs = build_inputs(selected);
+
+    wally::WallySigner::AssetDestinations sweep_dests = destinations;
+    uint64_t feeSats = 1;
+    for (int iter = 0; iter < 20; ++iter) {
+      apply_subtract_fee_lbtc_dests(
+          sweep_dests, static_cast<uint64_t>(gross_balance), feeSats);
+      const size_t vsize = wally_signer_->EstimateSignedVsize(
+          inputs, sweep_dests, change_addr, feeSats);
+      const uint64_t refined =
+          wally::WallySigner::FeeSatsFromVsizeAndKvBRate(
+              vsize, static_cast<uint64_t>(fee_rate));
+      if (refined == feeSats) {
+        fee_sats = feeSats;
+        if (unsigned_hex != nullptr) {
+          *unsigned_hex = wally_signer_->CreateTx(inputs, sweep_dests,
+                                                  change_addr, feeSats);
+        }
+        return;
+      }
+      feeSats = refined;
+    }
+    fee_sats = feeSats;
+    if (unsigned_hex != nullptr) {
+      apply_subtract_fee_lbtc_dests(
+          sweep_dests, static_cast<uint64_t>(gross_balance), feeSats);
+      *unsigned_hex = wally_signer_->CreateTx(inputs, sweep_dests, change_addr,
+                                              feeSats);
+    }
+    return;
+  }
+
+  if (!allow_insufficient_lbtc) {
+    auto result = compute_fee_and_inputs(non_lbtc_selected, {});
+    fee_sats = result.fee_sats;
+    if (unsigned_hex != nullptr) {
+      *unsigned_hex = wally_signer_->CreateTx(result.inputs, destinations,
+                                              change_addr, result.fee_sats);
+    }
+    return;
+  }
+
+  // Estimate: destinations must be covered by real LBTC. When LBTC cannot also
+  // pay the fee, size the tx with one high-value dummy input (users typically
+  // top up more than the bare minimum fee anyway).
+  if (total_lbtc_balance() < targets[LBTC]) {
+    throw NunchukException(NunchukException::COIN_SELECTION_ERROR,
+                           "Insufficient balance for an asset");
+  }
+
+  constexpr uint64_t kEstimateDummyLbtcSats = 10000;
+
+  try {
+    fee_sats = compute_fee_and_inputs(non_lbtc_selected, {}).fee_sats;
+    return;
+  } catch (const NunchukException& e) {
+    if (e.code() != NunchukException::COIN_SELECTION_ERROR) throw;
+  } catch (const std::runtime_error&) {
+  }
+
+  fee_sats = compute_fee_and_inputs(
+                 non_lbtc_selected,
+                 {wally_signer_->MakeDummyLbtcUtxo(kEstimateDummyLbtcSats)})
+                 .fee_sats;
+}
+
+Amount NunchukWalletDb::EstimateFeeForLiquidTransaction(
+    const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+    Amount fee_rate, bool subtract_fee_from_amount) {
+  uint64_t fee_sats = 0;
+  PrepareLiquidTransaction(outputs, fee_rate, /*allow_insufficient_lbtc=*/true,
+                           subtract_fee_from_amount, /*unsigned_hex=*/nullptr,
+                           fee_sats);
+  return static_cast<Amount>(fee_sats);
+}
+
+Transaction NunchukWalletDb::CreateLiquidTransaction(
+    const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+    Amount fee_rate, const std::string& memo, bool persist,
+    bool subtract_fee_from_amount) {
+  std::string unsigned_hex;
+  uint64_t fee_sats = 0;
+  PrepareLiquidTransaction(outputs, fee_rate, /*allow_insufficient_lbtc=*/false,
+                           subtract_fee_from_amount, &unsigned_hex, fee_sats);
+  const size_t signed_vsize =
+      wally::WallySigner::ComputeSignedVsize(unsigned_hex);
+
+  // Persist (optional). When `persist` is false (draft), reconstruct a
+  // Transaction object from the unsigned hex without touching the DB.
+  Transaction tx;
+  if (persist) {
+    tx = InsertTransaction(unsigned_hex, /*height=*/-1, /*blocktime=*/0,
+                           /*fee=*/Amount(fee_sats), memo, /*change_pos=*/-1);
+  } else {
+    tx = wally_signer_->GetTransactionFromTx(unsigned_hex, /*height=*/-1);
+    tx.set_m(1);
+    tx.set_wallet_type(WalletType::LIQUID);
+    tx.set_address_type(AddressType::NATIVE_SEGWIT);
+  }
+  tx.set_fee(Amount(fee_sats));
+  tx.set_fee_rate(fee_rate);
+  tx.set_vsize(static_cast<int>(signed_vsize));
+  tx.set_status(TransactionStatus::PENDING_SIGNATURES);
+  tx.set_subtract_fee_from_amount(false);
+  tx.set_receive(false);
+  tx.set_sub_amount(0);
+  tx.set_signer(wally_signer_->GetMasterFingerprint(), false);
+  if (!memo.empty()) tx.set_memo(memo);
+  return tx;
+}
+
+Transaction NunchukWalletDb::SignLiquidTransaction(const std::string& tx_id) {
+  if (!IsSupportLiquid() || !wally_signer_) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Wallet is not a Liquid wallet");
+  }
+  Transaction tx = GetTransaction(tx_id);
+  const std::string unsigned_hex = tx.get_raw();
+  if (unsigned_hex.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "No raw tx found for tx_id=" + tx_id);
+  }
+  if (wally_signer_->IsTxSigned(unsigned_hex)) {
+    return tx;  // already signed
+  }
+
+  // Rebuild prevout data from all known wallet UTXOs. SignTx will look up
+  // each input's (txid, vout) and only use what it needs; spent ones are
+  // harmless to include since GetVtxValues only returns confirmed txs.
+  std::vector<std::string> tx_hexes = GetVtxValues();
+  std::vector<wally::LiquidUtxos> inputs;
+  inputs.reserve(tx_hexes.size());
+  for (const auto& hex : tx_hexes) {
+    inputs.push_back(wally_signer_->GetUtxosFromTx(hex));
+  }
+
+  std::string signed_hex = wally_signer_->SignTx(unsigned_hex, inputs);
+
+  // Liquid txid is computed without witness, so it stays the same after
+  // signing. Update the existing row's VALUE in place.
+  UpdateTransaction(signed_hex, /*height=*/-1, /*blocktime=*/0,
+                    /*reject_msg=*/{});
+  return GetTransaction(tx_id);
+}
+
 bool NunchukWalletDb::UpdatePsbt(const std::string& psbt) {
+  if (IsSupportLiquid()) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported psbt update");
+  }
   sqlite3_stmt* stmt;
-  std::string sql = "UPDATE VTX SET VALUE = ?1 WHERE ID = ?2 AND HEIGHT = -1;";
+  std::string sql = std::string("UPDATE ") + TxTable() +
+                    " SET VALUE = ?1 WHERE ID = ?2 AND HEIGHT = -1;";
   PartiallySignedTransaction psbtx = DecodePsbt(psbt);
   std::string tx_id = psbtx.tx.value().GetHash().GetHex();
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -804,7 +1404,8 @@ bool NunchukWalletDb::UpdatePsbt(const std::string& psbt) {
 bool NunchukWalletDb::UpdatePsbtTxId(const std::string& old_id,
                                      const std::string& new_id) {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM VTX WHERE ID = ? AND HEIGHT = -1;;";
+  std::string sql = std::string("SELECT * FROM ") + TxTable() +
+                    " WHERE ID = ? AND HEIGHT = -1;;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, old_id.c_str(), old_id.size(), NULL);
   sqlite3_step(stmt);
@@ -821,8 +1422,8 @@ bool NunchukWalletDb::UpdatePsbtTxId(const std::string& old_id,
 
     sqlite3_stmt* insert_stmt;
     std::string insert_sql =
-        "INSERT INTO "
-        "VTX(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, EXTRA)"
+        std::string("INSERT INTO ") + TxTable() +
+        "(ID, VALUE, HEIGHT, FEE, MEMO, CHANGEPOS, BLOCKTIME, EXTRA)"
         "VALUES (?1, ?2, -1, ?3, ?4, ?5, ?6, ?7);";
     sqlite3_prepare_v2(db_, insert_sql.c_str(), -1, &insert_stmt, NULL);
     sqlite3_bind_text(insert_stmt, 1, new_id.c_str(), new_id.size(), NULL);
@@ -847,7 +1448,8 @@ bool NunchukWalletDb::ReplaceTxId(const std::string& txid,
 
   // Get tx extra
   sqlite3_stmt* select_stmt;
-  std::string select_sql = "SELECT EXTRA FROM VTX WHERE ID = ?;";
+  std::string select_sql =
+      std::string("SELECT EXTRA FROM ") + TxTable() + " WHERE ID = ?;";
   sqlite3_prepare_v2(db_, select_sql.c_str(), -1, &select_stmt, NULL);
   sqlite3_bind_text(select_stmt, 1, txid.c_str(), txid.size(), NULL);
   sqlite3_step(select_stmt);
@@ -860,7 +1462,8 @@ bool NunchukWalletDb::ReplaceTxId(const std::string& txid,
     extra = extra_json.dump();
 
     sqlite3_stmt* update_stmt;
-    std::string update_sql = "UPDATE VTX SET EXTRA = ?1 WHERE ID = ?2;";
+    std::string update_sql =
+        std::string("UPDATE ") + TxTable() + " SET EXTRA = ?1 WHERE ID = ?2;";
     sqlite3_prepare_v2(db_, update_sql.c_str(), -1, &update_stmt, NULL);
     sqlite3_bind_text(update_stmt, 1, extra.c_str(), extra.size(), NULL);
     sqlite3_bind_text(update_stmt, 2, txid.c_str(), txid.size(), NULL);
@@ -875,8 +1478,12 @@ bool NunchukWalletDb::ReplaceTxId(const std::string& txid,
 }
 
 std::string NunchukWalletDb::GetPsbt(const std::string& tx_id) const {
+  if (IsSupportLiquid()) {
+    return "";
+  }
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT VALUE FROM VTX WHERE ID = ? AND HEIGHT = -1;";
+  std::string sql = std::string("SELECT VALUE FROM ") + TxTable() +
+                    " WHERE ID = ? AND HEIGHT = -1;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
@@ -893,13 +1500,17 @@ std::string NunchukWalletDb::GetPsbt(const std::string& tx_id) const {
 std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
     const std::string& tx_id) const {
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT VALUE FROM VTX WHERE ID = ?;";
+  std::string sql =
+      std::string("SELECT VALUE FROM ") + TxTable() + " WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
   if (sqlite3_column_text(stmt, 0)) {
     std::string rs = std::string((char*)sqlite3_column_text(stmt, 0));
     SQLCHECK(sqlite3_finalize(stmt));
+    if (IsSupportLiquid()) {
+      return {rs, true};
+    }
     auto [tx, is_hex_tx] = GetTransactionFromStr(rs, {}, -1);
     return {rs, is_hex_tx};
   } else {
@@ -914,7 +1525,8 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
   auto wallet = GetWallet(true, true);
 
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM VTX WHERE ID = ?;";
+  std::string sql =
+      std::string("SELECT * FROM ") + TxTable() + " WHERE ID = ?;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
@@ -930,32 +1542,25 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
                             : "";
     SQLCHECK(sqlite3_finalize(stmt));
 
-    auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
+    auto tx = GetTransactionFromVtxValue(value, wallet, height);
     tx.set_txid(tx_id);
     tx.set_m(wallet.get_m());
     tx.set_wallet_type(wallet.get_wallet_type());
     tx.set_address_type(wallet.get_address_type());
-    tx.set_fee(Amount(fee));
-    tx.set_fee_rate(0);
-    tx.set_change_index(change_pos);
+    if (tx.get_fee() == 0) tx.set_fee(Amount(fee));
+    if (change_pos >= 0 &&
+        static_cast<size_t>(change_pos) < tx.mutable_outputs().size()) {
+      tx.mutable_outputs()[change_pos].isChange = true;
+    }
     tx.set_blocktime(blocktime);
     tx.set_schedule_time(-1);
-    // Default value, will set in FillSendReceiveData
-    // TODO: Replace this asap. This code is fragile and potentially dangerous,
-    // since it relies on external assumptions (flow of outside code) that might
-    // become false
     tx.set_receive(false);
     tx.set_sub_amount(0);
-    if (is_hex_tx) {
-      tx.set_raw(value);
-    } else {
-      tx.set_psbt(value);
-    }
 
     if (!extra.empty()) {
       FillExtra(extra, tx);
     }
-    for (auto&& output : tx.get_outputs()) UseAddress(output.first);
+    for (auto&& output : tx.get_outputs()) UseAddress(output.address);
     auto new_memo = GetTransactionMemo(tx_id);
     if (new_memo) {
       tx.set_memo(new_memo.value());
@@ -973,7 +1578,8 @@ Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
 
 bool NunchukWalletDb::DeleteTransaction(const std::string& tx_id) {
   sqlite3_stmt* stmt;
-  std::string sql = "DELETE FROM VTX WHERE ID = ? AND HEIGHT <= 0;";
+  std::string sql = std::string("DELETE FROM ") + TxTable() +
+                    " WHERE ID = ? AND HEIGHT <= 0;";
   sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
   sqlite3_step(stmt);
@@ -992,6 +1598,9 @@ bool NunchukWalletDb::SetUtxos(const std::string& address,
 }
 
 Amount NunchukWalletDb::GetBalance(bool include_mempool) {
+  if (IsSupportLiquid()) {
+    return 0;
+  }
   auto coins = GetCoins();
   Amount balance = 0;
   for (auto&& coin : coins) {
@@ -1006,11 +1615,15 @@ Amount NunchukWalletDb::GetBalance(bool include_mempool) {
   return balance;
 }
 
+std::map<AssetId, Amount> NunchukWalletDb::GetAssetBalances() {
+  return GetAddressAssets({});
+}
+
 std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
   auto wallet = GetWallet(true, true);
 
   sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM VTX;";
+  std::string sql = std::string("SELECT * FROM ") + TxTable() + ";";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_step(stmt);
 
@@ -1026,9 +1639,8 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
       time_t blocktime = sqlite3_column_int64(stmt, 6);
 
       Transaction tx;
-      bool is_hex_tx = false;
       try {
-        std::tie(tx, is_hex_tx) = GetTransactionFromStr(value, wallet, height);
+        tx = GetTransactionFromVtxValue(value, wallet, height);
       } catch (...) {
         sqlite3_step(stmt);
         continue;
@@ -1037,19 +1649,16 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
       tx.set_m(wallet.get_m());
       tx.set_wallet_type(wallet.get_wallet_type());
       tx.set_address_type(wallet.get_address_type());
-      tx.set_fee(Amount(fee));
-      tx.set_fee_rate(0);
-      tx.set_change_index(change_pos);
+      if (tx.get_fee() == 0) tx.set_fee(Amount(fee));
+      if (change_pos >= 0 &&
+          static_cast<size_t>(change_pos) < tx.mutable_outputs().size()) {
+        tx.mutable_outputs()[change_pos].isChange = true;
+      }
       tx.set_blocktime(blocktime);
       tx.set_schedule_time(-1);
       tx.set_receive(false);
       tx.set_sub_amount(0);
       tx.set_memo(memo);
-      if (is_hex_tx) {
-        tx.set_raw(value);
-      } else {
-        tx.set_psbt(value);
-      }
 
       if (sqlite3_column_text(stmt, 7)) {
         std::string extra = std::string((char*)sqlite3_column_text(stmt, 7));
@@ -1074,7 +1683,53 @@ std::vector<Transaction> NunchukWalletDb::GetTransactions(int count, int skip) {
   return rs;
 }
 
+std::vector<std::string> NunchukWalletDb::GetVtxValues() {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      std::string("SELECT * FROM ") + TxTable() + " WHERE HEIGHT > -1;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_step(stmt);
+
+  std::vector<std::string> rs;
+  while (sqlite3_column_text(stmt, 0)) {
+    std::string value = std::string((char*)sqlite3_column_text(stmt, 1));
+    rs.push_back(value);
+    sqlite3_step(stmt);
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return rs;
+}
+
+Transaction NunchukWalletDb::GetTransactionFromVtxValue(
+    const std::string& value, const nunchuk::Wallet& wallet, int height) {
+  if (wallet.get_wallet_type() == WalletType::LIQUID) {
+    auto tx = wally_signer_->GetTransactionFromTx(value, height);
+    SingleSigner signer = wallet.get_signers()[0];
+    if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION ||
+        tx.get_status() == TransactionStatus::READY_TO_BROADCAST ||
+        tx.get_status() == TransactionStatus::CONFIRMED) {
+      tx.set_signed({signer});
+      tx.set_signer(signer.get_master_fingerprint(), true);
+    } else {
+      tx.set_signed({});
+      tx.set_signer(signer.get_master_fingerprint(), false);
+    }
+    return tx;
+  }
+  auto [tx, is_hex_tx] = GetTransactionFromStr(value, wallet, height);
+  if (is_hex_tx) {
+    tx.set_raw(value);
+  } else {
+    tx.set_psbt(value);
+  }
+  return tx;
+}
+
 std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
+  if (IsSupportLiquid()) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported psbt fill");
+  }
   auto psbt = DecodePsbt(base64_psbt);
   if (!psbt.tx.has_value()) return base64_psbt;
 
@@ -1086,7 +1741,8 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
   for (int i = 0; i < nin; i++) {
     std::string tx_id = psbt.tx.value().vin[i].prevout.hash.GetHex();
     sqlite3_stmt* stmt;
-    std::string sql = "SELECT VALUE FROM VTX WHERE ID = ? AND HEIGHT > -1;";
+    std::string sql = std::string("SELECT VALUE FROM ") + TxTable() +
+                      " WHERE ID = ? AND HEIGHT > -1;";
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, tx_id.c_str(), tx_id.size(), NULL);
     sqlite3_step(stmt);
@@ -1145,15 +1801,18 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
       }
     }
     if (extra_json["outputs"] != nullptr) {
-      for (auto&& output : tx.get_outputs()) {
-        auto amount = extra_json["outputs"][output.first];
+      for (auto& output : tx.mutable_outputs()) {
+        auto amount = extra_json["outputs"][output.address];
         if (amount != nullptr) {
-          tx.add_user_output({output.first, Amount(amount)});
+          output.userAmount = Amount(amount);
         }
       }
     }
     if (extra_json["fee_rate"] != nullptr) {
       tx.set_fee_rate(extra_json["fee_rate"]);
+    }
+    if (extra_json["vsize"] != nullptr) {
+      tx.set_vsize(extra_json["vsize"]);
     }
     if (extra_json["subtract"] != nullptr) {
       tx.set_subtract_fee_from_amount(extra_json["subtract"]);
@@ -1175,8 +1834,58 @@ void NunchukWalletDb::FillExtra(const std::string& extra,
   }
 }
 
+namespace {
+const TxOutput* FindOutputByVout(const Transaction& tx, uint32_t vout) {
+  for (const auto& output : tx.get_outputs()) {
+    if (output.vout == vout) return &output;
+  }
+  return nullptr;
+}
+}  // namespace
+
 // TODO (bakaoh): consider persisting these data
 void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
+  if (IsSupportLiquid()) {
+    int send_count = 0;
+    int send_index = -1;
+    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
+      const auto& output = tx.get_outputs()[i];
+      if (!output.isReceive) {
+        send_count++;
+        send_index = i;
+      }
+    }
+    std::map<AssetId, Amount> asset_amounts{};
+    bool is_receive = true;
+    for (auto& input : tx.get_inputs()) {
+      try {
+        auto prev_tx = GetTransaction(input.txid);
+        const auto* prev_out = FindOutputByVout(prev_tx, input.vout);
+        if (prev_out == nullptr || !prev_out->isReceive) continue;
+        asset_amounts[prev_out->assetId] += prev_out->amount;
+        is_receive = false;
+      } catch (StorageException& se) {
+        if (se.code() != StorageException::TX_NOT_FOUND) throw;
+      }
+    }
+    tx.set_receive(is_receive);
+    if (is_receive || send_count != 1) return;
+    AssetId asset_id = asset_amounts.size() == 1
+                           ? wally::WallyUtils::C().LBTC_ASSET_ID
+                           : wally::WallyUtils::C().USDT_ASSET_ID;
+    Amount send_amount = asset_amounts[asset_id];
+    for (auto& output : tx.mutable_outputs()) {
+      if (output.isReceive && output.assetId == asset_id) {
+        send_amount -= output.amount;
+      }
+    }
+    if (asset_id == wally::WallyUtils::C().LBTC_ASSET_ID) {
+      send_amount -= tx.get_fee();
+    }
+    tx.mutable_outputs()[send_index].amount = send_amount;
+    tx.mutable_outputs()[send_index].assetId = asset_id;
+    return;
+  }
   auto allAddr = GetAllAddressData();
   auto isMyAddress = [&](const std::string& address) {
     return allAddr.count(address);
@@ -1220,20 +1929,23 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     } catch (StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) throw;
     }
-    if (isMyAddress(prev_out.first)) {
-      total_amount += prev_out.second;
+    if (isMyAddress(prev_out.address)) {
+      total_amount += prev_out.amount;
       is_send_tx = true;
     }
   }
   if (is_send_tx) {
     Amount send_amount{0};
-    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
-      auto output = tx.get_outputs()[i];
-      total_amount -= output.second;
-      if (!isMyAddress(output.first)) {
-        send_amount += output.second;
-      } else if (tx.get_change_index() < 0 && isMyChange(output.first)) {
-        tx.set_change_index(i);
+    auto& outputs = tx.mutable_outputs();
+    for (size_t i = 0; i < outputs.size(); i++) {
+      auto& output = outputs[i];
+      total_amount -= output.amount;
+      output.isReceive = true;
+      if (!isMyAddress(output.address)) {
+        send_amount += output.amount;
+        output.isReceive = false;
+      } else if (!output.isChange && isMyChange(output.address)) {
+        output.isChange = true;
       }
     }
     tx.set_fee(total_amount);
@@ -1246,10 +1958,10 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     }
   } else {
     Amount receive_amount{0};
-    for (auto&& output : tx.get_outputs()) {
-      if (isMyAddress(output.first)) {
-        receive_amount += output.second;
-        tx.add_receive_output(output);
+    for (auto& output : tx.mutable_outputs()) {
+      if (isMyAddress(output.address)) {
+        receive_amount += output.amount;
+        output.isReceive = true;
       }
     }
     tx.set_receive(true);
@@ -1258,8 +1970,12 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
 }
 
 void NunchukWalletDb::ForceRefresh() {
-  SQLCHECK(sqlite3_exec(db_, "DELETE FROM VTX;", NULL, 0, NULL));
-  SQLCHECK(sqlite3_exec(db_, "DELETE FROM ADDRESS;", NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_,
+                        (std::string("DELETE FROM ") + TxTable() + ";").c_str(),
+                        NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(
+      db_, (std::string("DELETE FROM ") + AddressTable() + ";").c_str(), NULL,
+      0, NULL));
   addr_cache_.erase(db_file_name_);
   txs_cache_.erase(db_file_name_);
 }
@@ -2118,6 +2834,11 @@ void NunchukWalletDb::ImportBIP329(const std::string& data) {
 
 std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     const std::vector<Transaction>& transactions) {
+  if (IsSupportLiquid()) {
+    throw NunchukException(
+        NunchukException::INVALID_WALLET_TYPE,
+        "Liquid wallet is not supported get coins from transactions");
+  }
   auto allAddr = GetAllAddressData();
   auto isMyAddress = [&](const std::string& address) {
     return allAddr.count(address);
@@ -2160,13 +2881,13 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     for (auto&& input : tx.get_inputs()) {
       if (tx_map.count(input.txid) == 0) continue;
       auto prev_tx = tx_map[input.txid];
-      auto address = prev_tx.get_outputs()[input.vout].first;
+      auto address = prev_tx.get_outputs()[input.vout].address;
       if (!isMyAddress(address)) continue;
       auto id = CoinId(input.txid, input.vout);
       coins[id].set_txid(input.txid);
       coins[id].set_vout(input.vout);
       coins[id].set_address(address);
-      coins[id].set_amount(prev_tx.get_outputs()[input.vout].second);
+      coins[id].set_amount(prev_tx.get_outputs()[input.vout].amount);
       coins[id].set_height(prev_tx.get_height());
       coins[id].set_blocktime(prev_tx.get_blocktime());
       if (tx.get_schedule_time() > coins[id].get_schedule_time()) {
@@ -2190,26 +2911,29 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     int nout = tx.get_outputs().size();
     for (int vout = 0; vout < nout; vout++) {
       auto output = tx.get_outputs()[vout];
-      if (!isMyAddress(output.first)) continue;
+      if (!isMyAddress(output.address)) continue;
       if (tx.get_height() < 0) continue;
       auto id = CoinId(tx.get_txid(), vout);
       coins[id].set_txid(tx.get_txid());
       coins[id].set_vout(vout);
-      coins[id].set_address(output.first);
-      coins[id].set_amount(output.second);
+      coins[id].set_address(output.address);
+      coins[id].set_amount(output.amount);
       coins[id].set_height(tx.get_height());
       coins[id].set_blocktime(tx.get_blocktime());
       set_status(id, tx.get_height() > 0
                          ? CoinStatus::CONFIRMED
                          : CoinStatus::INCOMING_PENDING_CONFIRMATION);
       coins[id].set_memo(tx.get_memo());
-      coins[id].set_change(isMyChange(output.first));
+      coins[id].set_change(isMyChange(output.address));
     }
   }
   return coins;
 }
 
 std::vector<UnspentOutput> NunchukWalletDb::GetCoins() {
+  if (IsSupportLiquid()) {
+    return {};
+  }
   auto transactions = GetTransactions();
   auto coins = GetCoinsFromTransactions(transactions);
   std::vector<UnspentOutput> rs;
@@ -2221,6 +2945,10 @@ std::vector<UnspentOutput> NunchukWalletDb::GetCoins() {
 
 std::vector<std::vector<UnspentOutput>> NunchukWalletDb::GetAncestry(
     const std::string& tx_id, int vout) {
+  if (IsSupportLiquid()) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported get ancestry");
+  }
   auto transactions = GetTransactions();
   auto coins = GetCoinsFromTransactions(transactions);
   std::map<std::string, Transaction> tx_map;
@@ -2255,7 +2983,7 @@ std::vector<std::vector<UnspentOutput>> NunchukWalletDb::GetAncestry(
 void NunchukWalletDb::AutoAddNewCoins(const Transaction& tx) {
   std::vector<int> my_vout{};
   for (size_t i = 0; i < tx.get_outputs().size(); i++) {
-    if (IsMyAddress(tx.get_outputs()[i].first)) my_vout.push_back(i);
+    if (IsMyAddress(tx.get_outputs()[i].address)) my_vout.push_back(i);
   }
 
   auto auto_add = GetAutoAddData();
@@ -2407,7 +3135,6 @@ std::map<std::string, Transaction> NunchukWalletDb::GetDummyTxs() {
         GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
-    tx.set_change_index(-1);
     tx.set_subtract_fee_from_amount(false);
     tx.set_psbt(psbt);
     tx.set_receive(false);
@@ -2445,7 +3172,6 @@ Transaction NunchukWalletDb::GetDummyTx(const std::string& id) {
         GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
     tx.set_fee(150);
     tx.set_sub_amount(10000);
-    tx.set_change_index(-1);
     tx.set_subtract_fee_from_amount(false);
     tx.set_psbt(psbt);
     tx.set_receive(false);
@@ -2496,6 +3222,20 @@ std::string NunchukWalletDb::GetMiniscript() {
   }
   out.append(miniscript, last, std::string::npos);
   return out;
+}
+
+bool NunchukWalletDb::IsSupportLiquid() const {
+  try {
+    auto data = GetString(DbKeys::IMMUTABLE_DATA);
+    if (!data.empty()) {
+      json immutable_data = json::parse(data);
+      if (immutable_data["wallet_type"] != nullptr) {
+        return immutable_data["wallet_type"] == WalletType::LIQUID;
+      }
+    }
+  } catch (...) {
+  }
+  return false;
 }
 
 }  // namespace nunchuk

@@ -23,11 +23,15 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <map>
 #include <utils/addressutils.hpp>
+#include <liquid/wallyutils.hpp>
+#include <wally_address.h>
+#include <wally_crypto.h>
 #include <utils/bip32.hpp>
 #include <utils/bsms.hpp>
 #include <utils/multisigconfig.hpp>
 #include <utils/unchained.hpp>
 #include <utils/txutils.hpp>
+#include <utils/trezor.hpp>
 #include <storage/storage.h>
 #include <hwiservice.h>
 
@@ -66,6 +70,9 @@
 #include <miniscript/compiler.h>
 #include <miniscript/timeline.h>
 #include <miniscript/util.h>
+
+#include <liquid/wallyutils.hpp>
+#include <liquid/wallysigner.hpp>
 
 using namespace boost::algorithm;
 using namespace nunchuk::bcr2;
@@ -165,8 +172,9 @@ bool Utils::IsValidFingerPrint(const std::string& value) {
 }
 
 bool Utils::IsDustOutput(const TxOutput& txout) {
-  CScript destScript = GetScriptForDestination(DecodeDestination(txout.first));
-  CTxOut ctxout(txout.second, destScript);
+  CScript destScript =
+      GetScriptForDestination(DecodeDestination(txout.address));
+  CTxOut ctxout(txout.amount, destScript);
   return IsDust(ctxout, CFeeRate(DUST_RELAY_TX_FEE));
 }
 
@@ -177,6 +185,27 @@ bool Utils::IsValidAddress(const std::string& address) {
 
 bool Utils::IsSilentPaymentAddress(const std::string& address) {
   return silentpayment::IsValidSilentPaymentAddress(address, Utils::GetChain());
+}
+
+bool Utils::IsLiquidAddress(const std::string& address) {
+  if (address.empty()) return false;
+  const auto& c = wally::WallyUtils::C();
+
+  std::vector<unsigned char> spk(128);
+  size_t spk_len = 0;
+  if (wally_addr_segwit_to_bytes(address.c_str(), c.ADDRESS_FAMILY, 0, spk.data(),
+                               spk.size(), &spk_len) == WALLY_OK) {
+    return true;
+  }
+
+  std::vector<unsigned char> blinding_pubkey(EC_PUBLIC_KEY_LEN);
+  if (wally_confidential_addr_segwit_to_ec_public_key(
+          address.c_str(), c.CONFIDENTIAL_ADDRESS_FAMILY, blinding_pubkey.data(),
+          blinding_pubkey.size()) == WALLY_OK) {
+    return true;
+  }
+
+  return false;
 }
 
 Amount Utils::AmountFromValue(const std::string& value,
@@ -791,7 +820,6 @@ Transaction Utils::DecodeDummyTx(const Wallet& wallet,
       DecodePsbt(base64_psbt), wallet);
   tx.set_fee(150);
   tx.set_sub_amount(10000);
-  tx.set_change_index(-1);
   tx.set_subtract_fee_from_amount(false);
   tx.set_psbt(base64_psbt);
   tx.set_receive(false);
@@ -1629,6 +1657,59 @@ std::vector<std::string> Utils::ParseSignerNames(
   getKeynames(script_node);
   std::sort(names.begin() + keypath_m, names.end());
   return names;
+}
+
+std::string Utils::TrezorGetPublicKey(WalletType wallet_type,
+                                      AddressType address_type, int index) {
+  return nunchuk::TrezorGetPublicKey(wallet_type, address_type, index);
+}
+
+SingleSigner Utils::TrezorParsePublicKeyResponse(const std::string& response) {
+  return nunchuk::TrezorParsePublicKeyResponse(response);
+}
+
+std::string Utils::TrezorSignTransaction(const Wallet& wallet,
+                                         const std::string& psbt,
+                                         const std::string& xfp) {
+  return nunchuk::TrezorSignTransaction(wallet, psbt, xfp);
+}
+
+std::string Utils::TrezorParseSignTransactionResponse(
+    const Wallet& wallet, const std::string& psbt, const std::string& xfp,
+    const std::string& response) {
+  return nunchuk::TrezorParseSignTransactionResponse(wallet, psbt, xfp,
+                                                     response);
+}
+
+std::string Utils::TrezorSignMessage(const SingleSigner& signer,
+                                     const std::string& message) {
+  return nunchuk::TrezorSignMessage(signer, message);
+}
+
+std::string Utils::TrezorGetSignMessagePath(const SingleSigner& signer) {
+  return nunchuk::TrezorGetSignMessagePath(signer);
+}
+
+std::pair<std::string, std::string> Utils::TrezorParseSignMessage(const std::string& response) {
+  return nunchuk::TrezorParseSignMessage(response);
+}
+
+std::string Utils::TrezorGetAddress(const Wallet& wallet,
+                                    const std::string& address,
+                                    const std::string& path) {
+  return nunchuk::TrezorGetAddress(wallet, address, path);
+}
+
+std::string Utils::TrezorParseGetAddress(const std::string& response) {
+  return nunchuk::TrezorParseGetAddress(response);
+}
+
+AssetId Utils::GetUSDTAssetId() {
+  return wally::WallyUtils::C().USDT_ASSET_ID;
+}
+
+AssetId Utils::GetLBTCAssetId() {
+  return wally::WallyUtils::C().LBTC_ASSET_ID;
 }
 
 }  // namespace nunchuk

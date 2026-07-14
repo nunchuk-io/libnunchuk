@@ -100,6 +100,19 @@ endif()
 
 add_subdirectory(embedded)
 
+# add_library(secp256k1-zkp STATIC IMPORTED)
+# set_target_properties(secp256k1-zkp PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/libwally-core/src/secp256k1/.libs/libsecp256k1.a")
+add_library(libwally STATIC IMPORTED)
+if(ANDROID)
+    set_target_properties(libwally PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/libwally-core/build/${ANDROID_ABI}/libwallycore.a")
+else()
+    set_target_properties(libwally PROPERTIES IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/contrib/libwally-core/src/.libs/libwallycore.a")
+endif()
+target_include_directories(libwally INTERFACE
+    "${PROJECT_SOURCE_DIR}/contrib/libwally-core/include"
+)
+target_link_libraries(libwally INTERFACE secp256k1)
+
 set(UR__DISABLE_TESTS ON)
 add_subdirectory(contrib/bc-ur-cpp)
 
@@ -217,6 +230,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/enumconverter.hpp
     src/utils/rfc2440.hpp
     src/utils/coldcard.cpp
+    src/utils/trezor.hpp
+    src/utils/trezor.cpp
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/utils/tweetnacl.c
@@ -259,9 +274,9 @@ set(BUILD_SHARED_LIBS OFF)
 add_subdirectory(contrib/bbqr-cpp)
 
 if(ANDROID)
-    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group tap-protocol bbqr-cpp)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC -Wl,--start-group embedded ${PROJECT_LIBRARIES} trezor-crypto -Wl,--end-group tap-protocol bbqr-cpp libwally)
 else()
-    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol bbqr-cpp)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol bbqr-cpp libwally)
 endif()
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 

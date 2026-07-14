@@ -922,7 +922,10 @@ CreateSatscardSlotsTransaction(const std::vector<SatscardSlot>& slots,
       DecodePsbt(base64_psbt), wallet);
 
   tx.set_fee(res->fee);
-  tx.set_change_index(change_pos);
+  if (change_pos >= 0 &&
+      static_cast<size_t>(change_pos) < tx.mutable_outputs().size()) {
+    tx.mutable_outputs()[change_pos].isChange = true;
+  }
   tx.set_receive(false);
   tx.set_sub_amount(total_balance - res->fee);
   tx.set_fee_rate(fee_rate);

@@ -129,7 +129,7 @@ std::string CoreUtils::CreatePsbt(const std::vector<TxInput> &vin,
   }
   json outputs = json::array();
   for (auto &el : vout) {
-    outputs.push_back({{el.first, Utils::ValueFromAmount(el.second)}});
+    outputs.push_back({{el.address, Utils::ValueFromAmount(el.amount)}});
   }
   json params = json::array({inputs, outputs, locktime, true});  // replaceable
   std::string resp = SendRequest("createpsbt", params);

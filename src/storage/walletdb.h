@@ -24,6 +24,11 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <memory>
+
+namespace nunchuk::wally {
+class WallySigner;
+}  // namespace nunchuk::wally
 
 namespace nunchuk {
 
@@ -37,6 +42,8 @@ struct AddressData {
 class NunchukWalletDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
+
+  void SetWallySigner(std::shared_ptr<wally::WallySigner> signer);
 
   void InitWallet(const Wallet &wallet);
   void MaybeMigrate();
@@ -66,6 +73,25 @@ class NunchukWalletDb : public NunchukDb {
                          const std::map<std::string, Amount> &outputs,
                          Amount fee_rate, bool subtract_fee_from_amount,
                          const std::string &replace_tx);
+  // Build an unsigned Liquid transaction with greedy coin selection per asset.
+  // - `outputs`: per-asset map of confidential-address -> amount.
+  // - `fee_rate`: sat/kvB (Liquid default ~100 sat/kvB == 0.1 sat/vB).
+  // - `persist`: when true (default) inserts the unsigned tx into the TX table
+  //              (HEIGHT = -1) so it can be looked up by tx_id and later
+  //              signed. Drafts pass false to avoid touching the DB.
+  Transaction CreateLiquidTransaction(
+      const std::map<AssetId, std::map<std::string, Amount>> &outputs,
+      Amount fee_rate, const std::string &memo, bool persist = true,
+      bool subtract_fee_from_amount = false);
+  Amount EstimateFeeForLiquidTransaction(
+      const std::map<AssetId, std::map<std::string, Amount>> &outputs,
+      Amount fee_rate, bool subtract_fee_from_amount = false);
+
+  // Sign a previously-persisted unsigned Liquid transaction in-place. Loads
+  // raw hex by tx_id, rebuilds prevout data from wallet UTXOs, signs via the
+  // injected WallySigner, and persists the signed hex (txid is unchanged on
+  // Liquid since witness data is not part of the txid hash).
+  Transaction SignLiquidTransaction(const std::string &tx_id);
   bool UpdatePsbt(const std::string &psbt);
   bool UpdatePsbtTxId(const std::string &old_id, const std::string &new_id);
   bool ReplaceTxId(const std::string &txid, const std::string &replace_txid);
@@ -74,11 +100,13 @@ class NunchukWalletDb : public NunchukDb {
   std::vector<Transaction> GetTransactions(int count = 1000, int skip = 0);
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance(bool include_mempool);
+  std::map<AssetId, Amount> GetAssetBalances();
   std::string FillPsbt(const std::string &psbt);
   void FillSendReceiveData(Transaction &tx);
   void FillExtra(const std::string &extra, Transaction &tx) const;
   std::pair<int, bool> GetAddressIndex(const std::string &address);
   Amount GetAddressBalance(const std::string &address);
+  std::map<AssetId, Amount> GetAddressAssets(const std::string &address);
   bool MarkAddressAsUsed(const std::string &address);
   std::string GetAddressStatus(const std::string &address) const;
   void ForceRefresh();
@@ -128,6 +156,8 @@ class NunchukWalletDb : public NunchukDb {
 
   bool IsMyAddress(const std::string &address);
   std::string GetAddressPath(const std::string &address);
+  std::string GetAddressPath(const std::string &address,
+                             const SingleSigner &signer);
   std::vector<UnspentOutput> GetCoins();
   std::vector<std::vector<UnspentOutput>> GetAncestry(const std::string &tx_id,
                                                       int vout);
@@ -142,8 +172,11 @@ class NunchukWalletDb : public NunchukDb {
   Transaction GetDummyTx(const std::string &id);
 
   std::string GetMiniscript();
+  bool IsSupportLiquid() const;
 
  private:
+  const char *TxTable() const;
+  const char *AddressTable() const;
   void CreateCoinControlTable();
   void CreateDummyTxTable();
   void ClearCoinControlData();
@@ -161,12 +194,24 @@ class NunchukWalletDb : public NunchukDb {
   bool IsMyChange(const std::string &address);
   std::map<std::string, UnspentOutput> GetCoinsFromTransactions(
       const std::vector<Transaction> &transactions);
+  std::vector<std::string> GetVtxValues();
+  Transaction GetTransactionFromVtxValue(const std::string &value,
+                                         const nunchuk::Wallet &wallet,
+                                         int height);
+  void PrepareLiquidTransaction(
+      const std::map<AssetId, std::map<std::string, Amount>> &outputs,
+      Amount fee_rate, bool allow_insufficient_lbtc, bool subtract_fee_from_amount,
+      std::string *unsigned_hex, uint64_t &fee_sats);
+
   static std::map<std::string, std::map<std::string, AddressData>> addr_cache_;
   static std::map<std::string, std::vector<SingleSigner>> signer_cache_;
   static std::map<std::string, std::map<int, bool>> collection_auto_lock_;
   static std::map<std::string, std::map<std::pair<int, int>, bool>>
       collection_auto_add_;
   static std::map<std::string, std::map<std::string, Transaction>> txs_cache_;
+
+  std::shared_ptr<wally::WallySigner> wally_signer_;
+
   friend class NunchukStorage;
 };
 

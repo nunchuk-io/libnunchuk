@@ -18,6 +18,7 @@
 #include <backend/electrum/synchronizer.h>
 #include <backend/corerpc/synchronizer.h>
 #include <coreutils.h>
+#include <utils/addressutils.hpp>
 
 using namespace boost::asio;
 
@@ -30,8 +31,14 @@ std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,
         new CoreRpcSynchronizer(appsettings, account));
   } else {
     return std::unique_ptr<ElectrumSynchronizer>(
-        new ElectrumSynchronizer(appsettings, account));
+        new ElectrumSynchronizer(appsettings, account, false));
   }
+}
+
+std::unique_ptr<Synchronizer> MakeLiquidSynchronizer(
+    const AppSettings& appsettings, const std::string& account) {
+  return std::unique_ptr<ElectrumSynchronizer>(
+      new ElectrumSynchronizer(appsettings, account, true));
 }
 
 Synchronizer::Synchronizer(const AppSettings& appsettings,
@@ -54,8 +61,12 @@ Synchronizer::Synchronizer(const AppSettings& appsettings,
 Synchronizer::~Synchronizer() {}
 
 bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
-  if (app_settings_.get_backend_type() != new_settings.get_backend_type() ||
-      app_settings_.get_chain() != new_settings.get_chain())
+  if (app_settings_.get_chain() != new_settings.get_chain())
+    throw NunchukException(NunchukException::APP_RESTART_REQUIRED,
+                           "App restart required");
+  // Liquid sync is always Electrum; backend_type switches only apply to Bitcoin.
+  if (!liquid_ &&
+      app_settings_.get_backend_type() != new_settings.get_backend_type())
     throw NunchukException(NunchukException::APP_RESTART_REQUIRED,
                            "App restart required");
 
@@ -68,7 +79,10 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
        app_settings_.get_proxy_password() != new_settings.get_proxy_password()))
     return true;
 
-  if (new_settings.get_backend_type() == BackendType::CORERPC) {
+  if (liquid_) {
+    if (app_settings_.get_liquid_servers() != new_settings.get_liquid_servers())
+      return true;
+  } else if (new_settings.get_backend_type() == BackendType::CORERPC) {
     if (app_settings_.get_corerpc_host() != new_settings.get_corerpc_host() ||
         app_settings_.get_corerpc_port() != new_settings.get_corerpc_port() ||
         app_settings_.get_corerpc_username() !=
@@ -77,43 +91,33 @@ bool Synchronizer::NeedRecreate(const AppSettings& new_settings) {
             new_settings.get_corerpc_password())
       return true;
   } else {
-    if ((new_settings.get_chain() == Chain::TESTNET &&
-         app_settings_.get_testnet_servers() !=
-             new_settings.get_testnet_servers()) ||
-        (new_settings.get_chain() == Chain::MAIN &&
-         app_settings_.get_mainnet_servers() !=
-             new_settings.get_mainnet_servers()) ||
-        (new_settings.get_chain() == Chain::SIGNET &&
-         app_settings_.get_signet_servers() !=
-             new_settings.get_signet_servers()))
+    if (app_settings_.get_electrum_servers() !=
+        new_settings.get_electrum_servers())
       return true;
   }
   return false;
 }
 
-void Synchronizer::AddBalanceListener(
-    std::function<void(std::string, Amount)> listener) {
-  balance_listener_.connect(listener);
-}
-
 void Synchronizer::AddBalancesListener(
-    std::function<void(std::string, Amount, Amount)> listener) {
-  balances_listener_.connect(listener);
+    std::function<void(std::string, Amount, Amount,
+                       const std::map<AssetId, Amount>&)>
+        listener) {
+  balances_listener_.connect(MakeSafeSlot(listener));
 }
 
 void Synchronizer::AddBlockListener(
-    std::function<void(int, std::string)> listener) {
-  block_listener_.connect(listener);
+    std::function<void(int, std::string, bool)> listener) {
+  block_listener_.connect(MakeSafeSlot(listener));
 }
 
 void Synchronizer::AddTransactionListener(
     std::function<void(std::string, TransactionStatus, std::string)> listener) {
-  transaction_listener_.connect(listener);
+  transaction_listener_.connect(MakeSafeSlot(listener));
 }
 
 void Synchronizer::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus, int)> listener) {
-  connection_listener_.connect(listener);
+    std::function<void(ConnectionStatus, int, bool)> listener) {
+  connection_listener_.connect(MakeSafeSlot(listener));
 }
 
 void Synchronizer::NotifyTransactionUpdate(const std::string& wallet_id,
@@ -122,21 +126,36 @@ void Synchronizer::NotifyTransactionUpdate(const std::string& wallet_id,
   transaction_listener_(tx_id, status, wallet_id);
 }
 
+void Synchronizer::NotifyBalancesUpdate(Chain chain,
+                                        const std::string& wallet_id) {
+  auto balances = storage_->GetBalances(chain, wallet_id);
+  balances_listener_(wallet_id, balances.balance, balances.unconfirmed_balance,
+                     balances.asset_balances);
+}
+
 int Synchronizer::GetChainTip() {
   int rs = chain_tip_;
-  if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain());
+  if (rs <= 0) rs = storage_->GetChainTip(app_settings_.get_chain(), liquid_);
   return rs;
 }
 
 std::string Synchronizer::NewAddress(Chain chain, const std::string& wallet_id,
                                      bool internal) {
   auto wallet = storage_->GetWallet(chain, wallet_id, false, false);
-  std::string descriptor = wallet.get_descriptor(
-      internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
   int index =
       wallet.is_escrow()
           ? -1
           : storage_->GetCurrentAddressIndex(chain, wallet_id, internal) + 1;
+  std::string descriptor;
+  std::shared_ptr<wally::WallySigner> signer;
+  std::string path;
+  if (wallet.get_wallet_type() != WalletType::LIQUID) {
+    descriptor = wallet.get_descriptor(internal ? DescriptorPath::INTERNAL_ALL
+                                                : DescriptorPath::EXTERNAL_ALL);
+  } else {
+    signer = storage_->GetWallySignerForWallet(chain, wallet_id);
+    path = wallet.get_signers()[0].get_derivation_path();
+  }
 
   if (SupportBatchLookAhead()) {
     while (true) {
@@ -144,14 +163,13 @@ std::string Synchronizer::NewAddress(Chain chain, const std::string& wallet_id,
       std::vector<int> indexes;
       for (int i = index; i < index + wallet.get_gap_limit(); i++) {
         addresses.push_back(
-            CoreUtils::getInstance().DeriveAddress(descriptor, i));
+            DeriveAddress(descriptor, signer, path, i, internal));
         indexes.push_back(i);
       }
       int last = BatchLookAhead(chain, wallet_id, addresses, indexes, internal);
       if (last < wallet.get_gap_limit() - 1) {
         index = index + last + 1;
-        auto address =
-            CoreUtils::getInstance().DeriveAddress(descriptor, index);
+        auto address = DeriveAddress(descriptor, signer, path, index, internal);
         storage_->AddAddress(chain, wallet_id, address, index, internal);
         return address;
       }
@@ -160,7 +178,7 @@ std::string Synchronizer::NewAddress(Chain chain, const std::string& wallet_id,
   }
 
   while (true) {
-    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
+    auto address = DeriveAddress(descriptor, signer, path, index, internal);
     if (!LookAhead(chain, wallet_id, address, index, internal)) {
       storage_->AddAddress(chain, wallet_id, address, index, internal);
       return address;

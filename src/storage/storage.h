@@ -35,6 +35,12 @@
 
 namespace nunchuk {
 
+struct WalletBalances {
+  Amount balance{0};
+  Amount unconfirmed_balance{0};
+  std::map<AssetId, Amount> asset_balances;
+};
+
 class NunchukStorage {
  public:
   static std::shared_ptr<NunchukStorage> get(const std::string &account);
@@ -78,12 +84,19 @@ class NunchukStorage {
                                        const SingleSigner &signer);
 
   std::vector<std::string> ListWallets(Chain chain);
-  std::vector<std::string> ListRecentlyUsedWallets(Chain chain);
+  // When liquid is true, returns Liquid wallets only; otherwise Bitcoin wallets.
+  std::vector<std::string> ListRecentlyUsedWallets(Chain chain, bool liquid);
   std::vector<std::string> ListMasterSigners(Chain chain);
 
   Wallet GetWallet(Chain chain, const std::string &id,
                    bool create_signers_if_not_exist = false,
                    bool fill_extra = true, bool skip_balance = false);
+  bool IsSupportLiquid(Chain chain, const std::string &wallet_id);
+  // Liquid only: shared WallySigner injected when opening the wallet DB
+  // (mnemonic from the wallet's primary software signer). Null if not Liquid,
+  // signer unavailable, or injection failed.
+  std::shared_ptr<wally::WallySigner> GetWallySignerForWallet(
+      Chain chain, const std::string &wallet_id);
   bool HasWallet(Chain chain, const std::string &wallet_id);
   MasterSigner GetMasterSigner(Chain chain, const std::string &id);
   SoftwareSigner GetSoftwareSigner(Chain chain, const std::string &id);
@@ -92,6 +105,8 @@ class NunchukStorage {
   std::string GetMasterXprv(Chain chain, const std::string &id);
   int GetHotWalletId();
   bool SetHotWalletId(int value);
+  int GetLiquidWalletId();
+  bool SetLiquidWalletId(int value);
   bool HasSigner(Chain chain, const std::string &signer_id);
   bool HasSigner(Chain chain, const SingleSigner &signer);
 
@@ -169,6 +184,21 @@ class NunchukStorage {
                          Amount fee_rate = -1,
                          bool subtract_fee_from_amount = false,
                          const std::string &replace_tx = {});
+  Transaction CreateLiquidTransaction(
+      Chain chain, const std::string &wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>> &outputs,
+      Amount fee_rate, const std::string &memo,
+      bool subtract_fee_from_amount = false);
+  Transaction DraftLiquidTransaction(
+      Chain chain, const std::string &wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>> &outputs,
+      Amount fee_rate, bool subtract_fee_from_amount = false);
+  Amount EstimateFeeForLiquidTransaction(
+      Chain chain, const std::string &wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>> &outputs,
+      Amount fee_rate, bool subtract_fee_from_amount = false);
+  Transaction SignLiquidTransaction(Chain chain, const std::string &wallet_id,
+                                    const std::string &tx_id);
   bool UpdatePsbt(Chain chain, const std::string &wallet_id,
                   const std::string &psbt);
   bool UpdatePsbtTxId(Chain chain, const std::string &wallet_id,
@@ -182,13 +212,12 @@ class NunchukStorage {
                                               const std::string &tx_id);
   bool SetUtxos(Chain chain, const std::string &wallet_id,
                 const std::string &address, const std::string &utxo);
-  Amount GetBalance(Chain chain, const std::string &wallet_id);
-  Amount GetUnconfirmedBalance(Chain chain, const std::string &wallet_id);
+  WalletBalances GetBalances(Chain chain, const std::string &wallet_id);
   std::string FillPsbt(Chain chain, const std::string &wallet_id,
                        const std::string &psbt);
 
-  int GetChainTip(Chain chain);
-  bool SetChainTip(Chain chain, int height);
+  int GetChainTip(Chain chain, bool liquid);
+  bool SetChainTip(Chain chain, int height, bool liquid);
   std::string GetSelectedWallet(Chain chain);
   bool SetSelectedWallet(Chain chain, const std::string &wallet_id);
 
@@ -203,10 +232,14 @@ class NunchukStorage {
                           const std::string &derivation_path);
   bool UpdateRemoteSigner(Chain chain, const SingleSigner &remotesigner);
   bool IsMasterSigner(Chain chain, const std::string &id);
-  std::pair<int, bool> GetAddressIndex(Chain chain, const std::string &wallet_id,
-                      const std::string &address);
+  std::pair<int, bool> GetAddressIndex(Chain chain,
+                                       const std::string &wallet_id,
+                                       const std::string &address);
   Amount GetAddressBalance(Chain chain, const std::string &wallet_id,
                            const std::string &address);
+  std::map<AssetId, Amount> GetAddressAssets(Chain chain,
+                                             const std::string &wallet_id,
+                                             const std::string &address);
   bool MarkAddressAsUsed(Chain chain, const std::string &wallet_id,
                          const std::string &address);
   std::string GetAddressStatus(Chain chain, const std::string &wallet_id,
@@ -290,6 +323,9 @@ class NunchukStorage {
                    const std::string &address);
   std::string GetAddressPath(Chain chain, const std::string &wallet_id,
                              const std::string &address);
+  std::string GetAddressPath(Chain chain, const std::string &wallet_id,
+                             const std::string &address,
+                             const SingleSigner &signer);
   std::vector<std::vector<UnspentOutput>> GetAncestry(
       Chain chain, const std::string &wallet_id, const std::string &tx_id,
       int vout);
@@ -354,6 +390,9 @@ class NunchukStorage {
   static std::shared_mutex access_;
 
   NunchukWalletDb GetWalletDb(Chain chain, const std::string &id);
+  // Return WalletDb with WallySigner injected if WalletType is LIQUID
+  NunchukWalletDb GetLiquidSupportedWalletDb(Chain chain,
+                                             const std::string &id);
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);

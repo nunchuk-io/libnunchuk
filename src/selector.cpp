@@ -76,6 +76,17 @@ util::Result<SelectionResult> ChooseSelectionResult(
   } else
     append_error(std::move(knapsack_result));
 
+  if (coin_selection_params.m_effective_feerate >
+      CFeeRate{3 * coin_selection_params.m_long_term_feerate}) {
+    if (auto cg_result{CoinGrinder(groups.positive_group, nTargetValue,
+                                   coin_selection_params.m_min_change_target,
+                                   max_inputs_weight)}) {
+      results.push_back(*cg_result);
+    } else {
+      append_error(std::move(cg_result));
+    }
+  }
+
   if (auto srd_result{SelectCoinsSRD(groups.positive_group, nTargetValue,
                                      coin_selection_params.m_change_fee,
                                      coin_selection_params.rng_fast,

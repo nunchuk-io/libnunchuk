@@ -207,12 +207,12 @@ util::Result<CreatedTransactionResult> CreateTransaction(
   std::vector<CRecipient> vecSend;
   for (const auto& recipient : recipients) {
     std::string error;
-    auto dest = DecodeDestination(recipient.first, error);
+    auto dest = DecodeDestination(recipient.address, error);
     if (!error.empty()) {
       throw NunchukException(NunchukException::INVALID_ADDRESS, error);
     }
     vecSend.push_back(
-        {std::move(dest), recipient.second, subtract_fee_outputs});
+        {std::move(dest), recipient.amount, subtract_fee_outputs});
   }
 
   FlatSigningProvider provider;

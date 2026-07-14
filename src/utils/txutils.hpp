@@ -274,7 +274,10 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
 inline nunchuk::Transaction ParseCMutableTransaction(
     const CMutableTransaction& mtx, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
-
+  if (wallet.get_wallet_type() == WalletType::LIQUID) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported");
+  }
   Transaction tx = GetTransactionFromCMutableTransaction(mtx, height);
   auto signers = wallet.get_signers();
   std::vector<SingleSigner> signed_signers{};

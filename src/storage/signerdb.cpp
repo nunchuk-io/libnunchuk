@@ -356,6 +356,23 @@ SoftwareSigner NunchukSignerDb::GetSoftwareSigner(
                          "Is not software signer");
 }
 
+wally::WallySigner NunchukSignerDb::GetWallySigner(
+    const std::string& passphrase) const {
+  auto mnemonic = GetString(DbKeys::MNEMONIC);
+  if (!mnemonic.empty()) {
+    auto signer = wally::WallySigner{mnemonic, passphrase};
+    if (signer.GetMasterFingerprint() != id_) {
+      throw NunchukException(NunchukException::INVALID_SIGNER_PASSPHRASE,
+                             "Invalid passphrase");
+    }
+    return signer;
+  }
+
+  // TODO: Add support for master xprv
+  throw NunchukException(NunchukException::INVALID_PARAMETER,
+                         "Is not wally signer");
+}
+
 std::string NunchukSignerDb::GetMnemonic(const std::string& passphrase) const {
   auto mnemonic = GetString(DbKeys::MNEMONIC);
   if (!mnemonic.empty()) {

@@ -39,7 +39,8 @@ namespace nunchuk {
 class ElectrumClient {
  public:
   ElectrumClient(const nunchuk::AppSettings& appsettings,
-                 const std::function<void()> on_disconnect);
+                 const std::function<void()> on_disconnect,
+                 bool is_liquid = false);
   ~ElectrumClient();
 
   void subscribe(const std::string& method, const NotifySignal::slot_type& lis);
@@ -86,6 +87,7 @@ class ElectrumClient {
   bool handle_socks5();
   void handle_error(const std::string& where, const std::string& message);
 
+  bool is_liquid_;
   std::string protocol_ = "tcp";
   std::string host_;
   int port_ = 50001;

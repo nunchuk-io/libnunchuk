@@ -32,8 +32,8 @@ class NunchukAppStateDb : public NunchukDb {
   using NunchukDb::NunchukDb;
 
   void Init();
-  int GetChainTip() const;
-  bool SetChainTip(int value);
+  int GetChainTip(bool liquid) const;
+  bool SetChainTip(int value, bool liquid);
   std::string GetSelectedWallet() const;
   bool SetSelectedWallet(const std::string &value);
   int64_t GetStorageVersion() const;
@@ -53,6 +53,8 @@ class NunchukAppStateDb : public NunchukDb {
   bool RemoveDeletedTransaction(const std::string &id);
   int GetHotWalletId() const;
   bool SetHotWalletId(int value);
+  int GetLiquidWalletId() const;
+  bool SetLiquidWalletId(int value);
 
  private:
   friend class NunchukStorage;

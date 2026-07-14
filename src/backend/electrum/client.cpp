@@ -33,29 +33,20 @@ static const std::string DEFAULT_SERVER = "127.0.0.1:50001";
 static const std::string NETWORK_REJECTED_PREFIX =
     "the transaction was rejected by network rules.";
 
-static std::string GetServerAddress(const AppSettings& appsettings) {
-  auto getFirstElementOrDefault = [](const std::vector<std::string>& elements,
-                                     const std::string& def) {
+static std::string GetServerAddress(const AppSettings& appsettings,
+                                    bool is_liquid) {
+  auto firstOrDefault = [](const std::vector<std::string>& elements,
+                           const std::string& def) {
     if (elements.empty()) {
       return def;
     }
     return elements.front();
   };
 
-  switch (appsettings.get_chain()) {
-    case Chain::TESTNET:
-      return getFirstElementOrDefault(appsettings.get_testnet_servers(),
-                                      DEFAULT_SERVER);
-    case Chain::MAIN:
-      return getFirstElementOrDefault(appsettings.get_mainnet_servers(),
-                                      DEFAULT_SERVER);
-    case Chain::SIGNET:
-      return getFirstElementOrDefault(appsettings.get_signet_servers(),
-                                      DEFAULT_SERVER);
-
-    default:
-      throw NunchukException(NunchukException::INVALID_CHAIN,
-                             "Chain not supported");
+  if (is_liquid) {
+    return firstOrDefault(appsettings.get_liquid_servers(), DEFAULT_SERVER);
+  } else {
+    return firstOrDefault(appsettings.get_electrum_servers(), DEFAULT_SERVER);
   }
 }
 
@@ -79,14 +70,16 @@ static NunchukException MakeElectrumException(const std::string& error) {
 }
 
 ElectrumClient::ElectrumClient(const AppSettings& appsettings,
-                               const std::function<void()> on_disconnect)
-    : io_thread_(),
+                               const std::function<void()> on_disconnect,
+                               bool is_liquid)
+    : is_liquid_(is_liquid),
+      io_thread_(),
       signal_thread_(),
       signal_worker_(make_work_guard(signal_service_)),
       interval_(5),
       timer_(io_service_, interval_) {
   disconnect_signal_.connect(on_disconnect);
-  std::string server_url = GetServerAddress(appsettings);
+  std::string server_url = GetServerAddress(appsettings, is_liquid_);
 
   size_t colonDoubleSlash = server_url.find("://");
   if (colonDoubleSlash != std::string::npos) {

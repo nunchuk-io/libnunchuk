@@ -714,8 +714,7 @@ void init() {
   settings.set_chain(Chain::MAIN);
   settings.set_hwi_path("lib/bin/hwi");
   settings.enable_proxy(false);
-  settings.set_testnet_servers({"testnet.nunchuk.io:50001"});
-  settings.set_mainnet_servers({"mainnet.nunchuk.io:51001"});
+  settings.set_electrum_servers({"mainnet.nunchuk.io:51001"});
   settings.set_storage_path("/home/bringer/libnunchuk/examples/playground.cpp");
   settings.set_group_server("https://api.nunchuk.io");
   nu = MakeNunchukForAccount(settings, {}, account);

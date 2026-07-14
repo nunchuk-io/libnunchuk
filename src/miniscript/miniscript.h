@@ -521,9 +521,13 @@ struct Node {
         while (!subs.empty()) {
             auto node = std::move(subs.back());
             subs.pop_back();
-            while (!node->subs.empty()) {
-                subs.push_back(std::move(node->subs.back()));
-                node->subs.pop_back();
+            // Only flatten children when this is their last reference. Otherwise
+            // we'd leave other shared_ptr holders with nodes that have empty subs.
+            if (node.use_count() == 1) {
+                while (!node->subs.empty()) {
+                    subs.push_back(std::move(node->subs.back()));
+                    node->subs.pop_back();
+                }
             }
         }
     }

@@ -979,34 +979,34 @@ std::string NunchukImpl::DecryptGroupTxId(const std::string& walletId,
 
 void NunchukImpl::AddGroupUpdateListener(
     std::function<void(const GroupSandbox& state)> listener) {
-  group_wallet_listener_.connect(listener);
+  group_wallet_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::AddGroupMessageListener(
     std::function<void(const GroupMessage& msg)> listener) {
-  group_message_listener_.connect(listener);
+  group_message_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::AddGroupOnlineListener(
     std::function<void(const std::string& groupId, int online)> listener) {
-  group_online_listener_.connect(listener);
+  group_online_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::AddGroupDeleteListener(
     std::function<void(const std::string& groupId)> listener) {
-  group_delete_listener_.connect(listener);
+  group_delete_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::AddReplaceRequestListener(
     std::function<void(const std::string& walletId,
                        const std::string& replaceGroupId)>
         listener) {
-  group_replace_listener_.connect(listener);
+  group_replace_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::AddGroupWalletDashboardListener(
     std::function<void(const std::string& walletId)> listener) {
-  group_wallet_dashboard_listener_.connect(listener);
+  group_wallet_dashboard_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::SyncGroupTransactions(const std::string& walletId) {

@@ -51,6 +51,7 @@ const int ULTRA_HIGH_DENSITY_BBQR = 40;
 const int64_t UNDETERMINED_TIMELOCK_VALUE = INT64_MAX;
 
 typedef int64_t Amount;
+typedef std::vector<unsigned char> AssetId;  // 32 bytes
 struct TxInput {
   std::string txid;
   uint32_t vout;
@@ -71,7 +72,27 @@ struct TxInput {
 
   bool operator!=(const TxInput& other) const { return !(*this == other); }
 };
-typedef std::pair<std::string, Amount> TxOutput;    // address-amount pair
+struct TxOutput {
+  std::string address;
+  Amount amount{};
+  bool isChange{false};
+  bool isReceive{false};
+  Amount userAmount{0};
+  AssetId assetId{};
+  uint32_t vout{0};
+
+  TxOutput() = default;
+  TxOutput(const std::string& address, Amount amount)
+      : address(address), amount(amount) {}
+
+  bool operator==(const TxOutput& other) const {
+    return address == other.address && amount == other.amount &&
+           isChange == other.isChange && isReceive == other.isReceive &&
+           userAmount == other.userAmount && assetId == other.assetId &&
+           vout == other.vout;
+  }
+  bool operator!=(const TxOutput& other) const { return !(*this == other); }
+};
 typedef std::map<std::string, bool> RequestTokens;  // token-sent map
 typedef std::vector<size_t> ScriptNodeId;
 typedef std::vector<ScriptNodeId> SigningPath;
@@ -101,6 +122,7 @@ enum class WalletType {
   MULTI_SIG,
   ESCROW,
   MINISCRIPT,
+  LIQUID,
 };
 
 enum class WalletTemplate {
@@ -567,6 +589,7 @@ class NUNCHUK_EXPORT Wallet {
   bool is_archived() const;
   std::string get_miniscript(DescriptorPath key_path = DescriptorPath::ANY,
                              int index = -1) const;
+  Amount get_asset_balance(const AssetId& asset_id) const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -584,6 +607,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_need_backup(bool value);
   void set_archived(bool value);
   void set_miniscript(const std::string& value);
+  void set_asset_balance(const AssetId& asset_id, const Amount& value);
 
  private:
   void post_update();
@@ -605,6 +629,7 @@ class NUNCHUK_EXPORT Wallet {
   bool need_backup_{false};
   bool archived_{false};
   std::string miniscript_;
+  std::map<AssetId, Amount> asset_balances_{};
 };
 
 class NUNCHUK_EXPORT CoinTag {
@@ -1131,9 +1156,7 @@ class Transaction {
   int get_height() const;
   std::vector<TxInput> const& get_inputs() const;
   std::vector<TxOutput> const& get_outputs() const;
-  std::vector<TxOutput> const& get_user_outputs() const;
-  std::vector<TxOutput> const& get_receive_outputs() const;
-  int get_change_index() const;
+  std::vector<TxOutput>& mutable_outputs();
   int get_m() const;
   AddressType get_address_type() const;
   WalletType get_wallet_type() const;
@@ -1161,9 +1184,6 @@ class Transaction {
   void set_height(int value);
   void add_input(const TxInput& value);
   void add_output(const TxOutput& value);
-  void add_user_output(const TxOutput& value);
-  void add_receive_output(const TxOutput& value);
-  void set_change_index(int value);
   void set_m(int value);
   void set_wallet_type(WalletType value);
   void set_address_type(AddressType value);
@@ -1192,9 +1212,6 @@ class Transaction {
   int height_;
   std::vector<TxInput> inputs_;
   std::vector<TxOutput> outputs_;
-  std::vector<TxOutput> user_outputs_;
-  std::vector<TxOutput> receive_output_;
-  int change_index_;
   int m_;
   WalletType wallet_type_;
   AddressType address_type_;
@@ -1361,9 +1378,8 @@ class NUNCHUK_EXPORT AppSettings {
 
   Chain get_chain() const;
   BackendType get_backend_type() const;
-  std::vector<std::string> get_mainnet_servers() const;
-  std::vector<std::string> get_signet_servers() const;
-  std::vector<std::string> get_testnet_servers() const;
+  std::vector<std::string> get_electrum_servers() const;
+  std::vector<std::string> get_liquid_servers() const;
   std::string get_hwi_path() const;
   std::string get_storage_path() const;
   bool use_proxy() const;
@@ -1380,9 +1396,8 @@ class NUNCHUK_EXPORT AppSettings {
 
   void set_chain(Chain value);
   void set_backend_type(BackendType value);
-  void set_mainnet_servers(const std::vector<std::string>& value);
-  void set_signet_servers(const std::vector<std::string>& value);
-  void set_testnet_servers(const std::vector<std::string>& value);
+  void set_electrum_servers(const std::vector<std::string>& value);
+  void set_liquid_servers(const std::vector<std::string>& value);
   void set_hwi_path(const std::string& value);
   void set_storage_path(const std::string& value);
   void enable_proxy(bool value);
@@ -1400,9 +1415,8 @@ class NUNCHUK_EXPORT AppSettings {
  private:
   Chain chain_;
   BackendType backend_type_;
-  std::vector<std::string> mainnet_servers_;
-  std::vector<std::string> signet_servers_;
-  std::vector<std::string> testnet_servers_;
+  std::vector<std::string> electrum_servers_;
+  std::vector<std::string> liquid_servers_;
   std::string hwi_path_;
   std::string storage_path_;
   bool enable_proxy_;
@@ -1509,10 +1523,10 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::map<std::string, SingleSigner>& signers,
       AddressType address_type, const std::string& description = {},
       bool allow_used_signer = false, const std::string& decoy_pin = {}) = 0;
-  virtual std::string GetHotWalletMnemonic(
+  virtual std::string GetUnbackedUpWalletMnemonic(
       const std::string& wallet_id, const std::string& passphrase = {}) = 0;
-  virtual std::string GetHotKeyMnemonic(const std::string& signer_id,
-                                        const std::string& passphrase = {}) = 0;
+  virtual std::string GetUnbackedUpKeyMnemonic(
+      const std::string& signer_id, const std::string& passphrase = {}) = 0;
   virtual std::string DraftWallet(
       const std::string& name, int m, int n,
       const std::vector<SingleSigner>& signers, AddressType address_type,
@@ -1688,8 +1702,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::string ImportHealthCheckSignature(
       const std::string& file_path) = 0;
   virtual Amount EstimateFee(int conf_target = 6, bool use_mempool = true) = 0;
-  virtual int GetChainTip() = 0;
-  virtual time_t GetMedianTimePast() = 0;
+  virtual int GetChainTip(bool liquid = false) = 0;
+  virtual time_t GetMedianTimePast(bool liquid = false) = 0;
   virtual Amount GetTotalAmount(const std::string& wallet_id,
                                 const std::vector<TxInput>& inputs) = 0;
   virtual std::string GetSelectedWallet() = 0;
@@ -1958,6 +1972,9 @@ class NUNCHUK_EXPORT Nunchuk {
                            const std::string& address) = 0;
   virtual std::string GetAddressPath(const std::string& wallet_id,
                                      const std::string& address) = 0;
+  virtual std::string GetAddressPath(const std::string& wallet_id,
+                                     const std::string& address,
+                                     const SingleSigner& signer) = 0;
   virtual int GetAddressIndex(const std::string& wallet_id,
                               const std::string& address) = 0;
   virtual std::vector<std::vector<UnspentOutput>> GetCoinAncestry(
@@ -2035,16 +2052,39 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual Transaction GetDummyTx(const std::string& wallet_id,
                                  const std::string& id) = 0;
 
+  // Liquid wallet
+  virtual Wallet CreateLiquidWallet(const std::string& mnemonic = {},
+                                    const std::string& passphrase = {},
+                                    bool need_backup = true,
+                                    bool replace = true) = 0;
+  virtual Wallet CreateLiquidWallet(const SingleSigner& signer) = 0;
+  virtual std::map<AssetId, Amount> GetAddressAssets(
+      const std::string& wallet_id, const std::string& address) = 0;
+  virtual Transaction CreateLiquidTransaction(
+      const std::string& wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+      Amount fee_rate = -1, const std::string& memo = {},
+      bool subtract_fee_from_amount = false) = 0;
+  virtual Transaction DraftLiquidTransaction(
+      const std::string& wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+      Amount fee_rate = -1, bool subtract_fee_from_amount = false) = 0;
+  virtual Amount EstimateFeeForLiquidTransaction(
+      const std::string& wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+      Amount fee_rate = -1, bool subtract_fee_from_amount = false) = 0;
+  virtual Transaction SignLiquidTransaction(const std::string& wallet_id,
+                                            const std::string& tx_id,
+                                            const Device& device) = 0;
   // Add listener methods
-  virtual void AddBalanceListener(
-      std::function<void(std::string /* wallet_id */, Amount /* new_balance */)>
-          listener) = 0;
   virtual void AddBalancesListener(
       std::function<void(std::string /* wallet_id */, Amount /* balance */,
-                         Amount /* unconfirmed_balance */)>
+                         Amount /* unconfirmed_balance */,
+                         const std::map<AssetId, Amount>& /* asset_balances */)>
           listener) = 0;
   virtual void AddBlockListener(
-      std::function<void(int /* height */, std::string /* hex_header */)>
+      std::function<void(int /* height */, std::string /* hex_header */,
+                         bool /* liquid */)>
           listener) = 0;
   virtual void AddTransactionListener(
       std::function<void(std::string /* tx_id */, TransactionStatus,
@@ -2054,7 +2094,9 @@ class NUNCHUK_EXPORT Nunchuk {
       std::function<void(std::string /* fingerprint */, bool /* connected */)>
           listener) = 0;
   virtual void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus, int /* percent */)> listener) = 0;
+      std::function<void(ConnectionStatus, int /* percent */,
+                         bool /* liquid */)>
+          listener) = 0;
   virtual void AddStorageUpdateListener(std::function<void()> listener) = 0;
 
   // The following methods use HWI to interact with the devices. They might take
@@ -2165,11 +2207,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual GroupSandbox EnableGroupPlatformKey(
       const std::string& groupId,
       const std::vector<std::string>& names = {}) = 0;
-  virtual GroupSandbox DisableGroupPlatformKey(
-      const std::string& groupId) = 0;
+  virtual GroupSandbox DisableGroupPlatformKey(const std::string& groupId) = 0;
   virtual GroupSandbox SetGroupPlatformKeyPolicies(
-      const std::string& groupId,
-      const GroupPlatformKeyPolicies& policies) = 0;
+      const std::string& groupId, const GroupPlatformKeyPolicies& policies) = 0;
   virtual GroupSandbox UpdateGroup(const std::string& groupId,
                                    const std::string& name, int m, int n,
                                    AddressType addressType) = 0;
@@ -2197,15 +2237,12 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual std::vector<GroupDummyTransaction> GetGroupDummyTransactions(
       const std::string& walletId) = 0;
   virtual GroupDummyTransaction GetGroupDummyTransaction(
-      const std::string& walletId,
-      const std::string& dummyTransactionId) = 0;
+      const std::string& walletId, const std::string& dummyTransactionId) = 0;
   virtual GroupDummyTransaction SignGroupDummyTransaction(
-      const std::string& walletId,
-      const std::string& dummyTransactionId,
+      const std::string& walletId, const std::string& dummyTransactionId,
       const std::vector<std::string>& signatures) = 0;
   virtual void CancelGroupDummyTransaction(
-      const std::string& walletId,
-      const std::string& dummyTransactionId) = 0;
+      const std::string& walletId, const std::string& dummyTransactionId) = 0;
   virtual GroupTransactionState GetGroupTransactionState(
       const std::string& walletId, const std::string& txId) = 0;
   virtual int GetGroupWalletAlertCount(const std::string& walletId) = 0;
@@ -2291,6 +2328,7 @@ class NUNCHUK_EXPORT Utils {
   static bool IsDustOutput(const TxOutput& txout);
   static bool IsValidAddress(const std::string& address);
   static bool IsSilentPaymentAddress(const std::string& address);
+  static bool IsLiquidAddress(const std::string& address);
   static Amount AmountFromValue(const std::string& value,
                                 const bool allow_negative = false);
   static std::string ValueFromAmount(const Amount& amount);
@@ -2468,6 +2506,28 @@ class NUNCHUK_EXPORT Utils {
       int chain_tip);
   static std::vector<std::string> ParseSignerNames(
       const std::string& script_template, int& keypath_m);
+  static AssetId GetUSDTAssetId();
+  static AssetId GetLBTCAssetId();
+
+  // Trezor
+  static std::string TrezorGetPublicKey(WalletType wallet_type,
+                                        AddressType address_type, int index);
+  static SingleSigner TrezorParsePublicKeyResponse(const std::string& response);
+  static std::string TrezorSignTransaction(const Wallet& wallet,
+                                           const std::string& psbt,
+                                           const std::string& xfp);
+  static std::string TrezorParseSignTransactionResponse(
+      const Wallet& wallet, const std::string& psbt, const std::string& xfp,
+      const std::string& response);
+  static std::string TrezorSignMessage(const SingleSigner& signer,
+                                       const std::string& message);
+  static std::string TrezorGetSignMessagePath(const SingleSigner& signer);
+  static std::pair<std::string, std::string> TrezorParseSignMessage(
+      const std::string& response);
+  static std::string TrezorGetAddress(const Wallet& wallet,
+                                      const std::string& address,
+                                      const std::string& path);
+  static std::string TrezorParseGetAddress(const std::string& response);
 
  private:
   Utils() {}

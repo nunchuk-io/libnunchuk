@@ -23,14 +23,11 @@ AppSettings::AppSettings() {}
 
 Chain AppSettings::get_chain() const { return chain_; }
 BackendType AppSettings::get_backend_type() const { return backend_type_; }
-std::vector<std::string> AppSettings::get_mainnet_servers() const {
-  return mainnet_servers_;
+std::vector<std::string> AppSettings::get_electrum_servers() const {
+  return electrum_servers_;
 }
-std::vector<std::string> AppSettings::get_signet_servers() const {
-  return signet_servers_;
-}
-std::vector<std::string> AppSettings::get_testnet_servers() const {
-  return testnet_servers_;
+std::vector<std::string> AppSettings::get_liquid_servers() const {
+  return liquid_servers_;
 }
 std::string AppSettings::get_hwi_path() const { return hwi_path_; }
 std::string AppSettings::get_storage_path() const { return storage_path_; }
@@ -56,14 +53,11 @@ std::string AppSettings::get_group_server() const {
 
 void AppSettings::set_chain(Chain value) { chain_ = value; }
 void AppSettings::set_backend_type(BackendType value) { backend_type_ = value; }
-void AppSettings::set_mainnet_servers(const std::vector<std::string>& value) {
-  mainnet_servers_ = value;
+void AppSettings::set_electrum_servers(const std::vector<std::string>& value) {
+  electrum_servers_ = value;
 }
-void AppSettings::set_testnet_servers(const std::vector<std::string>& value) {
-  testnet_servers_ = value;
-}
-void AppSettings::set_signet_servers(const std::vector<std::string>& value) {
-  signet_servers_ = value;
+void AppSettings::set_liquid_servers(const std::vector<std::string>& value) {
+  liquid_servers_ = value;
 }
 void AppSettings::set_hwi_path(const std::string& value) { hwi_path_ = value; }
 void AppSettings::set_storage_path(const std::string& value) {

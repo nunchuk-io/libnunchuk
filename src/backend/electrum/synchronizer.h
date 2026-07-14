@@ -27,12 +27,14 @@ namespace nunchuk {
 
 class ElectrumSynchronizer : public Synchronizer {
  public:
-  using Synchronizer::Synchronizer;
+  ElectrumSynchronizer(const AppSettings& appsettings,
+                       const std::string& account, bool liquid);
   ElectrumSynchronizer(const ElectrumSynchronizer&) = delete;
   ElectrumSynchronizer& operator=(const ElectrumSynchronizer&) = delete;
   ~ElectrumSynchronizer();
 
   void Broadcast(const std::string& raw_tx) override;
+  void BroadcastLiquidTransaction(const std::string& raw_tx) override;
   Amount EstimateFee(int conf_target) override;
   time_t GetMedianTimePast() override;
   Amount RelayFee() override;
@@ -80,6 +82,10 @@ class ElectrumSynchronizer : public Synchronizer {
       const std::string& wallet_id, const std::vector<std::string>& addresses);
   void BlockchainSync(Chain chain);
   void WaitForReady();
+  void EnsureReady() const;
+  void EnsureBitcoin() const;
+  void EnsureLiquid() const;
+  bool MatchesWalletNetwork(Chain chain, const std::string& wallet_id) const;
 
   std::unique_ptr<ElectrumClient> client_;
 

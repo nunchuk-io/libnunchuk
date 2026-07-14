@@ -60,6 +60,8 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
 
   int coin_type = chain == Chain::MAIN ? 0 : 1;
   switch (wallet_type) {
+    case WalletType::LIQUID:
+      coin_type = 1776;
     case WalletType::SINGLE_SIG:
       switch (address_type) {
         case AddressType::LEGACY:
@@ -115,6 +117,10 @@ inline std::string GetBip32Path(nunchuk::Chain chain,
 }
 
 inline std::string GetBip32Type(const std::string& path) {
+  if (boost::algorithm::starts_with(path, "m/44h/1776h")) return "bip44_liquid";
+  if (boost::algorithm::starts_with(path, "m/49h/1776h")) return "bip49_liquid";
+  if (boost::algorithm::starts_with(path, "m/84h/1776h")) return "bip84_liquid";
+  if (boost::algorithm::starts_with(path, "m/86h/1776h")) return "bip86_liquid";
   if (boost::algorithm::starts_with(path, "m/44h")) return "bip44";
   if (boost::algorithm::starts_with(path, "m/45h")) return "bip45";
   if (boost::algorithm::starts_with(path, "m/49h")) return "bip49";
@@ -152,6 +158,20 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
           throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
                                  "Invalid address type");
       }
+    case WalletType::LIQUID:
+      switch (address_type) {
+        case AddressType::LEGACY:
+          return "bip44_liquid";
+        case AddressType::NESTED_SEGWIT:
+          return "bip49_liquid";
+        case AddressType::NATIVE_SEGWIT:
+          return "bip84_liquid";
+        case AddressType::TAPROOT:
+          return "bip86_liquid";
+        default:
+          throw NunchukException(NunchukException::INVALID_ADDRESS_TYPE,
+                                 "Invalid address type");
+      }
     case WalletType::MULTI_SIG:
     case WalletType::MINISCRIPT:
       switch (address_type) {
@@ -177,14 +197,21 @@ inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
 inline int GetIndexFromPath(const nunchuk::WalletType& wallet_type,
                             const nunchuk::AddressType& address_type,
                             const std::string& path) {
-  if (wallet_type == nunchuk::WalletType::MULTI_SIG ||
-      wallet_type == nunchuk::WalletType::MINISCRIPT) {
-    if (address_type == nunchuk::AddressType::LEGACY) return 0;
-    if (path.size() <= 9) return 0;
-    return std::stoi(path.substr(9, path.size() - 3));
+  try {
+    if (wallet_type == nunchuk::WalletType::MULTI_SIG ||
+        wallet_type == nunchuk::WalletType::MINISCRIPT) {
+      if (address_type == nunchuk::AddressType::LEGACY) return 0;
+      if (path.size() <= 9) return 0;
+      return std::stoi(path.substr(9, path.size() - 3));
+    }
+    std::size_t last = path.find_last_of("/");
+    if (last == std::string::npos) return -1;  // root or non-standard path
+    return std::stoi(path.substr(last + 1));
+  } catch (const std::exception&) {
+    // Path doesn't have a numeric trailing component (e.g. "m", "m/0'/foo");
+    // treat it as a custom path so callers fall back to the "custom" branch.
+    return -1;
   }
-  std::size_t last = path.find_last_of("/");
-  return std::stoi(path.substr(last + 1));
 }
 
 inline int GetIndexFromPath(const std::string& path) {

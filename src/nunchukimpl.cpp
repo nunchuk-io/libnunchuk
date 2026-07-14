@@ -22,8 +22,10 @@
 #include <key_io.h>
 #include <validation.h>
 #include <algorithm>
+#include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <thread>
 #include "bbqr/bbqr.hpp"
 #include "descriptor.h"
 #include "utils/chain.hpp"
@@ -32,6 +34,7 @@
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
 #include <utils/addressutils.hpp>
+#include <liquid/wallysigner.hpp>
 #include <utils/silentpayment.hpp>
 #include <script/signingprovider.h>
 #include <utils/json.hpp>
@@ -97,6 +100,8 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
             estimate_fee_cached_value_ + ESTIMATE_FEE_CACHE_SIZE, 0);
   synchronizer_ = MakeSynchronizer(app_settings_, account_);
   synchronizer_->Run();
+  liquid_synchronizer_ = MakeLiquidSynchronizer(app_settings_, account_);
+  liquid_synchronizer_->Run();
 }
 Nunchuk::~Nunchuk() = default;
 NunchukImpl::~NunchukImpl() {
@@ -104,6 +109,17 @@ NunchukImpl::~NunchukImpl() {
     // Stop all ongoing requests running in other threads
     group_service_.StopHttpClients();
   }
+}
+
+Synchronizer* NunchukImpl::SyncForLiquid(bool liquid) const {
+  if (liquid) {
+    if (!liquid_synchronizer_) {
+      throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                             "Liquid synchronizer not configured");
+    }
+    return liquid_synchronizer_.get();
+  }
+  return synchronizer_.get();
 }
 
 void NunchukImpl::SetPassphrase(const std::string& passphrase) {
@@ -163,20 +179,23 @@ Wallet NunchukImpl::CloneWallet(const std::string& wallet_id,
   return storage_->CreateDecoyWallet(chain_, wallet, decoy_pin);
 }
 
+inline std::string GetDefaultName(const std::string& prefix, int id) {
+  return id == 0 ? prefix : prefix + " #" + std::to_string(id + 1);
+}
+
 Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
                                     const std::string& passphrase,
                                     bool need_backup, bool replace) {
   std::string seed = mnemonic.empty() ? Utils::GenerateMnemonic() : mnemonic;
   auto id = storage_->GetHotWalletId();
-  auto key_name = id == 0 ? "My key" : "My key #" + std::to_string(id + 1);
+  auto key_name = GetDefaultName("My key", id);
   auto ss = CreateSoftwareSigner(
       key_name, seed, passphrase, [](int) { return true; }, false, replace);
+  auto wallet_name = GetDefaultName("My hot wallet", id);
   WalletType wt = WalletType::SINGLE_SIG;
   AddressType at = AddressType::NATIVE_SEGWIT;
   auto signer = GetDefaultSignerFromMasterSigner(ss.get_id(), wt, at);
-  auto name =
-      id == 0 ? "My hot wallet" : "My hot wallet #" + std::to_string(id + 1);
-  auto wallet = CreateWallet(name, 1, 1, {signer}, at, wt);
+  auto wallet = CreateWallet(wallet_name, 1, 1, {signer}, at, wt);
   if (need_backup) {
     wallet.set_need_backup(true);
     storage_->UpdateWallet(chain_, wallet);
@@ -185,11 +204,14 @@ Wallet NunchukImpl::CreateHotWallet(const std::string& mnemonic,
   return wallet;
 }
 
-std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
-                                              const std::string& passphrase) {
+std::string NunchukImpl::GetUnbackedUpWalletMnemonic(
+    const std::string& wallet_id, const std::string& passphrase) {
   auto wallet = storage_->GetWallet(chain_, wallet_id, false);
-  if (wallet.get_wallet_type() != WalletType::SINGLE_SIG ||
-      !wallet.need_backup()) {
+  if (!wallet.need_backup()) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Wallet is already backed up");
+  } else if (wallet.get_wallet_type() != WalletType::SINGLE_SIG &&
+             wallet.get_wallet_type() != WalletType::LIQUID) {
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                            "Invalid wallet type");
   }
@@ -197,10 +219,13 @@ std::string NunchukImpl::GetHotWalletMnemonic(const std::string& wallet_id,
   return storage_->GetMnemonic(chain_, signer_id, passphrase);
 }
 
-std::string NunchukImpl::GetHotKeyMnemonic(const std::string& signer_id,
-                                           const std::string& passphrase) {
+std::string NunchukImpl::GetUnbackedUpKeyMnemonic(
+    const std::string& signer_id, const std::string& passphrase) {
   auto signer = storage_->GetMasterSigner(chain_, signer_id);
-  if (signer.get_type() != SignerType::SOFTWARE || !signer.need_backup()) {
+  if (!signer.need_backup()) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Signer is already backed up");
+  } else if (signer.get_type() != SignerType::SOFTWARE) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            "Invalid signer type");
   }
@@ -457,12 +482,13 @@ void NunchukImpl::ScanWalletAddress(const std::string& wallet_id, bool force,
 void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id,
                                        bool from_start) {
   auto wallet = GetWallet(wallet_id);
+  auto* sync = SyncForLiquid(wallet.get_wallet_type() == WalletType::LIQUID);
   int index = -1;
   std::string address;
   if (wallet.is_escrow()) {
     auto descriptor = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
     address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
-    synchronizer_->LookAhead(chain_, wallet_id, address, index, false);
+    sync->LookAhead(chain_, wallet_id, address, index, false);
   } else {
     // scan internal address
     index = from_start
@@ -485,24 +511,34 @@ void NunchukImpl::RunScanWalletAddress(const std::string& wallet_id,
 
 std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
                                           bool internal) {
-  auto descriptor = wallet.get_descriptor(
-      internal ? DescriptorPath::INTERNAL_ALL : DescriptorPath::EXTERNAL_ALL);
-  std::string wallet_id = wallet.get_id();
-  if (synchronizer_->SupportBatchLookAhead()) {
+  const std::string wallet_id = wallet.get_id();
+  auto* sync = SyncForLiquid(wallet.get_wallet_type() == WalletType::LIQUID);
+  std::string descriptor;
+  std::shared_ptr<wally::WallySigner> signer;
+  std::string path;
+  if (wallet.get_wallet_type() != WalletType::LIQUID) {
+    descriptor = wallet.get_descriptor(internal ? DescriptorPath::INTERNAL_ALL
+                                                : DescriptorPath::EXTERNAL_ALL);
+  } else {
+    signer = storage_->GetWallySignerForWallet(chain_, wallet_id);
+    path = wallet.get_signers()[0].get_derivation_path();
+  }
+
+  if (sync->SupportBatchLookAhead()) {
     int lastUsedIndex = index - 1;
     while (true) {
       std::vector<std::string> addresses;
       std::vector<int> indexes;
       for (int i = index; i < index + wallet.get_gap_limit(); i++) {
         addresses.push_back(
-            CoreUtils::getInstance().DeriveAddress(descriptor, i));
+            DeriveAddress(descriptor, signer, path, i, internal));
         indexes.push_back(i);
       }
-      int last = synchronizer_->BatchLookAhead(chain_, wallet_id, addresses,
-                                               indexes, internal);
+      int last = sync->BatchLookAhead(chain_, wallet_id, addresses, indexes,
+                                      internal);
       if (last == -1) {
         index = lastUsedIndex + 1;
-        return CoreUtils::getInstance().DeriveAddress(descriptor, index);
+        return DeriveAddress(descriptor, signer, path, index, internal);
       }
       lastUsedIndex = index + last;
       index = index + wallet.get_gap_limit();
@@ -513,9 +549,9 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
   std::vector<std::string> unused_addresses;
   std::map<std::string, int> addresses_index;
   while (true) {
-    auto address = CoreUtils::getInstance().DeriveAddress(descriptor, index);
+    auto address = DeriveAddress(descriptor, signer, path, index, internal);
     addresses_index[address] = index;
-    if (synchronizer_->LookAhead(chain_, wallet_id, address, index, internal)) {
+    if (sync->LookAhead(chain_, wallet_id, address, index, internal)) {
       for (auto&& a : unused_addresses) {
         storage_->AddAddress(chain_, wallet_id, a, addresses_index[a],
                              internal);
@@ -1026,21 +1062,39 @@ HealthStatus NunchukImpl::HealthCheckSingleSigner(
                            "Message too short!");
   }
 
-  std::string address;
+  std::string pkh_address;
   if (signer.get_public_key().empty()) {
     std::string descriptor = GetPkhDescriptor(signer.get_xpub());
-    address = CoreUtils::getInstance().DeriveAddress(descriptor);
+    pkh_address = CoreUtils::getInstance().DeriveAddress(descriptor);
   } else {
     CPubKey pubkey(ParseHex(signer.get_public_key()));
-    address = EncodeDestination(PKHash(pubkey.GetID()));
+    pkh_address = EncodeDestination(PKHash(pubkey.GetID()));
   }
 
-  if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
-    storage_->SetHealthCheckSuccess(chain_, signer);
-    return HealthStatus::SUCCESS;
-  } else {
-    return HealthStatus::SIGNATURE_INVALID;
+  std::vector<std::string> addresses{pkh_address};
+
+  if (auto pubkey = DecodeExtPubKey(signer.get_xpub());
+      pubkey.Derive(pubkey, 0) && pubkey.Derive(pubkey, 0)) {
+    auto derived_signer = SingleSigner(
+        signer.get_name(), EncodeExtPubKey(pubkey), signer.get_public_key(),
+        signer.get_derivation_path() + "/0/0",
+        signer.get_external_internal_index(), signer.get_master_fingerprint(),
+        signer.get_last_health_check());
+    auto descriptor = GetDescriptor(derived_signer, AddressType::LEGACY);
+    addresses.push_back(CoreUtils::getInstance().DeriveAddress(descriptor));
   }
+
+  for (auto&& address : addresses) {
+    try {
+      if (CoreUtils::getInstance().VerifyMessage(address, signature, message)) {
+        storage_->SetHealthCheckSuccess(chain_, signer);
+        return HealthStatus::SUCCESS;
+      }
+    } catch (...) {
+      // ignored
+    }
+  }
+  return HealthStatus::SIGNATURE_INVALID;
 }
 
 std::vector<Transaction> NunchukImpl::GetTransactionHistory(
@@ -1081,7 +1135,8 @@ std::vector<std::string> NunchukImpl::GetAddresses(const std::string& wallet_id,
 
 std::string NunchukImpl::NewAddress(const std::string& wallet_id,
                                     bool internal) {
-  return synchronizer_->NewAddress(chain_, wallet_id, internal);
+  bool liquid = storage_->IsSupportLiquid(chain_, wallet_id);
+  return SyncForLiquid(liquid)->NewAddress(chain_, wallet_id, internal);
 }
 
 Amount NunchukImpl::GetAddressBalance(const std::string& wallet_id,
@@ -1213,11 +1268,11 @@ Transaction NunchukImpl::CreateTransaction(
 bool NunchukImpl::ExportTransaction(const std::string& wallet_id,
                                     const std::string& tx_id,
                                     const std::string& file_path) {
-  std::string psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
-  if (psbt.empty()) {
+  auto [value, is_hex_tx] = storage_->GetPsbtOrRawTx(chain_, wallet_id, tx_id);
+  if (value.empty()) {
     throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
   }
-  return storage_->WriteFile(file_path, psbt);
+  return storage_->WriteFile(file_path, value);
 }
 
 Transaction NunchukImpl::ImportPsbt(const std::string& wallet_id,
@@ -1498,9 +1553,31 @@ std::string NunchukImpl::GetSignerAddress(const SingleSigner& signer,
 Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                                               const std::string& tx_id) {
   std::string raw_tx = GetRawTransaction(wallet_id, tx_id);
+  std::string reject_msg{};
+
+  auto wallet = GetWallet(wallet_id);
+  if (wallet.get_wallet_type() == WalletType::LIQUID) {
+    if (!wally::WallySigner::IsTxSigned(raw_tx)) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Transaction is not signed");
+    }
+    try {
+      SyncForLiquid(true)->BroadcastLiquidTransaction(raw_tx);
+    } catch (NunchukException& ne) {
+      if (ne.code() != NunchukException::NETWORK_REJECTED) throw;
+      reject_msg = ne.what();
+    }
+    if (reject_msg.empty()) {
+      storage_->UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
+    } else {
+      time_t t = std::time(0);
+      storage_->UpdateTransaction(chain_, wallet_id, raw_tx, -2, t, reject_msg);
+    }
+    return GetTransaction(wallet_id, tx_id);
+  }
+
   auto tx = DecodeRawTransaction(raw_tx);
   std::string new_txid = tx.GetHash().GetHex();
-  std::string reject_msg{};
 
   if (GetTransactionWeight(CTransaction(tx)) > MAX_STANDARD_TX_WEIGHT) {
     reject_msg = "Tx-size";
@@ -1591,6 +1668,10 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
     synchronizer_ = MakeSynchronizer(app_settings_, account_);
     synchronizer_->Run();
   }
+  if (liquid_synchronizer_ && liquid_synchronizer_->NeedRecreate(settings)) {
+    liquid_synchronizer_ = MakeLiquidSynchronizer(app_settings_, account_);
+    liquid_synchronizer_->Run();
+  }
   return settings;
 }
 
@@ -1631,16 +1712,21 @@ Transaction NunchukImpl::DraftTransaction(
     }
 
     if (m_outputs.empty()) {
-      if (origin_tx.get_user_outputs().empty()) {
+      const auto& origin_outputs = origin_tx.get_outputs();
+      const bool has_user_amount =
+          std::any_of(origin_outputs.begin(), origin_outputs.end(),
+                      [](const TxOutput& o) { return o.userAmount != 0; });
+      if (!has_user_amount) {
         subtract_fee_from_amount = false;
-        for (size_t i = 0; i < origin_tx.get_outputs().size(); i++) {
-          if (i == origin_tx.get_change_index()) continue;
-          auto output = origin_tx.get_outputs()[i];
-          m_outputs[output.first] = output.second;
+        for (const auto& output : origin_outputs) {
+          if (output.isChange) continue;
+          m_outputs[output.address] = output.amount;
         }
       } else {
-        for (auto&& output : origin_tx.get_user_outputs()) {
-          m_outputs[output.first] = output.second;
+        for (const auto& output : origin_outputs) {
+          if (output.userAmount != 0) {
+            m_outputs[output.address] = output.userAmount;
+          }
         }
       }
     }
@@ -1667,18 +1753,23 @@ Transaction NunchukImpl::DraftTransaction(
   auto tx =
       GetTransactionFromPartiallySignedTransaction(DecodePsbt(psbt), wallet);
 
-  Amount sub_amount{0};
-  for (size_t i = 0; i < tx.get_outputs().size(); i++) {
-    if (i == change_pos) continue;
-    sub_amount += tx.get_outputs()[i].second;
+  if (change_pos >= 0 &&
+      static_cast<size_t>(change_pos) < tx.mutable_outputs().size()) {
+    tx.mutable_outputs()[change_pos].isChange = true;
   }
-  for (auto&& output : m_outputs) {
-    tx.add_user_output({output.first, output.second});
+
+  Amount sub_amount{0};
+  for (const auto& out : tx.get_outputs()) {
+    if (out.isChange) continue;
+    sub_amount += out.amount;
+  }
+  for (auto& out : tx.mutable_outputs()) {
+    auto it = m_outputs.find(out.address);
+    if (it != m_outputs.end()) out.userAmount = it->second;
   }
 
   tx.set_m(wallet.get_m());
   tx.set_fee(fee);
-  tx.set_change_index(change_pos);
   tx.set_receive(false);
   tx.set_sub_amount(sub_amount);
   tx.set_fee_rate(fee_rate);
@@ -1753,16 +1844,19 @@ Transaction NunchukImpl::ReplaceTransaction(const std::string& wallet_id,
   }
 
   std::map<std::string, Amount> outputs;
-  if (tx.get_user_outputs().empty()) {
+  const auto& tx_outputs = tx.get_outputs();
+  const bool has_user_amount =
+      std::any_of(tx_outputs.begin(), tx_outputs.end(),
+                  [](const TxOutput& o) { return o.userAmount != 0; });
+  if (!has_user_amount) {
     tx.set_subtract_fee_from_amount(false);
-    for (size_t i = 0; i < tx.get_outputs().size(); i++) {
-      if (i == tx.get_change_index()) continue;
-      auto output = tx.get_outputs()[i];
-      outputs[output.first] = output.second;
+    for (const auto& output : tx_outputs) {
+      if (output.isChange) continue;
+      outputs[output.address] = output.amount;
     }
   } else {
-    for (auto&& output : tx.get_user_outputs()) {
-      outputs[output.first] = output.second;
+    for (const auto& output : tx_outputs) {
+      if (output.userAmount != 0) outputs[output.address] = output.userAmount;
     }
   }
   auto inputs = GetUnspentOutputsFromTxInputs(wallet_id, tx.get_inputs());
@@ -1900,10 +1994,12 @@ Amount NunchukImpl::EstimateFee(int conf_target, bool use_mempool) {
   return rs;
 }
 
-int NunchukImpl::GetChainTip() { return synchronizer_->GetChainTip(); }
+int NunchukImpl::GetChainTip(bool liquid) {
+  return SyncForLiquid(liquid)->GetChainTip();
+}
 
-time_t NunchukImpl::GetMedianTimePast() {
-  return synchronizer_->GetMedianTimePast();
+time_t NunchukImpl::GetMedianTimePast(bool liquid) {
+  return SyncForLiquid(liquid)->GetMedianTimePast();
 }
 
 Amount NunchukImpl::GetTotalAmount(const std::string& wallet_id,
@@ -1911,7 +2007,7 @@ Amount NunchukImpl::GetTotalAmount(const std::string& wallet_id,
   Amount total = 0;
   for (auto&& input : inputs) {
     auto tx = GetTransaction(wallet_id, input.txid);
-    total += tx.get_outputs()[input.vout].second;
+    total += tx.get_outputs()[input.vout].amount;
   }
   return total;
 }
@@ -2199,6 +2295,7 @@ std::vector<Wallet> NunchukImpl::ParseJSONWallets(const std::string& json_str) {
 Transaction NunchukImpl::ImportRawTransaction(const std::string& wallet_id,
                                               const std::string& raw_tx,
                                               const std::string& tx_id) {
+  // TODO: liquid import raw transaction
   CMutableTransaction mtx = DecodeRawTransaction(raw_tx);
   std::string new_txid = mtx.GetHash().GetHex();
 
@@ -2316,38 +2413,47 @@ void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
   synchronizer_->RescanBlockchain(start_height, stop_height);
 }
 
-void NunchukImpl::AddBalanceListener(
-    std::function<void(std::string, Amount)> listener) {
-  synchronizer_->AddBalanceListener(listener);
-}
-
 void NunchukImpl::AddBalancesListener(
-    std::function<void(std::string, Amount, Amount)> listener) {
+    std::function<void(std::string, Amount, Amount,
+                       const std::map<AssetId, Amount>&)>
+        listener) {
   synchronizer_->AddBalancesListener(listener);
+  if (liquid_synchronizer_) {
+    liquid_synchronizer_->AddBalancesListener(listener);
+  }
 }
 
 void NunchukImpl::AddBlockListener(
-    std::function<void(int, std::string)> listener) {
+    std::function<void(int, std::string, bool)> listener) {
   synchronizer_->AddBlockListener(listener);
+  if (liquid_synchronizer_) {
+    liquid_synchronizer_->AddBlockListener(listener);
+  }
 }
 
 void NunchukImpl::AddTransactionListener(
     std::function<void(std::string, TransactionStatus, std::string)> listener) {
   synchronizer_->AddTransactionListener(listener);
+  if (liquid_synchronizer_) {
+    liquid_synchronizer_->AddTransactionListener(listener);
+  }
 }
 
 void NunchukImpl::AddDeviceListener(
     std::function<void(std::string, bool)> listener) {
-  device_listener_.connect(listener);
+  device_listener_.connect(MakeSafeSlot(listener));
 }
 
 void NunchukImpl::AddBlockchainConnectionListener(
-    std::function<void(ConnectionStatus, int)> listener) {
+    std::function<void(ConnectionStatus, int, bool)> listener) {
   synchronizer_->AddBlockchainConnectionListener(listener);
+  if (liquid_synchronizer_) {
+    liquid_synchronizer_->AddBlockchainConnectionListener(listener);
+  }
 }
 
 void NunchukImpl::AddStorageUpdateListener(std::function<void()> listener) {
-  storage_listener_.connect(listener);
+  storage_listener_.connect(MakeSafeSlot(listener));
 }
 
 std::string NunchukImpl::CreatePsbt(
@@ -2357,6 +2463,10 @@ std::string NunchukImpl::CreatePsbt(
     int& vsize, int& change_pos, bool anti_fee_sniping, bool use_script_path,
     const SigningPath& signing_path) {
   Wallet wallet = GetWallet(wallet_id);
+  if (wallet.get_wallet_type() == WalletType::LIQUID) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported");
+  }
   if (wallet.get_address_type() != AddressType::TAPROOT ||
       wallet.get_wallet_template() == WalletTemplate::DISABLE_KEY_PATH) {
     use_script_path = true;
@@ -2743,6 +2853,12 @@ std::string NunchukImpl::GetAddressPath(const std::string& wallet_id,
   return storage_->GetAddressPath(chain_, wallet_id, address);
 }
 
+std::string NunchukImpl::GetAddressPath(const std::string& wallet_id,
+                                        const std::string& address,
+                                        const SingleSigner& signer) {
+  return storage_->GetAddressPath(chain_, wallet_id, address, signer);
+}
+
 int NunchukImpl::GetAddressIndex(const std::string& wallet_id,
                                  const std::string& address) {
   return storage_->GetAddressIndex(chain_, wallet_id, address).first;
@@ -2772,7 +2888,7 @@ bool NunchukImpl::IsCPFP(const std::string& wallet_id, const Transaction& tx,
           Amount prev_output_amount = std::accumulate(
               std::begin(prev_tx.get_outputs()),
               std::end(prev_tx.get_outputs()), Amount(0),
-              [](Amount acc, const TxOutput& out) { return acc + out.second; });
+              [](Amount acc, const TxOutput& out) { return acc + out.amount; });
           package_fee += prev_input_amount - prev_output_amount;
         }
         break;
@@ -3260,9 +3376,86 @@ std::vector<SingleSigner> NunchukImpl::GetTransactionSigners(
     const std::string& wallet_id, const std::string& tx_id) {
   auto wallet = GetWallet(wallet_id);
   auto tx = GetTransaction(wallet_id, tx_id);
+  if (wallet.get_wallet_type() == WalletType::LIQUID) return tx.get_signed();
   if (!tx.get_psbt().empty()) return tx.get_signed();
   auto utxos = GetCoinsFromTxInputs(wallet_id, tx.get_inputs());
   return GetRawTxSigners(tx.get_raw(), utxos, wallet);
+}
+
+// Liquid wallet
+Wallet NunchukImpl::CreateLiquidWallet(const std::string& mnemonic,
+                                       const std::string& passphrase,
+                                       bool need_backup, bool replace) {
+  std::string seed = mnemonic.empty() ? Utils::GenerateMnemonic() : mnemonic;
+  auto id = storage_->GetLiquidWalletId();
+  auto key_name = GetDefaultName("USDT key", id);
+  auto ss = CreateSoftwareSigner(
+      key_name, seed, passphrase, [](int) { return true; }, false, replace);
+  auto wallet_name = GetDefaultName("USDT wallet", id);
+  WalletType wt = WalletType::LIQUID;
+  AddressType at = AddressType::NATIVE_SEGWIT;
+  auto signer = GetDefaultSignerFromMasterSigner(ss.get_id(), wt, at);
+  auto wallet = CreateWallet(wallet_name, 1, 1, {signer}, at, wt);
+  if (need_backup) {
+    wallet.set_need_backup(true);
+    storage_->UpdateWallet(chain_, wallet);
+  }
+  storage_->SetLiquidWalletId(id + 1);
+  return wallet;
+}
+
+Wallet NunchukImpl::CreateLiquidWallet(const SingleSigner& signer) {
+  if (signer.get_type() != SignerType::SOFTWARE) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Signer type not supported");
+  }
+  auto id = storage_->GetLiquidWalletId();
+  auto wallet_name = GetDefaultName("USDT wallet", id);
+  WalletType wt = WalletType::LIQUID;
+  AddressType at = AddressType::NATIVE_SEGWIT;
+  auto wallet = CreateWallet(wallet_name, 1, 1, {signer}, at, wt);
+  storage_->SetLiquidWalletId(id + 1);
+  return wallet;
+}
+
+std::map<AssetId, Amount> NunchukImpl::GetAddressAssets(
+    const std::string& wallet_id, const std::string& address) {
+  return storage_->GetAddressAssets(chain_, wallet_id, address);
+}
+
+Transaction NunchukImpl::CreateLiquidTransaction(
+    const std::string& wallet_id,
+    const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+    Amount fee_rate, const std::string& memo, bool subtract_fee_from_amount) {
+  if (fee_rate <= 0) fee_rate = EstimateFee();
+  return storage_->CreateLiquidTransaction(chain_, wallet_id, outputs, fee_rate,
+                                           memo, subtract_fee_from_amount);
+}
+
+Transaction NunchukImpl::DraftLiquidTransaction(
+    const std::string& wallet_id,
+    const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+    Amount fee_rate, bool subtract_fee_from_amount) {
+  if (fee_rate <= 0) fee_rate = EstimateFee();
+  return storage_->DraftLiquidTransaction(chain_, wallet_id, outputs, fee_rate,
+                                          subtract_fee_from_amount);
+}
+
+Amount NunchukImpl::EstimateFeeForLiquidTransaction(
+    const std::string& wallet_id,
+    const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+    Amount fee_rate, bool subtract_fee_from_amount) {
+  if (fee_rate <= 0) fee_rate = EstimateFee();
+  return storage_->EstimateFeeForLiquidTransaction(
+      chain_, wallet_id, outputs, fee_rate, subtract_fee_from_amount);
+}
+
+Transaction NunchukImpl::SignLiquidTransaction(const std::string& wallet_id,
+                                               const std::string& tx_id,
+                                               const Device& /*device*/) {
+  // Liquid wallets are software-only; the SOFTWARE signer is already wired
+  // via WallySigner inside the WalletDb, so `device` is unused.
+  return storage_->SignLiquidTransaction(chain_, wallet_id, tx_id);
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,

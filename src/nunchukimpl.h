@@ -66,10 +66,12 @@ class NunchukImpl : public Nunchuk {
       AddressType address_type, const std::string& description = {},
       bool allow_used_signer = false,
       const std::string& decoy_pin = {}) override;
-  std::string GetHotWalletMnemonic(const std::string& wallet_id,
-                                   const std::string& passphrase = {}) override;
-  std::string GetHotKeyMnemonic(const std::string& signer_id,
-                                const std::string& passphrase = {}) override;
+  std::string GetUnbackedUpWalletMnemonic(
+      const std::string& wallet_id,
+      const std::string& passphrase = {}) override;
+  std::string GetUnbackedUpKeyMnemonic(
+      const std::string& signer_id,
+      const std::string& passphrase = {}) override;
   std::string DraftWallet(
       const std::string& name, int m, int n,
       const std::vector<SingleSigner>& signers, AddressType address_type,
@@ -295,8 +297,8 @@ class NunchukImpl : public Nunchuk {
   void CacheMasterSignerXPub(const std::string& mastersigner_id,
                              std::function<bool(int)> progress) override;
   Amount EstimateFee(int conf_target = 6, bool use_mempool = true) override;
-  int GetChainTip() override;
-  time_t GetMedianTimePast() override;
+  int GetChainTip(bool liquid = false) override;
+  time_t GetMedianTimePast(bool liquid = false) override;
   Amount GetTotalAmount(const std::string& wallet_id,
                         const std::vector<TxInput>& inputs) override;
   std::string GetSelectedWallet() override;
@@ -497,19 +499,18 @@ class NunchukImpl : public Nunchuk {
   void ScanWalletAddress(const std::string& wallet_id, bool force = false,
                          bool from_start = false) override;
 
-  void AddBalanceListener(
-      std::function<void(std::string, Amount)> listener) override;
-  void AddBalancesListener(
-      std::function<void(std::string, Amount, Amount)> listener) override;
+  void AddBalancesListener(std::function<void(std::string, Amount, Amount,
+                                              const std::map<AssetId, Amount>&)>
+                               listener) override;
   void AddBlockListener(
-      std::function<void(int, std::string)> listener) override;
+      std::function<void(int, std::string, bool)> listener) override;
   void AddTransactionListener(
       std::function<void(std::string, TransactionStatus, std::string)> listener)
       override;
   void AddDeviceListener(
       std::function<void(std::string, bool)> listener) override;
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus, int)> listener) override;
+      std::function<void(ConnectionStatus, int, bool)> listener) override;
   void AddStorageUpdateListener(std::function<void()> listener) override;
 
   std::string SignHealthCheckMessage(const SingleSigner& signer,
@@ -569,6 +570,9 @@ class NunchukImpl : public Nunchuk {
                    const std::string& address) override;
   std::string GetAddressPath(const std::string& wallet_id,
                              const std::string& address) override;
+  std::string GetAddressPath(const std::string& wallet_id,
+                             const std::string& address,
+                             const SingleSigner& signer) override;
   int GetAddressIndex(const std::string& wallet_id,
                       const std::string& address) override;
 
@@ -720,9 +724,9 @@ class NunchukImpl : public Nunchuk {
   GroupDummyTransaction SignGroupDummyTransaction(
       const std::string& walletId, const std::string& dummyTransactionId,
       const std::vector<std::string>& signatures) override;
-  void CancelGroupDummyTransaction(const std::string& walletId,
-                                   const std::string& dummyTransactionId)
-      override;
+  void CancelGroupDummyTransaction(
+      const std::string& walletId,
+      const std::string& dummyTransactionId) override;
   GroupTransactionState GetGroupTransactionState(
       const std::string& walletId, const std::string& txId) override;
   int GetGroupWalletAlertCount(const std::string& walletId) override;
@@ -746,6 +750,30 @@ class NunchukImpl : public Nunchuk {
   std::string DecryptGroupTxId(const std::string& walletId,
                                const std::string& txGid) override;
 
+  // Liquid wallet
+  Wallet CreateLiquidWallet(const std::string& mnemonic = {},
+                            const std::string& passphrase = {},
+                            bool need_backup = true,
+                            bool replace = true) override;
+  Wallet CreateLiquidWallet(const SingleSigner& signer) override;
+  std::map<AssetId, Amount> GetAddressAssets(
+      const std::string& wallet_id, const std::string& address) override;
+  Transaction CreateLiquidTransaction(
+      const std::string& wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+      Amount fee_rate = -1, const std::string& memo = {},
+      bool subtract_fee_from_amount = false) override;
+  Transaction DraftLiquidTransaction(
+      const std::string& wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+      Amount fee_rate = -1, bool subtract_fee_from_amount = false) override;
+  Amount EstimateFeeForLiquidTransaction(
+      const std::string& wallet_id,
+      const std::map<AssetId, std::map<std::string, Amount>>& outputs,
+      Amount fee_rate = -1, bool subtract_fee_from_amount = false) override;
+  Transaction SignLiquidTransaction(const std::string& wallet_id,
+                                    const std::string& tx_id,
+                                    const Device& device) override;
   void AddGroupUpdateListener(
       std::function<void(const GroupSandbox& state)> listener) override;
   void AddGroupMessageListener(
@@ -790,6 +818,8 @@ class NunchukImpl : public Nunchuk {
   std::shared_ptr<NunchukStorage> storage_;
   std::unique_ptr<tap_protocol::HWITapsigner> hwi_tapsigner_;
   std::unique_ptr<Synchronizer> synchronizer_;
+  std::unique_ptr<Synchronizer> liquid_synchronizer_;
+  Synchronizer* SyncForLiquid(bool liquid) const;
   boost::signals2::signal<void(std::string, bool)> device_listener_;
   boost::signals2::signal<void()> storage_listener_;
   std::vector<std::future<void>> scan_wallet_;

@@ -27,13 +27,7 @@ std::vector<TxInput> const& Transaction::get_inputs() const { return inputs_; }
 std::vector<TxOutput> const& Transaction::get_outputs() const {
   return outputs_;
 }
-std::vector<TxOutput> const& Transaction::get_user_outputs() const {
-  return user_outputs_;
-}
-std::vector<TxOutput> const& Transaction::get_receive_outputs() const {
-  return receive_output_;
-}
-int Transaction::get_change_index() const { return change_index_; }
+std::vector<TxOutput>& Transaction::mutable_outputs() { return outputs_; }
 int Transaction::get_m() const { return m_; }
 WalletType Transaction::get_wallet_type() const { return wallet_type_; }
 AddressType Transaction::get_address_type() const { return address_type_; }
@@ -73,13 +67,6 @@ void Transaction::add_input(const TxInput& value) { inputs_.push_back(value); }
 void Transaction::add_output(const TxOutput& value) {
   outputs_.push_back(value);
 }
-void Transaction::add_user_output(const TxOutput& value) {
-  user_outputs_.push_back(value);
-}
-void Transaction::add_receive_output(const TxOutput& value) {
-  receive_output_.push_back(value);
-}
-void Transaction::set_change_index(int value) { change_index_ = value; }
 void Transaction::set_m(int value) { m_ = value; }
 void Transaction::set_wallet_type(WalletType value) { wallet_type_ = value; }
 void Transaction::set_address_type(AddressType value) { address_type_ = value; }

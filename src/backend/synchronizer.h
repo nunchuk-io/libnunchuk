@@ -23,8 +23,22 @@
 #include <atomic>
 #include <boost/asio.hpp>
 #include <boost/signals2.hpp>
+#include <utils/loguru.hpp>
 
 namespace nunchuk {
+
+template <typename F>
+auto MakeSafeSlot(F&& listener) {
+  return [f = std::forward<F>(listener)](auto&&... args) {
+    try {
+      f(std::forward<decltype(args)>(args)...);
+    } catch (const std::exception& e) {
+      DLOG_F(ERROR, "listener failed: %s", e.what());
+    } catch (...) {
+      DLOG_F(ERROR, "listener failed: unknown exception");
+    }
+  };
+}
 
 class Synchronizer {
  public:
@@ -39,20 +53,24 @@ class Synchronizer {
   std::string NewAddress(Chain chain, const std::string& wallet_id,
                          bool internal);
 
-  void AddBalanceListener(std::function<void(std::string, Amount)> listener);
-  void AddBalancesListener(
-      std::function<void(std::string, Amount, Amount)> listener);
-  void AddBlockListener(std::function<void(int, std::string)> listener);
+  void AddBalancesListener(std::function<void(std::string, Amount, Amount,
+                                              const std::map<AssetId, Amount>&)>
+                               listener);
+  void AddBlockListener(std::function<void(int, std::string, bool)> listener);
   void AddTransactionListener(
       std::function<void(std::string, TransactionStatus, std::string)>
           listener);
   void AddBlockchainConnectionListener(
-      std::function<void(ConnectionStatus, int)> listener);
+      std::function<void(ConnectionStatus, int, bool)> listener);
   void NotifyTransactionUpdate(const std::string& wallet_id,
                                const std::string& tx_id,
                                TransactionStatus status);
+  void NotifyBalancesUpdate(Chain chain, const std::string& wallet_id);
 
   virtual void Broadcast(const std::string& raw_tx) = 0;
+  virtual void BroadcastLiquidTransaction(const std::string& raw_tx) {
+    Broadcast(raw_tx);
+  }
   virtual Amount EstimateFee(int conf_target) = 0;
   virtual time_t GetMedianTimePast() = 0;
   virtual Amount RelayFee() = 0;
@@ -72,7 +90,7 @@ class Synchronizer {
       const std::vector<std::string> tx_ids) = 0;
   virtual Transaction GetTransaction(const std::string& tx_id) = 0;
 
-  virtual void Run(){};
+  virtual void Run() {};
 
  protected:
   AppSettings app_settings_;
@@ -84,19 +102,25 @@ class Synchronizer {
       sync_worker_;
 
   // Cache
-  std::atomic<int> chain_tip_;
+  std::atomic<int> chain_tip_{0};
+  // When true, this synchronizer is Liquid-only (Electrum). Bitcoin otherwise.
+  bool liquid_ = false;
 
   // Listener
-  boost::signals2::signal<void(std::string, Amount)> balance_listener_;
-  boost::signals2::signal<void(std::string, Amount, Amount)> balances_listener_;
-  boost::signals2::signal<void(int, std::string)> block_listener_;
+  boost::signals2::signal<void(std::string, Amount, Amount,
+                               const std::map<AssetId, Amount>&)>
+      balances_listener_;
+  boost::signals2::signal<void(int, std::string, bool)> block_listener_;
   boost::signals2::signal<void(std::string, TransactionStatus, std::string)>
       transaction_listener_;
-  boost::signals2::signal<void(ConnectionStatus, int)> connection_listener_;
+  boost::signals2::signal<void(ConnectionStatus, int, bool)> connection_listener_;
 };
 
 std::unique_ptr<Synchronizer> MakeSynchronizer(const AppSettings& appsettings,
                                                const std::string& account);
+// Always Electrum (CoreRPC has no Liquid support).
+std::unique_ptr<Synchronizer> MakeLiquidSynchronizer(
+    const AppSettings& appsettings, const std::string& account);
 
 }  // namespace nunchuk
 

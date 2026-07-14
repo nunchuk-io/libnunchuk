@@ -24,6 +24,7 @@
 #include <softwaresigner.h>
 #include <vector>
 #include <string>
+#include <liquid/wallysigner.hpp>
 
 namespace nunchuk {
 
@@ -85,6 +86,7 @@ class NunchukSignerDb : public NunchukDb {
   std::vector<SingleSigner> GetRemoteSigners() const;
   SignerType GetSignerType() const;
   SoftwareSigner GetSoftwareSigner(const std::string &passphrase) const;
+  wally::WallySigner GetWallySigner(const std::string &passphrase) const;
   std::string GetMnemonic(const std::string &passphrase) const;
   std::string GetMasterXprv() const;
   bool HasMnemonic() const;

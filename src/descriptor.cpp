@@ -244,6 +244,10 @@ std::string GetDescriptorForSigners(const std::vector<SingleSigner>& signers,
                                     WalletType wallet_type,
                                     WalletTemplate wallet_template, int index,
                                     bool sorted) {
+  if (wallet_type == WalletType::LIQUID) {
+    throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
+                           "Liquid wallet is not supported");
+  }
   std::vector<std::string> keys{};
   for (auto&& signer : signers) {
     auto eii = signer.get_external_internal_index();
@@ -345,6 +349,20 @@ std::string GetDescriptorForMiniscript(const std::string& miniscript,
 
 std::string GetWalletId(const std::vector<SingleSigner>& signers, int m,
                         AddressType a, WalletType w, WalletTemplate t) {
+  if (w == WalletType::LIQUID) {
+    // TODO: Consider using CT descriptors
+    // https://github.com/ElementsProject/ELIPs/blob/main/elip-0150.mediawiki
+    std::stringstream ss;
+    ss << "elwpkh(";
+    for (size_t i = 0; i < signers.size(); ++i) {
+      const auto& s = signers[i];
+      if (i > 0) ss << ",";
+      ss << "[" << s.get_master_fingerprint()
+         << FormalizePath(s.get_derivation_path()) << "]" << s.get_xpub();
+    }
+    ss << ")";
+    return GetDescriptorChecksum(ss.str());
+  }
   auto external_desc = GetDescriptorForSigners(
       signers, m, DescriptorPath::EXTERNAL_ALL, a, w, t);
   return GetDescriptorChecksum(external_desc);
@@ -658,7 +676,11 @@ std::optional<Wallet> ParseDescriptors(const std::string& descs,
     }
     error = "Failed to verify wallet descriptor";
     return std::nullopt;
+  } catch (const std::exception& e) {
+    error = e.what();
+    return std::nullopt;
   } catch (...) {
+    error = "Unknown error";
     return std::nullopt;
   }
 }

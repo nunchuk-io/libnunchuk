@@ -19,3 +19,6 @@
 [submodule "contrib/bbqr-cpp"]
 	path = contrib/bbqr-cpp
 	url = https://github.com/nunchuk-io/bbqr-cpp
+[submodule "contrib/libwally-core"]
+	path = contrib/libwally-core
+	url = https://github.com/ElementsProject/libwally-core.git

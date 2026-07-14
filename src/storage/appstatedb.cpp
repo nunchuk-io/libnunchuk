@@ -23,10 +23,12 @@ namespace nunchuk {
 
 void NunchukAppStateDb::Init() { CreateTable(); }
 
-int NunchukAppStateDb::GetChainTip() const { return GetInt(DbKeys::CHAIN_TIP); }
+int NunchukAppStateDb::GetChainTip(bool liquid) const {
+  return GetInt(liquid ? DbKeys::LIQUID_CHAIN_TIP : DbKeys::CHAIN_TIP);
+}
 
-bool NunchukAppStateDb::SetChainTip(int value) {
-  return PutInt(DbKeys::CHAIN_TIP, value);
+bool NunchukAppStateDb::SetChainTip(int value, bool liquid) {
+  return PutInt(liquid ? DbKeys::LIQUID_CHAIN_TIP : DbKeys::CHAIN_TIP, value);
 }
 
 std::string NunchukAppStateDb::GetSelectedWallet() const {
@@ -103,6 +105,14 @@ int NunchukAppStateDb::GetHotWalletId() const {
 
 bool NunchukAppStateDb::SetHotWalletId(int value) {
   return PutInt(DbKeys::HOTWALLET_ID, value);
+}
+
+int NunchukAppStateDb::GetLiquidWalletId() const {
+  return GetInt(DbKeys::LIQUID_WALLET_ID);
+}
+
+bool NunchukAppStateDb::SetLiquidWalletId(int value) {
+  return PutInt(DbKeys::LIQUID_WALLET_ID, value);
 }
 
 }  // namespace nunchuk
