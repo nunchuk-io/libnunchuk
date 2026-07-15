@@ -534,8 +534,8 @@ std::string NunchukImpl::GetUnusedAddress(const Wallet& wallet, int& index,
             DeriveAddress(descriptor, signer, path, i, internal));
         indexes.push_back(i);
       }
-      int last = sync->BatchLookAhead(chain_, wallet_id, addresses, indexes,
-                                      internal);
+      int last =
+          sync->BatchLookAhead(chain_, wallet_id, addresses, indexes, internal);
       if (last == -1) {
         index = lastUsedIndex + 1;
         return DeriveAddress(descriptor, signer, path, index, internal);
@@ -1562,16 +1562,13 @@ Transaction NunchukImpl::BroadcastTransaction(const std::string& wallet_id,
                              "Transaction is not signed");
     }
     try {
-      SyncForLiquid(true)->BroadcastLiquidTransaction(raw_tx);
+      liquid_synchronizer_->BroadcastLiquidTransaction(raw_tx);
+      storage_->UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
+      liquid_synchronizer_->NotifyBalancesUpdate(chain_, wallet_id);
     } catch (NunchukException& ne) {
       if (ne.code() != NunchukException::NETWORK_REJECTED) throw;
-      reject_msg = ne.what();
-    }
-    if (reject_msg.empty()) {
-      storage_->UpdateTransaction(chain_, wallet_id, raw_tx, 0, 0);
-    } else {
-      time_t t = std::time(0);
-      storage_->UpdateTransaction(chain_, wallet_id, raw_tx, -2, t, reject_msg);
+      storage_->UpdateTransaction(chain_, wallet_id, raw_tx, -2, std::time(0),
+                                  ne.what());
     }
     return GetTransaction(wallet_id, tx_id);
   }
