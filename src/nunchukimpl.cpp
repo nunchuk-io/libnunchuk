@@ -302,6 +302,10 @@ std::vector<Wallet> NunchukImpl::GetWallets(const std::vector<OrderBy>& orders,
     try {
       auto wallet =
           storage_->GetWallet(chain_, wallet_id, false, true, skip_balance);
+      if (wallet.get_wallet_type() == WalletType::LIQUID &&
+          !storage_->GetWallySignerForWallet(chain_, wallet_id)) {
+        continue; // skip liquid wallet without wally signer
+      }
       if (wallet.get_id() == wallet_id) wallets.push_back(std::move(wallet));
     } catch (...) {
     }

@@ -173,6 +173,7 @@ class NunchukWalletDb : public NunchukDb {
 
   std::string GetMiniscript();
   bool IsSupportLiquid() const;
+  bool IsWallySignerAvailable() const;
 
  private:
   const char *TxTable() const;

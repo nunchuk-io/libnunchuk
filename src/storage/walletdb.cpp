@@ -607,7 +607,7 @@ Amount NunchukWalletDb::GetAddressBalance(const std::string& address) {
 
 std::map<AssetId, Amount> NunchukWalletDb::GetAddressAssets(
     const std::string& address) {
-  if (!IsSupportLiquid()) {
+  if (!IsSupportLiquid() || !wally_signer_) {
     return {};
   }
 
@@ -925,8 +925,9 @@ Transaction NunchukWalletDb::CreatePsbt(
 
 void NunchukWalletDb::PrepareLiquidTransaction(
     const std::map<AssetId, std::map<std::string, Amount>>& outputs,
-    Amount fee_rate, bool allow_insufficient_lbtc, bool subtract_fee_from_amount,
-    std::string* unsigned_hex, uint64_t& fee_sats) {
+    Amount fee_rate, bool allow_insufficient_lbtc,
+    bool subtract_fee_from_amount, std::string* unsigned_hex,
+    uint64_t& fee_sats) {
   if (!IsSupportLiquid() || !wally_signer_) {
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                            "Wallet is not a Liquid wallet");
@@ -1183,8 +1184,8 @@ void NunchukWalletDb::PrepareLiquidTransaction(
           vsize, static_cast<uint64_t>(fee_rate));
       if (refined > feeSats) {
         try {
-          lbtc_sel = select_for_asset(LBTC, targets[LBTC] +
-                                              static_cast<Amount>(refined));
+          lbtc_sel = select_for_asset(
+              LBTC, targets[LBTC] + static_cast<Amount>(refined));
         } catch (const NunchukException& e) {
           if (e.code() != NunchukException::COIN_SELECTION_ERROR ||
               estimate_dummies.empty()) {
@@ -1244,9 +1245,8 @@ void NunchukWalletDb::PrepareLiquidTransaction(
           sweep_dests, static_cast<uint64_t>(gross_balance), feeSats);
       const size_t vsize = wally_signer_->EstimateSignedVsize(
           inputs, sweep_dests, change_addr, feeSats);
-      const uint64_t refined =
-          wally::WallySigner::FeeSatsFromVsizeAndKvBRate(
-              vsize, static_cast<uint64_t>(fee_rate));
+      const uint64_t refined = wally::WallySigner::FeeSatsFromVsizeAndKvBRate(
+          vsize, static_cast<uint64_t>(fee_rate));
       if (refined == feeSats) {
         fee_sats = feeSats;
         if (unsigned_hex != nullptr) {
@@ -1261,8 +1261,8 @@ void NunchukWalletDb::PrepareLiquidTransaction(
     if (unsigned_hex != nullptr) {
       apply_subtract_fee_lbtc_dests(
           sweep_dests, static_cast<uint64_t>(gross_balance), feeSats);
-      *unsigned_hex = wally_signer_->CreateTx(inputs, sweep_dests, change_addr,
-                                              feeSats);
+      *unsigned_hex =
+          wally_signer_->CreateTx(inputs, sweep_dests, change_addr, feeSats);
     }
     return;
   }
@@ -1703,6 +1703,12 @@ std::vector<std::string> NunchukWalletDb::GetVtxValues() {
 Transaction NunchukWalletDb::GetTransactionFromVtxValue(
     const std::string& value, const nunchuk::Wallet& wallet, int height) {
   if (wallet.get_wallet_type() == WalletType::LIQUID) {
+    if (!wally_signer_) {
+      throw NunchukException(
+          NunchukException::INVALID_PARAMETER,
+          "Liquid wallet signer is not available (unlock signer passphrase "
+          "before opening the wallet)");
+    }
     auto tx = wally_signer_->GetTransactionFromTx(value, height);
     SingleSigner signer = wallet.get_signers()[0];
     if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION ||
@@ -3236,6 +3242,10 @@ bool NunchukWalletDb::IsSupportLiquid() const {
   } catch (...) {
   }
   return false;
+}
+
+bool NunchukWalletDb::IsWallySignerAvailable() const {
+  return wally_signer_ != nullptr;
 }
 
 }  // namespace nunchuk
