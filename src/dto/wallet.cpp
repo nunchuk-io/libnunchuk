@@ -263,4 +263,7 @@ void Wallet::set_asset_balance(const AssetId& asset_id, const Amount& value) {
   asset_balances_[asset_id] = value;
 }
 
+bool Wallet::needs_passphrase() const { return needs_passphrase_; }
+void Wallet::set_needs_passphrase(bool value) { needs_passphrase_ = value; }
+
 }  // namespace nunchuk

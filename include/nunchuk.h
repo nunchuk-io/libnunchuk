@@ -590,6 +590,7 @@ class NUNCHUK_EXPORT Wallet {
   std::string get_miniscript(DescriptorPath key_path = DescriptorPath::ANY,
                              int index = -1) const;
   Amount get_asset_balance(const AssetId& asset_id) const;
+  bool needs_passphrase() const;
 
   void set_name(const std::string& value);
   void set_n(int n);
@@ -608,6 +609,7 @@ class NUNCHUK_EXPORT Wallet {
   void set_archived(bool value);
   void set_miniscript(const std::string& value);
   void set_asset_balance(const AssetId& asset_id, const Amount& value);
+  void set_needs_passphrase(bool value);
 
  private:
   void post_update();
@@ -630,6 +632,7 @@ class NUNCHUK_EXPORT Wallet {
   bool archived_{false};
   std::string miniscript_;
   std::map<AssetId, Amount> asset_balances_{};
+  bool needs_passphrase_{false};
 };
 
 class NUNCHUK_EXPORT CoinTag {

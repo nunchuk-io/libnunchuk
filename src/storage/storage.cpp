@@ -1042,8 +1042,37 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
                                  bool create_signers_if_not_exist,
                                  bool fill_extra, bool skip_balance) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  auto wallet_db = GetWalletDb(chain, id);
+  bfs::path db_file = GetWalletDir(chain, id);
+  if (!bfs::exists(db_file)) {
+    throw StorageException(StorageException::WALLET_NOT_FOUND,
+                           strprintf("Wallet doesn't exist! id = '%s'", id));
+  }
+  NunchukWalletDb wallet_db{chain, id, db_file.string(), passphrase_};
+  bool needs_passphrase = false;
+  if (wallet_db.IsSupportLiquid()) {
+    auto signers = wallet_db.GetSigners();
+    if (!signers.empty()) {
+      const std::string mid =
+          ba::to_lower_copy(signers.front().get_master_fingerprint());
+      auto signer_db = GetSignerDb(chain, mid);
+      std::string signer_passphrase =
+          signer_passphrase_.count(mid) ? signer_passphrase_.at(mid) : "";
+      try {
+        auto wally_signer = signer_db.GetWallySigner(signer_passphrase);
+        wallet_db.SetWallySigner(
+            std::make_shared<wally::WallySigner>(std::move(wally_signer)));
+      } catch (const NunchukException& e) {
+        if (e.code() == NunchukException::INVALID_SIGNER_PASSPHRASE) {
+          needs_passphrase = true;
+        } else {
+          throw;
+        }
+      }
+    }
+  }
+
   Wallet wallet = wallet_db.GetWallet(skip_balance, true);
+  wallet.set_needs_passphrase(needs_passphrase);
   if (!fill_extra) return wallet;
 
   std::vector<SingleSigner> true_signers;
@@ -1074,6 +1103,7 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
   true_wallet.set_need_backup(wallet.need_backup());
   true_wallet.set_archived(wallet.is_archived());
   true_wallet.set_wallet_template(wallet.get_wallet_template());
+  true_wallet.set_needs_passphrase(wallet.needs_passphrase());
   return true_wallet;
 }
 
@@ -1240,13 +1270,15 @@ bool NunchukStorage::AddAddress(Chain chain, const std::string& wallet_id,
                                 const std::string& address, int index,
                                 bool internal) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  return GetLiquidSupportedWalletDb(chain, wallet_id).AddAddress(address, index, internal);
+  return GetLiquidSupportedWalletDb(chain, wallet_id)
+      .AddAddress(address, index, internal);
 }
 
 std::vector<std::string> NunchukStorage::GetAddresses(
     Chain chain, const std::string& wallet_id, bool used, bool internal) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetLiquidSupportedWalletDb(chain, wallet_id).GetAddresses(used, internal);
+  return GetLiquidSupportedWalletDb(chain, wallet_id)
+      .GetAddresses(used, internal);
 }
 
 std::vector<std::string> NunchukStorage::GetAllAddresses(
@@ -1259,7 +1291,8 @@ int NunchukStorage::GetCurrentAddressIndex(Chain chain,
                                            const std::string& wallet_id,
                                            bool internal) {
   std::shared_lock<std::shared_mutex> lock(access_);
-  return GetLiquidSupportedWalletDb(chain, wallet_id).GetCurrentAddressIndex(internal);
+  return GetLiquidSupportedWalletDb(chain, wallet_id)
+      .GetCurrentAddressIndex(internal);
 }
 
 Transaction NunchukStorage::InsertTransaction(
