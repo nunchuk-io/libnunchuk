@@ -1763,8 +1763,7 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
   for (int i = 0; i < nin; i++) {
-    const std::optional<int> sighash = psbt.inputs[i].sighash_type;
-    SignPSBTInput(provider, psbt, i, &txdata, sighash, nullptr, false);
+    SignPSBTInput(provider, psbt, i, &txdata, std::nullopt, nullptr, false);
   }
 
   // Update script/keypath information using descriptor data.
