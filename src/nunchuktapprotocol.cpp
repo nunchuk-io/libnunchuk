@@ -1061,8 +1061,7 @@ Transaction NunchukImpl::SweepSatscardSlots(
 
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
   for (int i = 0; i < nin; i++) {
-    const std::optional<int> sighash = psbt.inputs[i].sighash_type;
-    const auto res = SignPSBTInput(provider, psbt, i, &txdata, sighash);
+    const auto res = SignPSBTInput(provider, psbt, i, &txdata, std::nullopt);
     ThrowOnPSBTError(res, i, "NunchukImpl::SweepSatscardSlots");
   }
 

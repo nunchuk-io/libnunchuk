@@ -349,9 +349,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
 
     SignatureData sigdata;
     psbtx.inputs[i].FillSignatureData(sigdata);
-    const std::optional<int> sighash = input.sighash_type;
     const auto res =
-        SignPSBTInput(provider, psbtx, i, &txdata, sighash, nullptr, false);
+        SignPSBTInput(provider, psbtx, i, &txdata, std::nullopt, nullptr, false);
     ThrowOnPSBTError(res, static_cast<int>(i), "SoftwareSigner::SignTaprootTx");
 
     for (auto&& [session_id, secnonce] : musig2_secnonces) {
