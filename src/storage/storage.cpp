@@ -2485,6 +2485,7 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
         bfs::copy_file(signer_file, decoy_file);
       } else {
         signer_db.DecryptDb(decoy_file.string());
+        NunchukSignerDb{chain, id, decoy_file.string(), ""}.RemoveSecretMaterial();
       }
       return signer;
     }
