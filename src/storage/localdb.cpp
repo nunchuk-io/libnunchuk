@@ -51,29 +51,54 @@ void NunchukLocalDb::SetMuSig2SecNonce(
 std::string NunchukLocalDb::GetMuSig2SecNonce(const uint256& session_id) const {
   std::string key = session_id.GetHex();
   std::string value;
+  sqlite3_stmt* stmt = nullptr;
 
-  sqlite3_exec(db_, "BEGIN TRANSACTION;", NULL, NULL, NULL);
-  sqlite3_stmt* stmt;
-  std::string sql = "SELECT * FROM SECNONCES WHERE SESSION = ?;";
-  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  // Wait briefly under contention instead of failing with SQLITE_BUSY.
+  sqlite3_busy_timeout(db_, 5000);
+
+  // IMMEDIATE acquires a reserved lock before SELECT so a second connection
+  // cannot also read the same row before the DELETE commits (SIG-003).
+  SQLCHECK(sqlite3_exec(db_, "BEGIN IMMEDIATE;", NULL, NULL, NULL));
+
+  auto rollback = [&]() {
+    if (stmt) {
+      sqlite3_finalize(stmt);
+      stmt = nullptr;
+    }
+    sqlite3_exec(db_, "ROLLBACK;", NULL, NULL, NULL);
+  };
+
+  const char* select_sql = "SELECT NONCE FROM SECNONCES WHERE SESSION = ?;";
+  if (sqlite3_prepare_v2(db_, select_sql, -1, &stmt, NULL) != SQLITE_OK) {
+    rollback();
+    throw StorageException(StorageException::SQL_ERROR, sqlite3_errmsg(db_));
+  }
   sqlite3_bind_text(stmt, 1, key.c_str(), key.size(), NULL);
-  sqlite3_step(stmt);
-  if (sqlite3_column_text(stmt, 0)) {
-    value = std::string((char*)sqlite3_column_text(stmt, 1));
-    SQLCHECK(sqlite3_finalize(stmt));
-  } else {
-    SQLCHECK(sqlite3_finalize(stmt));
+  int rc = sqlite3_step(stmt);
+  if (rc != SQLITE_ROW) {
+    rollback();
     throw StorageException(StorageException::NONCE_NOT_FOUND,
                            "Nonce not found!");
   }
-
-  sql = "DELETE FROM SECNONCES WHERE SESSION = ?;";
-  sqlite3_prepare(db_, sql.c_str(), -1, &stmt, NULL);
-  sqlite3_bind_text(stmt, 1, key.c_str(), key.size(), NULL);
-  sqlite3_step(stmt);
-  sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
+  value = std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
   SQLCHECK(sqlite3_finalize(stmt));
+  stmt = nullptr;
 
+  const char* delete_sql = "DELETE FROM SECNONCES WHERE SESSION = ?;";
+  if (sqlite3_prepare_v2(db_, delete_sql, -1, &stmt, NULL) != SQLITE_OK) {
+    rollback();
+    throw StorageException(StorageException::SQL_ERROR, sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, key.c_str(), key.size(), NULL);
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    rollback();
+    throw StorageException(StorageException::SQL_ERROR, sqlite3_errmsg(db_));
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  stmt = nullptr;
+
+  SQLCHECK(sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL));
   return value;
 }
 
