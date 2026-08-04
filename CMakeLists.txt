@@ -234,6 +234,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/trezor.cpp
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
+    src/certs/sslcerts.cpp
+    src/certs/cacert_data.cpp
     src/utils/tweetnacl.c
     src/utils/bip388.hpp
     src/miniscript/compiler.cpp

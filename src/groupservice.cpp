@@ -26,6 +26,7 @@
 
 #include <utils/json.hpp>
 #include <utils/secretbox.h>
+#include <certs/sslcerts.h>
 #include <utils/stringutils.hpp>
 #include <utils/enumconverter.hpp>
 #include <descriptor.h>
@@ -498,14 +499,17 @@ static GroupTransactionState GroupTransactionStateFromJson(const json& value) {
   return state;
 }
 
-std::shared_ptr<httplib::Client> MakeClient(const std::string& baseUrl) {
+std::shared_ptr<httplib::Client> MakeClient(const std::string& baseUrl,
+                                            const std::string& ca_cert_file) {
   auto cli = std::make_shared<httplib::Client>(baseUrl.c_str());
-  cli->enable_server_certificate_verification(false);
+  ConfigureTlsVerification(*cli, ca_cert_file);
   // cli->set_keep_alive(true);
   return cli;
 }
 
-GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {
+GroupService::GroupService(const std::string& baseUrl,
+                           const std::string& ca_cert_file)
+    : baseUrl_(baseUrl), ca_cert_file_(ca_cert_file) {
 #ifndef _WIN32
   // `httplib::Client::stop()` may cause SIGPIPE; ignore it here.
   static std::once_flag ignore_sigpipe_flag;
@@ -517,7 +521,7 @@ GroupService::GroupService(const std::string& baseUrl) : baseUrl_(baseUrl) {
   });
 #endif
   for (auto& cli : http_clients_) {
-    cli = MakeClient(baseUrl_);
+    cli = MakeClient(baseUrl_, ca_cert_file_);
   }
 }
 
@@ -525,14 +529,16 @@ GroupService::GroupService(const std::string& baseUrl,
                            const std::string& ephemeralPub,
                            const std::string& ephemeralPriv,
                            const std::string& deviceToken,
-                           const std::string& uid)
+                           const std::string& uid,
+                           const std::string& ca_cert_file)
     : baseUrl_(baseUrl),
-      ephemeralPub_(ephemeralPub),
-      ephemeralPriv_(ephemeralPriv),
+      ca_cert_file_(ca_cert_file),
       deviceToken_(deviceToken),
-      uid_(uid) {
+      uid_(uid),
+      ephemeralPub_(ephemeralPub),
+      ephemeralPriv_(ephemeralPriv) {
   for (auto& cli : http_clients_) {
-    cli = MakeClient(baseUrl_);
+    cli = MakeClient(baseUrl_, ca_cert_file_);
   }
 }
 
@@ -1580,7 +1586,7 @@ void GroupService::StartListenEvents(
                                 {"Authorization", auth},
                                 {"Accept", "text/event-stream"}};
     sse_client_ = std::make_unique<httplib::Client>(baseUrl_.c_str());
-    sse_client_->enable_server_certificate_verification(false);
+    ConfigureTlsVerification(*sse_client_, ca_cert_file_);
     sse_client_->set_read_timeout(std::chrono::hours(24));
     sse_client_->set_keep_alive(true);
     stop_ = false;
