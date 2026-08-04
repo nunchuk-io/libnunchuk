@@ -37,6 +37,7 @@ class NunchukSignerDb : public NunchukDb {
   void MaybeMigrate();
   void DeleteSigner();
   void DeleteSoftwareSigner();
+  void RemoveSecretMaterial();
   bool SetName(const std::string &value);
   bool SetTags(const std::vector<SignerTag> &value);
   bool SetVisible(bool value);
