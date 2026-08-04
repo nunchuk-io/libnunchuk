@@ -35,11 +35,12 @@ namespace nunchuk {
 
 class GroupService {
  public:
-  GroupService(const std::string& baseUrl);
+  GroupService(const std::string& baseUrl, const std::string& ca_cert_file = {});
   GroupService(const std::string& baseUrl, const std::string& ephemeralPub_,
                const std::string& ephemeralPriv_,
                const std::string& deviceToken_ = {},
-               const std::string& uid_ = {});
+               const std::string& uid_ = {},
+               const std::string& ca_cert_file = {});
   ~GroupService();
 
   void SetEphemeralKey(const std::string& pub, const std::string priv);
@@ -190,6 +191,7 @@ class GroupService {
   static constexpr int CLIENT_COUNT = 6;
   std::atomic<bool> stop_{true};
   std::string baseUrl_;
+  std::string ca_cert_file_;
   std::string deviceToken_;
   std::string accessToken_;
   std::string uid_;
