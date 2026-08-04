@@ -16,8 +16,6 @@
  */
 
 #include "localdb.h"
-#include <crypto/hex_base.h>
-#include <secp256k1_musig.h>
 
 namespace nunchuk {
 
@@ -33,36 +31,24 @@ void NunchukLocalDb::Init() {
                         "TXID    TEXT PRIMARY KEY NOT NULL,"
                         "VALUE   INT              NOT NULL);",
                         NULL, 0, NULL));
-
 }
 
-void NunchukLocalDb::SetMuSig2SecNonce(const uint256& session_id, MuSig2SecNonce&& nonce) const {
+void NunchukLocalDb::SetMuSig2SecNonce(
+    const uint256& session_id, const std::string& encrypted_nonce) const {
   std::string key = session_id.GetHex();
-  auto data = static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data;
-  std::string value = HexStr(std::vector<unsigned char>{data, data + 132});
-  nonce.Invalidate();
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO SECNONCES(SESSION, NONCE) VALUES (?1, ?2)"
       "ON CONFLICT(SESSION) DO UPDATE SET NONCE=excluded.NONCE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, key.c_str(), key.size(), NULL);
-  sqlite3_bind_text(stmt, 2, value.c_str(), value.size(), NULL);
+  sqlite3_bind_text(stmt, 2, encrypted_nonce.c_str(), encrypted_nonce.size(),
+                    NULL);
   sqlite3_step(stmt);
   SQLCHECK(sqlite3_finalize(stmt));
 }
 
-std::vector<unsigned char> hexStringToByteArray(const std::string& hexString) {
-  std::vector<unsigned char> byteArray;
-  for (size_t i = 0; i < hexString.length(); i += 2) {
-      std::string byteString = hexString.substr(i, 2);
-      unsigned char byteValue = static_cast<unsigned char>(std::stoi(byteString, nullptr, 16));
-      byteArray.push_back(byteValue);
-  }
-  return byteArray;
-}
-
-MuSig2SecNonce NunchukLocalDb::GetMuSig2SecNonce(const uint256& session_id) const {
+std::string NunchukLocalDb::GetMuSig2SecNonce(const uint256& session_id) const {
   std::string key = session_id.GetHex();
   std::string value;
 
@@ -88,13 +74,11 @@ MuSig2SecNonce NunchukLocalDb::GetMuSig2SecNonce(const uint256& session_id) cons
   sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
   SQLCHECK(sqlite3_finalize(stmt));
 
-  auto rv = hexStringToByteArray(value);
-  MuSig2SecNonce nonce{};
-  memcpy(static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data, rv.data(), 132);
-  return nonce;
+  return value;
 }
 
-void NunchukLocalDb::SetPreferScriptPath(const std::string& tx_id, bool value) const {
+void NunchukLocalDb::SetPreferScriptPath(const std::string& tx_id,
+                                         bool value) const {
   sqlite3_stmt* stmt;
   std::string sql =
       "INSERT INTO SIGNPATH(TXID, VALUE) VALUES (?1, ?2)"

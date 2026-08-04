@@ -24,7 +24,6 @@
 #include <vector>
 #include <string>
 #include <uint256.h>
-#include <musig.h>
 
 namespace nunchuk {
 
@@ -32,8 +31,9 @@ class NunchukLocalDb : public NunchukDb {
  public:
   using NunchukDb::NunchukDb;
   void Init();
-  void SetMuSig2SecNonce(const uint256& session_id, MuSig2SecNonce&& nonce) const;
-  MuSig2SecNonce GetMuSig2SecNonce(const uint256& session_id) const;
+  void SetMuSig2SecNonce(const uint256& session_id,
+                         const std::string& encrypted_nonce) const;
+  std::string GetMuSig2SecNonce(const uint256& session_id) const;
 
   void SetPreferScriptPath(const std::string& tx_id, bool value) const;
   bool IsPreferScriptPath(const std::string& tx_id) const;

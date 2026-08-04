@@ -38,6 +38,7 @@
 
 #include <musig.h>
 #include <secp256k1_musig.h>
+#include <util/strencodings.h>
 
 extern "C" {
 #include <pbkdf2.h>
@@ -111,6 +112,28 @@ SoftwareSigner::SoftwareSigner(const Wallet& group_wallet) {
 }
 
 static const std::string BIP85_HASH_KEY = "bip-entropy-from-k";
+// BIP85 application path used for Secretbox encryption (group messages + MuSig2
+// secnonces). Same path as GroupService's SECRET_PATH.
+static const std::string BOX_KEY_PATH = "m/83696968'/128169'/32'/0'";
+
+static std::string SerializeMuSig2SecNonce(MuSig2SecNonce&& nonce) {
+  auto data = static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data;
+  std::string value = HexStr(std::span<const unsigned char>{data, 132});
+  nonce.Invalidate();
+  return value;
+}
+
+static MuSig2SecNonce DeserializeMuSig2SecNonce(const std::string& hex) {
+  auto rv = ParseHex(hex);
+  if (rv.size() != 132) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid MuSig2 secnonce length");
+  }
+  MuSig2SecNonce nonce{};
+  memcpy(static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data, rv.data(),
+         132);
+  return nonce;
+}
 
 void SoftwareSigner::SetupBoxKey(const std::string& path) {
   auto xkey = GetExtKeyAtPath(path);
@@ -301,6 +324,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
   std::map<uint256, MuSig2SecNonce> musig2_secnonces{};
   provider.musig2_secnonces = &musig2_secnonces;
 
+  SetupBoxKey(BOX_KEY_PATH);
+
   const PrecomputedTransactionData txdata = PrecomputePSBTData(psbtx);
   const CMutableTransaction& tx = *psbtx.tx;
   // bool preferScriptPath = db.IsPreferScriptPath(tx.GetHash().GetHex());
@@ -340,8 +365,13 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
           const auto& [leaf_hashes, origin] = leaf_origin;
           std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
           if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
+            std::string stored = db.GetMuSig2SecNonce(session_id);
+            // Encrypted format is "base64.base64"; legacy rows were raw hex.
+            std::string plain =
+                stored.find('.') != std::string::npos ? DecryptMessage(stored)
+                                                      : stored;
             musig2_secnonces.emplace(session_id,
-                                     db.GetMuSig2SecNonce(session_id));
+                                     DeserializeMuSig2SecNonce(plain));
           }
         }
       }
@@ -354,7 +384,8 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
     ThrowOnPSBTError(res, static_cast<int>(i), "SoftwareSigner::SignTaprootTx");
 
     for (auto&& [session_id, secnonce] : musig2_secnonces) {
-      db.SetMuSig2SecNonce(session_id, std::move(secnonce));
+      db.SetMuSig2SecNonce(
+          session_id, EncryptMessage(SerializeMuSig2SecNonce(std::move(secnonce))));
     }
     musig2_secnonces.clear();
   }
