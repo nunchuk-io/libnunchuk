@@ -37,7 +37,9 @@
 #include <coreutils.h>
 
 #include <musig.h>
+#include <secp256k1.h>
 #include <secp256k1_musig.h>
+#include <support/cleanse.h>
 #include <util/strencodings.h>
 
 extern "C" {
@@ -116,6 +118,10 @@ static const std::string BIP85_HASH_KEY = "bip-entropy-from-k";
 // secnonces). Same path as GroupService's SECRET_PATH.
 static const std::string BOX_KEY_PATH = "m/83696968'/128169'/32'/0'";
 
+// Must match secp256k1_musig_secnonce_magic in session_impl.h.
+static constexpr unsigned char kMuSig2SecNonceMagic[4] = {0x22, 0x0e, 0xdc,
+                                                          0xf1};
+
 static std::string SerializeMuSig2SecNonce(MuSig2SecNonce&& nonce) {
   auto data = static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data;
   std::string value = HexStr(std::span<const unsigned char>{data, 132});
@@ -129,9 +135,23 @@ static MuSig2SecNonce DeserializeMuSig2SecNonce(const std::string& hex) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid MuSig2 secnonce length");
   }
+  if (memcmp(rv.data(), kMuSig2SecNonceMagic, sizeof(kMuSig2SecNonceMagic)) !=
+      0) {
+    memory_cleanse(rv.data(), rv.size());
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid MuSig2 secnonce magic");
+  }
+  // k1 at offset 4, k2 at offset 36 — must be valid non-zero scalars < n.
+  if (!secp256k1_ec_seckey_verify(secp256k1_context_static, rv.data() + 4) ||
+      !secp256k1_ec_seckey_verify(secp256k1_context_static, rv.data() + 36)) {
+    memory_cleanse(rv.data(), rv.size());
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid MuSig2 secnonce scalars");
+  }
   MuSig2SecNonce nonce{};
   memcpy(static_cast<secp256k1_musig_secnonce*>(nonce.Get())->data, rv.data(),
          132);
+  memory_cleanse(rv.data(), rv.size());
   return nonce;
 }
 
@@ -365,13 +385,24 @@ std::string SoftwareSigner::SignTaprootTx(const NunchukLocalDb& db,
           const auto& [leaf_hashes, origin] = leaf_origin;
           std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
           if (xfp == master_fingerprint && HexStr(xonly) == pubkey) {
+            // GetMuSig2SecNonce pops (deletes) the row. Encrypted format is
+            // "base64.base64"; reject any legacy/injected plaintext hex so an
+            // attacker with DB write access cannot plant a known nonce.
             std::string stored = db.GetMuSig2SecNonce(session_id);
-            // Encrypted format is "base64.base64"; legacy rows were raw hex.
-            std::string plain =
-                stored.find('.') != std::string::npos ? DecryptMessage(stored)
-                                                      : stored;
+            if (stored.find('.') == std::string::npos) {
+              throw NunchukException(
+                  NunchukException::INVALID_PARAMETER,
+                  "Unencrypted MuSig2 secnonce rejected");
+            }
+            std::string plain;
+            try {
+              plain = DecryptMessage(stored);
+            } catch (const std::exception& e) {
+              throw NunchukException(NunchukException::DECRYPT_FAIL, e.what());
+            }
             musig2_secnonces.emplace(session_id,
                                      DeserializeMuSig2SecNonce(plain));
+            memory_cleanse(plain.data(), plain.size());
           }
         }
       }
