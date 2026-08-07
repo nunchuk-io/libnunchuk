@@ -52,12 +52,18 @@ std::string Secretbox::Box(const std::string &plain) {
 
 std::string Secretbox::Open(const std::string &box) {
   auto part = split(box, '.');
-  auto nonce = DecodeBase64(part[0].c_str());
-  if (!nonce) {
+  if (part.size() != 2) {
+    throw std::runtime_error("Invalid secretbox format");
+  }
+  auto nonce = DecodeBase64(part[0]);
+  if (!nonce || nonce->size() != crypto_secretbox_NONCEBYTES) {
     throw std::runtime_error("Invalid nonce");
   }
-  auto cipher = DecodeBase64(part[1].c_str());
-  if (!cipher) {
+  auto cipher = DecodeBase64(part[1]);
+  // Ciphertext is MAC (ZEROBYTES-BOXZEROBYTES) plus optional payload.
+  if (!cipher ||
+      cipher->size() <
+          crypto_secretbox_ZEROBYTES - crypto_secretbox_BOXZEROBYTES) {
     throw std::runtime_error("Invalid cipher");
   }
 
@@ -80,18 +86,22 @@ std::pair<std::string, std::string> Publicbox::GenerateKeyPair() {
   return {EncodeBase64(pkey), EncodeBase64(skey)};
 }
 
-Publicbox::Publicbox(const std::string &pkey, const std::string &skey)
-    : pkey_(*DecodeBase64(pkey)), skey_(*DecodeBase64(skey)) {
-  if (skey_.size() != crypto_box_SECRETKEYBYTES ||
-      pkey_.size() != crypto_box_PUBLICKEYBYTES) {
+Publicbox::Publicbox(const std::string &pkey, const std::string &skey) {
+  auto decoded_pkey = DecodeBase64(pkey);
+  auto decoded_skey = DecodeBase64(skey);
+  if (!decoded_pkey || !decoded_skey ||
+      decoded_pkey->size() != crypto_box_PUBLICKEYBYTES ||
+      decoded_skey->size() != crypto_box_SECRETKEYBYTES) {
     throw std::runtime_error("Incorrect key length");
   }
+  pkey_ = std::move(*decoded_pkey);
+  skey_ = std::move(*decoded_skey);
 }
 
 std::string Publicbox::Box(const std::string &plain, const std::string &pkey) {
   auto receiver_pkey = DecodeBase64(pkey);
-  if (!receiver_pkey) {
-    throw std::runtime_error("Invalid sender public key");
+  if (!receiver_pkey || receiver_pkey->size() != crypto_box_PUBLICKEYBYTES) {
+    throw std::runtime_error("Invalid receiver public key");
   }
 
   std::vector<unsigned char> m(crypto_box_ZEROBYTES, 0);
@@ -109,16 +119,20 @@ std::string Publicbox::Box(const std::string &plain, const std::string &pkey) {
 
 std::string Publicbox::Open(const std::string &box) {
   auto part = split(box, '.');
-  auto sender_pkey = DecodeBase64(part[0].c_str());
-  if (!sender_pkey) {
+  if (part.size() != 3) {
+    throw std::runtime_error("Invalid publicbox format");
+  }
+  auto sender_pkey = DecodeBase64(part[0]);
+  if (!sender_pkey || sender_pkey->size() != crypto_box_PUBLICKEYBYTES) {
     throw std::runtime_error("Invalid sender public key");
   }
-  auto nonce = DecodeBase64(part[1].c_str());
-  if (!nonce) {
+  auto nonce = DecodeBase64(part[1]);
+  if (!nonce || nonce->size() != crypto_box_NONCEBYTES) {
     throw std::runtime_error("Invalid nonce");
   }
-  auto cipher = DecodeBase64(part[2].c_str());
-  if (!cipher) {
+  auto cipher = DecodeBase64(part[2]);
+  if (!cipher ||
+      cipher->size() < crypto_box_ZEROBYTES - crypto_box_BOXZEROBYTES) {
     throw std::runtime_error("Invalid cipher");
   }
 
