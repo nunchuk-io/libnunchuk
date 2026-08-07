@@ -17,12 +17,15 @@
 
 #include <backend/electrum/client.h>
 #include <boost/asio/ip/address.hpp>
+#include <certs/sslcerts.h>
 #include <iterator>
 #include <utils/loguru.hpp>
 #include <utils/errorutils.hpp>
 #include <utils/stringutils.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
+#include <openssl/ssl.h>
+#include <openssl/x509_vfy.h>
 
 using namespace boost::asio;
 
@@ -106,11 +109,14 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
   is_secure_ = boost::iequals(protocol_, "ssl");
   if (is_secure_) {
     ssl::context ctx(ssl::context::tls);
+    // Always verify the peer. Use a caller-supplied CA/pin file when set;
+    // otherwise load the embedded Mozilla CA bundle (same as GroupService).
+    ctx.set_verify_mode(ssl::verify_peer);
     if (!appsettings.get_certificate_file().empty()) {
-      ctx.set_verify_mode(ssl::verify_peer);
       ctx.load_verify_file(appsettings.get_certificate_file());
     } else {
-      ctx.set_verify_mode(ssl::verify_none);
+      // SSL_CTX_set_cert_store takes ownership of the X509_STORE.
+      SSL_CTX_set_cert_store(ctx.native_handle(), CreateEmbeddedCaCertStore());
     }
     secure_socket_ = std::unique_ptr<ssl::stream<ip::tcp::socket>>(
         new ssl::stream<ip::tcp::socket>(io_service_, ctx));
@@ -497,22 +503,33 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
 
   if (is_secure_) {
     secure_socket_->lowest_layer().set_option(ip::tcp::no_delay(true));
-    // Set SNI if host is not an IP address
-    std::string host = use_proxy_ ? proxy_host_ : host_;
-    boost::system::error_code err;
-    auto ip = boost::asio::ip::make_address(host, err);
-    if (err) {
-      SSL_set_tlsext_host_name(secure_socket_->native_handle(), host.c_str());
+    // SNI and certificate identity must always refer to the Electrum server
+    // (host_), never the SOCKS5 proxy host.
+    SSL* ssl = secure_socket_->native_handle();
+    boost::system::error_code addr_err;
+    boost::asio::ip::make_address(host_, addr_err);
+    if (addr_err) {
+      if (SSL_set_tlsext_host_name(ssl, host_.c_str()) != 1) {
+        return handle_error("handle_connect", "Failed to set TLS SNI hostname");
+      }
+      if (SSL_set1_host(ssl, host_.c_str()) != 1) {
+        return handle_error("handle_connect",
+                            "Failed to set TLS verification hostname");
+      }
+    } else {
+      X509_VERIFY_PARAM* param = SSL_get0_param(ssl);
+      if (param == nullptr ||
+          X509_VERIFY_PARAM_set1_ip_asc(param, host_.c_str()) != 1) {
+        return handle_error("handle_connect",
+                            "Failed to set TLS verification IP address");
+      }
     }
-    secure_socket_->set_verify_callback(
-        [](bool preverified, ssl::verify_context& ctx) {
-          char subject_name[256];
-          X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
-          X509_NAME_oneline(X509_get_subject_name(cert), subject_name, 256);
-          LOG_F(INFO, "Verifying %s", subject_name);
-          return preverified;
-        });
-    secure_socket_->handshake(ssl::stream_base::client);
+    secure_socket_->set_verify_callback(ssl::host_name_verification(host_));
+    boost::system::error_code handshake_ec;
+    secure_socket_->handshake(ssl::stream_base::client, handshake_ec);
+    if (handshake_ec) {
+      return handle_error("handle_connect", handshake_ec.message());
+    }
   }
 
   connected_ = true;

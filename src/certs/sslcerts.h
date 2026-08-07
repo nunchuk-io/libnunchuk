@@ -26,7 +26,8 @@ namespace nunchuk {
 
 // Build an X509_STORE from the embedded Mozilla/curl CA bundle.
 // Returns a new store (refcount 1). Ownership is transferred to the caller;
-// pass it to httplib via set_ca_cert_store which takes ownership.
+// pass it to httplib via set_ca_cert_store, or to Boost.Asio via
+// SSL_CTX_set_cert_store, both of which take ownership.
 // Works on Android/iOS/Windows/macOS/Linux without writing a PEM to disk
 // (static OpenSSL often has empty default verify paths).
 X509_STORE* CreateEmbeddedCaCertStore();
