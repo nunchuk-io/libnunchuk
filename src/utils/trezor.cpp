@@ -27,6 +27,7 @@ namespace nunchuk {
 static const std::string_view TREZOR_DEEPLINK =
     "https://connect.trezor.io/9/deeplink/1/";
 static const std::string_view NUNCHUK_TREZOR_CALLBACK = "nunchuk://trezor";
+static constexpr int TREZOR_MULTISIG_LEXICOGRAPHIC = 1;
 
 static std::string TrezorAddManifest(std::string url) {
   return url +
@@ -254,6 +255,7 @@ static std::pair<std::string, json> TrezorSignParams(
               {"m", m},
               {"pubkeys", get_multisig_pubkeys(input.hd_keypaths, solns)},
               {"signatures", std::vector<std::string>(n)},
+              {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
           };
         }
       }
@@ -349,6 +351,7 @@ static std::pair<std::string, json> TrezorSignParams(
           {"m", m},
           {"pubkeys", get_multisig_pubkeys(psbt_out.hd_keypaths, solns)},
           {"signatures", std::vector<std::string>(n)},
+          {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
       };
     }
     out["outputs"].push_back(jout);
@@ -667,6 +670,7 @@ std::string TrezorGetAddress(const Wallet &wallet, const std::string &address,
         {"m", wallet.get_m()},
         {"pubkeys", get_multisig_pubkeys(wallet, formalized_path)},
         {"signatures", std::vector<std::string>(wallet.get_n())},
+        {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
     };
   }
   std::string wallet_id;
