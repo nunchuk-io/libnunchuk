@@ -113,6 +113,9 @@ class ElectrumClient {
   std::map<std::string, NotifySignal> sigmap_;
   std::map<int, std::promise<json>> callback_;
   std::map<std::string, std::promise<json>> batch_callback_;
+  // FIFO of in-flight batch request ids, used when server replies with
+  // a batch-level error (id=null), e.g. "Batch limit exceeded".
+  std::deque<std::string> pending_batch_bids_;
   boost::signals2::signal<void()> disconnect_signal_;
   boost::posix_time::seconds interval_;
   boost::asio::deadline_timer timer_;

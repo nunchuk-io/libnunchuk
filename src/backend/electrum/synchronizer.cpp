@@ -133,6 +133,8 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
     std::map<std::string, bool> founds;
     for (auto item : history) {
       std::string tx_id = item["tx_hash"];
+      if (std::find(txs_hash.begin(), txs_hash.end(), tx_id) != txs_hash.end())
+        continue;
       int height = item["height"];
       try {
         auto stx = storage_->GetTransaction(chain, wallet_id, tx_id);
@@ -447,8 +449,9 @@ time_t ElectrumSynchronizer::GetMedianTimePast() {
   }
 
   const int nMedianTimeSpan = 11;
-  auto headers = client_->blockchain_block_headers(
-      chain_tip_ - nMedianTimeSpan + 1, nMedianTimeSpan);
+  int tip = chain_tip_;
+  auto headers = client_->blockchain_block_headers(tip - nMedianTimeSpan + 1,
+                                                   nMedianTimeSpan);
   std::string hex = headers["hex"];
   int64_t pmedian[nMedianTimeSpan];
   for (int i = 0; i < nMedianTimeSpan; i++) {
@@ -571,6 +574,8 @@ void ElectrumSynchronizer::UpdateScripthashesStatus(
     if (multihistory.count(scripthash) == 0) continue;
     for (auto item : history) {
       std::string tx_id = item["tx_hash"];
+      if (std::find(txs_hash.begin(), txs_hash.end(), tx_id) != txs_hash.end())
+        continue;
       int height = item["height"];
       try {
         auto stx = storage_->GetTransaction(chain, wallet_id, tx_id);

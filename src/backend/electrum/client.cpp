@@ -168,6 +168,7 @@ void ElectrumClient::handle_error(const std::string& where,
       LOG_F(ERROR, "ElectrumClient::handle_error batch callback cleanup");
     }
   }
+  pending_batch_bids_.clear();
   try {
     disconnect_signal_();
   } catch (const std::exception& e) {
@@ -281,10 +282,56 @@ std::vector<json> ElectrumClient::call_batch(
     throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
                            "Disconnected");
   }
+  if (methods.size() != params.size()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "call_batch methods/params size mismatch");
+  }
+  if (params.empty()) return {};
+
+  auto error_message = [](const json& obj) -> std::string {
+    if (!obj.contains("error")) return {};
+    const auto& error = obj["error"];
+    if (error.is_string()) return error.get<std::string>();
+    if (error.is_object() && error.contains("message") &&
+        error["message"].is_string()) {
+      return error["message"].get<std::string>();
+    }
+    return {};
+  };
+
+  // Fulcrum: "Batch limit exceeded" (often as a top-level id=null error).
+  // ElectrumX/aiorpcx: "response too large (over N bytes" on oversized
+  // batch members (or occasionally as a request-level error).
+  auto should_fallback = [&](const std::string& err_msg) {
+    return boost::icontains(err_msg, "batch limit exceeded") ||
+           boost::icontains(err_msg, "response too large");
+  };
+
+  auto fallback_separate = [&]() -> std::vector<json> {
+    LOG_F(WARNING,
+          "ElectrumClient::call_batch falling back to separate requests "
+          "(size=%zu)",
+          params.size());
+    std::vector<json> rs;
+    rs.reserve(params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+      try {
+        json result = call_method(methods[i], params[i]);
+        rs.push_back({{"jsonrpc", "2.0"},
+                      {"id", static_cast<int>(i)},
+                      {"result", std::move(result)}});
+      } catch (const std::exception& e) {
+        rs.push_back({{"jsonrpc", "2.0"},
+                      {"id", static_cast<int>(i)},
+                      {"error", {{"message", e.what()}}}});
+      }
+    }
+    return rs;
+  };
 
   std::vector<int> ids{};
   json req = json::array();
-  for (int i = 0; i < params.size(); i++) {
+  for (size_t i = 0; i < params.size(); i++) {
     int id = id_++;
     ids.push_back(id);
     req.push_back({{"jsonrpc", "2.0"},
@@ -296,9 +343,30 @@ std::vector<json> ElectrumClient::call_batch(
   std::string bid = join(ids, '-');
   batch_callback_[bid] =
       std::promise<json>(std::allocator_arg, std::allocator<json>());
+  pending_batch_bids_.push_back(bid);
   enqueue_message(req.dump());
   json resp = batch_callback_[bid].get_future().get();
   batch_callback_.erase(bid);
+
+  // Whole-batch rejection (e.g. Fulcrum id=null "Batch limit exceeded").
+  if (!resp.is_array()) {
+    const std::string err_msg = error_message(resp);
+    if (should_fallback(err_msg)) {
+      return fallback_separate();
+    }
+    throw NunchukException(NunchukException::SERVER_REQUEST_ERROR,
+                           err_msg.empty() ? resp.dump() : err_msg);
+  }
+
+  // ElectrumX may still return a batch array where some/all members are
+  // "response too large" errors once the cumulative response exceeds
+  // max_send. Fall back so callers don't silently drop those items.
+  for (const auto& item : resp) {
+    if (should_fallback(error_message(item))) {
+      return fallback_separate();
+    }
+  }
+
   std::map<int, json> respMap{};
   for (auto&& item : resp) {
     int id = item["id"].get<int>();
@@ -547,16 +615,36 @@ void ElectrumClient::handle_read(const boost::system::error_code& error) {
       }
       sort(ids.begin(), ids.end());
       std::string bid = join(ids, '-');
+      auto pending =
+          std::find(pending_batch_bids_.begin(), pending_batch_bids_.end(),
+                    bid);
+      if (pending != pending_batch_bids_.end()) {
+        pending_batch_bids_.erase(pending);
+      }
       auto cb = batch_callback_.find(bid);
       if (cb != batch_callback_.end()) {
         cb->second.set_value(response);
       }
-    } else if (response["method"] != nullptr) {
+    } else if (response.contains("method") && response["method"] != nullptr) {
       signal_service_.post([this, response]() {
         sigmap_.at(response["method"])(response["params"]);
       });
+    } else if (!response.contains("id") || response["id"].is_null()) {
+      // Batch-level error from server, e.g.:
+      // {"error":{"code":4,"message":"Batch limit exceeded"},"id":null,...}
+      if (!pending_batch_bids_.empty()) {
+        std::string bid = pending_batch_bids_.front();
+        pending_batch_bids_.pop_front();
+        auto cb = batch_callback_.find(bid);
+        if (cb != batch_callback_.end()) {
+          cb->second.set_value(response);
+        }
+      } else {
+        LOG_F(ERROR, "Unhandled batch error with null id: %s",
+              response.dump().c_str());
+      }
     } else {
-      int id = response["id"];
+      int id = response["id"].get<int>();
       auto cb = callback_.find(id);
       if (cb != callback_.end()) {
         cb->second.set_value(response);
