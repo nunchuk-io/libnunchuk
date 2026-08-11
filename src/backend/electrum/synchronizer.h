@@ -51,6 +51,13 @@ class ElectrumSynchronizer : public Synchronizer {
       const std::vector<std::string> tx_ids) override;
   Transaction GetTransaction(const std::string& tx_id) override;
 
+  // Returns scripthash -> status. Requires batch-capable Electrum server.
+  std::map<std::string, std::string> SubscribeAddresses(
+      const std::string& wallet_id, const std::vector<std::string>& addresses);
+  void UpdateScripthashesStatus(Chain chain, const std::string& wallet_id,
+                                const std::vector<std::string>& scripthashes,
+                                const std::vector<std::string>& status);
+
   void Run() override;
 
  private:
@@ -72,14 +79,9 @@ class ElectrumSynchronizer : public Synchronizer {
   void UpdateScripthashStatus(Chain chain, const std::string& scripthash,
                               const std::string& status,
                               bool check_balance = true);
-  void UpdateScripthashesStatus(Chain chain, const std::string& wallet_id,
-                                const std::vector<std::string>& scripthashes,
-                                const std::vector<std::string>& status);
   void OnScripthashStatusChange(Chain chain, const json& notification);
   std::pair<std::string, std::string> SubscribeAddress(
       const std::string& wallet_id, const std::string& address);
-  std::map<std::string, std::string> SubscribeAddresses(
-      const std::string& wallet_id, const std::vector<std::string>& addresses);
   void BlockchainSync(Chain chain);
   void WaitForReady();
   void EnsureReady() const;
