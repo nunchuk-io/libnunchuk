@@ -16,6 +16,7 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include "nunchuk.h"
 #include "tinyformat.h"
 #include "utils/httplib.h"
@@ -26,6 +27,13 @@ namespace nunchuk {
 static const std::string_view TREZOR_DEEPLINK =
     "https://connect.trezor.io/9/deeplink/1/";
 static const std::string_view NUNCHUK_TREZOR_CALLBACK = "nunchuk://trezor";
+static constexpr int TREZOR_MULTISIG_LEXICOGRAPHIC = 1;
+
+static std::string TrezorAddManifest(std::string url) {
+  return url +
+         "&appName=Nunchuk&appIcon=https%3A%2F%2Fstatic-assets.nunchuk.io%2F"
+         "assets_v1%2Ffavicon.png";
+}
 
 static int TrezorNextId() {
   static int id = 1;
@@ -35,15 +43,24 @@ static int TrezorNextId() {
 static json TrezorGetPayload(const std::string &response) {
   try {
     json parsed = json::parse(response);
-    auto &payload = parsed.at("payload");
     if (!parsed.value("success", false)) {
+      const json error = parsed.value("error", json::object());
       throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             payload.value("error", "[Trezor] Unknow error"));
+                             strprintf("[Trezor] %s: %s",
+                                       error.value("code", "UnknownCode"),
+                                       error.value("message", "Unknown error")));
     }
-    return payload;
-  } catch (json::exception &e) {
+    return parsed.at("payload");
+  } catch (const json::exception &e) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, e.what());
   }
+}
+
+static bool is_my_key(const std::vector<unsigned char> &my_xfp,
+                      const KeyOriginInfo &key_origin) {
+  return my_xfp.size() == sizeof(key_origin.fingerprint) &&
+         std::equal(std::begin(key_origin.fingerprint),
+                    std::end(key_origin.fingerprint), my_xfp.begin());
 }
 
 static json get_input_script_type(const PSBTInput &input, const CTxOut &utxo) {
@@ -89,13 +106,6 @@ static std::string get_output_script_type(const CScript &script,
   return "PAYTOADDRESS";
 }
 
-static bool is_my_key(const std::vector<unsigned char> &my_xfp,
-                      const KeyOriginInfo &key_origin) {
-  return std::equal(std::begin(key_origin.fingerprint),
-                    std::end(key_origin.fingerprint), my_xfp.begin(),
-                    my_xfp.end());
-};
-
 std::string TrezorGetPublicKey(WalletType wallet_type, AddressType address_type,
                                int index) {
   int id = TrezorNextId();
@@ -108,8 +118,9 @@ std::string TrezorGetPublicKey(WalletType wallet_type, AddressType address_type,
   auto params_encoded = httplib::detail::encode_query_param(params.dump());
   auto callback = httplib::detail::encode_query_param(
       strprintf("%s?method=getPublicKey&id=%d", NUNCHUK_TREZOR_CALLBACK, id));
-  return strprintf("%s?method=getPublicKey&params=%s&callback=%s",
-                   TREZOR_DEEPLINK, params_encoded, callback);
+  return TrezorAddManifest(strprintf(
+      "%s?method=getPublicKey&params=%s&callback=%s", TREZOR_DEEPLINK,
+      params_encoded, callback));
 }
 
 SingleSigner TrezorParsePublicKeyResponse(const std::string &response) {
@@ -139,6 +150,11 @@ static std::pair<std::string, json> TrezorSignParams(
     throw NunchukException(NunchukException::INVALID_PSBT,
                            "PSBT missing unsigned transaction");
   }
+  if (psbt.inputs.size() != psbt.tx->vin.size() ||
+      psbt.outputs.size() != psbt.tx->vout.size()) {
+    throw NunchukException(NunchukException::INVALID_PSBT,
+                           "PSBT input/output count mismatch");
+  }
 
   const auto my_xfp = ParseHex(xfp);
   const CMutableTransaction &mtx = *psbt.tx;
@@ -146,9 +162,14 @@ static std::pair<std::string, json> TrezorSignParams(
   json out = {
       {"coin", Utils::GetChain() == Chain::MAIN ? "btc" : "test"},
       {"version", mtx.version},
-      {"lock_time", mtx.nLockTime},
+      {"locktime", mtx.nLockTime},
       {"serialize", false},
   };
+
+  std::set<std::string> wallet_xpubs;
+  for (const auto &signer : wallet.get_signers()) {
+    wallet_xpubs.insert(signer.get_xpub());
+  }
 
   auto get_multisig_pubkeys =
       [&](const std::map<CPubKey, KeyOriginInfo> &hd_keypaths,
@@ -175,6 +196,7 @@ static std::pair<std::string, json> TrezorSignParams(
               });
           if (xpubs == psbt.m_xpubs.end()) continue;
           for (auto &&xpub : xpubs->second) {
+            if (!wallet_xpubs.count(EncodeExtPubKey(xpub))) continue;
             std::vector<uint32_t> address_n(
                 hd_keypath->second.path.begin() + xpubs->first.path.size(),
                 hd_keypath->second.path.end());
@@ -184,6 +206,11 @@ static std::pair<std::string, json> TrezorSignParams(
             });
           }
         }
+        if (ret.size() != static_cast<size_t>(wallet.get_n())) {
+          throw NunchukException(
+              NunchukException::INVALID_PSBT,
+              "[Trezor] Multisig keys do not match the wallet");
+        }
         return ret;
       };
 
@@ -192,7 +219,8 @@ static std::pair<std::string, json> TrezorSignParams(
     PSBTInput &input = psbt.inputs[i];
     CTxOut utxo;
     if (!psbt.GetInputUTXO(utxo, i) || utxo.IsNull()) {
-      continue;
+      throw NunchukException(NunchukException::INVALID_PSBT,
+                             "[Trezor] Input is missing its UTXO");
     }
 
     json jin = {
@@ -215,11 +243,19 @@ static std::pair<std::string, json> TrezorSignParams(
         TxoutType type{Solver(input.witness_script, solns)};
 
         if (type == TxoutType::MULTISIG) {
+          const int m = int(solns.at(0).at(0));
+          const int n = int(solns.back().at(0));
+          if (wallet.get_wallet_type() != WalletType::MULTI_SIG ||
+              m != wallet.get_m() || n != wallet.get_n()) {
+            throw NunchukException(
+                NunchukException::INVALID_PSBT,
+                "[Trezor] Multisig policy does not match the wallet");
+          }
           jin["multisig"] = {
-              {"m", int(solns.at(0).at(0))},
+              {"m", m},
               {"pubkeys", get_multisig_pubkeys(input.hd_keypaths, solns)},
-              {"signatures",
-               std::vector<std::string>(int(solns.back().back()))},
+              {"signatures", std::vector<std::string>(n)},
+              {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
           };
         }
       }
@@ -238,9 +274,14 @@ static std::pair<std::string, json> TrezorSignParams(
       const auto &[leaf_hashes, key_origin] = leaf_pair;
       if (!is_my_key(my_xfp, key_origin)) continue;
       bool single_key_path = (input.m_tap_internal_key == xonly_pub);
-      if (single_key_path) {
+      if (single_key_path && leaf_hashes.empty()) {
         jin["address_n"] = key_origin.path;
       }
+    }
+    if (!jin.contains("address_n")) {
+      throw NunchukException(
+          NunchukException::INVALID_PSBT,
+          "[Trezor] Input has no unsigned key for this device");
     }
 
     out["inputs"].push_back(jin);
@@ -259,9 +300,19 @@ static std::pair<std::string, json> TrezorSignParams(
     if (ExtractDestination(txout.scriptPubKey, address)) {
       jout["address"] = EncodeDestination(address);
     } else {
+      CScript::const_iterator pc = txout.scriptPubKey.begin();
+      opcodetype opcode;
+      std::vector<unsigned char> data;
+      if (txout.nValue != 0 ||
+          !txout.scriptPubKey.GetOp(pc, opcode) || opcode != OP_RETURN ||
+          !txout.scriptPubKey.GetOp(pc, opcode, data) ||
+          opcode > OP_PUSHDATA4 || pc != txout.scriptPubKey.end() ||
+          CScript() << OP_RETURN << data != txout.scriptPubKey) {
+        throw NunchukException(NunchukException::INVALID_PSBT,
+                               "[Trezor] Unsupported output script");
+      }
       jout["script_type"] = "PAYTOOPRETURN";
-      jout["op_return_data"] = HexStr(MakeUCharSpan(txout.scriptPubKey)
-                                          .last(txout.scriptPubKey.size() - 2));
+      jout["op_return_data"] = HexStr(data);
     }
     for (auto &&[pubkey, key_origin] : psbt_out.hd_keypaths) {
       if (!is_my_key(my_xfp, key_origin)) {
@@ -287,11 +338,20 @@ static std::pair<std::string, json> TrezorSignParams(
     }
     std::vector<std::vector<unsigned char>> solns;
     TxoutType type{Solver(psbt_out.witness_script, solns)};
-    if (type == TxoutType::MULTISIG) {
+    if (type == TxoutType::MULTISIG && jout.contains("address_n")) {
+      const int m = int(solns.at(0).at(0));
+      const int n = int(solns.back().at(0));
+      if (wallet.get_wallet_type() != WalletType::MULTI_SIG ||
+          m != wallet.get_m() || n != wallet.get_n()) {
+        throw NunchukException(
+            NunchukException::INVALID_PSBT,
+            "[Trezor] Multisig change does not match the wallet");
+      }
       jout["multisig"] = {
-          {"m", int(solns.at(0).at(0))},
+          {"m", m},
           {"pubkeys", get_multisig_pubkeys(psbt_out.hd_keypaths, solns)},
-          {"signatures", std::vector<std::string>(int(solns.back().back()))},
+          {"signatures", std::vector<std::string>(n)},
+          {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
       };
     }
     out["outputs"].push_back(jout);
@@ -349,8 +409,9 @@ std::string TrezorSignTransaction(const Wallet &wallet, const std::string &psbt,
   auto callback = httplib::detail::encode_query_param(
       strprintf("%s?method=signTransaction&xfp=%s&id=%d&wallet_id=%s&txid=%s",
                 NUNCHUK_TREZOR_CALLBACK, xfp, id, wallet_id, txid));
-  return strprintf("%s?method=signTransaction&params=%s&callback=%s",
-                   TREZOR_DEEPLINK, params_encoded, callback);
+  return TrezorAddManifest(strprintf(
+      "%s?method=signTransaction&params=%s&callback=%s", TREZOR_DEEPLINK,
+      params_encoded, callback));
 }
 
 static bool is_p2wpkh(const CScript &script) {
@@ -382,28 +443,39 @@ std::string TrezorParseSignTransactionResponse(const Wallet &wallet,
                                                const std::string &xfp,
                                                const std::string &response) {
   auto payload = TrezorGetPayload(response);
-  std::vector<std::string> signatures = payload.at("signatures");
+  const std::vector<std::string> signatures = payload.at("signatures");
 
   PartiallySignedTransaction psbt;
   if (std::string error; !DecodeBase64PSBT(psbt, base64_psbt, error)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, error);
   }
+  if (!psbt.tx || psbt.inputs.size() != psbt.tx->vin.size() ||
+      signatures.size() != psbt.tx->vin.size()) {
+    throw NunchukException(NunchukException::INVALID_PSBT,
+                           "[Trezor] Invalid signature response");
+  }
 
-  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
-
-  const auto my_xfp = ParseHex(xfp);
   const CMutableTransaction &mtx = *psbt.tx;
+  const PrecomputedTransactionData txdata = PrecomputePSBTData(psbt);
+  const auto my_xfp = ParseHex(xfp);
 
   for (size_t i = 0; i < mtx.vin.size(); ++i) {
     PSBTInput &input = psbt.inputs[i];
     CTxOut utxo;
     if (!psbt.GetInputUTXO(utxo, i) || utxo.IsNull()) {
-      continue;
+      throw NunchukException(NunchukException::INVALID_PSBT,
+                             "[Trezor] Input is missing its UTXO");
     }
+    if (signatures[i].empty() || !IsHex(signatures[i])) {
+      throw NunchukException(NunchukException::INVALID_PSBT,
+                             "[Trezor] Invalid signature encoding");
+    }
+    auto sig = ParseHex(signatures[i]);
+    bool inserted = false;
     int sighashType = input.sighash_type.value_or(SIGHASH_ALL);
     auto [scriptCode, sigversion] = get_segwit_scriptcode(utxo, input);
     auto hash = SignatureHash(scriptCode, *psbt.tx, i, sighashType,
-                              input.witness_utxo.nValue, sigversion, &txdata);
+                              utxo.nValue, sigversion, &txdata);
     for (auto &&[pubkey, key_origin] : input.hd_keypaths) {
       if (!is_my_key(my_xfp, key_origin)) {
         continue;
@@ -412,24 +484,42 @@ std::string TrezorParseSignTransactionResponse(const Wallet &wallet,
       if (input.partial_sigs.find(pubkey_id) != input.partial_sigs.end()) {
         continue;
       }
-      for (auto it = signatures.begin(); it != signatures.end(); ++it) {
-        auto sig = ParseHex(*it);
-        if (pubkey.Verify(hash, sig)) {
-          sig.push_back(sighashType);
-          input.partial_sigs[pubkey_id] = SigPair{pubkey, sig};
-          signatures.erase(it);
-          break;
-        }
+      if (pubkey.Verify(hash, sig)) {
+        sig.push_back(sighashType);
+        input.partial_sigs[pubkey_id] = SigPair{pubkey, sig};
+        inserted = true;
+        break;
       }
     }
 
-    for (auto it = signatures.begin(); it != signatures.end(); ++it) {
-      auto sig = ParseHex(*it);
-      if (!input.m_tap_internal_key.IsNull() && input.m_tap_key_sig.empty()) {
-        input.m_tap_key_sig = sig;
-        signatures.erase(it);
+    bool taproot_key = false;
+    for (const auto &[xonly_pub, leaf_pair] : input.m_tap_bip32_paths) {
+      const auto &[leaf_hashes, key_origin] = leaf_pair;
+      if (is_my_key(my_xfp, key_origin) && leaf_hashes.empty() &&
+          input.m_tap_internal_key == xonly_pub) {
+        taproot_key = true;
         break;
       }
+    }
+    if (!inserted && taproot_key && input.m_tap_key_sig.empty()) {
+      int version{};
+      std::vector<unsigned char> program;
+      ScriptExecutionData execdata;
+      execdata.m_annex_init = true;
+      execdata.m_annex_present = false;
+      MutableTransactionSignatureChecker checker(
+          &mtx, i, utxo.nValue, txdata, MissingDataBehavior::FAIL);
+      if (utxo.scriptPubKey.IsWitnessProgram(version, program) && version == 1 &&
+          program.size() == WITNESS_V1_TAPROOT_SIZE &&
+          checker.CheckSchnorrSignature(sig, program, SigVersion::TAPROOT,
+                                        execdata)) {
+        input.m_tap_key_sig = sig;
+        inserted = true;
+      }
+    }
+    if (!inserted) {
+      throw NunchukException(NunchukException::INVALID_PSBT,
+                             "[Trezor] Signature does not match its input");
     }
   }
   return EncodePsbt(psbt);
@@ -452,8 +542,9 @@ std::string TrezorSignMessage(const SingleSigner &signer,
       strprintf("%s?method=signMessage&id=%d&xfp=%s&path=%s&message=%s",
                 NUNCHUK_TREZOR_CALLBACK, id, signer.get_master_fingerprint(),
                 signer.get_derivation_path(), message_encoded));
-  return strprintf("%s?method=signMessage&params=%s&callback=%s",
-                   TREZOR_DEEPLINK, params_encoded, callback);
+  return TrezorAddManifest(strprintf(
+      "%s?method=signMessage&params=%s&callback=%s", TREZOR_DEEPLINK,
+      params_encoded, callback));
 }
 
 std::string TrezorGetSignMessagePath(const SingleSigner &signer) {
@@ -579,6 +670,7 @@ std::string TrezorGetAddress(const Wallet &wallet, const std::string &address,
         {"m", wallet.get_m()},
         {"pubkeys", get_multisig_pubkeys(wallet, formalized_path)},
         {"signatures", std::vector<std::string>(wallet.get_n())},
+        {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
     };
   }
   std::string wallet_id;
@@ -592,8 +684,9 @@ std::string TrezorGetAddress(const Wallet &wallet, const std::string &address,
   auto callback = httplib::detail::encode_query_param(
       strprintf("%s?method=getAddress&id=%d&wallet_id=%s",
                 NUNCHUK_TREZOR_CALLBACK, id, wallet_id));
-  return strprintf("%s?method=getAddress&params=%s&callback=%s",
-                   TREZOR_DEEPLINK, params_encoded, callback);
+  return TrezorAddManifest(
+      strprintf("%s?method=getAddress&params=%s&callback=%s", TREZOR_DEEPLINK,
+                params_encoded, callback));
 }
 
 std::string TrezorParseGetAddress(const std::string &response) {
