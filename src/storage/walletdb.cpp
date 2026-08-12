@@ -218,6 +218,14 @@ bool NunchukWalletDb::SetArchived(bool value) {
   return PutInt(DbKeys::ARCHIVED, value ? 1 : 0);
 }
 
+std::string NunchukWalletDb::GetLedgerWalletHmac() const {
+  return GetString(DbKeys::LEDGER_WALLET_HMAC);
+}
+
+bool NunchukWalletDb::SetLedgerWalletHmac(const std::string& hmac) {
+  return PutString(DbKeys::LEDGER_WALLET_HMAC, hmac);
+}
+
 Wallet NunchukWalletDb::GetWallet(bool skip_balance, bool skip_provider) {
   auto data = GetString(DbKeys::IMMUTABLE_DATA);
   if (data.empty())

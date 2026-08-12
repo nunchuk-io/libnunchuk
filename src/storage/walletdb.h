@@ -54,6 +54,8 @@ class NunchukWalletDb : public NunchukDb {
   bool SetGapLimit(int value);
   bool SetNeedBackup(bool value);
   bool SetArchived(bool value);
+  std::string GetLedgerWalletHmac() const;
+  bool SetLedgerWalletHmac(const std::string &hmac);
   bool AddAddress(const std::string &address, int index, bool internal);
   Wallet GetWallet(bool skip_balance = false, bool skip_provider = false);
   std::vector<SingleSigner> GetSigners() const;

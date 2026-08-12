@@ -1552,6 +1552,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual bool HasWallet(const std::string& wallet_id) = 0;
   virtual bool DeleteWallet(const std::string& wallet_id) = 0;
   virtual bool UpdateWallet(const Wallet& wallet) = 0;
+  virtual std::string GetLedgerWalletHmac(const std::string& wallet_id) = 0;
+  virtual bool SetLedgerWalletHmac(const std::string& wallet_id,
+                                   const std::string& hmac) = 0;
   virtual bool ExportWallet(const std::string& wallet_id,
                             const std::string& file_path,
                             ExportFormat format) = 0;

@@ -79,6 +79,7 @@ const int MINISCRIPT = 36;
 const int POLICY = 37;
 const int LIQUID_WALLET_ID = 38;
 const int LIQUID_CHAIN_TIP = 39;
+const int LEDGER_WALLET_HMAC = 40;
 }  // namespace DbKeys
 
 }  // namespace nunchuk
