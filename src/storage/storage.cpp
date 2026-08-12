@@ -1205,6 +1205,19 @@ bool NunchukStorage::UpdateWallet(Chain chain, const Wallet& wallet) {
          wallet_db.SetArchived(wallet.is_archived());
 }
 
+std::string NunchukStorage::GetLedgerWalletHmac(
+    Chain chain, const std::string& wallet_id) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetLedgerWalletHmac();
+}
+
+bool NunchukStorage::SetLedgerWalletHmac(Chain chain,
+                                         const std::string& wallet_id,
+                                         const std::string& hmac) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).SetLedgerWalletHmac(hmac);
+}
+
 bool NunchukStorage::UpdateMasterSigner(Chain chain,
                                         const MasterSigner& signer) {
   std::unique_lock<std::shared_mutex> lock(access_);

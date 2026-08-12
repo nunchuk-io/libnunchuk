@@ -23,6 +23,7 @@
 #include <validation.h>
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <iomanip>
 #include <sstream>
 #include <thread>
@@ -62,6 +63,18 @@ using namespace tap_protocol;
 using namespace nunchuk::bcr2;
 
 namespace nunchuk {
+
+namespace {
+
+bool IsLedgerWalletHmac(const std::string& hmac) {
+  return hmac.empty() ||
+         (hmac.size() == 64 &&
+          std::all_of(hmac.begin(), hmac.end(), [](unsigned char c) {
+            return std::isxdigit(c);
+          }));
+}
+
+}  // namespace
 
 static int MESSAGE_MIN_LEN = 8;
 static int CACHE_SECOND = 600;  // 10 minutes
@@ -416,6 +429,19 @@ bool NunchukImpl::UpdateWallet(const Wallet& wallet) {
   }
   storage_listener_();
   return rs;
+}
+
+std::string NunchukImpl::GetLedgerWalletHmac(const std::string& wallet_id) {
+  return storage_->GetLedgerWalletHmac(chain_, wallet_id);
+}
+
+bool NunchukImpl::SetLedgerWalletHmac(const std::string& wallet_id,
+                                      const std::string& hmac) {
+  if (!IsLedgerWalletHmac(hmac)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid Ledger wallet HMAC");
+  }
+  return storage_->SetLedgerWalletHmac(chain_, wallet_id, hmac);
 }
 
 bool NunchukImpl::ExportWallet(const std::string& wallet_id,

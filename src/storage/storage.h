@@ -111,6 +111,10 @@ class NunchukStorage {
   bool HasSigner(Chain chain, const SingleSigner &signer);
 
   bool UpdateWallet(Chain chain, const Wallet &wallet);
+  std::string GetLedgerWalletHmac(Chain chain,
+                                  const std::string &wallet_id);
+  bool SetLedgerWalletHmac(Chain chain, const std::string &wallet_id,
+                           const std::string &hmac);
   bool UpdateMasterSigner(Chain chain, const MasterSigner &mastersigner);
 
   bool DeleteWallet(Chain chain, const std::string &id);
