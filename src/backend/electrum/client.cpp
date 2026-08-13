@@ -25,6 +25,7 @@
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
 #include <openssl/ssl.h>
+#include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
 using namespace boost::asio;
@@ -110,11 +111,13 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
   if (is_secure_) {
     ssl::context ctx(ssl::context::tls);
     // Always verify the peer. Use a caller-supplied CA/pin file when set;
-    // otherwise load the embedded Mozilla CA bundle (same as GroupService).
+    // otherwise load the embedded Mozilla CA bundle (same as GroupService)
+    // and temporarily accept self-signed Electrum server certificates.
     ctx.set_verify_mode(ssl::verify_peer);
     if (!appsettings.get_certificate_file().empty()) {
       ctx.load_verify_file(appsettings.get_certificate_file());
     } else {
+      ssl_allow_self_signed_ = true;
       // SSL_CTX_set_cert_store takes ownership of the X509_STORE.
       SSL_CTX_set_cert_store(ctx.native_handle(), CreateEmbeddedCaCertStore());
     }
@@ -576,7 +579,8 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
     SSL* ssl = secure_socket_->native_handle();
     boost::system::error_code addr_err;
     boost::asio::ip::make_address(host_, addr_err);
-    if (addr_err) {
+    const bool host_is_ip = !addr_err;
+    if (!host_is_ip) {
       if (SSL_set_tlsext_host_name(ssl, host_.c_str()) != 1) {
         return handle_error("handle_connect", "Failed to set TLS SNI hostname");
       }
@@ -584,7 +588,8 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
         return handle_error("handle_connect",
                             "Failed to set TLS verification hostname");
       }
-    } else {
+    } else if (!ssl_allow_self_signed_) {
+      // Pinned cert: require the certificate IP SAN to match host_.
       X509_VERIFY_PARAM* param = SSL_get0_param(ssl);
       if (param == nullptr ||
           X509_VERIFY_PARAM_set1_ip_asc(param, host_.c_str()) != 1) {
@@ -592,7 +597,38 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
                             "Failed to set TLS verification IP address");
       }
     }
-    secure_socket_->set_verify_callback(ssl::host_name_verification(host_));
+    secure_socket_->set_verify_callback(
+        [allow_self_signed = ssl_allow_self_signed_, host = host_, host_is_ip](
+            bool preverified, ssl::verify_context& ctx) {
+          if (!preverified && allow_self_signed) {
+            const int err = X509_STORE_CTX_get_error(ctx.native_handle());
+            if (err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
+                err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) {
+              char subject_name[256] = {};
+              X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
+              if (cert != nullptr) {
+                X509_NAME_oneline(X509_get_subject_name(cert), subject_name,
+                                  sizeof(subject_name));
+              }
+              LOG_F(WARNING, "Accepting self-signed TLS certificate: %s",
+                    subject_name);
+              return true;
+            }
+            if (host_is_ip && (err == X509_V_ERR_IP_ADDRESS_MISMATCH ||
+                               err == X509_V_ERR_HOSTNAME_MISMATCH)) {
+              LOG_F(WARNING,
+                    "Accepting TLS certificate without matching IP SAN for %s",
+                    host.c_str());
+              return true;
+            }
+          }
+          // Unpinned ssl://ip:port: Electrum certs usually have a DNS SAN
+          // only, so skip IP identity checks.
+          if (allow_self_signed && host_is_ip) {
+            return preverified;
+          }
+          return ssl::host_name_verification(host)(preverified, ctx);
+        });
     boost::system::error_code handshake_ec;
     secure_socket_->handshake(ssl::stream_base::client, handshake_ec);
     if (handshake_ec) {
