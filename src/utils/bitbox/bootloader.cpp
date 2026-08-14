@@ -140,6 +140,15 @@ BitBoxStep BitBoxBootloaderSession::upgradeFirmware(
   }
 }
 
+BitBoxStep BitBoxBootloaderSession::reboot() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (phase_ != Phase::IDLE || awaiting_data_) {
+    return fail(BitBoxErrorCode::INVALID_STATE,
+                "BitBox firmware upgrade is already in progress");
+  }
+  return sendReboot();
+}
+
 BitBoxStep BitBoxBootloaderSession::onData(
     std::span<const unsigned char> data) {
   std::lock_guard<std::mutex> lock(mutex_);

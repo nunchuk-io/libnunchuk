@@ -38,6 +38,7 @@ class BitBoxBootloaderSession {
 
   BitBoxStep upgradeFirmware(
       std::span<const unsigned char> signed_firmware);
+  BitBoxStep reboot();
   BitBoxStep onData(std::span<const unsigned char> data);
 
  private:
