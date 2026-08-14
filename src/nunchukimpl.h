@@ -96,6 +96,8 @@ class NunchukImpl : public Nunchuk {
   std::string GetLedgerWalletHmac(const std::string& wallet_id) override;
   bool SetLedgerWalletHmac(const std::string& wallet_id,
                            const std::string& hmac) override;
+  std::string GetBitBoxPairingData() override;
+  bool SetBitBoxPairingData(const std::string& data) override;
   bool ExportWallet(const std::string& wallet_id, const std::string& file_path,
                     ExportFormat format) override;
   Wallet ImportWalletDb(const std::string& file_path) override;

@@ -251,6 +251,45 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/ledger/ledger_session.hpp
     src/utils/ledger/ledger_manager.hpp
     src/utils/ledger/psbt.hpp
+    src/utils/bitbox/nanopb/pb_common.c
+    src/utils/bitbox/nanopb/pb_decode.c
+    src/utils/bitbox/nanopb/pb_encode.c
+    src/utils/bitbox/messages/google/protobuf/empty.pb.c
+    src/utils/bitbox/messages/antiklepto.pb.c
+    src/utils/bitbox/messages/backup_commands.pb.c
+    src/utils/bitbox/messages/bitbox02_system.pb.c
+    src/utils/bitbox/messages/bitboxsync.pb.c
+    src/utils/bitbox/messages/bluetooth.pb.c
+    src/utils/bitbox/messages/btc.pb.c
+    src/utils/bitbox/messages/cardano.pb.c
+    src/utils/bitbox/messages/common.pb.c
+    src/utils/bitbox/messages/eth.pb.c
+    src/utils/bitbox/messages/hww.pb.c
+    src/utils/bitbox/messages/keystore.pb.c
+    src/utils/bitbox/messages/mnemonic.pb.c
+    src/utils/bitbox/messages/perform_attestation.pb.c
+    src/utils/bitbox/messages/system.pb.c
+    src/utils/bitbox/crypto.cpp
+    src/utils/bitbox/bitcoin.cpp
+    src/utils/bitbox/bootloader.cpp
+    src/utils/bitbox/bitbox_manager.cpp
+    src/utils/bitbox/bitbox_session.cpp
+    src/utils/bitbox/noise.cpp
+    src/utils/bitbox/pairing_store.cpp
+    src/utils/bitbox/psbt.cpp
+    src/utils/bitbox/protobuf.cpp
+    src/utils/bitbox/u2f_framer.cpp
+    src/utils/bitbox/crypto.hpp
+    src/utils/bitbox/bitcoin.hpp
+    src/utils/bitbox/bootloader.hpp
+    src/utils/bitbox/bitbox_manager.hpp
+    src/utils/bitbox/bitbox_session.hpp
+    src/utils/bitbox/noise.hpp
+    src/utils/bitbox/pairing_store.hpp
+    src/utils/bitbox/psbt.hpp
+    src/utils/bitbox/protobuf.hpp
+    src/utils/bitbox/types.hpp
+    src/utils/bitbox/u2f_framer.hpp
     src/miniscript/compiler.cpp
     src/miniscript/miniscript.cpp
     src/miniscript/timeline.cpp
@@ -305,6 +344,11 @@ target_include_directories("${PROJECT_NAME}" PUBLIC
     "${PROJECT_BINARY_DIR}/contrib/bitcoin/src"
     "${PROJECT_SOURCE_DIR}/contrib/tap-protocol/include"
     "${PROJECT_SOURCE_DIR}/contrib/bbqr-cpp/include"
+)
+
+target_include_directories("${PROJECT_NAME}" PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/utils/bitbox/nanopb"
+    "${PROJECT_SOURCE_DIR}/src/utils/bitbox/messages"
 )
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

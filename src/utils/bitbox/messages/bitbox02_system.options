@@ -1,0 +1,6 @@
+shiftcrypto.bitbox02.DeviceInfoResponse.name max_length:64
+shiftcrypto.bitbox02.DeviceInfoResponse.version max_length:32
+shiftcrypto.bitbox02.DeviceInfoResponse.securechip_model max_length:32
+shiftcrypto.bitbox02.DeviceInfoResponse.password_stretching_algo max_length:64
+shiftcrypto.bitbox02.DeviceInfoResponse.Bluetooth.firmware_hash max_size:32
+shiftcrypto.bitbox02.DeviceInfoResponse.Bluetooth.firmware_version max_length:32

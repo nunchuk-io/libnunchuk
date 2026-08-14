@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package shiftcrypto.bitbox02;
+
+import "common.proto";
+import "antiklepto.proto";
+import "btc.proto";
+
+// Kept for backwards compatibility. Use chain_id instead, introduced in v9.10.0.
+enum ETHCoin {
+  ETH = 0;
+  // Removed in v9.14.0 - deprecated
+  RopstenETH = 1;
+  // Removed in v9.14.0 - deprecated
+  RinkebyETH = 2;
+}
+
+enum ETHAddressCase {
+  ETH_ADDRESS_CASE_MIXED = 0;
+  ETH_ADDRESS_CASE_UPPER = 1;
+  ETH_ADDRESS_CASE_LOWER = 2;
+}
+
+message ETHPubRequest {
+  repeated uint32 keypath = 1;
+  // Deprecated: use chain_id instead.
+  ETHCoin coin = 2;
+  enum OutputType {
+    ADDRESS = 0;
+    XPUB = 1;
+  }
+  OutputType output_type = 3;
+  bool display = 4;
+  bytes contract_address = 5;
+  // If non-zero, `coin` is ignored and `chain_id` is used to identify the network.
+  uint64 chain_id = 6;
+}
+
+// TX payload for "legacy" (EIP-155) transactions: https://eips.ethereum.org/EIPS/eip-155
+message ETHSignRequest {
+  // Deprecated: use chain_id instead.
+  ETHCoin coin = 1;
+  repeated uint32 keypath = 2;
+  bytes nonce = 3; // smallest big endian serialization, max. 16 bytes
+  bytes gas_price = 4; // smallest big endian serialization, max. 16 bytes
+  bytes gas_limit = 5; // smallest big endian serialization, max. 16 bytes
+  bytes recipient = 6; // 20 byte recipient
+  bytes value = 7; // smallest big endian serialization, max. 32 bytes
+  bytes data = 8;
+  AntiKleptoHostNonceCommitment host_nonce_commitment = 9;
+  // If non-zero, `coin` is ignored and `chain_id` is used to identify the network.
+  uint64 chain_id = 10;
+  ETHAddressCase address_case = 11;
+  // For streaming: if non-zero, data field should be empty and data will be requested in chunks
+  uint32 data_length = 12;
+}
+
+// TX payload for an EIP-1559 (type 2) transaction: https://eips.ethereum.org/EIPS/eip-1559
+message ETHSignEIP1559Request {
+  uint64 chain_id = 1;
+  repeated uint32 keypath = 2;
+  bytes nonce = 3; // smallest big endian serialization, max. 16 bytes
+  bytes max_priority_fee_per_gas = 4; // smallest big endian serialization, max. 16 bytes
+  bytes max_fee_per_gas = 5; // smallest big endian serialization, max. 16 bytes
+  bytes gas_limit = 6; // smallest big endian serialization, max. 16 bytes
+  bytes recipient = 7; // 20 byte recipient
+  bytes value = 8; // smallest big endian serialization, max. 32 bytes
+  bytes data = 9;
+  AntiKleptoHostNonceCommitment host_nonce_commitment = 10;
+  ETHAddressCase address_case = 11;
+  // For streaming: if non-zero, data field should be empty and data will be requested in chunks
+  uint32 data_length = 12;
+  BTCPaymentRequestRequest payment_request = 13;
+}
+
+message ETHSignDataRequestChunkResponse {
+  uint32 offset = 1;
+  uint32 length = 2;
+}
+
+message ETHSignDataResponseChunkRequest {
+  bytes chunk = 1;
+}
+
+message ETHSignMessageRequest {
+  // Deprecated: use chain_id instead.
+  ETHCoin coin = 1;
+  repeated uint32 keypath = 2;
+  bytes msg = 3;
+  AntiKleptoHostNonceCommitment host_nonce_commitment = 4;
+  // If non-zero, `coin` is ignored and `chain_id` is used to identify the network.
+  uint64 chain_id = 5;
+}
+
+message ETHSignResponse {
+  bytes signature = 1; // 65 bytes, last byte is the recid
+}
+
+message ETHSignTypedMessageRequest {
+  enum DataType {
+    UNKNOWN = 0;
+    BYTES = 1;
+    UINT = 2;
+    INT = 3;
+    BOOL = 4;
+    ADDRESS = 5;
+    STRING = 6;
+    ARRAY = 7;
+    STRUCT = 8;
+  }
+
+  message MemberType {
+    DataType type = 1;
+    uint32 size = 2;
+    string struct_name = 3; // if type==STRUCT, name of struct type.
+    MemberType array_type = 4; // if type==ARRAY, type of elements
+  }
+
+  message Member {
+    string name = 1;
+    MemberType type = 2;
+  }
+
+  message StructType {
+    string name = 1;
+    repeated Member members = 2;
+  }
+
+  uint64 chain_id = 1;
+  repeated uint32 keypath = 2;
+  repeated StructType types = 3;
+  string primary_type = 4;
+  AntiKleptoHostNonceCommitment host_nonce_commitment = 5;
+}
+
+message ETHTypedMessageValueResponse {
+  enum RootObject {
+    UNKNOWN = 0;
+    DOMAIN = 1;
+    MESSAGE = 2;
+  }
+  RootObject root_object = 1;
+  repeated uint32 path = 2;
+}
+
+message ETHTypedMessageValueRequest {
+  bytes value = 1;
+  // If non-zero, value should be empty and data will be streamed via
+  // DataRequestChunk/DataResponseChunk.
+  uint32 data_length = 2;
+}
+
+message ETHRequest {
+  oneof request {
+    ETHPubRequest pub = 1;
+    ETHSignRequest sign = 2;
+    ETHSignMessageRequest sign_msg = 3;
+    AntiKleptoSignatureRequest antiklepto_signature = 4;
+    ETHSignTypedMessageRequest sign_typed_msg = 5;
+    ETHTypedMessageValueRequest typed_msg_value = 6;
+    ETHSignEIP1559Request sign_eip1559 = 7;
+    ETHSignDataResponseChunkRequest data_response_chunk = 8;
+  }
+}
+
+message ETHResponse {
+  oneof response {
+    PubResponse pub = 1;
+    ETHSignResponse sign = 2;
+    AntiKleptoSignerCommitment antiklepto_signer_commitment = 3;
+    ETHTypedMessageValueResponse typed_msg_value = 4;
+    ETHSignDataRequestChunkResponse data_request_chunk = 5;
+  }
+}

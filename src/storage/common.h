@@ -80,6 +80,7 @@ const int POLICY = 37;
 const int LIQUID_WALLET_ID = 38;
 const int LIQUID_CHAIN_TIP = 39;
 const int LEDGER_WALLET_HMAC = 40;
+const int BITBOX_PAIRING_DATA = 41;
 }  // namespace DbKeys
 
 }  // namespace nunchuk

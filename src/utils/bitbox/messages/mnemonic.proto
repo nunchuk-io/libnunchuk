@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package shiftcrypto.bitbox02;
+
+message ShowMnemonicRequest {
+}
+message RestoreFromMnemonicRequest {
+  uint32 timestamp = 1;
+  int32 timezone_offset = 2;
+}
+message SetMnemonicPassphraseEnabledRequest {
+  bool enabled = 1;
+}

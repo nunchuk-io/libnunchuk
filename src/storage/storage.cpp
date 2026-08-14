@@ -1660,6 +1660,17 @@ bool NunchukStorage::SetSelectedWallet(Chain chain, const std::string& value) {
   return GetAppStateDb(chain).SetSelectedWallet(value);
 }
 
+std::string NunchukStorage::GetBitBoxPairingData(Chain chain) {
+  std::shared_lock<std::shared_mutex> lock(access_);
+  return GetAppStateDb(chain).GetBitBoxPairingData();
+}
+
+bool NunchukStorage::SetBitBoxPairingData(Chain chain,
+                                          const std::string& value) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetAppStateDb(chain).SetBitBoxPairingData(value);
+}
+
 SingleSigner NunchukStorage::GetRemoteSigner(Chain chain,
                                              const std::string& xfp,
                                              const std::string& path) {

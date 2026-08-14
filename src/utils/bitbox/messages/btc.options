@@ -1,0 +1,10 @@
+shiftcrypto.bitbox02.BTCPubRequest.keypath max_count:32
+shiftcrypto.bitbox02.BTCScriptConfigWithKeypath.keypath max_count:32
+shiftcrypto.bitbox02.BTCSignNextResponse.signature max_size:64
+shiftcrypto.bitbox02.BTCSignInputRequest.prevOutHash max_size:32
+shiftcrypto.bitbox02.BTCSignInputRequest.keypath max_count:32
+shiftcrypto.bitbox02.BTCSignOutputRequest.keypath max_count:32
+shiftcrypto.bitbox02.BTCScriptConfigRegistration.keypath max_count:32
+shiftcrypto.bitbox02.BTCRegisterScriptConfigRequest.name max_length:30
+shiftcrypto.bitbox02.BTCPrevTxInputRequest.prev_out_hash max_size:32
+shiftcrypto.bitbox02.BTCSignMessageResponse.signature max_size:65

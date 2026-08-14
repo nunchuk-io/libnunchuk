@@ -444,6 +444,14 @@ bool NunchukImpl::SetLedgerWalletHmac(const std::string& wallet_id,
   return storage_->SetLedgerWalletHmac(chain_, wallet_id, hmac);
 }
 
+std::string NunchukImpl::GetBitBoxPairingData() {
+  return storage_->GetBitBoxPairingData(chain_);
+}
+
+bool NunchukImpl::SetBitBoxPairingData(const std::string& data) {
+  return storage_->SetBitBoxPairingData(chain_, data);
+}
+
 bool NunchukImpl::ExportWallet(const std::string& wallet_id,
                                const std::string& file_path,
                                ExportFormat format) {

@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package shiftcrypto.bitbox02;
+
+message AntiKleptoHostNonceCommitment {
+  bytes commitment = 1;
+}
+
+message AntiKleptoSignerCommitment {
+  bytes commitment = 1;
+}
+
+message AntiKleptoSignatureRequest {
+  bytes host_nonce = 1;
+}

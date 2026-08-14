@@ -55,6 +55,8 @@ class NunchukAppStateDb : public NunchukDb {
   bool SetHotWalletId(int value);
   int GetLiquidWalletId() const;
   bool SetLiquidWalletId(int value);
+  std::string GetBitBoxPairingData() const;
+  bool SetBitBoxPairingData(const std::string &value);
 
  private:
   friend class NunchukStorage;

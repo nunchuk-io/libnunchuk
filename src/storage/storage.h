@@ -230,6 +230,8 @@ class NunchukStorage {
   bool SetChainTip(Chain chain, int height, bool liquid);
   std::string GetSelectedWallet(Chain chain);
   bool SetSelectedWallet(Chain chain, const std::string &wallet_id);
+  std::string GetBitBoxPairingData(Chain chain);
+  bool SetBitBoxPairingData(Chain chain, const std::string &value);
 
   SingleSigner GetRemoteSigner(Chain chain, const std::string &xfp,
                                const std::string &path);

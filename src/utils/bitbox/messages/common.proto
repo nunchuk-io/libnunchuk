@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package shiftcrypto.bitbox02;
+
+message PubResponse {
+  string pub = 1;
+}
+
+message PubsResponse {
+  repeated string pubs = 1;
+}
+
+message RootFingerprintRequest {
+}
+
+message RootFingerprintResponse {
+  bytes fingerprint = 1;
+}
+
+// See https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki.
+// version field dropped as it will set dynamically based on the context (xpub, ypub, etc.).
+message XPub {
+  bytes depth = 1;
+  bytes parent_fingerprint = 2;
+  uint32 child_num = 3;
+  bytes chain_code = 4;
+  bytes public_key = 5;
+}
+
+// This message exists for use in oneof or repeated fields, where one can't inline `repeated uint32` due to protobuf rules.
+message Keypath {
+  repeated uint32 keypath = 1;
+}
+
+message KeyOriginInfo {
+  bytes root_fingerprint = 1;
+  repeated uint32 keypath = 2;
+  XPub xpub = 3;
+}

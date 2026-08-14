@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// This file is named backup_commands to avoid conflicting header files with top-most backup.proto
+
+syntax = "proto3";
+package shiftcrypto.bitbox02;
+
+message CheckBackupRequest {
+    bool silent = 1;
+}
+
+message CheckBackupResponse {
+  string id = 1;
+}
+
+// Timestamp must be in UTC
+message CreateBackupRequest {
+  uint32 timestamp = 1;
+  int32 timezone_offset = 2;
+}
+
+message ListBackupsRequest {
+}
+
+message BackupInfo {
+  string id = 1;
+  uint32 timestamp = 2;
+  // uint32 timezone_offset = 3;
+  string name = 4;
+}
+
+message ListBackupsResponse {
+  repeated BackupInfo info = 1;
+}
+
+message RestoreBackupRequest {
+  string id = 1;
+  uint32 timestamp = 2;
+  int32 timezone_offset = 3;
+}

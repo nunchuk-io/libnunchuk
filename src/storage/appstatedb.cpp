@@ -115,4 +115,12 @@ bool NunchukAppStateDb::SetLiquidWalletId(int value) {
   return PutInt(DbKeys::LIQUID_WALLET_ID, value);
 }
 
+std::string NunchukAppStateDb::GetBitBoxPairingData() const {
+  return GetString(DbKeys::BITBOX_PAIRING_DATA);
+}
+
+bool NunchukAppStateDb::SetBitBoxPairingData(const std::string &value) {
+  return PutString(DbKeys::BITBOX_PAIRING_DATA, value);
+}
+
 }  // namespace nunchuk

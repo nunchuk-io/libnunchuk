@@ -1,0 +1,315 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package shiftcrypto.bitbox02;
+
+import "common.proto";
+import "antiklepto.proto";
+
+enum BTCCoin {
+  BTC = 0;
+  TBTC = 1;
+  LTC = 2;
+  TLTC = 3;
+  // Regtest
+  RBTC = 4;
+};
+
+
+message BTCScriptConfig {
+  // SimpleType is a "simple" script: one public key, no additional inputs.
+  enum SimpleType {
+    P2WPKH_P2SH = 0;
+    P2WPKH = 1;
+    P2TR = 2;
+  }
+
+  message Multisig {
+    enum ScriptType {
+      P2WSH = 0; // native segwit v0 multisig (bech32 addresses)
+      P2WSH_P2SH = 1; // wrapped segwit for legacy address compatibility
+    }
+
+    uint32 threshold = 1;
+    // xpubs are acount-level xpubs. Addresses are going to be derived from it using: `m/<change>/<receive>`.
+    // The number of xpubs defines the number of cosigners.
+    repeated XPub xpubs = 2;
+    // Index to the xpub of our keystore in xpubs. The keypath to it is provided via
+    // BTCPubRequest/BTCSignInit.
+    uint32 our_xpub_index = 3;
+
+    ScriptType script_type = 4;
+  }
+
+  // A policy as specified by 'Wallet policies':
+  // https://github.com/bitcoin/bips/pull/1389
+  message Policy {
+    string policy = 1;
+    repeated KeyOriginInfo keys = 2;
+  }
+
+  oneof config {
+    SimpleType simple_type = 1;
+    Multisig multisig = 2;
+    Policy policy = 3;
+  }
+}
+
+message BTCPubRequest {
+  enum XPubType {
+    TPUB = 0;
+    XPUB = 1;
+    YPUB = 2;
+    ZPUB = 3; // zpub
+    VPUB = 4; // vpub
+    UPUB = 5;
+    CAPITAL_VPUB = 6; // Vpub
+    CAPITAL_ZPUB = 7; // Zpub
+    CAPITAL_UPUB = 8; // Upub
+    CAPITAL_YPUB = 9; // Ypub
+  }
+
+  BTCCoin coin = 1;
+  repeated uint32 keypath = 2;
+
+  oneof output {
+    XPubType xpub_type = 3;
+    BTCScriptConfig script_config = 4;
+  }
+
+  bool display = 5;
+}
+
+message BTCXpubsRequest{
+  enum XPubType {
+    UNKNOWN = 0;
+    XPUB = 1;
+    TPUB = 2;
+  }
+  BTCCoin coin = 1;
+  XPubType xpub_type = 2;
+  repeated Keypath keypaths = 3;
+}
+
+message BTCScriptConfigWithKeypath {
+  BTCScriptConfig script_config = 2;
+  repeated uint32 keypath = 3;
+}
+
+message BTCSignInitRequest {
+  BTCCoin coin = 1;
+  // used script configs in inputs and changes
+  repeated BTCScriptConfigWithKeypath script_configs = 2;
+  uint32 version = 4; // must be 1 or 2
+  uint32 num_inputs = 5;
+  uint32 num_outputs = 6;
+  uint32 locktime = 7; // must be <500000000
+
+  enum FormatUnit {
+    // According to `coin` (BTC, LTC, etc.).
+    DEFAULT = 0;
+    // Only valid for BTC/TBTC, formats as "sat"/"tsat".
+    SAT = 1;
+  }
+  FormatUnit format_unit = 8;
+  bool contains_silent_payment_outputs = 9;
+  // used script configs for outputs that send to an address of the same keystore, but not
+  // necessarily the same account (as defined by `script_configs` above).
+  repeated BTCScriptConfigWithKeypath output_script_configs = 10;
+}
+
+message BTCSignNextResponse {
+  enum Type {
+    INPUT = 0;
+    OUTPUT = 1;
+    DONE = 2;
+    // For the previous transaction at input `index`.
+    PREVTX_INIT = 3;
+    PREVTX_INPUT = 4;
+    PREVTX_OUTPUT = 5;
+    HOST_NONCE = 6;
+    PAYMENT_REQUEST = 7;
+  }
+  Type type = 1;
+  // index of the current input or output
+  uint32 index = 2;
+  bool has_signature = 3; // only as a response to BTCSignInputRequest
+  // 64 bytes (32 bytes big endian R, 32 bytes big endian S). Only if has_signature is true.
+  bytes signature = 4;
+  // Previous tx's input/output index in case of PREV_INPUT or PREV_OUTPUT, for the input at `index`.
+  uint32 prev_index = 5;
+  AntiKleptoSignerCommitment anti_klepto_signer_commitment = 6;
+  // Generated output. The host *must* verify its correctness using `silent_payment_dleq_proof`.
+  bytes generated_output_pkscript = 7;
+  bytes silent_payment_dleq_proof = 8;
+}
+
+message BTCSignInputRequest {
+  bytes prevOutHash = 1;
+  uint32 prevOutIndex = 2;
+  uint64 prevOutValue = 3;
+  uint32 sequence = 4; // must be 0xffffffff-2, 0xffffffff-1 or 0xffffffff
+  repeated uint32 keypath = 6; // all inputs must be ours.
+  // References a script config from BTCSignInitRequest
+  uint32 script_config_index = 7;
+  AntiKleptoHostNonceCommitment host_nonce_commitment = 8;
+}
+
+enum BTCOutputType {
+  UNKNOWN = 0;
+  P2PKH = 1;
+  P2SH = 2;
+  P2WPKH = 3;
+  P2WSH = 4;
+  P2TR = 5;
+  OP_RETURN = 6;
+}
+
+message BTCSignOutputRequest {
+  // https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki
+  message SilentPayment {
+    string address = 1;
+  }
+  bool ours = 1;
+  BTCOutputType type = 2; // if ours is false
+  // 20 bytes for p2pkh, p2sh, pw2wpkh. 32 bytes for p2wsh.
+  uint64 value = 3;
+  bytes payload = 4; // if ours is false. Renamed from `hash`.
+  repeated uint32 keypath = 5; // if ours is true
+  // If ours is true and `output_script_config_index` is absent. References a script config from
+  // BTCSignInitRequest. This allows change output identification and allows us to identify
+  // non-change outputs to the same account, so we can display this info to the user.
+  uint32 script_config_index = 6;
+  optional uint32 payment_request_index = 7;
+  // If provided, `type` and `payload` is ignored. The generated output pkScript is returned in
+  // BTCSignNextResponse. `contains_silent_payment_outputs` in the init request must be true.
+  SilentPayment silent_payment = 8;
+  // If ours is true. If set, `script_config_index` is ignored. References an output script config
+  // from BTCSignInitRequest. This enables verification that an output belongs to the same keystore,
+  // even if it is from a different account than we spend from, allowing us to display this info to
+  // the user.
+  optional uint32 output_script_config_index = 9;
+}
+
+message BTCScriptConfigRegistration {
+  BTCCoin coin = 1;
+  BTCScriptConfig script_config = 2;
+  // Unused for policy registrations.
+  repeated uint32 keypath = 3;
+}
+
+message BTCSuccess {
+}
+
+message BTCIsScriptConfigRegisteredRequest {
+  BTCScriptConfigRegistration registration = 1;
+}
+
+message BTCIsScriptConfigRegisteredResponse {
+  bool is_registered = 1;
+}
+
+message BTCRegisterScriptConfigRequest {
+  BTCScriptConfigRegistration registration = 1;
+  // If empty, the name is entered on the device instead.
+  string name = 2;
+  enum XPubType {
+    // Automatically choose to match Electrum's xpub format (e.g. Zpub/Vpub for p2wsh multisig mainnet/testnet).
+    AUTO_ELECTRUM = 0;
+    // Always xpub for mainnets, tpub for testnets.
+    AUTO_XPUB_TPUB = 1;
+  }
+  XPubType xpub_type = 3;
+}
+
+message BTCPrevTxInitRequest {
+  uint32 version = 1;
+  uint32 num_inputs = 2;
+  uint32 num_outputs = 3;
+  uint32 locktime = 4;
+}
+
+message BTCPrevTxInputRequest {
+  bytes prev_out_hash = 1;
+  uint32 prev_out_index = 2;
+  bytes signature_script = 3;
+  uint32 sequence = 4;
+}
+
+message BTCPrevTxOutputRequest {
+  uint64 value = 1;
+  bytes pubkey_script = 2;
+}
+
+message BTCPaymentRequestRequest {
+  message Memo {
+    message TextMemo {
+      string note = 1;
+    }
+    message CoinPurchaseMemo {
+      uint32 coin_type = 1; // SLIP-44 coin type
+      string amount = 2; // Human-readable amount (e.g. "0.25 ETH")
+      string address = 3; // Address to send the purchased coins to
+      // Derivation info for verifying address ownership.
+      // NOT part of the SLIP-24 sighash.
+      message EthAddressDerivation {
+        repeated uint32 keypath = 1; // Keypath to the address
+      }
+      message BtcAddressDerivation {
+        // Script config + keypath are needed to derive BTC/LTC-family addresses.
+        BTCScriptConfigWithKeypath script_config = 1;
+      }
+      oneof address_derivation {
+        EthAddressDerivation eth = 4;
+        BtcAddressDerivation btc = 5;
+      }
+    }
+    oneof memo {
+      TextMemo text_memo = 1;
+      CoinPurchaseMemo coin_purchase_memo = 2;
+    }
+  }
+
+  string recipient_name = 1;
+  repeated Memo memos = 2;
+  bytes nonce = 3;
+  uint64 total_amount = 4;
+  bytes signature = 5;
+}
+
+message BTCSignMessageRequest {
+  BTCCoin coin = 1;
+  BTCScriptConfigWithKeypath script_config = 2;
+  bytes msg = 3;
+  AntiKleptoHostNonceCommitment host_nonce_commitment = 4;
+}
+
+message BTCSignMessageResponse {
+  // 65 bytes (32 bytes big endian R, 32 bytes big endian S, 1 recid).
+  bytes signature = 1;
+}
+
+message BTCRequest {
+  oneof request {
+    BTCIsScriptConfigRegisteredRequest is_script_config_registered = 1;
+    BTCRegisterScriptConfigRequest register_script_config = 2;
+    BTCPrevTxInitRequest prevtx_init = 3;
+    BTCPrevTxInputRequest prevtx_input = 4;
+    BTCPrevTxOutputRequest prevtx_output = 5;
+    BTCSignMessageRequest sign_message = 6;
+    AntiKleptoSignatureRequest antiklepto_signature = 7;
+    BTCPaymentRequestRequest payment_request = 8;
+    BTCXpubsRequest xpubs = 9;
+  }
+}
+
+message BTCResponse {
+  oneof response {
+    BTCSuccess success = 1;
+    BTCIsScriptConfigRegisteredResponse is_script_config_registered = 2;
+    BTCSignNextResponse sign_next = 3;
+    BTCSignMessageResponse sign_message = 4;
+    AntiKleptoSignerCommitment antiklepto_signer_commitment = 5;
+    PubsResponse pubs = 6;
+  }
+}

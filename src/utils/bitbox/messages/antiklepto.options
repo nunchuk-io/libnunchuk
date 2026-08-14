@@ -1,0 +1,3 @@
+shiftcrypto.bitbox02.AntiKleptoHostNonceCommitment.commitment max_size:32
+shiftcrypto.bitbox02.AntiKleptoSignerCommitment.commitment max_size:33
+shiftcrypto.bitbox02.AntiKleptoSignatureRequest.host_nonce max_size:32

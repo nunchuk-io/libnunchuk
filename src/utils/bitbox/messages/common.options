@@ -1,0 +1,9 @@
+shiftcrypto.bitbox02.PubResponse.pub max_length:255
+shiftcrypto.bitbox02.RootFingerprintResponse.fingerprint max_size:4
+shiftcrypto.bitbox02.XPub.depth max_size:1
+shiftcrypto.bitbox02.XPub.parent_fingerprint max_size:4
+shiftcrypto.bitbox02.XPub.chain_code max_size:32
+shiftcrypto.bitbox02.XPub.public_key max_size:33
+shiftcrypto.bitbox02.Keypath.keypath max_count:32
+shiftcrypto.bitbox02.KeyOriginInfo.root_fingerprint max_size:4
+shiftcrypto.bitbox02.KeyOriginInfo.keypath max_count:32
