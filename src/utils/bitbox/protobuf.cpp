@@ -403,6 +403,20 @@ Bytes EncodeSetPasswordRequest(std::span<const unsigned char> entropy) {
   return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
 }
 
+Bytes EncodeChangePasswordRequest() {
+  GeneratedRequest request{};
+  request.which_request = shiftcrypto_bitbox02_Request_change_password_tag;
+  return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
+}
+
+Bytes EncodeSetMnemonicPassphraseEnabledRequest(bool enabled) {
+  GeneratedRequest request{};
+  request.which_request =
+      shiftcrypto_bitbox02_Request_set_mnemonic_passphrase_enabled_tag;
+  request.request.set_mnemonic_passphrase_enabled.enabled = enabled;
+  return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
+}
+
 Bytes EncodeCreateBackupRequest(uint32_t timestamp,
                                 int32_t timezone_offset) {
   GeneratedRequest request{};
@@ -436,6 +450,13 @@ Bytes EncodeInsertSdCardRequest() {
 Bytes EncodeListBackupsRequest() {
   GeneratedRequest request{};
   request.which_request = shiftcrypto_bitbox02_Request_list_backups_tag;
+  return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
+}
+
+Bytes EncodeCheckBackupRequest(bool silent) {
+  GeneratedRequest request{};
+  request.which_request = shiftcrypto_bitbox02_Request_check_backup_tag;
+  request.request.check_backup.silent = silent;
   return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
 }
 
@@ -781,6 +802,8 @@ Response ParseResponse(std::span<const unsigned char> message,
       }
       return result;
     }
+    case shiftcrypto_bitbox02_Response_check_backup_tag:
+      return CheckBackupResponse{response.response.check_backup.id};
     case shiftcrypto_bitbox02_Response_check_sdcard_tag:
       return CheckSdCardResponse{response.response.check_sdcard.inserted};
     case shiftcrypto_bitbox02_Response_fingerprint_tag:

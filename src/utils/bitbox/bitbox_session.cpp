@@ -672,6 +672,8 @@ BitBoxStep BitBoxSession::handleCommandResponse(
 
   switch (command_) {
     case Command::SET_DEVICE_NAME:
+    case Command::CHANGE_PASSWORD:
+    case Command::SET_MNEMONIC_PASSPHRASE:
     case Command::CREATE_NEW_SEED:
     case Command::SHOW_MNEMONIC:
     case Command::CREATE_BACKUP:
@@ -679,7 +681,7 @@ BitBoxStep BitBoxSession::handleCommandResponse(
     case Command::RESTORE_FROM_MNEMONIC:
       if (!std::holds_alternative<proto::SuccessResponse>(response)) {
         return fail(BitBoxErrorCode::INVALID_RESPONSE,
-                    "BitBox returned an unexpected setup response");
+                    "BitBox returned an unexpected command response");
       }
       return sendEncrypted(proto::EncodeDeviceInfoRequest(),
                            Phase::REFRESH_DEVICE_INFO);
@@ -708,6 +710,15 @@ BitBoxStep BitBoxSession::handleCommandResponse(
                     "BitBox returned an unexpected backup-list response");
       }
       return finish(ListBackupsResult{backups->backups});
+    }
+    case Command::CHECK_BACKUP: {
+      const auto* backup =
+          std::get_if<proto::CheckBackupResponse>(&response);
+      if (backup == nullptr) {
+        return fail(BitBoxErrorCode::INVALID_RESPONSE,
+                    "BitBox returned an unexpected backup-check response");
+      }
+      return finish(CheckBackupResult{backup->id});
     }
     default:
       break;
@@ -1033,6 +1044,43 @@ BitBoxStep BitBoxSession::setDeviceName(const std::string& name) {
   }
 }
 
+BitBoxStep BitBoxSession::changePassword() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  try {
+    if (auto error = requireReady()) return *error;
+    if (auto error = requireDeviceInitialized()) return *error;
+    if (!FirmwareAtLeast(device_info_.firmware_version, 9, 25, 0)) {
+      return fail(BitBoxErrorCode::UNSUPPORTED_FIRMWARE,
+                  "Changing the BitBox device password requires firmware "
+                  "9.25.0 or newer; device has " +
+                      device_info_.firmware_version);
+    }
+    result_.reset();
+    command_ = Command::CHANGE_PASSWORD;
+    return sendEncrypted(proto::EncodeChangePasswordRequest(),
+                         Phase::COMMAND_RESPONSE,
+                         UserInteraction::CHANGE_DEVICE_PASSWORD);
+  } catch (const std::exception& e) {
+    return fail(BitBoxErrorCode::INVALID_STATE, e.what());
+  }
+}
+
+BitBoxStep BitBoxSession::setMnemonicPassphraseEnabled(bool enabled) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  try {
+    if (auto error = requireReady()) return *error;
+    if (auto error = requireDeviceInitialized()) return *error;
+    result_.reset();
+    command_ = Command::SET_MNEMONIC_PASSPHRASE;
+    return sendEncrypted(
+        proto::EncodeSetMnemonicPassphraseEnabledRequest(enabled),
+        Phase::COMMAND_RESPONSE,
+        UserInteraction::TOGGLE_MNEMONIC_PASSPHRASE);
+  } catch (const std::exception& e) {
+    return fail(BitBoxErrorCode::INVALID_STATE, e.what());
+  }
+}
+
 BitBoxStep BitBoxSession::createNewSeed(
     BitBoxMnemonicLength mnemonic_length) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -1150,6 +1198,22 @@ BitBoxStep BitBoxSession::listBackups() {
     command_ = Command::LIST_BACKUPS;
     return sendEncrypted(proto::EncodeListBackupsRequest(),
                          Phase::COMMAND_RESPONSE);
+  } catch (const std::exception& e) {
+    return fail(BitBoxErrorCode::INVALID_STATE, e.what());
+  }
+}
+
+BitBoxStep BitBoxSession::checkBackup(bool silent) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  try {
+    if (auto error = requireReady()) return *error;
+    if (auto error = requireDeviceInitialized()) return *error;
+    result_.reset();
+    command_ = Command::CHECK_BACKUP;
+    return sendEncrypted(proto::EncodeCheckBackupRequest(silent),
+                         Phase::COMMAND_RESPONSE,
+                         silent ? UserInteraction::NONE
+                                : UserInteraction::CHECK_BACKUP);
   } catch (const std::exception& e) {
     return fail(BitBoxErrorCode::INVALID_STATE, e.what());
   }

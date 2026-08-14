@@ -52,12 +52,15 @@ class BitBoxSession {
   BitBoxStep confirmPairing(bool accepted);
 
   BitBoxStep setDeviceName(const std::string& name);
+  BitBoxStep changePassword();
+  BitBoxStep setMnemonicPassphraseEnabled(bool enabled);
   BitBoxStep createNewSeed(BitBoxMnemonicLength mnemonic_length);
   BitBoxStep showMnemonic();
   BitBoxStep checkSdCard();
   BitBoxStep insertSdCard();
   BitBoxStep createBackup();
   BitBoxStep listBackups();
+  BitBoxStep checkBackup(bool silent = false);
   BitBoxStep restoreBackup(const std::string& id);
   BitBoxStep restoreFromMnemonic();
   BitBoxStep enterFirmwareUpgrade();
@@ -89,12 +92,15 @@ class BitBoxSession {
     NONE,
     INITIALIZE,
     SET_DEVICE_NAME,
+    CHANGE_PASSWORD,
+    SET_MNEMONIC_PASSPHRASE,
     CREATE_NEW_SEED,
     SHOW_MNEMONIC,
     CHECK_SD_CARD,
     INSERT_SD_CARD,
     CREATE_BACKUP,
     LIST_BACKUPS,
+    CHECK_BACKUP,
     RESTORE_BACKUP,
     RESTORE_FROM_MNEMONIC,
     ENTER_FIRMWARE_UPGRADE,

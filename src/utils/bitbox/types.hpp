@@ -58,6 +58,9 @@ enum class UserInteraction {
   RESTORE_FROM_RECOVERY_WORDS,
   RESTORE_FROM_BACKUP,
   CONFIRM_FIRMWARE_UPGRADE,
+  CHANGE_DEVICE_PASSWORD,
+  TOGGLE_MNEMONIC_PASSPHRASE,
+  CHECK_BACKUP,
 };
 
 enum class BitBoxErrorCode {
@@ -167,6 +170,10 @@ struct ListBackupsResult {
   std::vector<BitBoxBackup> backups;
 };
 
+struct CheckBackupResult {
+  std::string backup_id;
+};
+
 struct GetExtendedPublicKeyOptions {
   bool check_on_device = false;
 };
@@ -204,7 +211,8 @@ using BitBoxValue =
     std::variant<std::monostate, InitializeResult,
                  GetExtendedPublicKeyResult, GetMasterFingerprintResult,
                  RegistrationResult, WalletAddressResult, SignMessageResult,
-                 SignPsbtResult, SdCardStatusResult, ListBackupsResult>;
+                 SignPsbtResult, SdCardStatusResult, ListBackupsResult,
+                 CheckBackupResult>;
 
 }  // namespace nunchuk::bitbox
 

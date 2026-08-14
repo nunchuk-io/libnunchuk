@@ -170,6 +170,10 @@ struct ListBackupsResponse {
   std::vector<BitBoxBackup> backups;
 };
 
+struct CheckBackupResponse {
+  std::string id;
+};
+
 struct CheckSdCardResponse {
   bool inserted = false;
 };
@@ -201,18 +205,21 @@ struct BitcoinResponse {
 
 using Response =
     std::variant<SuccessResponse, DeviceError, DeviceInfoResponse, PubResponse,
-                 SignNext, ListBackupsResponse, CheckSdCardResponse,
-                 FingerprintResponse, BitcoinResponse>;
+                 SignNext, ListBackupsResponse, CheckBackupResponse,
+                 CheckSdCardResponse, FingerprintResponse, BitcoinResponse>;
 
 Bytes EncodeDeviceInfoRequest();
 Bytes EncodeRebootToBootloaderRequest();
 Bytes EncodeSetDeviceNameRequest(const std::string& name);
 Bytes EncodeSetPasswordRequest(std::span<const unsigned char> entropy);
+Bytes EncodeChangePasswordRequest();
+Bytes EncodeSetMnemonicPassphraseEnabledRequest(bool enabled);
 Bytes EncodeCreateBackupRequest(uint32_t timestamp, int32_t timezone_offset);
 Bytes EncodeShowMnemonicRequest();
 Bytes EncodeCheckSdCardRequest();
 Bytes EncodeInsertSdCardRequest();
 Bytes EncodeListBackupsRequest();
+Bytes EncodeCheckBackupRequest(bool silent);
 Bytes EncodeRestoreBackupRequest(const std::string& id, uint32_t timestamp,
                                  int32_t timezone_offset);
 Bytes EncodeRestoreFromMnemonicRequest(uint32_t timestamp,

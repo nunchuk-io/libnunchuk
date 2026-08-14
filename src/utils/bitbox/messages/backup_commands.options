@@ -1,3 +1,4 @@
+shiftcrypto.bitbox02.CheckBackupResponse.id max_length:64
 shiftcrypto.bitbox02.BackupInfo.id max_length:64
 shiftcrypto.bitbox02.BackupInfo.name max_length:63
 shiftcrypto.bitbox02.ListBackupsResponse.info max_count:112
