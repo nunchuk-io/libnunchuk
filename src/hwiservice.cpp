@@ -213,8 +213,7 @@ std::vector<Device> HWIService::Enumerate() const {
 std::string HWIService::GetXpubAtPath(const Device &device,
                                       const std::string derivation_path) const {
   ValidateDevice(device);
-  std::vector<std::string> cmd_args = {"-f", device.get_master_fingerprint(),
-                                       "getxpub", derivation_path};
+  auto cmd_args = PrependDeviceID({"getxpub", derivation_path}, device);
   json rs = ParseResponse(RunCmd(cmd_args));
   return rs["xpub"];
 }
