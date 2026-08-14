@@ -629,8 +629,15 @@ MasterSigner NunchukImpl::CreateMasterSigner(
     const std::string& raw_name, const Device& device,
     std::function<bool(int)> progress) {
   std::string name = trim_copy(raw_name);
-  std::string id = storage_->CreateMasterSigner(chain_, name, device);
-  const std::string deviceType = device.get_type();
+  Device signer_device = device;
+  if (signer_device.get_master_fingerprint().empty()) {
+    signer_device = Device(
+        device.get_type(), device.get_path(), device.get_model(),
+        hwi_.GetMasterFingerprint(device), device.needs_pass_phrase_sent(),
+        device.needs_pin_sent(), device.initialized());
+  }
+  std::string id = storage_->CreateMasterSigner(chain_, name, signer_device);
+  const std::string deviceType = signer_device.get_type();
   std::vector<SignerTag> tags;
   if (deviceType == "ledger") {
     tags.push_back(SignerTag::LEDGER);
@@ -648,11 +655,14 @@ MasterSigner NunchukImpl::CreateMasterSigner(
 
   storage_->CacheMasterSignerXPub(
       chain_, id,
-      [&](std::string path) { return hwi_.GetXpubAtPath(device, path); },
+      [&](std::string path) {
+        return hwi_.GetXpubAtPath(signer_device, path);
+      },
       progress, true);
   storage_listener_();
 
-  MasterSigner mastersigner{id, device, std::time(0), SignerType::HARDWARE};
+  MasterSigner mastersigner{id, signer_device, std::time(0),
+                            SignerType::HARDWARE};
   mastersigner.set_name(name);
   mastersigner.set_tags(tags);
   storage_->UpdateMasterSigner(chain_, mastersigner);
@@ -893,6 +903,30 @@ int NunchukImpl::GetLastUsedSignerIndex(const std::string& xfp,
   return cur;
 }
 
+static SingleSigner DeriveSigner(const SingleSigner& signer,
+                                 const std::string& path,
+                                 std::string suffix) {
+  std::replace(suffix.begin(), suffix.end(), 'h', '\'');
+  std::vector<uint32_t> keypath;
+  if (!ParseHDKeypath("m" + suffix, keypath)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           strprintf("Invalid derivation path [%s].", path));
+  }
+  auto xpub = DecodeExtPubKey(signer.get_xpub());
+  for (auto index : keypath) {
+    if (!xpub.Derive(xpub, index)) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid derivation path");
+    }
+  }
+  return SingleSigner(
+      signer.get_name(), EncodeExtPubKey(xpub), signer.get_public_key(), path,
+      signer.get_external_internal_index(), signer.get_master_fingerprint(),
+      signer.get_last_health_check(), signer.get_master_signer_id(),
+      signer.is_used(), signer.get_type(), signer.get_tags(),
+      signer.is_visible());
+}
+
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(
     const std::string& mastersigner_id, const std::string& path) {
   if (!Utils::IsValidDerivationPath(path)) {
@@ -903,15 +937,32 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
     return storage_->GetSignerFromMasterSigner(chain_, mastersigner_id, path);
   } catch (NunchukException& ne) {
     if (ne.code() == NunchukException::RUN_OUT_OF_CACHED_XPUB) {
+      std::string signer_path = path;
+      std::string suffix;
+      const auto last_hardened = path.find_last_of("h'");
+      if (last_hardened != std::string::npos &&
+          last_hardened + 1 < path.size()) {
+        signer_path = path.substr(0, last_hardened + 1);
+        suffix = path.substr(last_hardened + 1);
+        try {
+          auto signer = GetSignerFromMasterSigner(mastersigner_id, signer_path);
+          return DeriveSigner(signer, path, suffix);
+        } catch (NunchukException& signer_error) {
+          if (signer_error.code() !=
+              NunchukException::RUN_OUT_OF_CACHED_XPUB) {
+            throw;
+          }
+        }
+      }
       auto master = GetMasterSigner(mastersigner_id);
       if (master.get_type() == SignerType::HARDWARE) {
         Device device{mastersigner_id};
-        auto xpub = hwi_.GetXpubAtPath(device, path);
+        auto xpub = hwi_.GetXpubAtPath(device, signer_path);
         auto signer = SingleSigner(
-            master.get_name(), xpub, "", path, {0, 1}, mastersigner_id,
+            master.get_name(), xpub, "", signer_path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
-        return signer;
+        return suffix.empty() ? signer : DeriveSigner(signer, path, suffix);
       }
     }
     throw;
@@ -990,12 +1041,14 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
 
   bool existed = true;
   SignerType signerType = SignerType::HARDWARE;
-  std::string deviceType = "";
   std::string id = fingerprint;
+  Device device{fingerprint};
+  std::string deviceType;
   try {
     auto signer = GetMasterSigner(id);
     signerType = signer.get_type();
-    deviceType = signer.get_device().get_type();
+    device = signer.get_device();
+    deviceType = device.get_type();
   } catch (StorageException& se) {
     if (se.code() == StorageException::MASTERSIGNER_NOT_FOUND) {
       existed = false;
@@ -1022,7 +1075,6 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
 
   if (deviceType == "ledger") std::replace(path.begin(), path.end(), '\'', 'h');
 
-  Device device{fingerprint};
   std::string xpub;
 
   auto get_native_segwit_xpub = [&]() {
@@ -1040,7 +1092,7 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     xpub = EncodeExtPubKey(xkey);
   };
 
-  if (deviceType == "trezor") {
+  if (deviceType == "trezor" || deviceType == "bitbox02") {
     // Workaround for Trezor: 'Forbidden key path'
     get_native_segwit_xpub();
   } else {

@@ -844,6 +844,7 @@ void NunchukStorage::CacheMasterSignerXPub(
     if (is_bitbox2) {
       if (w == WalletType::ESCROW) return 0;
       if (w == WalletType::MULTI_SIG && a == AddressType::LEGACY) return 0;
+      if (w == WalletType::MULTI_SIG && a == AddressType::TAPROOT) return 0;
       if (w == WalletType::SINGLE_SIG && a == AddressType::LEGACY) return 0;
     }
     if (is_ledger) {
