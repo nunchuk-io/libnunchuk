@@ -61,6 +61,7 @@ enum class UserInteraction {
   CHANGE_DEVICE_PASSWORD,
   TOGGLE_MNEMONIC_PASSPHRASE,
   CHECK_BACKUP,
+  FACTORY_RESET,
 };
 
 enum class BitBoxErrorCode {

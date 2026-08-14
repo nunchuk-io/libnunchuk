@@ -54,6 +54,7 @@ class BitBoxSession {
   BitBoxStep setDeviceName(const std::string& name);
   BitBoxStep changePassword();
   BitBoxStep setMnemonicPassphraseEnabled(bool enabled);
+  BitBoxStep factoryReset();
   BitBoxStep createNewSeed(BitBoxMnemonicLength mnemonic_length);
   BitBoxStep showMnemonic();
   BitBoxStep checkSdCard();
@@ -94,6 +95,7 @@ class BitBoxSession {
     SET_DEVICE_NAME,
     CHANGE_PASSWORD,
     SET_MNEMONIC_PASSPHRASE,
+    FACTORY_RESET,
     CREATE_NEW_SEED,
     SHOW_MNEMONIC,
     CHECK_SD_CARD,
@@ -207,7 +209,8 @@ class BitBoxSession {
           std::nullopt);
   BitBoxStep continueAfterFingerprint();
   BitBoxStep finishPairing();
-  BitBoxStep finishFirmwareUpgrade();
+  bool rebootExpected() const;
+  BitBoxStep finishReboot();
   BitBoxStep finish(BitBoxValue value);
   BitBoxStep fail(BitBoxErrorCode code, const std::string& message,
                   int device_code = 0);

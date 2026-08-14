@@ -259,15 +259,15 @@ BitBoxStep BitBoxSession::onData(std::span<const unsigned char> data) {
     awaiting_retry_poll_response_ = false;
     request_state_ = RequestState::IDLE;
     if (decoded.type == U2fDecodeResult::Type::FAILED) {
-      if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-        return finishFirmwareUpgrade();
+      if (rebootExpected()) {
+        return finishReboot();
       }
       return fail(BitBoxErrorCode::PROTOCOL, decoded.error);
     }
     return handleTransportPayload(decoded.payload, retry_poll_response);
   } catch (const std::exception& e) {
-    if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-      return finishFirmwareUpgrade();
+    if (rebootExpected()) {
+      return finishReboot();
     }
     return fail(BitBoxErrorCode::PROTOCOL, e.what());
   }
@@ -281,8 +281,8 @@ BitBoxStep BitBoxSession::handleTransportPayload(
     return handleResponse(transport_payload);
   }
   if (transport_payload.empty()) {
-    if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-      return finishFirmwareUpgrade();
+    if (rebootExpected()) {
+      return finishReboot();
     }
     return fail(BitBoxErrorCode::INVALID_RESPONSE,
                 "BitBox HWW response is empty");
@@ -318,15 +318,15 @@ BitBoxStep BitBoxSession::handleTransportPayload(
       // for example after its polling timeout. This does not invalidate the
       // established Noise channel; match the official SDK and fail only the
       // current request.
-      if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-        return finishFirmwareUpgrade();
+      if (rebootExpected()) {
+        return finishReboot();
       }
       return fail(BitBoxErrorCode::INVALID_RESPONSE,
                   "BitBox request expired or was canceled; retry the "
                   "operation");
     default:
-      if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-        return finishFirmwareUpgrade();
+      if (rebootExpected()) {
+        return finishReboot();
       }
       return fail(BitBoxErrorCode::INVALID_RESPONSE,
                   "BitBox HWW response has an unknown status");
@@ -602,8 +602,8 @@ BitBoxStep BitBoxSession::handleEncryptedResponse(
   auto encrypted = payload;
   if (FirmwareAtLeast(device_info_.firmware_version, 7, 0, 0)) {
     if (payload.empty() || payload[0] != 0) {
-      if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-        return finishFirmwareUpgrade();
+      if (rebootExpected()) {
+        return finishReboot();
       }
       return fail(BitBoxErrorCode::SESSION_LOST,
                   "BitBox encrypted session was rejected by the device");
@@ -614,8 +614,8 @@ BitBoxStep BitBoxSession::handleEncryptedResponse(
   try {
     plaintext = noise_->decrypt(encrypted);
   } catch (const std::exception& e) {
-    if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-      return finishFirmwareUpgrade();
+    if (rebootExpected()) {
+      return finishReboot();
     }
     return fail(BitBoxErrorCode::SESSION_LOST,
                 std::string("BitBox encrypted session failed: ") + e.what());
@@ -626,8 +626,8 @@ BitBoxStep BitBoxSession::handleEncryptedResponse(
     return result;
   } catch (const std::exception& e) {
     SecureClear(plaintext);
-    if (command_ == Command::ENTER_FIRMWARE_UPGRADE) {
-      return finishFirmwareUpgrade();
+    if (rebootExpected()) {
+      return finishReboot();
     }
     return fail(BitBoxErrorCode::INVALID_RESPONSE,
                 std::string("BitBox response processing failed: ") +
@@ -686,7 +686,8 @@ BitBoxStep BitBoxSession::handleCommandResponse(
       return sendEncrypted(proto::EncodeDeviceInfoRequest(),
                            Phase::REFRESH_DEVICE_INFO);
     case Command::ENTER_FIRMWARE_UPGRADE:
-      return finishFirmwareUpgrade();
+    case Command::FACTORY_RESET:
+      return finishReboot();
     case Command::INSERT_SD_CARD:
       if (!std::holds_alternative<proto::SuccessResponse>(response)) {
         return fail(BitBoxErrorCode::INVALID_RESPONSE,
@@ -1076,6 +1077,19 @@ BitBoxStep BitBoxSession::setMnemonicPassphraseEnabled(bool enabled) {
         proto::EncodeSetMnemonicPassphraseEnabledRequest(enabled),
         Phase::COMMAND_RESPONSE,
         UserInteraction::TOGGLE_MNEMONIC_PASSPHRASE);
+  } catch (const std::exception& e) {
+    return fail(BitBoxErrorCode::INVALID_STATE, e.what());
+  }
+}
+
+BitBoxStep BitBoxSession::factoryReset() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  try {
+    if (auto error = requireReady()) return *error;
+    result_.reset();
+    command_ = Command::FACTORY_RESET;
+    return sendEncrypted(proto::EncodeResetRequest(), Phase::COMMAND_RESPONSE,
+                         UserInteraction::FACTORY_RESET);
   } catch (const std::exception& e) {
     return fail(BitBoxErrorCode::INVALID_STATE, e.what());
   }
@@ -1625,9 +1639,17 @@ BitBoxStep BitBoxSession::finish(BitBoxValue value) {
   return step;
 }
 
-BitBoxStep BitBoxSession::finishFirmwareUpgrade() {
+bool BitBoxSession::rebootExpected() const {
+  return command_ == Command::ENTER_FIRMWARE_UPGRADE ||
+         command_ == Command::FACTORY_RESET;
+}
+
+BitBoxStep BitBoxSession::finishReboot() {
+  const bool factory_reset = command_ == Command::FACTORY_RESET;
   initialized_ = false;
   noise_.reset();
+  root_fingerprint_.reset();
+  if (factory_reset) device_info_ = {};
   return finish(std::monostate{});
 }
 

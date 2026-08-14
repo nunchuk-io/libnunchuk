@@ -214,6 +214,7 @@ Bytes EncodeSetDeviceNameRequest(const std::string& name);
 Bytes EncodeSetPasswordRequest(std::span<const unsigned char> entropy);
 Bytes EncodeChangePasswordRequest();
 Bytes EncodeSetMnemonicPassphraseEnabledRequest(bool enabled);
+Bytes EncodeResetRequest();
 Bytes EncodeCreateBackupRequest(uint32_t timestamp, int32_t timezone_offset);
 Bytes EncodeShowMnemonicRequest();
 Bytes EncodeCheckSdCardRequest();

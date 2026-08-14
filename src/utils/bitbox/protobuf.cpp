@@ -417,6 +417,12 @@ Bytes EncodeSetMnemonicPassphraseEnabledRequest(bool enabled) {
   return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
 }
 
+Bytes EncodeResetRequest() {
+  GeneratedRequest request{};
+  request.which_request = shiftcrypto_bitbox02_Request_reset_tag;
+  return EncodeNested(request, shiftcrypto_bitbox02_Request_fields);
+}
+
 Bytes EncodeCreateBackupRequest(uint32_t timestamp,
                                 int32_t timezone_offset) {
   GeneratedRequest request{};
