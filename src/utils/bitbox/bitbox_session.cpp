@@ -1630,12 +1630,6 @@ BitBoxStep BitBoxSession::finish(BitBoxValue value) {
   resetCommand();
   BitBoxStep step;
   step.type = BitBoxStepType::COMPLETE;
-  const auto* initialize_result =
-      std::get_if<InitializeResult>(&*result_);
-  if (initialize_result != nullptr &&
-      initialize_result->attestation == AttestationStatus::INVALID) {
-    step.warning = initialize_result->attestation_message;
-  }
   return step;
 }
 

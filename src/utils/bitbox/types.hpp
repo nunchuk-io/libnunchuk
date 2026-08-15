@@ -106,7 +106,6 @@ struct BitBoxStep {
   std::vector<std::vector<unsigned char>> writes;
   uint32_t retry_after_ms = 0;
   std::optional<std::string> pairing_code;
-  std::optional<std::string> warning;
   std::optional<BitBoxError> error;
   std::optional<double> progress;
 };
