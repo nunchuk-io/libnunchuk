@@ -269,6 +269,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/bitbox/messages/mnemonic.pb.c
     src/utils/bitbox/messages/perform_attestation.pb.c
     src/utils/bitbox/messages/system.pb.c
+    src/utils/bitbox/bitbox.cpp
     src/utils/bitbox/crypto.cpp
     src/utils/bitbox/bitcoin.cpp
     src/utils/bitbox/bootloader.cpp
@@ -279,6 +280,7 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/bitbox/psbt.cpp
     src/utils/bitbox/protobuf.cpp
     src/utils/bitbox/u2f_framer.cpp
+    src/utils/bitbox/bitbox.hpp
     src/utils/bitbox/crypto.hpp
     src/utils/bitbox/bitcoin.hpp
     src/utils/bitbox/bootloader.hpp
