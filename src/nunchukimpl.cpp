@@ -2156,9 +2156,13 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid BC-UR2 input");
   }
-
-  auto i = decoder.result_ur().cbor().begin();
-  auto end = decoder.result_ur().cbor().end();
+  auto type = decoder.result_ur().type();
+  auto cbor = decoder.result_ur().cbor();
+  if (type == "jade-pin") {
+    throw JadeException(JadeException::QR_PIN_UNLOCK, "QR Pin Unlock");
+  }
+  auto i = cbor.begin();
+  auto end = cbor.end();
   CryptoAccount account{};
   decodeCryptoAccount(i, end, account);
 
