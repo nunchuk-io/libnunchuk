@@ -463,7 +463,8 @@ static Wallet parseBCR2Wallet(Chain chain,
   auto cbor = decoder.result_ur().cbor();
   auto type = decoder.result_ur().type();
   if (type == "jade-pin") {
-    throw JadeException(JadeException::QR_PIN_UNLOCK, "QR Pin Unlock");
+    throw JadeException(JadeException::QR_PIN_UNLOCK,
+                        "Please unlock the device first.");
   }
   auto i = cbor.begin();
   auto end = cbor.end();
@@ -702,7 +703,8 @@ std::vector<SingleSigner> Utils::ParsePassportSigners(
     auto cbor = decoder.result_ur().cbor();
     auto type = decoder.result_ur().type();
     if (type == "jade-pin") {
-      throw JadeException(JadeException::QR_PIN_UNLOCK, "QR Pin Unlock");
+      throw JadeException(JadeException::QR_PIN_UNLOCK,
+                          "Please unlock the device first.");
     }
     auto i = cbor.begin();
     auto end = cbor.end();
@@ -1056,6 +1058,11 @@ static std::string parseBCR2Transaction(
     }
 
     auto decoded = decoder.result_ur();
+    if (decoded.type() == "jade-pin") {
+      throw JadeException(
+          JadeException::QR_PIN_UNLOCK,
+          "Please unlock your Jade first via Key Info > More > QR Unlock.");
+    }
     auto i = decoded.cbor().begin();
     auto end = decoded.cbor().end();
     bcr2::CryptoPSBT psbt{};
@@ -1111,16 +1118,16 @@ static std::string parseRawTransaction(
 
 std::string Utils::ParseKeystoneTransaction(
     const std::vector<std::string>& qr_data) {
-  return RunThrowOne(std::bind(parseBCR2Transaction, qr_data),
-                     std::bind(parseBBQRTransaction, qr_data),
-                     std::bind(parseRawTransaction, qr_data));
+  return RunThrowOne(std::bind(parseBBQRTransaction, qr_data),
+                     std::bind(parseRawTransaction, qr_data),
+                     std::bind(parseBCR2Transaction, qr_data));
 }
 
 std::string Utils::ParsePassportTransaction(
     const std::vector<std::string>& qr_data) {
-  return RunThrowOne(std::bind(parseBCR2Transaction, qr_data),
-                     std::bind(parseBBQRTransaction, qr_data),
-                     std::bind(parseRawTransaction, qr_data));
+  return RunThrowOne(std::bind(parseBBQRTransaction, qr_data),
+                     std::bind(parseRawTransaction, qr_data),
+                     std::bind(parseBCR2Transaction, qr_data));
 }
 
 AnalyzeQRResult Utils::AnalyzeQR(const std::vector<std::string>& qr_data) {

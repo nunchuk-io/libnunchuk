@@ -2227,7 +2227,8 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
   auto type = decoder.result_ur().type();
   auto cbor = decoder.result_ur().cbor();
   if (type == "jade-pin") {
-    throw JadeException(JadeException::QR_PIN_UNLOCK, "QR Pin Unlock");
+    throw JadeException(JadeException::QR_PIN_UNLOCK,
+                        "Please unlock the device first.");
   }
   auto i = cbor.begin();
   auto end = cbor.end();
