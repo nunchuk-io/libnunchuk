@@ -50,35 +50,42 @@ struct FirmwareRelease {
   int minor;
   int patch;
   uint32_t monotonic_version;
-  bool intermediate;
 };
 
 // Keep this metadata in sync with BitBoxApp's bundledFirmwares table in
 // backend/devices/bitbox02bootloader/firmware.go. Firmware binaries remain
 // client-supplied; only the required upgrade order is mirrored here.
 constexpr std::array<FirmwareRelease, 10> FIRMWARE_RELEASES{{
-    {BitBoxProduct::BITBOX02_MULTI, 9, 17, 1, 36, true},
-    {BitBoxProduct::BITBOX02_MULTI, 9, 26, 2, 50, true},
-    {BitBoxProduct::BITBOX02_MULTI, 9, 26, 4, 52, false},
-    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 17, 1, 36, true},
-    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 26, 2, 50, true},
-    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 26, 3, 51, false},
-    {BitBoxProduct::NOVA_MULTI, 9, 26, 2, 50, true},
-    {BitBoxProduct::NOVA_MULTI, 9, 26, 4, 52, false},
-    {BitBoxProduct::NOVA_BITCOIN_ONLY, 9, 26, 2, 50, true},
-    {BitBoxProduct::NOVA_BITCOIN_ONLY, 9, 26, 3, 51, false},
+    {BitBoxProduct::BITBOX02_MULTI, 9, 17, 1, 36},
+    {BitBoxProduct::BITBOX02_MULTI, 9, 26, 2, 50},
+    {BitBoxProduct::BITBOX02_MULTI, 9, 26, 4, 52},
+    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 17, 1, 36},
+    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 26, 2, 50},
+    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 26, 3, 51},
+    {BitBoxProduct::NOVA_MULTI, 9, 26, 2, 50},
+    {BitBoxProduct::NOVA_MULTI, 9, 26, 4, 52},
+    {BitBoxProduct::NOVA_BITCOIN_ONLY, 9, 26, 2, 50},
+    {BitBoxProduct::NOVA_BITCOIN_ONLY, 9, 26, 3, 51},
 }};
 
-const FirmwareRelease* RequiredIntermediateFirmware(
+const FirmwareRelease* NextFirmwareRelease(
     BitBoxProduct product, const std::string& current_version) {
   for (const auto& release : FIRMWARE_RELEASES) {
-    if (release.product == product && release.intermediate &&
+    if (release.product == product &&
         FirmwareBefore(current_version, release.major, release.minor,
                        release.patch)) {
       return &release;
     }
   }
   return nullptr;
+}
+
+const FirmwareRelease* LatestFirmwareRelease(BitBoxProduct product) {
+  const FirmwareRelease* result = nullptr;
+  for (const auto& release : FIRMWARE_RELEASES) {
+    if (release.product == product) result = &release;
+  }
+  return result;
 }
 
 std::string FirmwareVersion(const FirmwareRelease& release) {
@@ -1328,19 +1335,44 @@ BitBoxStep BitBoxSession::enterFirmwareUpgrade(
     const auto firmware = InspectFirmware(signed_firmware);
     if (firmware.product != device_info_.product) {
       return fail(BitBoxErrorCode::INVALID_FIRMWARE,
-                  "BitBox signed firmware does not match the device product");
+                  "The selected firmware is for a different BitBox02 model. "
+                  "Choose firmware for the connected device.");
     }
-    if (const auto* required = RequiredIntermediateFirmware(
-            device_info_.product, device_info_.firmware_version);
-        required != nullptr &&
-        firmware.monotonic_version != required->monotonic_version) {
-      return fail(BitBoxErrorCode::INVALID_FIRMWARE,
-                  "Install and run BitBox firmware " +
-                      FirmwareVersion(*required) +
-                      " before installing the selected firmware");
+    const auto* latest = LatestFirmwareRelease(device_info_.product);
+    if (latest == nullptr) {
+      return fail(BitBoxErrorCode::UNSUPPORTED_DEVICE,
+                  "Firmware upgrades are not supported for this BitBox02 "
+                  "model.");
+    }
+    if (firmware.monotonic_version > latest->monotonic_version) {
+      return fail(
+          BitBoxErrorCode::UNSUPPORTED_FIRMWARE,
+          "This firmware requires a newer version of Nunchuk. Update Nunchuk "
+          "before installing it. The newest BitBox02 firmware supported by "
+          "this version is " +
+              FirmwareVersion(*latest) + ".");
+    }
+    const auto* next = NextFirmwareRelease(
+        device_info_.product, device_info_.firmware_version);
+    if (next == nullptr) {
+      return fail(
+          BitBoxErrorCode::INVALID_FIRMWARE,
+          "This BitBox02 already has the newest firmware supported by this "
+          "version of Nunchuk (" +
+              FirmwareVersion(*latest) + ").");
+    }
+    if (firmware.monotonic_version != next->monotonic_version) {
+      return fail(
+          BitBoxErrorCode::INVALID_FIRMWARE,
+          "This BitBox02 must be updated to firmware " +
+              FirmwareVersion(*next) +
+              " first. Select that firmware file, complete the update, then "
+              "reconnect the device before continuing.");
     }
   } catch (const std::exception& e) {
-    return fail(BitBoxErrorCode::INVALID_FIRMWARE, e.what());
+    return fail(BitBoxErrorCode::INVALID_FIRMWARE,
+                "Could not use the selected firmware file. " +
+                    std::string(e.what()));
   }
   try {
     result_.reset();
