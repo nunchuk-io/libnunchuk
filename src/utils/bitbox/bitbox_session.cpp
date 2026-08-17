@@ -28,6 +28,7 @@
 #include <utility>
 
 #include "utils/bitbox/bitcoin.hpp"
+#include "utils/bitbox/bootloader.hpp"
 #include "utils/bitbox/crypto.hpp"
 #include "utils/bitbox/noise.hpp"
 #include "utils/bitbox/pairing_store.hpp"
@@ -42,6 +43,49 @@ constexpr unsigned char HWW_ACK = 0x00;
 constexpr unsigned char HWW_NOT_READY = 0x01;
 constexpr unsigned char HWW_BUSY = 0x02;
 constexpr unsigned char HWW_NACK = 0x03;
+
+struct FirmwareRelease {
+  BitBoxProduct product;
+  int major;
+  int minor;
+  int patch;
+  uint32_t monotonic_version;
+  bool intermediate;
+};
+
+// Keep this metadata in sync with BitBoxApp's bundledFirmwares table in
+// backend/devices/bitbox02bootloader/firmware.go. Firmware binaries remain
+// client-supplied; only the required upgrade order is mirrored here.
+constexpr std::array<FirmwareRelease, 10> FIRMWARE_RELEASES{{
+    {BitBoxProduct::BITBOX02_MULTI, 9, 17, 1, 36, true},
+    {BitBoxProduct::BITBOX02_MULTI, 9, 26, 2, 50, true},
+    {BitBoxProduct::BITBOX02_MULTI, 9, 26, 4, 52, false},
+    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 17, 1, 36, true},
+    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 26, 2, 50, true},
+    {BitBoxProduct::BITBOX02_BITCOIN_ONLY, 9, 26, 3, 51, false},
+    {BitBoxProduct::NOVA_MULTI, 9, 26, 2, 50, true},
+    {BitBoxProduct::NOVA_MULTI, 9, 26, 4, 52, false},
+    {BitBoxProduct::NOVA_BITCOIN_ONLY, 9, 26, 2, 50, true},
+    {BitBoxProduct::NOVA_BITCOIN_ONLY, 9, 26, 3, 51, false},
+}};
+
+const FirmwareRelease* RequiredIntermediateFirmware(
+    BitBoxProduct product, const std::string& current_version) {
+  for (const auto& release : FIRMWARE_RELEASES) {
+    if (release.product == product && release.intermediate &&
+        FirmwareBefore(current_version, release.major, release.minor,
+                       release.patch)) {
+      return &release;
+    }
+  }
+  return nullptr;
+}
+
+std::string FirmwareVersion(const FirmwareRelease& release) {
+  return std::to_string(release.major) + "." +
+         std::to_string(release.minor) + "." +
+         std::to_string(release.patch);
+}
 
 uint256 AntiKleptoHostCommitment(
     std::span<const unsigned char> host_nonce) {
@@ -1276,10 +1320,29 @@ BitBoxStep BitBoxSession::restoreFromMnemonic() {
   }
 }
 
-BitBoxStep BitBoxSession::enterFirmwareUpgrade() {
+BitBoxStep BitBoxSession::enterFirmwareUpgrade(
+    std::span<const unsigned char> signed_firmware) {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (auto error = requireReady(true)) return *error;
   try {
-    if (auto error = requireReady(true)) return *error;
+    const auto firmware = InspectFirmware(signed_firmware);
+    if (firmware.product != device_info_.product) {
+      return fail(BitBoxErrorCode::INVALID_FIRMWARE,
+                  "BitBox signed firmware does not match the device product");
+    }
+    if (const auto* required = RequiredIntermediateFirmware(
+            device_info_.product, device_info_.firmware_version);
+        required != nullptr &&
+        firmware.monotonic_version != required->monotonic_version) {
+      return fail(BitBoxErrorCode::INVALID_FIRMWARE,
+                  "Install and run BitBox firmware " +
+                      FirmwareVersion(*required) +
+                      " before installing the selected firmware");
+    }
+  } catch (const std::exception& e) {
+    return fail(BitBoxErrorCode::INVALID_FIRMWARE, e.what());
+  }
+  try {
     result_.reset();
     command_ = Command::ENTER_FIRMWARE_UPGRADE;
     return sendEncrypted(

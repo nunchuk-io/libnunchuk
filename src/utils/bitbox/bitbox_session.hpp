@@ -64,7 +64,8 @@ class BitBoxSession {
   BitBoxStep checkBackup(bool silent = false);
   BitBoxStep restoreBackup(const std::string& id);
   BitBoxStep restoreFromMnemonic();
-  BitBoxStep enterFirmwareUpgrade();
+  BitBoxStep enterFirmwareUpgrade(
+      std::span<const unsigned char> signed_firmware);
 
   BitBoxStep getExtendedPublicKey(
       const std::string& derivation_path,
