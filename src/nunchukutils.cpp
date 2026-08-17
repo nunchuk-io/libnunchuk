@@ -64,7 +64,12 @@
 #include "key_io.h"
 #include "tap_protocol/hwi_tapsigner.h"
 #include "tap_protocol/tap_protocol.h"
+
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#define CPPHTTPLIB_CONNECTION_TIMEOUT_SECOND 5
+#define CPPHTTPLIB_READ_TIMEOUT_SECOND 15
 #include "utils/httplib.h"
+#include <certs/sslcerts.h>
 
 #include <bbqr/bbqr.hpp>
 #include <miniscript/compiler.h>
@@ -193,15 +198,16 @@ bool Utils::IsLiquidAddress(const std::string& address) {
 
   std::vector<unsigned char> spk(128);
   size_t spk_len = 0;
-  if (wally_addr_segwit_to_bytes(address.c_str(), c.ADDRESS_FAMILY, 0, spk.data(),
-                               spk.size(), &spk_len) == WALLY_OK) {
+  if (wally_addr_segwit_to_bytes(address.c_str(), c.ADDRESS_FAMILY, 0,
+                                 spk.data(), spk.size(),
+                                 &spk_len) == WALLY_OK) {
     return true;
   }
 
   std::vector<unsigned char> blinding_pubkey(EC_PUBLIC_KEY_LEN);
   if (wally_confidential_addr_segwit_to_ec_public_key(
-          address.c_str(), c.CONFIDENTIAL_ADDRESS_FAMILY, blinding_pubkey.data(),
-          blinding_pubkey.size()) == WALLY_OK) {
+          address.c_str(), c.CONFIDENTIAL_ADDRESS_FAMILY,
+          blinding_pubkey.data(), blinding_pubkey.size()) == WALLY_OK) {
     return true;
   }
 
@@ -455,6 +461,10 @@ static Wallet parseBCR2Wallet(Chain chain,
                            "Invalid BC-UR2 input");
   }
   auto cbor = decoder.result_ur().cbor();
+  auto type = decoder.result_ur().type();
+  if (type == "jade-pin") {
+    throw JadeException(JadeException::QR_PIN_UNLOCK, "QR Pin Unlock");
+  }
   auto i = cbor.begin();
   auto end = cbor.end();
   std::string name;
@@ -690,6 +700,10 @@ std::vector<SingleSigner> Utils::ParsePassportSigners(
                              "Invalid BC-UR2 input");
     }
     auto cbor = decoder.result_ur().cbor();
+    auto type = decoder.result_ur().type();
+    if (type == "jade-pin") {
+      throw JadeException(JadeException::QR_PIN_UNLOCK, "QR Pin Unlock");
+    }
     auto i = cbor.begin();
     auto end = cbor.end();
     bcr2::decodeBytes(i, end, config);
@@ -1690,7 +1704,8 @@ std::string Utils::TrezorGetSignMessagePath(const SingleSigner& signer) {
   return nunchuk::TrezorGetSignMessagePath(signer);
 }
 
-std::pair<std::string, std::string> Utils::TrezorParseSignMessage(const std::string& response) {
+std::pair<std::string, std::string> Utils::TrezorParseSignMessage(
+    const std::string& response) {
   return nunchuk::TrezorParseSignMessage(response);
 }
 
@@ -1704,12 +1719,90 @@ std::string Utils::TrezorParseGetAddress(const std::string& response) {
   return nunchuk::TrezorParseGetAddress(response);
 }
 
-AssetId Utils::GetUSDTAssetId() {
-  return wally::WallyUtils::C().USDT_ASSET_ID;
+AssetId Utils::GetUSDTAssetId() { return wally::WallyUtils::C().USDT_ASSET_ID; }
+
+AssetId Utils::GetLBTCAssetId() { return wally::WallyUtils::C().LBTC_ASSET_ID; }
+
+std::string Utils::HandleJadePinQR(const std::vector<std::string>& qr_data) {
+  auto decoder = ur::URDecoder();
+  for (auto&& part : qr_data) {
+    decoder.receive_part(part);
+  }
+  if (!decoder.is_complete() || !decoder.is_success()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid BC-UR2 input");
+  }
+
+  auto parse_url = [](std::string_view url) {
+    auto scheme_end = url.find("://");
+    auto start = (scheme_end == std::string_view::npos) ? 0 : scheme_end + 3;
+    auto path_pos = url.find('/', start);
+
+    return std::make_pair(std::string(url.substr(0, path_pos)),
+                          (path_pos == std::string_view::npos)
+                              ? "/"
+                              : std::string(url.substr(path_pos)));
+  };
+
+  auto cbor = decoder.result_ur().cbor();
+  auto type = decoder.result_ur().type();
+  if (type != "jade-pin") {
+    throw JadeException(JadeException::INVALID_PARAMETER,
+                        "Invalid BC-UR2 input");
+  }
+  try {
+    auto data = json::from_cbor(cbor, false);
+    auto request_urls = data.value("result", json{})
+                            .value("http_request", json{})
+                            .value("params", json{})
+                            .value("urls", std::vector<std::string>{});
+
+    auto request_data = data.value("result", json{})
+                            .value("http_request", json{})
+                            .value("params", json{})
+                            .value("data", json{})
+                            .dump();
+
+    for (auto&& url : request_urls) {
+      auto [scheme_host_port, path] = parse_url(url);
+      auto cli = httplib::Client(scheme_host_port.c_str());
+      ConfigureTlsVerification(cli);
+      auto res = cli.Post(path.c_str(), request_data.data(),
+                           request_data.size(), "application/json");
+      if (!res || res->status < 200 || res->status >= 300) {
+        if (&url == &request_urls.back()) {
+          throw JadeException(JadeException::SERVER_REQUEST_ERROR,
+                              "[Jade] Error executing request " + url);
+        } else {
+          continue;
+        }
+      }
+      return res->body;
+    }
+  } catch (const json::exception& e) {
+    throw JadeException(JadeException::INVALID_PARAMETER,
+                        "[Jade] Invalid data: " + std::string(e.what()));
+  }
+  throw JadeException(JadeException::INVALID_PARAMETER,
+                      "[Jade] Invalid auth request.");
 }
 
-AssetId Utils::GetLBTCAssetId() {
-  return wally::WallyUtils::C().LBTC_ASSET_ID;
+std::vector<std::string> Utils::ExportJadePinQR(const std::string& pin,
+                                                int fragment_len) {
+  json pin_rpc = json{
+      {"id", "0"},
+      {"method", "pin"},
+      {"params", json::parse(pin)},
+  };
+
+  std::vector<uint8_t> cbor = json::to_cbor(pin_rpc);
+
+  auto encoder = ur::UREncoder(ur::UR("jade-pin", cbor), fragment_len);
+  std::vector<std::string> parts;
+  do {
+    parts.push_back(to_upper_copy(encoder.next_part()));
+  } while (encoder.seq_num() <= 2 * encoder.seq_len());
+  return parts;
 }
 
 }  // namespace nunchuk
