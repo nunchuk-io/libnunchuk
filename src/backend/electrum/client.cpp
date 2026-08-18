@@ -54,6 +54,11 @@ static std::string GetServerAddress(const AppSettings& appsettings,
   }
 }
 
+static bool IsSelfSignedCert(X509* cert) {
+  return cert != nullptr && X509_NAME_cmp(X509_get_subject_name(cert),
+                                          X509_get_issuer_name(cert)) == 0;
+}
+
 static NunchukException MakeElectrumException(const std::string& error) {
   if (!boost::istarts_with(error, NETWORK_REJECTED_PREFIX)) {
     return NunchukException(NunchukException::SERVER_REQUEST_ERROR,
@@ -111,8 +116,8 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
   if (is_secure_) {
     ssl::context ctx(ssl::context::tls);
     // Always verify the peer. Use a caller-supplied CA/pin file when set;
-    // otherwise load the embedded Mozilla CA bundle (same as GroupService)
-    // and temporarily accept self-signed Electrum server certificates.
+    // otherwise load the embedded Mozilla CA bundle (same as GroupService).
+    // Unpinned self-signed leaves are accepted without CA/CN/SAN checks.
     ctx.set_verify_mode(ssl::verify_peer);
     if (!appsettings.get_certificate_file().empty()) {
       ctx.load_verify_file(appsettings.get_certificate_file());
@@ -584,7 +589,10 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
       if (SSL_set_tlsext_host_name(ssl, host_.c_str()) != 1) {
         return handle_error("handle_connect", "Failed to set TLS SNI hostname");
       }
-      if (SSL_set1_host(ssl, host_.c_str()) != 1) {
+      // Skip OpenSSL identity checks when unpinned so a self-signed leaf
+      // with missing/wrong CN/SAN is not rejected after the callback.
+      if (!ssl_allow_self_signed_ &&
+          SSL_set1_host(ssl, host_.c_str()) != 1) {
         return handle_error("handle_connect",
                             "Failed to set TLS verification hostname");
       }
@@ -600,22 +608,34 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
     secure_socket_->set_verify_callback(
         [allow_self_signed = ssl_allow_self_signed_, host = host_, host_is_ip](
             bool preverified, ssl::verify_context& ctx) {
-          if (!preverified && allow_self_signed) {
-            const int err = X509_STORE_CTX_get_error(ctx.native_handle());
-            if (err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
-                err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) {
-              char subject_name[256] = {};
-              X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
-              if (cert != nullptr) {
-                X509_NAME_oneline(X509_get_subject_name(cert), subject_name,
-                                  sizeof(subject_name));
-              }
-              LOG_F(WARNING, "Accepting self-signed TLS certificate: %s",
-                    subject_name);
-              return true;
+          X509_STORE_CTX* store_ctx = ctx.native_handle();
+          X509* cert = X509_STORE_CTX_get_current_cert(store_ctx);
+          const int depth = X509_STORE_CTX_get_error_depth(store_ctx);
+          const bool self_signed_leaf =
+              depth == 0 && IsSelfSignedCert(cert);
+
+          // Unpinned self-signed peer: skip CA and CN/SAN checks.
+          if (allow_self_signed && self_signed_leaf) {
+            char subject_name[256] = {};
+            if (cert != nullptr) {
+              X509_NAME_oneline(X509_get_subject_name(cert), subject_name,
+                                sizeof(subject_name));
             }
-            if (host_is_ip && (err == X509_V_ERR_IP_ADDRESS_MISMATCH ||
-                               err == X509_V_ERR_HOSTNAME_MISMATCH)) {
+            LOG_F(WARNING,
+                  "Accepting self-signed TLS certificate without CA/CN/SAN "
+                  "checks: %s",
+                  subject_name);
+            return true;
+          }
+          // Pinned self-signed that chained to the pin: skip CN/SAN only.
+          if (self_signed_leaf && preverified) {
+            return true;
+          }
+
+          if (!preverified && allow_self_signed && host_is_ip) {
+            const int err = X509_STORE_CTX_get_error(store_ctx);
+            if (err == X509_V_ERR_IP_ADDRESS_MISMATCH ||
+                err == X509_V_ERR_HOSTNAME_MISMATCH) {
               LOG_F(WARNING,
                     "Accepting TLS certificate without matching IP SAN for %s",
                     host.c_str());
