@@ -256,8 +256,10 @@ PreparedPsbt PreparePsbt(const std::string& encoded, const Wallet& wallet,
   if (transaction.version != 1 && transaction.version != 2) {
     throw std::invalid_argument("BitBox transaction version must be 1 or 2");
   }
-  if (transaction.nLockTime >= 500000000) {
-    throw std::invalid_argument("BitBox does not support timestamp locktimes");
+  if (transaction.nLockTime >= 500000000 &&
+      FirmwareBefore(firmware_version, 9, 27, 0)) {
+    throw std::invalid_argument(
+        "BitBox timestamp locktimes require firmware 9.27.0 or newer");
   }
 
   for (size_t index = 0; index < transaction.vin.size(); ++index) {
