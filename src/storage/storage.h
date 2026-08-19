@@ -180,6 +180,12 @@ class NunchukStorage {
   std::pair<std::string, bool> GetPsbtOrRawTx(Chain chain,
                                               const std::string &wallet_id,
                                               const std::string &tx_id);
+  void SaveSilentPaymentMapping(Chain chain, const std::string &wallet_id,
+                                const std::string &derived_addr,
+                                const std::string &sp_addr);
+  std::string GetSilentPaymentAddress(Chain chain,
+                                      const std::string &wallet_id,
+                                      const std::string &derived_addr);
   bool SetUtxos(Chain chain, const std::string &wallet_id,
                 const std::string &address, const std::string &utxo);
   Amount GetBalance(Chain chain, const std::string &wallet_id);

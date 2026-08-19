@@ -82,6 +82,11 @@ void NunchukWalletDb::InitWallet(const Wallet& wallet) {
                         "UTXO            TEXT);",
                         NULL, 0, NULL));
   SQLCHECK(sqlite3_exec(db_,
+                        "CREATE TABLE IF NOT EXISTS SP_ADDRESS_MAP("
+                        "DERIVED_ADDR TEXT PRIMARY KEY NOT NULL,"
+                        "SP_ADDR      TEXT             NOT NULL);",
+                        NULL, 0, NULL));
+  SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS SIGNER("
                         "KEY TEXT PRIMARY KEY     NOT NULL,"
                         "NAME             TEXT    NOT NULL,"
@@ -906,6 +911,35 @@ std::pair<std::string, bool> NunchukWalletDb::GetPsbtOrRawTx(
     SQLCHECK(sqlite3_finalize(stmt));
     return {"", false};
   }
+}
+
+void NunchukWalletDb::SaveSilentPaymentMapping(const std::string& derived_addr,
+                                                const std::string& sp_addr) {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "INSERT OR REPLACE INTO SP_ADDRESS_MAP(DERIVED_ADDR, SP_ADDR) "
+      "VALUES (?1, ?2);";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, derived_addr.c_str(), derived_addr.size(), NULL);
+  sqlite3_bind_text(stmt, 2, sp_addr.c_str(), sp_addr.size(), NULL);
+  sqlite3_step(stmt);
+  SQLCHECK(sqlite3_finalize(stmt));
+}
+
+std::string NunchukWalletDb::GetSilentPaymentAddress(
+    const std::string& derived_addr) const {
+  sqlite3_stmt* stmt;
+  std::string sql =
+      "SELECT SP_ADDR FROM SP_ADDRESS_MAP WHERE DERIVED_ADDR = ?;";
+  sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, derived_addr.c_str(), derived_addr.size(), NULL);
+  sqlite3_step(stmt);
+  std::string result;
+  if (sqlite3_column_text(stmt, 0)) {
+    result = std::string((char*)sqlite3_column_text(stmt, 0));
+  }
+  SQLCHECK(sqlite3_finalize(stmt));
+  return result;
 }
 
 Transaction NunchukWalletDb::GetTransaction(const std::string& tx_id) {
