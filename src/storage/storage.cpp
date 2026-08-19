@@ -1577,6 +1577,21 @@ std::pair<std::string, bool> NunchukStorage::GetPsbtOrRawTx(
   return GetWalletDb(chain, wallet_id).GetPsbtOrRawTx(tx_id);
 }
 
+void NunchukStorage::SaveSilentPaymentMapping(Chain chain,
+                                               const std::string& wallet_id,
+                                               const std::string& derived_addr,
+                                               const std::string& sp_addr) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  GetWalletDb(chain, wallet_id).SaveSilentPaymentMapping(derived_addr, sp_addr);
+}
+
+std::string NunchukStorage::GetSilentPaymentAddress(
+    Chain chain, const std::string& wallet_id,
+    const std::string& derived_addr) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  return GetWalletDb(chain, wallet_id).GetSilentPaymentAddress(derived_addr);
+}
+
 bool NunchukStorage::SetUtxos(Chain chain, const std::string& wallet_id,
                               const std::string& address,
                               const std::string& utxo) {

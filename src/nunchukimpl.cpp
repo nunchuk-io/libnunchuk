@@ -2566,10 +2566,24 @@ std::string NunchukImpl::CreatePsbt(
   std::map<std::string, Amount> processed_outputs;
   std::map<std::string, std::string> temp_outputs;
 
+  // Resolve derived taproot addresses back to their original SP addresses
+  // using the stored mapping, so that SP outputs are re-derived correctly
+  // when the input set changes (e.g. during RBF).
+  std::map<std::string, Amount> original_outputs;
+  for (const auto& output : outputs) {
+    std::string sp_addr =
+        storage_->GetSilentPaymentAddress(chain_, wallet_id, output.first);
+    if (!sp_addr.empty()) {
+      original_outputs[sp_addr] = output.second;
+    } else {
+      original_outputs[output.first] = output.second;
+    }
+  }
+
   // Check if any outputs are Silent Payment addresses
   bool has_silent_payment = false;
-  for (const auto& output : outputs) {
-    if (IsSilentPaymentAddress(output.first, chain_)) {
+  for (const auto& [addr, _] : original_outputs) {
+    if (IsSilentPaymentAddress(addr, chain_)) {
       has_silent_payment = true;
       break;
     }
@@ -2605,9 +2619,10 @@ std::string NunchukImpl::CreatePsbt(
 
     const auto derived_initial =
         silentpayment::DeriveSilentPaymentTaprootAddresses(
-            outputs, chain_, sp_inputs, input_privkeys, is_taproot_inputs);
+            original_outputs, chain_, sp_inputs, input_privkeys,
+            is_taproot_inputs);
 
-    for (const auto& output : outputs) {
+    for (const auto& output : original_outputs) {
       if (IsSilentPaymentAddress(output.first, chain_)) {
         if (!derived_initial.count(output.first)) {
           throw NunchukException(NunchukException::INVALID_ADDRESS,
@@ -2621,7 +2636,7 @@ std::string NunchukImpl::CreatePsbt(
       }
     }
   } else {
-    for (const auto& output : outputs) {
+    for (const auto& output : original_outputs) {
       processed_outputs[output.first] = output.second;
     }
   }
@@ -2710,7 +2725,8 @@ std::string NunchukImpl::CreatePsbt(
 
     const auto derived_final =
         silentpayment::DeriveSilentPaymentTaprootAddresses(
-            outputs, chain_, sp_inputs, input_privkeys, is_taproot_inputs);
+            original_outputs, chain_, sp_inputs, input_privkeys,
+            is_taproot_inputs);
 
     for (const CTxOut& txout : tx_new->vout) {
       CTxDestination address;
@@ -2724,6 +2740,8 @@ std::string NunchukImpl::CreatePsbt(
         }
         const std::string& taproot_addr = derived_final.at(original_sp);
         vout.push_back({taproot_addr, txout.nValue});
+        storage_->SaveSilentPaymentMapping(chain_, wallet_id, taproot_addr,
+                                           original_sp);
       } else {
         vout.push_back({addr, txout.nValue});
       }

@@ -99,6 +99,9 @@ class NunchukWalletDb : public NunchukDb {
   bool ReplaceTxId(const std::string &txid, const std::string &replace_txid);
   std::string GetPsbt(const std::string &tx_id) const;
   std::pair<std::string, bool> GetPsbtOrRawTx(const std::string &tx_id) const;
+  void SaveSilentPaymentMapping(const std::string &derived_addr,
+                                const std::string &sp_addr);
+  std::string GetSilentPaymentAddress(const std::string &derived_addr) const;
   std::vector<Transaction> GetTransactions(int count = 1000, int skip = 0);
   bool SetUtxos(const std::string &address, const std::string &utxo);
   Amount GetBalance(bool include_mempool);
