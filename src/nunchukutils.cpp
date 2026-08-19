@@ -1087,18 +1087,25 @@ static std::string parseRawTransaction(
   throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
 }
 
+static std::string parseTransaction(const std::vector<std::string>& qr_data) {
+  try {
+    return parseBCR2Transaction(qr_data);
+  } catch (const JadeException&) {
+    throw;
+  } catch (const std::exception&) {
+    return RunThrowOne(std::bind(parseBBQRTransaction, qr_data),
+                       std::bind(parseRawTransaction, qr_data));
+  }
+}
+
 std::string Utils::ParseKeystoneTransaction(
     const std::vector<std::string>& qr_data) {
-  return RunThrowOne(std::bind(parseBBQRTransaction, qr_data),
-                     std::bind(parseRawTransaction, qr_data),
-                     std::bind(parseBCR2Transaction, qr_data));
+  return parseTransaction(qr_data);
 }
 
 std::string Utils::ParsePassportTransaction(
     const std::vector<std::string>& qr_data) {
-  return RunThrowOne(std::bind(parseBBQRTransaction, qr_data),
-                     std::bind(parseRawTransaction, qr_data),
-                     std::bind(parseBCR2Transaction, qr_data));
+  return parseTransaction(qr_data);
 }
 
 AnalyzeQRResult Utils::AnalyzeQR(const std::vector<std::string>& qr_data) {
