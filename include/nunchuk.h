@@ -412,6 +412,14 @@ class NUNCHUK_EXPORT GroupException : public BaseException {
   using BaseException::BaseException;
 };
 
+class NUNCHUK_EXPORT JadeException : public BaseException {
+ public:
+  static const int QR_PIN_UNLOCK = -8000;
+  static const int INVALID_PARAMETER = -8001;
+  static const int SERVER_REQUEST_ERROR = -8002;
+  using BaseException::BaseException;
+};
+
 class NUNCHUK_EXPORT Device {
  public:
   Device();
@@ -2534,6 +2542,10 @@ class NUNCHUK_EXPORT Utils {
                                       const std::string& address,
                                       const std::string& path);
   static std::string TrezorParseGetAddress(const std::string& response);
+
+  static std::string HandleJadePinQR(const std::vector<std::string>& qr_data);
+  static std::vector<std::string> ExportJadePinQR(const std::string& pin,
+                                                  int fragment_len = 200);
 
  private:
   Utils() {}
