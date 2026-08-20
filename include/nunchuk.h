@@ -226,6 +226,7 @@ enum class SignerTag {
   LEDGER,
   BITBOX,
   KEEPKEY,
+  KRUX,
 };
 
 enum class PreimageHashType {
