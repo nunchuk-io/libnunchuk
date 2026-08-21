@@ -17,6 +17,7 @@
 
 #include "utils/bitbox/bitbox.hpp"
 
+#include <array>
 #include <cstdint>
 #include <key_io.h>
 #include <stdexcept>
@@ -26,6 +27,39 @@
 #include "utils/bitbox/bitcoin.hpp"
 
 namespace nunchuk::bitbox {
+
+std::optional<BitBoxEndpoint> IdentifyBitBoxEndpoint(
+    std::string_view product_string) {
+  struct ProductMapping {
+    std::string_view product_string;
+    BitBoxEndpoint endpoint;
+  };
+
+  static constexpr std::array<ProductMapping, 12> mappings{{
+      {"BitBox02", {BitBoxProduct::BITBOX02_MULTI, false}},
+      {"bb02-bootloader", {BitBoxProduct::BITBOX02_MULTI, true}},
+      {"BitBox02BTC", {BitBoxProduct::BITBOX02_BITCOIN_ONLY, false}},
+      {"bb02btc-bootloader",
+       {BitBoxProduct::BITBOX02_BITCOIN_ONLY, true}},
+      {"BitBox02 Nova Multi", {BitBoxProduct::NOVA_MULTI, false}},
+      {"bb02p-multi", {BitBoxProduct::NOVA_MULTI, false}},
+      {"BitBox02 Nova Multi bl", {BitBoxProduct::NOVA_MULTI, true}},
+      {"bb02p-bl-multi", {BitBoxProduct::NOVA_MULTI, true}},
+      {"BitBox02 Nova BTC-only",
+       {BitBoxProduct::NOVA_BITCOIN_ONLY, false}},
+      {"bb02p-btconly", {BitBoxProduct::NOVA_BITCOIN_ONLY, false}},
+      {"BitBox02 Nova BTC-only bl",
+       {BitBoxProduct::NOVA_BITCOIN_ONLY, true}},
+      {"bb02p-bl-btconly", {BitBoxProduct::NOVA_BITCOIN_ONLY, true}},
+  }};
+
+  for (const auto& mapping : mappings) {
+    if (mapping.product_string == product_string) {
+      return mapping.endpoint;
+    }
+  }
+  return std::nullopt;
+}
 
 std::string GetBitBoxSignMessagePath(const SingleSigner& signer) {
   auto keypath = ParseKeypath(signer.get_derivation_path());

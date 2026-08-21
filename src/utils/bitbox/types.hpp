@@ -118,6 +118,11 @@ enum class BitBoxProduct {
   BITBOX02_BITCOIN_ONLY,
 };
 
+struct BitBoxEndpoint {
+  BitBoxProduct product = BitBoxProduct::UNKNOWN;
+  bool bootloader = false;
+};
+
 struct BitBoxFirmwareInfo {
   BitBoxProduct product = BitBoxProduct::UNKNOWN;
   uint32_t monotonic_version = 0;

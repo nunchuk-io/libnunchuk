@@ -18,7 +18,9 @@
 #ifndef NUNCHUK_BITBOX_H
 #define NUNCHUK_BITBOX_H
 
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include <nunchuk.h>
 
@@ -30,6 +32,13 @@
 
 namespace nunchuk::bitbox {
 
+// Pass the USB HID product string or the BitBox02 Nova BLE product value:
+// - Android USB: pass UsbDevice::getProductName().
+// - Android/iOS Bluetooth: read characteristic
+//   9d1c9a77-8b03-4e49-8053-3955cda7da93 and pass the JSON `p` value.
+// - Other USB hosts: pass the HID device product string.
+std::optional<BitBoxEndpoint> IdentifyBitBoxEndpoint(
+    std::string_view product_string);
 std::string GetBitBoxSignMessagePath(const SingleSigner& signer);
 std::string GetBitBoxSignMessageAddress(const SingleSigner& signer);
 
