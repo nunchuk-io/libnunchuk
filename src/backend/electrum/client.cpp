@@ -117,7 +117,9 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
     ssl::context ctx(ssl::context::tls);
     // Always verify the peer. Use a caller-supplied CA/pin file when set;
     // otherwise load the embedded Mozilla CA bundle (same as GroupService).
-    // Unpinned self-signed leaves are accepted without CA/CN/SAN checks.
+    // Unpinned: certs that do not chain to Mozilla (private CA, self-signed)
+    // are accepted without CA/CN/SAN checks. CA-signed peers still get a
+    // hostname check.
     ctx.set_verify_mode(ssl::verify_peer);
     if (!appsettings.get_certificate_file().empty()) {
       ctx.load_verify_file(appsettings.get_certificate_file());
@@ -589,8 +591,8 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
       if (SSL_set_tlsext_host_name(ssl, host_.c_str()) != 1) {
         return handle_error("handle_connect", "Failed to set TLS SNI hostname");
       }
-      // Skip OpenSSL identity checks when unpinned so a self-signed leaf
-      // with missing/wrong CN/SAN is not rejected after the callback.
+      // Skip OpenSSL identity checks when unpinned so private-CA /
+      // self-signed certs are not rejected after the callback.
       if (!ssl_allow_self_signed_ &&
           SSL_set1_host(ssl, host_.c_str()) != 1) {
         return handle_error("handle_connect",
@@ -606,7 +608,7 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
       }
     }
     secure_socket_->set_verify_callback(
-        [allow_self_signed = ssl_allow_self_signed_, host = host_, host_is_ip](
+        [allow_untrusted = ssl_allow_self_signed_, host = host_, host_is_ip](
             bool preverified, ssl::verify_context& ctx) {
           X509_STORE_CTX* store_ctx = ctx.native_handle();
           X509* cert = X509_STORE_CTX_get_current_cert(store_ctx);
@@ -614,37 +616,27 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
           const bool self_signed_leaf =
               depth == 0 && IsSelfSignedCert(cert);
 
-          // Unpinned self-signed peer: skip CA and CN/SAN checks.
-          if (allow_self_signed && self_signed_leaf) {
+          // Unpinned: accept anything not chained to Mozilla (private CA,
+          // self-signed, incomplete chain). Hostname is not enforced here.
+          if (allow_untrusted && !preverified) {
             char subject_name[256] = {};
             if (cert != nullptr) {
               X509_NAME_oneline(X509_get_subject_name(cert), subject_name,
                                 sizeof(subject_name));
             }
             LOG_F(WARNING,
-                  "Accepting self-signed TLS certificate without CA/CN/SAN "
-                  "checks: %s",
-                  subject_name);
+                  "Accepting TLS certificate not trusted by Mozilla CA "
+                  "(err=%d depth=%d): %s",
+                  X509_STORE_CTX_get_error(store_ctx), depth, subject_name);
             return true;
           }
           // Pinned self-signed that chained to the pin: skip CN/SAN only.
           if (self_signed_leaf && preverified) {
             return true;
           }
-
-          if (!preverified && allow_self_signed && host_is_ip) {
-            const int err = X509_STORE_CTX_get_error(store_ctx);
-            if (err == X509_V_ERR_IP_ADDRESS_MISMATCH ||
-                err == X509_V_ERR_HOSTNAME_MISMATCH) {
-              LOG_F(WARNING,
-                    "Accepting TLS certificate without matching IP SAN for %s",
-                    host.c_str());
-              return true;
-            }
-          }
           // Unpinned ssl://ip:port: Electrum certs usually have a DNS SAN
           // only, so skip IP identity checks.
-          if (allow_self_signed && host_is_ip) {
+          if (allow_untrusted && host_is_ip) {
             return preverified;
           }
           return ssl::host_name_verification(host)(preverified, ctx);
