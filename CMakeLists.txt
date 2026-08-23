@@ -251,6 +251,17 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/ledger/ledger_session.hpp
     src/utils/ledger/ledger_manager.hpp
     src/utils/ledger/psbt.hpp
+    src/utils/jade/bitcoin.cpp
+    src/utils/jade/http_client.cpp
+    src/utils/jade/jade.cpp
+    src/utils/jade/jade_manager.cpp
+    src/utils/jade/jade_session.cpp
+    src/utils/jade/bitcoin.hpp
+    src/utils/jade/http_client.hpp
+    src/utils/jade/jade.hpp
+    src/utils/jade/jade_manager.hpp
+    src/utils/jade/jade_session.hpp
+    src/utils/jade/types.hpp
     src/utils/bitbox/nanopb/pb_common.c
     src/utils/bitbox/nanopb/pb_decode.c
     src/utils/bitbox/nanopb/pb_encode.c
