@@ -21,6 +21,7 @@
 #include <softwaresigner.h>
 #include <signingprovider.h>
 #include <boost/algorithm/string/trim.hpp>
+#include <algorithm>
 #include <map>
 #include <utils/addressutils.hpp>
 #include <liquid/wallyutils.hpp>
@@ -57,6 +58,7 @@
 #include <utils/passport.hpp>
 #include <utils/silentpayment.hpp>
 #include <utils/coldcard.hpp>
+#include <utils/rfc2440.hpp>
 
 #include <random.h>
 #include <ctime>
@@ -998,6 +1000,86 @@ std::string Utils::ExtractColdcardMessageSignature(
 std::string Utils::ExtractColdcardMessageSignature(const std::string& value) {
   auto msg = ParseBitcoinSignedMessage(value);
   return msg.signature;
+}
+
+static void ValidateSigningMessage(const std::string& message, bool multiline) {
+  if (message.empty() ||
+      !std::all_of(message.begin(), message.end(), [multiline](unsigned char c) {
+        return (c >= 0x20 && c <= 0x7e) || (multiline && c == '\n');
+      })) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Expected a nonempty printable ASCII message");
+  }
+}
+
+static std::string MessageSigningAddressFormat(AddressType type, bool passport) {
+  switch (type) {
+    case AddressType::LEGACY:
+      return passport ? "AF_CLASSIC" : "p2pkh";
+    case AddressType::NESTED_SEGWIT:
+      return passport ? "AF_P2WPKH_P2SH" : "p2sh-p2wpkh";
+    case AddressType::NATIVE_SEGWIT:
+      return passport ? "AF_P2WPKH" : "p2wpkh";
+    case AddressType::TAPROOT:
+      return passport ? "AF_P2TR" : "p2tr";
+    default:
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Unsupported message-signing address type");
+  }
+}
+
+std::vector<std::string> Utils::GenerateMessageSigningQR(
+    const std::string& derivation_path, const std::string& message) {
+  const auto path = "m" + FormalizePath(derivation_path);
+  ValidateSigningMessage(message, false);
+  return {"signmessage " + path + " ascii:" + message};
+}
+
+std::string Utils::GenerateKruxMessageSigning(
+    const std::string& derivation_path, const std::string& message,
+    AddressType address_type) {
+  const auto path = "m" + FormalizePath(derivation_path);
+  ValidateSigningMessage(message, true);
+  if (message.front() == ' ' || message.back() == ' ' ||
+      message.front() == '\n' || message.back() == '\n' ||
+      message.find("\n\n") != std::string::npos ||
+      message.find(" \n") != std::string::npos ||
+      message.find("\n ") != std::string::npos) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Krux message lines cannot be blank or padded");
+  }
+  return message + "\n" + path + "\n" +
+         MessageSigningAddressFormat(address_type, false);
+}
+
+std::string Utils::GeneratePassportMessageSigning(
+    const std::string& derivation_path, const std::string& message,
+    AddressType address_type) {
+  const auto path = "m" + FormalizePath(derivation_path);
+  ValidateSigningMessage(message, false);
+  const auto payload = message + "\n" + path + "\n" +
+                       MessageSigningAddressFormat(address_type, true);
+  if (message.front() == ' ' || message.back() == ' ' ||
+      message.find("    ") != std::string::npos || payload.size() > 240) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid Passport message spacing or size");
+  }
+  return payload;
+}
+
+std::string Utils::ExtractMessageSignature(const std::string& response) {
+  auto signature = boost::trim_copy(response);
+  if (signature.find("-----BEGIN BITCOIN SIGNED MESSAGE-----") !=
+      std::string::npos) {
+    signature = boost::trim_copy(ParseBitcoinSignedMessage(signature).signature);
+  }
+  const auto decoded = DecodeBase64(signature);
+  if (!decoded || decoded->size() != 65 || decoded->front() < 31 ||
+      decoded->front() > 34) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid compact Bitcoin message signature");
+  }
+  return EncodeBase64(*decoded);
 }
 
 std::vector<std::string> Utils::ExportBBQRJSON(const std::string& value,
