@@ -1018,7 +1018,14 @@ std::vector<std::string> Utils::GenerateMessageSigningQR(
 std::string Utils::GenerateKruxMessageSigning(
     const std::string& derivation_path, const std::string& message,
     AddressType address_type) {
-  const auto path = "m" + FormalizePath(derivation_path);
+  auto path = "m" + FormalizePath(derivation_path);
+  std::vector<uint32_t> keypath;
+  if (ParseHDKeypath(path, keypath) && !keypath.empty() &&
+      std::all_of(keypath.begin(), keypath.end(),
+                  [](uint32_t child) { return child >= (uint32_t{1} << 31); })) {
+    // Workaround: Krux requires a child path for message signing.
+    path += "/0/0";
+  }
   ValidateSigningMessage(message, true);
   if (message.front() == ' ' || message.back() == ' ' ||
       message.front() == '\n' || message.back() == '\n' ||
