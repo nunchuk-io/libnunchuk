@@ -1597,24 +1597,34 @@ std::string NunchukImpl::SignMessage(const SingleSigner& signer,
           storage_->GetSoftwareSigner(chain_, signer.get_master_signer_id());
       return ss.SignMessage(message, signer.get_derivation_path());
     }
-    case SignerType::HARDWARE: {
-      Device device{signer.get_master_fingerprint()};
-      return hwi_.SignMessage(device, message, signer.get_derivation_path());
-    }
     case SignerType::UNKNOWN:
     case SignerType::AIRGAP:
-    case SignerType::FOREIGN_SOFTWARE:
-    case SignerType::NFC:
     case SignerType::COLDCARD_NFC:
+    case SignerType::HARDWARE: {
+      auto path = signer.get_derivation_path();
+      const auto& tags = signer.get_tags();
+      if (std::find(tags.begin(), tags.end(), SignerTag::TREZOR) != tags.end()) {
+        // Workaround: Trezor requires a child path for message signing.
+        path = Utils::TrezorGetSignMessagePath(signer);
+      }
+      Device device{signer.get_master_fingerprint()};
+      return hwi_.SignMessage(device, message, path);
+    }
+    case SignerType::FOREIGN_SOFTWARE:
+      throw NunchukException(
+          NunchukException::INVALID_SIGNER_TYPE,
+          "Recover this software key on this device before signing a message.");
+    case SignerType::NFC:
     case SignerType::PORTAL_NFC:
+      throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                             "Please use NFC to sign a message with this key.");
     case SignerType::SERVER:
     case SignerType::PLATFORM:
       break;
   }
   throw NunchukException(
       NunchukException::INVALID_SIGNER_TYPE,
-      strprintf("Can not sign message mastersigner_id = '%s'",
-                signer.get_master_signer_id()));
+      "Message signing is not supported for this key.");
 }
 
 std::string NunchukImpl::GetSignerAddress(const SingleSigner& signer,
