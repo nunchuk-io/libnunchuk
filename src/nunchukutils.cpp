@@ -975,31 +975,11 @@ std::string Utils::GenerateColdCardHealthCheckMessage(
 
 std::string Utils::ExtractColdcardMessageSignature(
     const std::vector<std::string>& qr_data) {
-  bool is_simple_qr =
-      qr_data.size() == 1 && "B$" != std::string_view(qr_data[0]).substr(0, 2);
-  if (is_simple_qr) {
-    return qr_data[0];
-  }
-  try {
-    auto join_result = bbqr::join_qrs<std::string>(qr_data);
-    if (!join_result.is_complete ||
-        join_result.file_type != bbqr::FileType::U) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid data");
-    }
-
-    auto msg = ParseBitcoinSignedMessage(join_result.raw);
-    return msg.signature;
-  } catch (NunchukException& e) {
-    throw;
-  } catch (std::exception& e) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
-  }
+  return ExtractMessageSignature(qr_data);
 }
 
 std::string Utils::ExtractColdcardMessageSignature(const std::string& value) {
-  auto msg = ParseBitcoinSignedMessage(value);
-  return msg.signature;
+  return ExtractMessageSignature(value);
 }
 
 static void ValidateSigningMessage(const std::string& message, bool multiline) {
@@ -1075,11 +1055,29 @@ std::string Utils::ExtractMessageSignature(const std::string& response) {
   }
   const auto decoded = DecodeBase64(signature);
   if (!decoded || decoded->size() != 65 || decoded->front() < 31 ||
-      decoded->front() > 34) {
+      decoded->front() > 42) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "Invalid compact Bitcoin message signature");
   }
   return EncodeBase64(*decoded);
+}
+
+std::string Utils::ExtractMessageSignature(
+    const std::vector<std::string>& qr_data) {
+  if (qr_data.size() == 1 && !qr_data[0].starts_with("B$")) {
+    return ExtractMessageSignature(qr_data[0]);
+  }
+  try {
+    auto result = bbqr::join_qrs<std::string>(qr_data);
+    if (!result.is_complete || result.file_type != bbqr::FileType::U) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+    }
+    return ExtractMessageSignature(result.raw);
+  } catch (const NunchukException&) {
+    throw;
+  } catch (const std::exception&) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
 }
 
 std::vector<std::string> Utils::ExportBBQRJSON(const std::string& value,

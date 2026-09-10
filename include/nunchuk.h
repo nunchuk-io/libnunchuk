@@ -2464,6 +2464,8 @@ class NUNCHUK_EXPORT Utils {
       const std::string& derivation_path, const std::string& message,
       AddressType address_type = AddressType::LEGACY);
   static std::string ExtractMessageSignature(const std::string& response);
+  static std::string ExtractMessageSignature(
+      const std::vector<std::string>& qr_data);
 
   static std::vector<std::string> ExportBBQRJSON(const std::string& value,
                                                  int min_version = 1 /*1-40*/,
