@@ -1044,8 +1044,10 @@ std::string Utils::GeneratePassportMessageSigning(
     AddressType address_type) {
   const auto path = "m" + FormalizePath(derivation_path);
   ValidateSigningMessage(message, false);
-  const auto payload = message + "\n" + path + "\n" +
-                       MessageSigningAddressFormat(address_type, true);
+  auto payload = message + "\n" + path;
+  if (address_type != AddressType::LEGACY) {
+    payload += "\n" + MessageSigningAddressFormat(address_type, true);
+  }
   if (message.front() == ' ' || message.back() == ' ' ||
       message.find("    ") != std::string::npos || payload.size() > 240) {
     throw NunchukException(NunchukException::INVALID_PARAMETER,
