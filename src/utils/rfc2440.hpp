@@ -19,6 +19,7 @@
 #define NUNCHUK_RFC2440_H
 
 #include <regex>
+#include <sstream>
 #include "nunchuk.h"
 #include <tinyformat.h>
 
@@ -52,7 +53,7 @@ inline std::string ExportBitcoinSignedMessage(
 inline BitcoinSignedMessage ParseBitcoinSignedMessage(const std::string &str) {
   static const std::regex RFC2440_BITCOIN(
       "-----BEGIN BITCOIN SIGNED MESSAGE-----(\\r\\n|\\r|\\n)"
-      "(.*)(\\r\\n|\\r|\\n)"
+      "([\\s\\S]*?)(\\r\\n|\\r|\\n)"
       "-----BEGIN {0,1}(BITCOIN){0,1} SIGNATURE-----(\\r\\n|\\r|\\n)"
       "(.*)(\\r\\n|\\r|\\n| )(.*)(\\r\\n|\\r|\\n)"
       "-----END BITCOIN (SIGNED MESSAGE|SIGNATURE)-----");
