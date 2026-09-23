@@ -21,6 +21,7 @@
 #include <optional>
 #include <set>
 #include "utils/errorutils.hpp"
+#include "utils/satochip.hpp"
 #define NUNCHUK_EXPORT
 
 #include <functional>
@@ -204,6 +205,7 @@ enum class SignerType {
   SERVER,
   PORTAL_NFC,
   PLATFORM,
+  SATOCHIP_NFC,
 };
 
 enum class OrderBy {
@@ -2307,6 +2309,34 @@ class NUNCHUK_EXPORT Nunchuk {
           listener) = 0;
   virtual void AddGroupWalletDashboardListener(
       std::function<void(const std::string& walletId)> listener) = 0;
+
+  // Satochip
+  virtual void AddSatochip(const std::string& xfp, const std::string& name) = 0;
+  // Keep the same unlocked card session throughout registration and caching.
+  virtual MasterSigner CreateSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& name, std::function<bool(int)> progress) = 0;
+  virtual void CacheSatochipMasterSignerXPub(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id,
+      std::function<bool(int)> progress) = 0;
+  virtual SingleSigner GetSignerFromSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id, const std::string& path) = 0;
+  virtual SingleSigner GetSignerFromSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id, const WalletType& wallet_type,
+      const AddressType& address_type, int index) = 0;
+  virtual std::string SignSatochipMessage(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const CardSignTransactionHashFn& cardSignTransactionHashFn,
+      const SingleSigner& signer, const std::string& message) = 0;
+  virtual std::string SignSatochipTransaction(
+      const SatochipSignPsbtParams& params, const Wallet& wallet,
+      const std::string& psbt) = 0;
+  virtual Transaction SignSatochipTransaction(
+      const SatochipSignPsbtParams& params, const std::string& wallet_id,
+      const std::string& tx_id) = 0;
 
  protected:
   Nunchuk() = default;

@@ -18,6 +18,8 @@
 #include "storage.h"
 
 #include <descriptor.h>
+#include <key_io.h>
+#include <util/strencodings.h>
 #include <exception>
 #include <utility>
 #include <utils/bip32.hpp>
@@ -699,6 +701,107 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
   return id;
 }
 
+std::string NunchukStorage::CreateSatochipMasterSigner(
+    Chain chain, const std::string& name, const Device& device,
+    std::function<std::string(std::string)> getxpub,
+    std::function<bool(int)> progress) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  const std::string id = ba::to_lower_copy(device.get_master_fingerprint());
+  const auto file = GetSignerDir(chain, id);
+  const bool is_new = !bfs::exists(file);
+  try {
+    NunchukSignerDb signer_db{chain, id, file.string(), passphrase_};
+    if (signer_db.IsMaster()) {
+      if (!getxpub && signer_db.GetSignerType() == SignerType::SATOCHIP_NFC)
+        return id;
+      throw StorageException(
+          StorageException::SIGNER_EXISTS,
+          strprintf("Master signer already exists id = '%s'", id));
+    }
+    std::map<std::string, std::string> imported_xpubs;
+    if (signer_db.TableExists("REMOTE")) {
+      for (const auto& signer : signer_db.GetRemoteSigners(true)) {
+        std::string path = signer.get_derivation_path();
+        std::replace(path.begin(), path.end(), '\'', 'h');
+        if (!getxpub && signer.get_xpub().empty()) continue;
+        const auto xpub = getxpub ? getxpub(path) : signer.get_xpub();
+        const auto pubkey = DecodeExtPubKey(xpub).pubkey;
+        if (getxpub &&
+            ((!signer.get_xpub().empty() && signer.get_xpub() != xpub) ||
+             (!signer.get_public_key().empty() &&
+              signer.get_public_key() != HexStr(pubkey)) ||
+             (signer.get_xpub().empty() && signer.get_public_key().empty()))) {
+          throw NunchukException(
+              NunchukException::INVALID_PARAMETER,
+              "This Satochip card does not contain the saved key.");
+        }
+        imported_xpubs.emplace(path, xpub);
+      }
+    }
+
+    auto exec_sql = [&](const char* sql) {
+      if (sqlite3_exec(signer_db.db_, sql, nullptr, nullptr, nullptr) !=
+          SQLITE_OK) {
+        throw StorageException(StorageException::SQL_ERROR,
+                               sqlite3_errmsg(signer_db.db_));
+      }
+    };
+    exec_sql("BEGIN IMMEDIATE;");
+    try {
+      signer_db.InitSigner(name, device, {});
+      const std::vector<std::pair<WalletType, AddressType>> account_types = {
+          {WalletType::SINGLE_SIG, AddressType::LEGACY},
+          {WalletType::SINGLE_SIG, AddressType::NESTED_SEGWIT},
+          {WalletType::SINGLE_SIG, AddressType::NATIVE_SEGWIT},
+          {WalletType::SINGLE_SIG, AddressType::TAPROOT},
+          {WalletType::MULTI_SIG, AddressType::LEGACY},
+          {WalletType::MULTI_SIG, AddressType::NESTED_SEGWIT},
+          {WalletType::MULTI_SIG, AddressType::NATIVE_SEGWIT},
+          {WalletType::MULTI_SIG, AddressType::TAPROOT},
+          {WalletType::ESCROW, AddressType::ANY},
+      };
+      for (const auto& [path, xpub] : imported_xpubs) {
+        std::string type = "custom";
+        for (const auto& [w, a] : account_types) {
+          const int index = GetIndexFromPath(w, a, path);
+          if (index < 0 ||
+              (w == WalletType::MULTI_SIG && index == ESCROW_ACCOUNT_INDEX)) {
+            continue;
+          }
+          if (GetBip32Path(chain, w, a, index) == path) {
+            type = GetBip32Type(w, a);
+            break;
+          }
+        }
+        signer_db.AddXPub(path, xpub, type);
+      }
+      if (!imported_xpubs.empty()) {
+        exec_sql(
+            "UPDATE BIP32 SET USED = 1 WHERE TYPE != 'bip45' AND PATH IN "
+            "(SELECT REPLACE(PATH, '''', 'h') FROM REMOTE WHERE USED = 1);");
+      }
+      if (getxpub)
+        CacheMasterSignerXPub0(chain, signer_db, getxpub, progress, true);
+      signer_db.SetVisible(true);
+      exec_sql("COMMIT;");
+    } catch (...) {
+      sqlite3_exec(signer_db.db_, "ROLLBACK;", nullptr, 0, nullptr);
+      std::unique_lock<std::shared_mutex> cache_lock(NunchukDb::cache_access_);
+      NunchukDb::vstr_cache_.erase(file.string());
+      NunchukDb::vint_cache_.erase(file.string());
+      throw;
+    }
+  } catch (...) {
+    if (is_new) {
+      std::error_code ec;
+      bfs::remove(file, ec);
+    }
+    throw;
+  }
+  GetAppStateDb(chain).RemoveDeletedSigner(id);
+  return id;
+}
+
 std::string NunchukStorage::CreateMasterSignerFromMasterXprv(
     Chain chain, const std::string& name, const Device& device,
     const std::string& master_xprv) {
@@ -874,7 +977,44 @@ void NunchukStorage::CacheMasterSignerXPub(
     std::function<bool(int)> progress, bool first) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
+  CacheMasterSignerXPub0(chain, signer_db, getxpub, progress, first);
+}
+
+void NunchukStorage::CacheMasterSignerXPub0(
+    Chain chain, NunchukSignerDb& signer_db,
+    std::function<std::string(std::string)> getxpub,
+    std::function<bool(int)> progress, bool first) {
   auto signer_type = signer_db.GetSignerType();
+  if (signer_type == SignerType::SATOCHIP_NFC && !first) {
+    const auto root = getxpub("m");
+    const auto root_id = DecodeExtPubKey(root).pubkey.GetID();
+    if (HexStr(MakeUCharSpan(root_id).first(4)) != signer_db.GetFingerprint()) {
+      throw NunchukException(
+          NunchukException::INVALID_PARAMETER,
+          "Wrong Satochip card. Use the card for the selected key.");
+    }
+    const auto cached_root = signer_db.GetXpub("m");
+    if (cached_root.empty()) {
+      auto signers = signer_db.GetSingleSigners(false);
+      auto remotes = signer_db.GetRemoteSigners(true);
+      signers.insert(signers.end(), remotes.begin(), remotes.end());
+      for (const auto& signer : signers) {
+        const auto xpub = getxpub(signer.get_derivation_path());
+        if ((!signer.get_xpub().empty() && signer.get_xpub() != xpub) ||
+            (!signer.get_public_key().empty() &&
+             signer.get_public_key() != HexStr(DecodeExtPubKey(xpub).pubkey))) {
+          throw NunchukException(
+              NunchukException::INVALID_PARAMETER,
+              "This Satochip card does not contain the imported key.");
+        }
+      }
+      first = true;
+    } else if (root != cached_root) {
+      throw NunchukException(
+          NunchukException::INVALID_PARAMETER,
+          "Wrong Satochip card. Use the card originally added to Nunchuk.");
+    }
+  }
   bool is_software = signer_type == SignerType::SOFTWARE;
   bool is_nfc = signer_type == SignerType::NFC;
   bool is_bitbox2 = signer_db.GetDeviceType() == "bitbox02";
@@ -1964,13 +2104,21 @@ std::string NunchukStorage::ExportBackup() {
         tags.emplace_back(SignerTagToStr(tag));
       }
 
+      const auto type = signerDb.GetSignerType();
+      // Older clients reject new signer types; device_model retains identity.
+      const auto backup_type = type == SignerType::SATOCHIP_NFC
+                                   ? (signerDb.IsMaster() ? SignerType::HARDWARE
+                                                          : SignerType::AIRGAP)
+                                   : type;
       json signer = {{"id", signerDb.GetId()},
                      {"name", signerDb.GetName()},
                      {"device_type", signerDb.GetDeviceType()},
-                     {"signer_type", SignerTypeToStr(signerDb.GetSignerType())},
+                     {"signer_type", SignerTypeToStr(backup_type)},
                      {"tags", tags},
                      {"visible", signerDb.IsVisible()},
-                     {"device_model", signerDb.GetDeviceModel()},
+                     {"device_model", type == SignerType::SATOCHIP_NFC
+                                          ? "satochip"
+                                          : signerDb.GetDeviceModel()},
                      {"last_health_check", signerDb.GetLastHealthCheck()},
                      {"bip32", json::array()},
                      {"remote", json::array()}};
@@ -2072,7 +2220,9 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
 
       if (auto signer_type = signer.find("signer_type");
           signer_type != signer.end()) {
-        db.UpdateSignerType(SignerTypeFromStr(*signer_type));
+        db.UpdateSignerType(signer.value("device_model", "") == "satochip"
+                                ? SignerType::SATOCHIP_NFC
+                                : SignerTypeFromStr(*signer_type));
       }
 
       if (auto signer_tags = signer.find("tags"); signer_tags != signer.end()) {
