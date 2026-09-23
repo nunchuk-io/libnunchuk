@@ -314,6 +314,9 @@ SignerType NunchukSignerDb::GetSignerType() const {
     return SignerType::FOREIGN_SOFTWARE;
   }
 
+  if (GetDeviceType() == "satochip") {
+    return SignerType::SATOCHIP_NFC;
+  }
   if (GetDeviceType() == "nfc") {
     return SignerType::NFC;
   }
@@ -546,8 +549,9 @@ bool NunchukSignerDb::SetRemoteLastHealthCheck(const std::string& path,
   return updated;
 }
 
-std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
-  if (IsMaster()) return {};
+std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners(
+    bool include_all) const {
+  if ((!include_all && IsMaster()) || !TableExists("REMOTE")) return {};
   sqlite3_stmt* stmt;
   std::string sql =
       "SELECT PATH, XPUB, PUBKEY, NAME, LAST_HEALTHCHECK, USED FROM REMOTE;";
@@ -564,7 +568,7 @@ std::vector<SingleSigner> NunchukSignerDb::GetRemoteSigners() const {
     SingleSigner signer(name, xpub, pubkey, path, {0, 1}, id_,
                         last_health_check, {}, used, GetSignerType(), GetTags(),
                         IsVisible());
-    if (signer.get_type() != SignerType::UNKNOWN) {
+    if (include_all || signer.get_type() != SignerType::UNKNOWN) {
       signers.push_back(signer);
     }
 
@@ -623,12 +627,14 @@ bool NunchukSignerDb::UpdateSignerType(SignerType signer_type) {
         return 5;
       case SignerType::PORTAL_NFC:
         return 6;
-      case SignerType::NFC:
+      case SignerType::SATOCHIP_NFC:
         return 7;
-      case SignerType::HARDWARE:
+      case SignerType::NFC:
         return 8;
-      case SignerType::SOFTWARE:
+      case SignerType::HARDWARE:
         return 9;
+      case SignerType::SOFTWARE:
+        return 10;
     }
     return -1;
   };

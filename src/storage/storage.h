@@ -69,6 +69,10 @@ class NunchukStorage {
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
                                  const std::string &mnemonic = {});
+  std::string CreateSatochipMasterSigner(
+      Chain chain, const std::string &name, const Device &device,
+      std::function<std::string(std::string)> getxpub,
+      std::function<bool(int)> progress);
   std::string CreateMasterSignerFromMasterXprv(
       Chain chain, const std::string &name, const Device &device,
       const std::string &master_xprv = {});
@@ -415,6 +419,9 @@ class NunchukStorage {
   NunchukWalletDb GetLiquidSupportedWalletDb(Chain chain,
                                              const std::string &id);
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
+  void CacheMasterSignerXPub0(Chain chain, NunchukSignerDb &signer_db,
+                              std::function<std::string(std::string)> getxpub,
+                              std::function<bool(int)> progress, bool first);
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
   NunchukGroupDb GetGroupDb(Chain chain);

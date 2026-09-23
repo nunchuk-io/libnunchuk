@@ -233,6 +233,8 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/coldcard.cpp
     src/utils/trezor.hpp
     src/utils/trezor.cpp
+    src/utils/satochip.hpp
+    src/utils/satochip.cpp
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/certs/sslcerts.cpp
