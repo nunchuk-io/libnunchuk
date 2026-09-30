@@ -21,6 +21,7 @@
 #include <softwaresigner.h>
 #include <signingprovider.h>
 #include <boost/algorithm/string/trim.hpp>
+#include <algorithm>
 #include <map>
 #include <utils/addressutils.hpp>
 #include <liquid/wallyutils.hpp>
@@ -57,6 +58,7 @@
 #include <utils/passport.hpp>
 #include <utils/silentpayment.hpp>
 #include <utils/coldcard.hpp>
+#include <utils/rfc2440.hpp>
 
 #include <random.h>
 #include <ctime>
@@ -973,31 +975,118 @@ std::string Utils::GenerateColdCardHealthCheckMessage(
 
 std::string Utils::ExtractColdcardMessageSignature(
     const std::vector<std::string>& qr_data) {
-  bool is_simple_qr =
-      qr_data.size() == 1 && "B$" != std::string_view(qr_data[0]).substr(0, 2);
-  if (is_simple_qr) {
-    return qr_data[0];
-  }
-  try {
-    auto join_result = bbqr::join_qrs<std::string>(qr_data);
-    if (!join_result.is_complete ||
-        join_result.file_type != bbqr::FileType::U) {
-      throw NunchukException(NunchukException::INVALID_PARAMETER,
-                             "Invalid data");
-    }
-
-    auto msg = ParseBitcoinSignedMessage(join_result.raw);
-    return msg.signature;
-  } catch (NunchukException& e) {
-    throw;
-  } catch (std::exception& e) {
-    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
-  }
+  return ExtractMessageSignature(qr_data);
 }
 
 std::string Utils::ExtractColdcardMessageSignature(const std::string& value) {
-  auto msg = ParseBitcoinSignedMessage(value);
-  return msg.signature;
+  return ExtractMessageSignature(value);
+}
+
+static void ValidateSigningMessage(const std::string& message, bool multiline) {
+  if (message.empty() ||
+      !std::all_of(message.begin(), message.end(), [multiline](unsigned char c) {
+        return (c >= 0x20 && c <= 0x7e) || (multiline && c == '\n');
+      })) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Expected a nonempty printable ASCII message");
+  }
+}
+
+static std::string MessageSigningAddressFormat(AddressType type, bool passport) {
+  switch (type) {
+    case AddressType::LEGACY:
+      return passport ? "AF_CLASSIC" : "p2pkh";
+    case AddressType::NESTED_SEGWIT:
+      return passport ? "AF_P2WPKH_P2SH" : "p2sh-p2wpkh";
+    case AddressType::NATIVE_SEGWIT:
+      return passport ? "AF_P2WPKH" : "p2wpkh";
+    case AddressType::TAPROOT:
+      return passport ? "AF_P2TR" : "p2tr";
+    default:
+      throw NunchukException(NunchukException::INVALID_PARAMETER,
+                             "Unsupported message-signing address type");
+  }
+}
+
+std::vector<std::string> Utils::GenerateMessageSigningQR(
+    const std::string& derivation_path, const std::string& message) {
+  const auto path = "m" + FormalizePath(derivation_path);
+  ValidateSigningMessage(message, false);
+  return {"signmessage " + path + " ascii:" + message};
+}
+
+std::string Utils::GenerateKruxMessageSigning(
+    const std::string& derivation_path, const std::string& message,
+    AddressType address_type) {
+  auto path = "m" + FormalizePath(derivation_path);
+  std::vector<uint32_t> keypath;
+  if (ParseHDKeypath(path, keypath) && !keypath.empty() &&
+      std::all_of(keypath.begin(), keypath.end(),
+                  [](uint32_t child) { return child >= (uint32_t{1} << 31); })) {
+    // Workaround: Krux requires a child path for message signing.
+    path += "/0/0";
+  }
+  ValidateSigningMessage(message, true);
+  if (message.front() == ' ' || message.back() == ' ' ||
+      message.front() == '\n' || message.back() == '\n' ||
+      message.find("\n\n") != std::string::npos ||
+      message.find(" \n") != std::string::npos ||
+      message.find("\n ") != std::string::npos) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Krux message lines cannot be blank or padded");
+  }
+  return message + "\n" + path + "\n" +
+         MessageSigningAddressFormat(address_type, false);
+}
+
+std::string Utils::GeneratePassportMessageSigning(
+    const std::string& derivation_path, const std::string& message,
+    AddressType address_type) {
+  const auto path = "m" + FormalizePath(derivation_path);
+  ValidateSigningMessage(message, false);
+  auto payload = message + "\n" + path;
+  if (address_type != AddressType::LEGACY) {
+    payload += "\n" + MessageSigningAddressFormat(address_type, true);
+  }
+  if (message.front() == ' ' || message.back() == ' ' ||
+      message.find("    ") != std::string::npos || payload.size() > 240) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid Passport message spacing or size");
+  }
+  return payload;
+}
+
+std::string Utils::ExtractMessageSignature(const std::string& response) {
+  auto signature = boost::trim_copy(response);
+  if (signature.find("-----BEGIN BITCOIN SIGNED MESSAGE-----") !=
+      std::string::npos) {
+    signature = boost::trim_copy(ParseBitcoinSignedMessage(signature).signature);
+  }
+  const auto decoded = DecodeBase64(signature);
+  if (!decoded || decoded->size() != 65 || decoded->front() < 31 ||
+      decoded->front() > 42) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Invalid compact Bitcoin message signature");
+  }
+  return EncodeBase64(*decoded);
+}
+
+std::string Utils::ExtractMessageSignature(
+    const std::vector<std::string>& qr_data) {
+  if (qr_data.size() == 1 && !qr_data[0].starts_with("B$")) {
+    return ExtractMessageSignature(qr_data[0]);
+  }
+  try {
+    auto result = bbqr::join_qrs<std::string>(qr_data);
+    if (!result.is_complete || result.file_type != bbqr::FileType::U) {
+      throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+    }
+    return ExtractMessageSignature(result.raw);
+  } catch (const NunchukException&) {
+    throw;
+  } catch (const std::exception&) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER, "Invalid data");
+  }
 }
 
 std::vector<std::string> Utils::ExportBBQRJSON(const std::string& value,
