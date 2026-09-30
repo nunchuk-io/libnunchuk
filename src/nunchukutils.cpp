@@ -953,6 +953,21 @@ std::string Utils::ExtractColdcardMessageSignature(const std::string& value) {
   return ExtractMessageSignature(value);
 }
 
+std::string Utils::TrezorGetSignMessagePath(const SingleSigner& signer) {
+  std::string formalized_path = signer.get_derivation_path();
+  std::replace(formalized_path.begin(), formalized_path.end(), 'h', '\'');
+  std::vector<uint32_t> keypath;
+  constexpr uint32_t hardened = uint32_t{1} << 31;
+  if (ParseHDKeypath(formalized_path, keypath) && !keypath.empty() &&
+      std::all_of(keypath.begin(), keypath.end(),
+                  [hardened](uint32_t child) {
+                    return child >= hardened;
+                  })) {
+    formalized_path += "/0/0";
+  }
+  return formalized_path;
+}
+
 static void ValidateSigningMessage(const std::string& message, bool multiline) {
   if (message.empty() ||
       !std::all_of(message.begin(), message.end(), [multiline](unsigned char c) {

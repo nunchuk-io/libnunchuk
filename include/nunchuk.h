@@ -2420,6 +2420,8 @@ class NUNCHUK_EXPORT Utils {
   static std::string ExtractMessageSignature(
       const std::vector<std::string>& qr_data);
 
+  static std::string TrezorGetSignMessagePath(const SingleSigner& signer);
+
   static std::vector<std::string> ExportBBQRJSON(const std::string& value,
                                                  int min_version = 1 /*1-40*/,
                                                  int max_version = 40 /*1-40*/
