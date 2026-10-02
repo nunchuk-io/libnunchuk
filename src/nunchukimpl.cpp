@@ -2015,13 +2015,16 @@ void NunchukImpl::DisplayAddressOnDevice(
     }
     for (auto&& signer : wallet.get_signers()) {
       if (signer.get_master_fingerprint() == device.get_master_fingerprint()) {
-        if (device.get_type() == "bitbox02") {
-          desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_ALL);
-        } else if (device.get_type() == "ledger" ||
-                   device.get_type() == "jade") {
-          desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_XPUB, idx);
+        if (device.get_type() == "bitbox02" || device.get_type() == "ledger" ||
+            device.get_type() == "jade") {
+          desc = wallet.get_descriptor(internal ? DescriptorPath::INTERNAL_XPUB
+                                                : DescriptorPath::EXTERNAL_XPUB,
+                                       idx);
         } else {
-          desc = wallet.get_descriptor(DescriptorPath::EXTERNAL_PUBKEY, idx);
+          desc = wallet.get_descriptor(
+              internal ? DescriptorPath::INTERNAL_PUBKEY
+                       : DescriptorPath::EXTERNAL_PUBKEY,
+              idx);
         }
         hwi_.DisplayAddress(wallet, device, desc, idx, internal);
       }
