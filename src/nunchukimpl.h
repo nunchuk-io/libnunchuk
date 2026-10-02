@@ -497,6 +497,15 @@ class NunchukImpl : public Nunchuk {
                                     const std::string& name,
                                     std::function<bool(int)> progress,
                                     bool is_primary = false) override;
+  void VerifyKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& xfp = {}, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) override;
+  MasterSigner ImportKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) override;
   MasterSigner ImportBackupKey(const std::vector<unsigned char>& data,
                                const std::string& backup_key,
                                const std::string& name,

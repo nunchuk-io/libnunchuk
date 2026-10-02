@@ -46,6 +46,7 @@
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
 #include <utils/coldcard.hpp>
+#include <utils/krux.hpp>
 #include <utils/satochip.hpp>
 #include <ur.h>
 #include <ur-encoder.hpp>
@@ -2511,6 +2512,30 @@ MasterSigner NunchukImpl::ImportColdcardBackup(
   return mastersigner;
 }
 
+void NunchukImpl::VerifyKruxBackup(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& xfp, const std::string& mnemonic_id,
+    const std::string& passphrase) {
+  SoftwareSigner signer{ExtractKruxBackup(data, backup_key, mnemonic_id),
+                        passphrase};
+  const std::string id = to_lower_copy(signer.GetMasterFingerprint());
+  if (!xfp.empty() && id != to_lower_copy(xfp)) {
+    throw NunchukException(TapProtocolException::INVALID_DEVICE,
+                           strprintf("Invalid device: key fingerprint "
+                                     "does not match. Expected '%s'",
+                                     xfp));
+  }
+}
+
+MasterSigner NunchukImpl::ImportKruxBackup(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& name, std::function<bool(int)> progress, bool is_primary,
+    const std::string& mnemonic_id, const std::string& passphrase) {
+  return CreateSoftwareSigner(name,
+                              ExtractKruxBackup(data, backup_key, mnemonic_id),
+                              passphrase, progress, is_primary);
+}
+
 MasterSigner NunchukImpl::ImportBackupKey(
     const std::vector<unsigned char>& data, const std::string& backup_key,
     const std::string& name, std::function<bool(int)> progress,
@@ -2524,10 +2549,14 @@ MasterSigner NunchukImpl::ImportBackupKey(
     return ImportColdcardBackup(data, backup_key, name, progress, is_primary);
   };
 
+  const auto import_krux = [&]() {
+    return ImportKruxBackup(data, backup_key, name, progress, is_primary);
+  };
+
   if (data.size() < 200) {
-    return RunThrowOne(import_tapsigner, import_coldcard);
+    return RunThrowOne(import_tapsigner, import_coldcard, import_krux);
   }
-  return RunThrowOne(import_coldcard, import_tapsigner);
+  return RunThrowOne(import_coldcard, import_tapsigner, import_krux);
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {

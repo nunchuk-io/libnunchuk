@@ -1909,6 +1909,15 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<unsigned char>& data, const std::string& backup_key,
       const std::string& name, std::function<bool(int)> progress,
       bool is_primary = false) = 0;
+  virtual void VerifyKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& xfp = {}, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) = 0;
+  virtual MasterSigner ImportKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) = 0;
   virtual MasterSigner ImportBackupKey(const std::vector<unsigned char>& data,
                                        const std::string& backup_key,
                                        const std::string& name,
@@ -2450,6 +2459,8 @@ class NUNCHUK_EXPORT Utils {
   static SingleSigner ParseSignerString(const std::string& signer_str);
   static std::vector<Wallet> ParseJSONWallets(
       const std::string& json_str, SignerType signer_type = SignerType::AIRGAP);
+  static std::vector<std::string> GetKruxBackupMnemonicIds(
+      const std::vector<unsigned char>& data);
   static std::vector<Wallet> ParseBBQRWallets(
       const std::vector<std::string>& qr_data);
   static std::vector<SingleSigner> ParsePassportSigners(
