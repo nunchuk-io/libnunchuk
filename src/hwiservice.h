@@ -55,9 +55,9 @@ class HWIService {
   void SendPassphrase(const Device &device,
                       const std::string &passphrase) const;
 
-  /** Request termination of the HWI child process started by the current
-   *  RunCmd invocation (e.g. user cancel while device is waiting). No-op if
-   *  no HWI process is running. Safe to call from another thread. */
+  /** Request termination of HWI child processes started by RunCmd (e.g. user
+   *  cancel while a device is waiting). No-op if no HWI process is running.
+   *  Safe to call from another thread. */
   void KillHwiProcess() const;
 
  private:
@@ -68,7 +68,7 @@ class HWIService {
   Chain chain_;
   int version_{};
   mutable std::mutex hwi_child_mutex_;
-  mutable std::unique_ptr<HwiChildHandle> active_hwi_child_;
+  mutable std::vector<std::unique_ptr<HwiChildHandle>> active_hwi_children_;
 };
 
 }  // namespace nunchuk

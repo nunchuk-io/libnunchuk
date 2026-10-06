@@ -27,6 +27,7 @@
 #ifdef _WIN32
 #include <boost/process/windows.hpp>
 #endif
+#include <algorithm>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
@@ -131,6 +132,18 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
   int exitcode = -1;
   std::string result;
   const std::string cmd_str = cmd.str();
+  HwiChildHandle* child = nullptr;
+  auto release_child = [&]() {
+    if (!child) return;
+    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
+    auto it = std::find_if(
+        active_hwi_children_.begin(), active_hwi_children_.end(),
+        [child](const std::unique_ptr<HwiChildHandle>& handle) {
+          return handle.get() == child;
+        });
+    if (it != active_hwi_children_.end()) active_hwi_children_.erase(it);
+    child = nullptr;
+  };
   try {
     bp::ipstream out;
 #ifdef _WIN32
@@ -142,25 +155,22 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
 #endif
     {
       std::lock_guard<std::mutex> lock(hwi_child_mutex_);
-      active_hwi_child_ = std::make_unique<HwiChildHandle>(std::move(c));
+      active_hwi_children_.push_back(
+          std::make_unique<HwiChildHandle>(std::move(c)));
+      child = active_hwi_children_.back().get();
     }
     std::getline(out, result);
-    active_hwi_child_->proc.wait();
-    exitcode = active_hwi_child_->proc.exit_code();
+    child->proc.wait();
+    exitcode = child->proc.exit_code();
   } catch (const bp::process_error& pe) {
-    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
-    active_hwi_child_.reset();
+    release_child();
     throw HWIException(HWIException::RUN_ERROR,
                        NormalizeErrorMessage(pe.what()));
   } catch (...) {
-    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
-    active_hwi_child_.reset();
+    release_child();
     throw;
   }
-  {
-    std::lock_guard<std::mutex> lock(hwi_child_mutex_);
-    active_hwi_child_.reset();
-  }
+  release_child();
 
   if (exitcode != 0) {
     LOG_F(ERROR, "Run hwi command '%s' exit code: %d", cmd_str.c_str(),
@@ -175,11 +185,13 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
 
 void HWIService::KillHwiProcess() const {
   std::lock_guard<std::mutex> lock(hwi_child_mutex_);
-  if (!active_hwi_child_) return;
-  try {
-    active_hwi_child_->proc.terminate();
-  } catch (const std::exception& e) {
-    LOG_F(WARNING, "KillHwiProcess terminate: %s", e.what());
+  for (auto& child : active_hwi_children_) {
+    if (!child) continue;
+    try {
+      child->proc.terminate();
+    } catch (const std::exception& e) {
+      LOG_F(WARNING, "KillHwiProcess terminate: %s", e.what());
+    }
   }
 }
 
