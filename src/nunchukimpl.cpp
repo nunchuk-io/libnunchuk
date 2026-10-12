@@ -23,6 +23,7 @@
 #include <validation.h>
 #include <algorithm>
 #include <iomanip>
+#include <set>
 #include <sstream>
 #include "bbqr/bbqr.hpp"
 #include "descriptor.h"
@@ -2008,13 +2009,15 @@ void NunchukImpl::DisplayAddressOnDevice(
     idx = address_index.first;
     internal = address_index.second;
   }
+  std::set<std::string> displayed_fingerprints;
   for (auto&& device : devices) {
-    if (!device_fingerprint.empty() &&
-        device_fingerprint != device.get_master_fingerprint()) {
+    const auto fingerprint = device.get_master_fingerprint();
+    if ((!device_fingerprint.empty() && device_fingerprint != fingerprint) ||
+        displayed_fingerprints.count(fingerprint)) {
       continue;
     }
     for (auto&& signer : wallet.get_signers()) {
-      if (signer.get_master_fingerprint() == device.get_master_fingerprint()) {
+      if (signer.get_master_fingerprint() == fingerprint) {
         if (device.get_type() == "bitbox02" || device.get_type() == "ledger" ||
             device.get_type() == "jade") {
           desc = wallet.get_descriptor(internal ? DescriptorPath::INTERNAL_XPUB
@@ -2027,6 +2030,8 @@ void NunchukImpl::DisplayAddressOnDevice(
               idx);
         }
         hwi_.DisplayAddress(wallet, device, desc, idx, internal);
+        displayed_fingerprints.insert(fingerprint);
+        break;
       }
     }
   }
