@@ -2112,8 +2112,7 @@ std::string NunchukWalletDb::ExportBIP329() {
     std::string type = coin.find(':') != std::string::npos ? "output" : "tx";
     json line = {
         {"type", type}, {"ref", coin}, {"label", boost::trim_copy(label)}};
-    if (type == "output")
-      line["spendable"] = spendable[coin] ? "true" : "false";
+    if (type == "output") line["spendable"] = spendable[coin];
     bip329 << line.dump() << std::endl;
   }
   return bip329.str();
@@ -2128,17 +2127,26 @@ void NunchukWalletDb::ImportBIP329(const std::string& data) {
     if (type != "output" && type != "tx") continue;
     std::string coin = json_line["ref"];
     std::string memo = json_line["label"];
+    bool update_locked = false;
     int locked = 0;
-    if (json_line["spendable"] != nullptr) {
-      bool spendable = json_line["spendable"] == "true";
-      locked = spendable ? 0 : 1;
+    if (type == "output" && json_line.contains("spendable") &&
+        !json_line["spendable"].is_null()) {
+      const json& value = json_line["spendable"];
+      if (value.is_boolean()) {
+        update_locked = true;
+        locked = value.get<bool>() ? 0 : 1;
+      } else if (value.is_string()) {
+        update_locked = true;
+        locked = value.get<std::string>() == "true" ? 0 : 1;
+      }
     }
 
     sqlite3_stmt* stmt;
     std::string sql =
         "INSERT INTO COININFO(COIN, MEMO, LOCKED) VALUES (?1, ?2, ?3) "
-        "ON CONFLICT(COIN) DO UPDATE SET LOCKED=excluded.LOCKED, "
-        "MEMO=excluded.MEMO;";
+        "ON CONFLICT(COIN) DO UPDATE SET MEMO=excluded.MEMO";
+    if (update_locked) sql += ", LOCKED=excluded.LOCKED";
+    sql += ";";
     sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, coin.c_str(), coin.size(), NULL);
     sqlite3_bind_text(stmt, 2, memo.c_str(), memo.size(), NULL);
