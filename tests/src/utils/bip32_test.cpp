@@ -85,4 +85,23 @@ TEST_CASE("testing bip32 utils") {
 
   CHECK(GetIndexFromPath("m/84h/0h/10h") == 10);
   CHECK(GetIndexFromPath("m/48h/0h/11h/1h") == 11);
+
+  CHECK(IsDefaultBip32Path("m/84h/0h/0h", AddressType::NATIVE_SEGWIT,
+                           WalletType::SINGLE_SIG, Chain::MAIN));
+  CHECK(IsDefaultBip32Path("m/84'/0'/0'", AddressType::NATIVE_SEGWIT,
+                           WalletType::SINGLE_SIG, Chain::MAIN));
+  CHECK_FALSE(IsDefaultBip32Path("m/84h/1h/0h", AddressType::NATIVE_SEGWIT,
+                                 WalletType::SINGLE_SIG, Chain::MAIN));
+  CHECK(IsDefaultBip32Path("m/84h/1h/0h", AddressType::NATIVE_SEGWIT,
+                           WalletType::SINGLE_SIG, Chain::TESTNET));
+  CHECK(IsDefaultBip32Path("m/84h/1h/0h", AddressType::NATIVE_SEGWIT,
+                           WalletType::SINGLE_SIG, Chain::SIGNET));
+  CHECK(IsDefaultBip32Path("m/48h/0h/0h/2h", AddressType::NATIVE_SEGWIT,
+                           WalletType::MULTI_SIG, Chain::MAIN));
+  CHECK_FALSE(IsDefaultBip32Path("m/48h/1h/0h/2h", AddressType::NATIVE_SEGWIT,
+                                 WalletType::MULTI_SIG, Chain::MAIN));
+  CHECK(IsDefaultBip32Path("m/45h", AddressType::LEGACY, WalletType::MULTI_SIG,
+                           Chain::MAIN));
+  CHECK(IsDefaultBip32Path("m/45h", AddressType::LEGACY, WalletType::MULTI_SIG,
+                           Chain::TESTNET));
 }

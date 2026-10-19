@@ -2435,6 +2435,9 @@ class NUNCHUK_EXPORT Utils {
   static int GetIndexFromPath(const std::string& path);
   static std::string GetBip32Path(WalletType wallet_type,
                                   AddressType address_type, int index);
+  static bool IsDefaultBip32Path(const std::string& path,
+                                 AddressType address_type,
+                                 WalletType wallet_type);
   static std::vector<std::string> DeriveAddresses(const Wallet& wallet,
                                                   int from_index, int to_index);
   static bool NewDecoyPin(const std::string& storage_path,

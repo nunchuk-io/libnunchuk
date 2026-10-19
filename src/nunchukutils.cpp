@@ -1266,6 +1266,13 @@ std::string Utils::GetBip32Path(WalletType wallet_type,
   return ::GetBip32Path(Utils::GetChain(), wallet_type, address_type, index);
 }
 
+bool Utils::IsDefaultBip32Path(const std::string& path,
+                               AddressType address_type,
+                               WalletType wallet_type) {
+  return ::IsDefaultBip32Path(path, address_type, wallet_type,
+                              Utils::GetChain());
+}
+
 std::vector<std::string> Utils::DeriveAddresses(const Wallet& wallet,
                                                 int from_index, int to_index) {
   std::string external_desc =
