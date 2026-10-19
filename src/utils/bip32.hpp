@@ -23,6 +23,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/format.hpp>
 #include <tinyformat.h>
+#include <algorithm>
 #include <iomanip>
 #include <regex>
 #include <string>
@@ -137,6 +138,54 @@ inline std::string GetBip32Type(const std::string& path) {
     if (boost::algorithm::ends_with(path, "2h")) return "bip48_2";
   }
   return "custom";
+}
+
+inline bool IsDefaultBip32Path(const std::string& path,
+                               const nunchuk::AddressType& at,
+                               const nunchuk::WalletType& wt,
+                               const nunchuk::Chain& chain) {
+  using namespace nunchuk;
+
+  std::string normalized(path);
+  std::replace(normalized.begin(), normalized.end(), '\'', 'h');
+
+  // SLIP-44: Bitcoin mainnet is 0, every other chain is 1. Liquid is 1776.
+  const int coin_type = wt == WalletType::LIQUID ? 1776
+                        : chain == Chain::MAIN   ? 0
+                                                 : 1;
+  auto matches = [&](const std::string& pattern) {
+    return std::regex_match(normalized, std::regex(pattern));
+  };
+  // Purpose plus coin_type, then either the end of the path or more components.
+  auto with_coin = [&](const char* purpose) {
+    return matches(strprintf(R"(%s/%dh($|/.*))", purpose, coin_type));
+  };
+
+  if (wt == WalletType::LIQUID) {
+    if (at == AddressType::LEGACY) return with_coin("m/44h");
+    if (at == AddressType::NESTED_SEGWIT) return with_coin("m/49h");
+    if (at == AddressType::NATIVE_SEGWIT) return with_coin("m/84h");
+    if (at == AddressType::TAPROOT) return with_coin("m/86h");
+    return false;
+  }
+
+  const bool multisig =
+      wt == WalletType::MULTI_SIG || wt == WalletType::MINISCRIPT;
+  if (at == AddressType::LEGACY && wt == WalletType::SINGLE_SIG)
+    return with_coin("m/44h");
+  if (at == AddressType::LEGACY && multisig) return matches(R"(m/45h($|/.*))");
+  if (at == AddressType::NESTED_SEGWIT && wt == WalletType::SINGLE_SIG)
+    return with_coin("m/49h");
+  if (at == AddressType::NATIVE_SEGWIT && wt == WalletType::SINGLE_SIG)
+    return with_coin("m/84h");
+  if (at == AddressType::TAPROOT && wt == WalletType::SINGLE_SIG)
+    return with_coin("m/86h");
+  if (at == AddressType::TAPROOT && multisig) return with_coin("m/87h");
+  if (at == AddressType::NESTED_SEGWIT && multisig)
+    return matches(strprintf(R"(m/48h/%dh/\d+h/1h)", coin_type));
+  if (at == AddressType::NATIVE_SEGWIT && multisig)
+    return matches(strprintf(R"(m/48h/%dh/\d+h/2h)", coin_type));
+  return false;
 }
 
 inline std::string GetBip32Type(const nunchuk::WalletType& wallet_type,
