@@ -16,6 +16,7 @@
  */
 
 #include <backend/electrum/client.h>
+#include <certs/sslcerts.h>
 #include <boost/asio/ip/address.hpp>
 #include <iterator>
 #include <utils/loguru.hpp>
@@ -113,11 +114,12 @@ ElectrumClient::ElectrumClient(const AppSettings& appsettings,
   is_secure_ = boost::iequals(protocol_, "ssl");
   if (is_secure_) {
     ssl::context ctx(ssl::context::tls);
-    if (!appsettings.get_certificate_file().empty()) {
-      ctx.set_verify_mode(ssl::verify_peer);
+    ssl_allow_untrusted_ = appsettings.get_certificate_file().empty();
+    // verify_peer makes callback rejection fatal, including without a CA file.
+    // The callback preserves support for private/self-signed certificates.
+    ctx.set_verify_mode(ssl::verify_peer);
+    if (!ssl_allow_untrusted_) {
       ctx.load_verify_file(appsettings.get_certificate_file());
-    } else {
-      ctx.set_verify_mode(ssl::verify_none);
     }
     secure_socket_ = std::unique_ptr<ssl::stream<ip::tcp::socket>>(
         new ssl::stream<ip::tcp::socket>(io_service_, ctx));
@@ -580,14 +582,26 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
       SSL_set_tlsext_host_name(secure_socket_->native_handle(), host.c_str());
     }
     secure_socket_->set_verify_callback(
-        [](bool preverified, ssl::verify_context& ctx) {
-          char subject_name[256];
-          X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
-          X509_NAME_oneline(X509_get_subject_name(cert), subject_name, 256);
+        [allow_untrusted = ssl_allow_untrusted_](bool preverified,
+                                               ssl::verify_context& ctx) {
+          X509_STORE_CTX* store_ctx = ctx.native_handle();
+          if (!CheckCertificateChainForCompromisedKeys(store_ctx)) {
+            return false;
+          }
+          char subject_name[256] = {};
+          X509* cert = X509_STORE_CTX_get_current_cert(store_ctx);
+          if (cert != nullptr) {
+            X509_NAME_oneline(X509_get_subject_name(cert), subject_name,
+                             sizeof(subject_name));
+          }
           LOG_F(INFO, "Verifying %s", subject_name);
-          return preverified;
+          return allow_untrusted || preverified;
         });
-    secure_socket_->handshake(ssl::stream_base::client);
+    boost::system::error_code handshake_ec;
+    secure_socket_->handshake(ssl::stream_base::client, handshake_ec);
+    if (handshake_ec) {
+      return handle_error("handle_connect", handshake_ec.message());
+    }
   }
 
   connected_ = true;

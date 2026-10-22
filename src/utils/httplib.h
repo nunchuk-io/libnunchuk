@@ -1440,6 +1440,7 @@ private:
 
   std::string ca_cert_file_path_;
   std::string ca_cert_dir_path_;
+  bool ca_cert_store_set_ = false;
   long verify_result_ = 0;
 
   friend class ClientImpl;
@@ -6956,6 +6957,7 @@ inline void SSLClient::set_ca_cert_store(X509_STORE *ca_cert_store) {
         // Free memory allocated for old cert and use new store `ca_cert_store`
         SSL_CTX_set_cert_store(ctx_, ca_cert_store);
       }
+      ca_cert_store_set_ = true;
     } else {
       X509_STORE_free(ca_cert_store);
     }
@@ -7045,7 +7047,7 @@ inline bool SSLClient::load_certs() {
                                          ca_cert_dir_path_.c_str())) {
         ret = false;
       }
-    } else {
+    } else if (!ca_cert_store_set_) {
 #ifdef _WIN32
       detail::load_system_certs_on_windows(SSL_CTX_get_cert_store(ctx_));
 #else
