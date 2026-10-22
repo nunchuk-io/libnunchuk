@@ -2231,8 +2231,10 @@ int NunchukWalletDb::CreateCoinTag(const std::string& name,
   sqlite3_step(stmt);
   if (sqlite3_changes(db_) != 1) {
     SQLCHECK(sqlite3_finalize(stmt));
+    sqlite3_exec(db_, "ROLLBACK;", NULL, NULL, NULL);
     throw StorageException(StorageException::TAG_EXISTS, "Tag exists");
   }
+  SQLCHECK(sqlite3_finalize(stmt));
 
   sql = "SELECT last_insert_rowid()";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -2240,9 +2242,8 @@ int NunchukWalletDb::CreateCoinTag(const std::string& name,
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     id = sqlite3_column_int(stmt, 0);
   }
-
-  sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
   SQLCHECK(sqlite3_finalize(stmt));
+  sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
   SetLastModified(std::time(0));
   return id;
 }
@@ -2415,9 +2416,11 @@ int NunchukWalletDb::CreateCoinCollection(const std::string& name) {
   sqlite3_step(stmt);
   if (sqlite3_changes(db_) != 1) {
     SQLCHECK(sqlite3_finalize(stmt));
+    sqlite3_exec(db_, "ROLLBACK;", NULL, NULL, NULL);
     throw StorageException(StorageException::COLLECTION_EXISTS,
                            "Collection exists");
   }
+  SQLCHECK(sqlite3_finalize(stmt));
 
   sql = "SELECT last_insert_rowid()";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
@@ -2425,9 +2428,8 @@ int NunchukWalletDb::CreateCoinCollection(const std::string& name) {
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     id = sqlite3_column_int(stmt, 0);
   }
-
-  sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
   SQLCHECK(sqlite3_finalize(stmt));
+  sqlite3_exec(db_, "COMMIT;", NULL, NULL, NULL);
   SetLastModified(std::time(0));
   return id;
 }

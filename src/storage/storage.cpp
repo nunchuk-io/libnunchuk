@@ -223,6 +223,7 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
                            strprintf("Wallet already exists! id = '%s'", id));
   }
   wallet_db.EncryptDb(wallet_file.string(), passphrase_);
+  wallet_db.Evict();
   return id;
 }
 
@@ -304,6 +305,7 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
       } else {
         return db.ReKey(value);
       }
+      db.Evict();
     }
 #ifdef _WIN32
     // Workaround https://github.com/msys2/MSYS2-packages/issues/1937
@@ -1251,6 +1253,7 @@ bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
       }
     }
     wallet_db.DeleteWallet();
+    wallet_db.Evict();
   }
   GetAppStateDb(chain).AddDeletedWallet(id);
   return bfs::remove(GetWalletDir(chain, id));
@@ -1258,11 +1261,12 @@ bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
 
 bool NunchukStorage::DeleteMasterSigner(Chain chain, const std::string& id) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  auto signer_db = GetSignerDb(chain, id);
-
-  GetTaprotocolDb(chain).DeleteTapsigner(id);
-
-  signer_db.DeleteSigner();
+  {
+    auto signer_db = GetSignerDb(chain, id);
+    GetTaprotocolDb(chain).DeleteTapsigner(id);
+    signer_db.DeleteSigner();
+    signer_db.Evict();
+  }
   GetAppStateDb(chain).AddDeletedSigner(id);
   return bfs::remove(GetSignerDir(chain, id));
 }
@@ -2018,7 +2022,9 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       std::vector<std::string> deleted_signers = d["deleted_signers"];
       for (auto&& id : deleted_signers) {
         appstate.AddDeletedSigner(id);
-        bfs::remove(GetSignerDir(chain, id));
+        const auto signer_file = GetSignerDir(chain, id);
+        NunchukDb::EvictFile(signer_file.string());
+        bfs::remove(signer_file);
       }
     }
 
@@ -2094,7 +2100,9 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       std::vector<std::string> deleted_wallets = d["deleted_wallets"];
       for (auto&& id : deleted_wallets) {
         appstate.AddDeletedWallet(id);
-        bfs::remove(GetWalletDir(chain, id));
+        const auto wallet_file = GetWalletDir(chain, id);
+        NunchukDb::EvictFile(wallet_file.string());
+        bfs::remove(wallet_file);
       }
     }
     percent += 25;
@@ -2486,6 +2494,7 @@ bool NunchukStorage::ChangeDecoyPin(const std::string& old_pin,
     throw NunchukException(NunchukException::INVALID_PARAMETER,
                            "New pin already exists");
   }
+  NunchukDb::EvictUnder(old_db_folder.string());
   bfs::rename(old_db_folder, new_db_folder);
   if (!bfs::is_directory(new_db_folder)) return false;
   WriteFile((new_db_folder / "decoy").string(), new_pin);

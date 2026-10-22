@@ -21,6 +21,8 @@
 #include <utils/stringutils.hpp>
 #include <cstring>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 namespace nunchuk {
 
@@ -28,24 +30,157 @@ std::map<std::string, std::map<int, std::string>> NunchukDb::vstr_cache_;
 std::map<std::string, std::map<int, int64_t>> NunchukDb::vint_cache_;
 std::shared_mutex NunchukDb::cache_access_;
 
+namespace {
+
+struct CachedConnection {
+  std::shared_ptr<sqlite3> db;
+  std::shared_ptr<std::recursive_mutex> mutex;
+  std::string passphrase;
+};
+
+std::mutex g_conn_mu;
+std::map<std::string, CachedConnection> g_conn_cache;
+
+void CloseConnection(sqlite3* db) {
+  if (db != nullptr) sqlite3_close_v2(db);
+}
+
+bool PathIsUnder(const std::string& file, const std::string& dir) {
+  if (file == dir) return true;
+  if (dir.empty() || file.size() <= dir.size()) return false;
+  if (file.compare(0, dir.size(), dir) != 0) return false;
+  const char sep = file[dir.size()];
+  return sep == '/' || sep == '\\';
+}
+
+}  // namespace
+
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
                      const std::string& passphrase)
-    : id_(id), chain_(chain), db_file_name_(file_name) {
-  SQLCHECK(sqlite3_open(db_file_name_.c_str(), &db_));
+    : db_file_name_(file_name),
+      db_(nullptr),
+      id_(id),
+      chain_(chain) {
+  {
+    std::lock_guard<std::mutex> lock(g_conn_mu);
+    auto it = g_conn_cache.find(db_file_name_);
+    if (it != g_conn_cache.end() && it->second.passphrase == passphrase &&
+        it->second.db) {
+      db_holder_ = it->second.db;
+      db_mutex_ = it->second.mutex;
+      db_ = db_holder_.get();
+    }
+  }
+  if (db_ != nullptr) {
+    db_lock_ = std::unique_lock<std::recursive_mutex>(*db_mutex_);
+    return;
+  }
+
+  int open_rc = sqlite3_open(db_file_name_.c_str(), &db_);
+  if (db_ != nullptr) db_holder_.reset(db_, CloseConnection);
+  if (open_rc != SQLITE_OK) {
+    throw StorageException(StorageException::SQL_ERROR,
+                           db_ != nullptr ? sqlite3_errmsg(db_)
+                                          : "sqlite3_open failed");
+  }
   if (!passphrase.empty()) {
     const char* key = passphrase.c_str();
     SQLCHECK(sqlite3_key(db_, (const void*)key, std::strlen(key)));
   }
   if (sqlite3_exec(db_, "SELECT count(*) FROM sqlite_master;", NULL, NULL,
                    NULL) != SQLITE_OK) {
-    close();                    
+    db_holder_.reset();
+    db_ = nullptr;
     throw NunchukException(NunchukException::INVALID_PASSPHRASE,
                            "Invalid passphrase");
   }
+
+  auto mutex = std::make_shared<std::recursive_mutex>();
+  {
+    std::lock_guard<std::mutex> lock(g_conn_mu);
+    auto it = g_conn_cache.find(db_file_name_);
+    if (it != g_conn_cache.end() && it->second.passphrase == passphrase &&
+        it->second.db) {
+      db_holder_.reset();
+      db_holder_ = it->second.db;
+      db_mutex_ = it->second.mutex;
+      db_ = db_holder_.get();
+    } else {
+      db_mutex_ = mutex;
+      g_conn_cache[db_file_name_] = CachedConnection{db_holder_, db_mutex_,
+                                                     passphrase};
+    }
+  }
+  db_lock_ = std::unique_lock<std::recursive_mutex>(*db_mutex_);
 }
 
-void NunchukDb::close() { sqlite3_close(db_); }
+NunchukDb::NunchukDb(NunchukDb&& other) noexcept
+    : db_file_name_(std::move(other.db_file_name_)),
+      db_(other.db_),
+      id_(std::move(other.id_)),
+      chain_(other.chain_),
+      db_mutex_(std::move(other.db_mutex_)),
+      db_lock_(std::move(other.db_lock_)),
+      db_holder_(std::move(other.db_holder_)) {
+  other.db_ = nullptr;
+}
+
+NunchukDb& NunchukDb::operator=(NunchukDb&& other) noexcept {
+  if (this == &other) return *this;
+  db_file_name_ = std::move(other.db_file_name_);
+  db_ = other.db_;
+  other.db_ = nullptr;
+  id_ = std::move(other.id_);
+  chain_ = other.chain_;
+  db_lock_ = std::move(other.db_lock_);
+  db_mutex_ = std::move(other.db_mutex_);
+  db_holder_ = std::move(other.db_holder_);
+  return *this;
+}
+
+NunchukDb::~NunchukDb() = default;
+
+void NunchukDb::ClearValueCache(const std::string& file_name) {
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
+  vstr_cache_.erase(file_name);
+  vint_cache_.erase(file_name);
+}
+
+void NunchukDb::Evict() {
+  {
+    std::lock_guard<std::mutex> lock(g_conn_mu);
+    auto it = g_conn_cache.find(db_file_name_);
+    if (it != g_conn_cache.end() && it->second.db.get() == db_) {
+      g_conn_cache.erase(it);
+    }
+  }
+  ClearValueCache(db_file_name_);
+}
+
+void NunchukDb::EvictFile(const std::string& file_name) {
+  {
+    std::lock_guard<std::mutex> lock(g_conn_mu);
+    g_conn_cache.erase(file_name);
+  }
+  ClearValueCache(file_name);
+}
+
+void NunchukDb::EvictUnder(const std::string& directory) {
+  std::vector<std::string> dropped;
+  {
+    std::lock_guard<std::mutex> lock(g_conn_mu);
+    for (auto it = g_conn_cache.begin(); it != g_conn_cache.end();) {
+      if (PathIsUnder(it->first, directory)) {
+        dropped.push_back(it->first);
+        it = g_conn_cache.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+  for (const auto& file_name : dropped) ClearValueCache(file_name);
+}
 
 void NunchukDb::CreateTable() {
   SQLCHECK(sqlite3_exec(db_,
@@ -76,6 +211,11 @@ void NunchukDb::DropTable() {
 void NunchukDb::ReKey(const std::string& new_passphrase) {
   const char* key = new_passphrase.c_str();
   SQLCHECK(sqlite3_rekey(db_, (const void*)key, std::strlen(key)));
+  std::lock_guard<std::mutex> lock(g_conn_mu);
+  auto it = g_conn_cache.find(db_file_name_);
+  if (it != g_conn_cache.end() && it->second.db.get() == db_) {
+    it->second.passphrase = new_passphrase;
+  }
   DLOG_F(INFO, "NunchukDb '%s' ReKey success", db_file_name_.c_str());
 }
 

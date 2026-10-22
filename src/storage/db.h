@@ -20,9 +20,11 @@
 
 #include "common.h"
 #include <nunchuk.h>
-#include <string>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <shared_mutex>
+#include <string>
 
 namespace nunchuk {
 
@@ -31,7 +33,11 @@ class NunchukDb {
  public:
   NunchukDb(Chain chain, const std::string &id, const std::string &file_name,
             const std::string &passphrase);
-  ~NunchukDb() { close(); }
+  NunchukDb(const NunchukDb &) = delete;
+  NunchukDb &operator=(const NunchukDb &) = delete;
+  NunchukDb(NunchukDb &&other) noexcept;
+  NunchukDb &operator=(NunchukDb &&other) noexcept;
+  ~NunchukDb();
   std::string GetId() const;
 
  protected:
@@ -56,7 +62,17 @@ class NunchukDb {
 
  private:
   NunchukDb() = delete;
-  void close();
+  // db_mutex_ outlives db_lock_. db_holder_ is released first so the
+  // connection closes while this object still holds db_lock_.
+  std::shared_ptr<std::recursive_mutex> db_mutex_;
+  std::unique_lock<std::recursive_mutex> db_lock_;
+  std::shared_ptr<sqlite3> db_holder_;
+
+  void Evict();
+  static void EvictFile(const std::string &file_name);
+  static void EvictUnder(const std::string &directory);
+  static void ClearValueCache(const std::string &file_name);
+
   static std::map<std::string, std::map<int, std::string>> vstr_cache_;
   static std::map<std::string, std::map<int, int64_t>> vint_cache_;
   static std::shared_mutex cache_access_;
