@@ -90,6 +90,7 @@ class ElectrumClient {
   std::string host_;
   int port_ = 50001;
   bool is_secure_;
+  bool ssl_allow_untrusted_ = false;
   bool use_proxy_;
   std::string proxy_host_ = "";
   int proxy_port_ = -1;

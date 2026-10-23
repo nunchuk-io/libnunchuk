@@ -10,6 +10,7 @@ enable_testing()
 add_library(unittest_main OBJECT src/unit.cpp)
 
 set(files
+    src/sslcerts_test.cpp
     src/coreutils_test.cpp
     src/descriptor_test.cpp
     src/nunchukutils_test.cpp
