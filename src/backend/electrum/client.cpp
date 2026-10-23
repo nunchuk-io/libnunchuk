@@ -624,6 +624,11 @@ void ElectrumClient::handle_connect(const boost::system::error_code& error) {
           [allow_untrusted = ssl_allow_self_signed_, host = host_, host_is_ip](
               bool preverified, ssl::verify_context& ctx) {
             X509_STORE_CTX* store_ctx = ctx.native_handle();
+            // The private-CA fallback must never accept known compromised keys,
+            // including intermediates cross-signed by a different root.
+            if (!CheckCertificateChainForCompromisedKeys(store_ctx)) {
+              return false;
+            }
             X509* cert = X509_STORE_CTX_get_current_cert(store_ctx);
             const int depth = X509_STORE_CTX_get_error_depth(store_ctx);
             const bool self_signed_leaf =
