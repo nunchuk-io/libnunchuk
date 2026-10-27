@@ -34,6 +34,75 @@ static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 50;
 static int MAX_BATCH_SIZE_GETRAWTX = 100;
 
+namespace {
+
+enum class RawTxCheck { Ok, Invalid, Unavailable };
+
+// Pending transactions are not yet confirmed by a block, so verify every
+// input against the previous outputs. A missing previous output is retried;
+// an invalid signature is not stored. Liquid transactions use a different
+// serialization and are left to the Liquid synchronizer.
+RawTxCheck CheckPendingRawTx(ElectrumClient* client, bool liquid,
+                             const std::string& raw_tx) {
+  if (liquid) return RawTxCheck::Ok;
+
+  CMutableTransaction mtx;
+  if (!DecodeHexTx(mtx, raw_tx, true, true) || mtx.vin.empty()) {
+    return RawTxCheck::Invalid;
+  }
+
+  std::vector<std::string> parent_ids;
+  parent_ids.reserve(mtx.vin.size());
+  for (const auto& input : mtx.vin) {
+    if (input.prevout.IsNull()) return RawTxCheck::Invalid;
+    parent_ids.push_back(input.prevout.hash.GetHex());
+  }
+  std::sort(parent_ids.begin(), parent_ids.end());
+  parent_ids.erase(std::unique(parent_ids.begin(), parent_ids.end()),
+                   parent_ids.end());
+
+  std::map<std::string, std::string> parents;
+  try {
+    if (client->support_batch_requests()) {
+      parents = client->get_multi_rawtx(parent_ids);
+    } else {
+      for (const auto& txid : parent_ids) {
+        parents[txid] = client->blockchain_transaction_get(txid);
+      }
+    }
+  } catch (...) {
+    return RawTxCheck::Unavailable;
+  }
+
+  std::vector<UnspentOutput> utxos;
+  utxos.reserve(mtx.vin.size());
+  for (const auto& input : mtx.vin) {
+    const auto txid = input.prevout.hash.GetHex();
+    auto it = parents.find(txid);
+    if (it == parents.end() || it->second.empty()) {
+      return RawTxCheck::Unavailable;
+    }
+    CMutableTransaction parent;
+    if (!DecodeHexTx(parent, it->second, true, true) ||
+        parent.GetHash() != input.prevout.hash ||
+        input.prevout.n >= parent.vout.size()) {
+      return RawTxCheck::Invalid;
+    }
+    const auto& out = parent.vout[input.prevout.n];
+    const std::string address = ScriptPubKeyToAddress(out.scriptPubKey);
+    if (address.empty()) return RawTxCheck::Invalid;
+    UnspentOutput utxo;
+    utxo.set_txid(txid);
+    utxo.set_vout(input.prevout.n);
+    utxo.set_amount(out.nValue);
+    utxo.set_address(address);
+    utxos.push_back(std::move(utxo));
+  }
+  return IsValidRawTx(raw_tx, utxos) ? RawTxCheck::Ok : RawTxCheck::Invalid;
+}
+
+}  // namespace
+
 ElectrumSynchronizer::ElectrumSynchronizer(const AppSettings& appsettings,
                                            const std::string& account,
                                            bool liquid)
@@ -209,7 +278,12 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
       time_t time = height <= 0 ? 0 : GetBlockTime(rawheader[height]);
       Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
       auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
-      if (height <= 0) height = 0;
+      if (height <= 0) {
+        auto check = CheckPendingRawTx(client, liquid_, raw);
+        if (check == RawTxCheck::Unavailable) isSynced = false;
+        if (check != RawTxCheck::Ok) continue;
+        height = 0;
+      }
       if (founds[tx_id]) {
         storage_->UpdateTransaction(chain, wallet_id, raw, height, time);
       } else {
@@ -259,7 +333,12 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
         height <= 0 ? 0 : GetBlockTime(client->blockchain_block_header(height));
     Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
     auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
-    if (height <= 0) height = 0;
+    if (height <= 0) {
+      auto check = CheckPendingRawTx(client, liquid_, raw);
+      if (check == RawTxCheck::Unavailable) isSynced = false;
+      if (check != RawTxCheck::Ok) continue;
+      height = 0;
+    }
     if (found) {
       storage_->UpdateTransaction(chain, wallet_id, raw, height, time);
     } else {
@@ -333,7 +412,12 @@ bool ElectrumSynchronizer::UpdateTransactions(
           height <= 0 ? 0 : GetBlockTime(rawheader.find(height)->second);
       Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
       auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
-      if (height <= 0) height = 0;
+      if (height <= 0) {
+        auto check = CheckPendingRawTx(client, liquid_, raw);
+        if (check == RawTxCheck::Unavailable) isSynced = false;
+        if (check != RawTxCheck::Ok) continue;
+        height = 0;
+      }
       if (founds[tx_id]) {
         storage_->UpdateTransaction(chain, wallet_id, raw, height, time);
       } else {
