@@ -281,6 +281,9 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
       if (height <= 0) {
         auto check = CheckPendingRawTx(client, liquid_, raw);
         if (check == RawTxCheck::Unavailable) isSynced = false;
+        if (check == RawTxCheck::Invalid) {
+          invalid_transaction_listener_(tx_id, wallet_id);
+        }
         if (check != RawTxCheck::Ok) continue;
         height = 0;
       }
@@ -336,6 +339,9 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
     if (height <= 0) {
       auto check = CheckPendingRawTx(client, liquid_, raw);
       if (check == RawTxCheck::Unavailable) isSynced = false;
+      if (check == RawTxCheck::Invalid) {
+        invalid_transaction_listener_(tx_id, wallet_id);
+      }
       if (check != RawTxCheck::Ok) continue;
       height = 0;
     }
@@ -415,6 +421,9 @@ bool ElectrumSynchronizer::UpdateTransactions(
       if (height <= 0) {
         auto check = CheckPendingRawTx(client, liquid_, raw);
         if (check == RawTxCheck::Unavailable) isSynced = false;
+        if (check == RawTxCheck::Invalid) {
+          invalid_transaction_listener_(tx_id, wallet_id);
+        }
         if (check != RawTxCheck::Ok) continue;
         height = 0;
       }

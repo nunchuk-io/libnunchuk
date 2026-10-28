@@ -2543,6 +2543,14 @@ void NunchukImpl::AddTransactionListener(
   }
 }
 
+void NunchukImpl::AddInvalidTransactionListener(
+    std::function<void(std::string, std::string)> listener) {
+  synchronizer_->AddInvalidTransactionListener(listener);
+  if (liquid_synchronizer_) {
+    liquid_synchronizer_->AddInvalidTransactionListener(listener);
+  }
+}
+
 void NunchukImpl::AddDeviceListener(
     std::function<void(std::string, bool)> listener) {
   device_listener_.connect(MakeSafeSlot(listener));
