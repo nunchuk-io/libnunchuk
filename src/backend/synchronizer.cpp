@@ -111,6 +111,11 @@ void Synchronizer::AddTransactionListener(
   transaction_listener_.connect(listener);
 }
 
+void Synchronizer::AddInvalidTransactionListener(
+    std::function<void(std::string, std::string)> listener) {
+  invalid_transaction_listener_.connect(listener);
+}
+
 void Synchronizer::AddBlockchainConnectionListener(
     std::function<void(ConnectionStatus, int)> listener) {
   connection_listener_.connect(listener);
