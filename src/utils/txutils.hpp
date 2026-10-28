@@ -271,6 +271,46 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
   return rs;
 }
 
+inline bool IsValidRawTx(const std::string& raw_tx,
+                         const std::vector<nunchuk::UnspentOutput>& utxos) {
+  using namespace nunchuk;
+
+  CMutableTransaction mtx;
+  if (!DecodeHexTx(mtx, raw_tx, true, true) || mtx.vin.empty()) return false;
+
+  std::vector<CTxOut> ctxouts;
+  ctxouts.reserve(mtx.vin.size());
+  for (const auto& input : mtx.vin) {
+    const auto txid = input.prevout.hash.GetHex();
+    auto it = std::find_if(
+        utxos.begin(), utxos.end(), [&](const UnspentOutput& utxo) {
+          return utxo.get_txid() == txid && utxo.get_vout() == input.prevout.n;
+        });
+    if (it == utxos.end()) return false;
+    try {
+      ctxouts.emplace_back(it->get_amount(),
+                           AddressToCScriptPubKey(it->get_address()));
+    } catch (const NunchukException&) {
+      return false;
+    }
+  }
+
+  PrecomputedTransactionData txdata;
+  txdata.Init(mtx, std::vector<CTxOut>(ctxouts), true);
+  for (unsigned int i = 0; i < mtx.vin.size(); ++i) {
+    const auto& input = mtx.vin[i];
+    MutableTransactionSignatureChecker checker(&mtx, i, ctxouts[i].nValue,
+                                               txdata, MissingDataBehavior::FAIL);
+    ScriptError serror;
+    if (!VerifyScript(input.scriptSig, ctxouts[i].scriptPubKey,
+                      &input.scriptWitness, STANDARD_SCRIPT_VERIFY_FLAGS,
+                      checker, &serror)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 inline nunchuk::Transaction ParseCMutableTransaction(
     const CMutableTransaction& mtx, const nunchuk::Wallet& wallet, int height) {
   using namespace nunchuk;
