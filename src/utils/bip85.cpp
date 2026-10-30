@@ -23,6 +23,7 @@
 
 #include <key_io.h>
 #include <mutex>
+#include <support/cleanse.h>
 #include <util/bip32.h>
 #include <utils/stringutils.hpp>
 
@@ -57,9 +58,12 @@ CExtKey Bip85::GetBip32RootKey(const std::string &mnemonic,
   mnemonic_to_seed(mnemonic.c_str(), passphrase.c_str(), seed, nullptr);
 
   std::vector<std::byte> spanSeed;
+  spanSeed.reserve(64);
   for (size_t i = 0; i < 64; i++) spanSeed.push_back(std::byte{seed[i]});
   CExtKey bip32rootkey;
   bip32rootkey.SetSeed(spanSeed);
+  memory_cleanse(seed, sizeof(seed));
+  memory_cleanse(spanSeed.data(), spanSeed.size());
   return bip32rootkey;
 }
 

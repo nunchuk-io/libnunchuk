@@ -109,8 +109,11 @@ SoftwareSigner::SoftwareSigner(const Wallet& group_wallet) {
   pbkdf2_hmac_sha512_Final(&pctx, seed);
 
   std::vector<std::byte> spanSeed;
+  spanSeed.reserve(64);
   for (size_t i = 0; i < 64; i++) spanSeed.push_back(std::byte{seed[i]});
   bip32rootkey_.SetSeed(spanSeed);
+  memory_cleanse(seed, sizeof(seed));
+  memory_cleanse(spanSeed.data(), spanSeed.size());
 }
 
 static const std::string BIP85_HASH_KEY = "bip-entropy-from-k";
@@ -443,9 +446,12 @@ CExtKey SoftwareSigner::GetBip32RootKey(const std::string& mnemonic,
   }
 
   std::vector<std::byte> spanSeed;
+  spanSeed.reserve(64);
   for (size_t i = 0; i < 64; i++) spanSeed.push_back(std::byte{seed[i]});
   CExtKey bip32rootkey;
   bip32rootkey.SetSeed(spanSeed);
+  memory_cleanse(seed, sizeof(seed));
+  memory_cleanse(spanSeed.data(), spanSeed.size());
   return bip32rootkey;
 }
 
