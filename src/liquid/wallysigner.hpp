@@ -370,7 +370,13 @@ class WallySigner {
       std::vector<unsigned char> script(txout.script,
                                         txout.script + txout.script_len);
       if (!spk_.contains(script)) {
-        TxOutput output{WallyUtils::GetAddressFromScriptPubkey(script), 0};
+        std::string address;
+        try {
+          address = WallyUtils::GetAddressFromScriptPubkey(script);
+        } catch (const std::runtime_error&) {
+          continue;
+        }
+        TxOutput output{address, 0};
         output.isChange = false;
         output.isReceive = false;
         output.vout = static_cast<uint32_t>(vout);
