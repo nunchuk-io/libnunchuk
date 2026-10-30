@@ -20,6 +20,7 @@
 
 #include <liquid/wallyutils.hpp>
 
+#include <support/cleanse.h>
 #include <util/bip32.h>
 #include <util/strencodings.h>
 #include <wally_psbt.h>
@@ -202,6 +203,7 @@ class WallySigner {
     CHECK_WALLY(wally_asset_blinding_key_from_seed(
         seed.data(), seed.size(), master_blinding_key_.data(),
         master_blinding_key_.size()));
+    memory_cleanse(seed.data(), seed.size());
   }
 
   WallySigner(const WallySigner&) = delete;
