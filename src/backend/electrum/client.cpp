@@ -209,6 +209,18 @@ void ElectrumClient::scripthash_add_listener(
   subscribe("blockchain.scripthash.subscribe", lis);
 }
 
+json ElectrumClient::WaitForResponse(std::future<json> response) {
+  if (response.wait_for(std::chrono::seconds(30)) != std::future_status::ready) {
+    // Pongs do not guarantee that a particular RPC will ever complete.
+    // Keep disconnect cleanup on the I/O thread, like socket errors.
+    io_service_.post([this]() {
+      handle_error("request_timeout", "Electrum request timed out");
+    });
+    throw MakeElectrumException("Electrum request timed out");
+  }
+  return response.get();
+}
+
 json ElectrumClient::call_method(const std::string& method,
                                  const json& params) {
   if (stopped_) {
@@ -223,7 +235,7 @@ json ElectrumClient::call_method(const std::string& method,
   callback_[id] =
       std::promise<json>(std::allocator_arg, std::allocator<json>());
   enqueue_message(req.dump());
-  json resp = callback_[id].get_future().get();
+  json resp = WaitForResponse(callback_[id].get_future());
   callback_.erase(id);
   if (auto error = resp.find("error"); error != resp.end()) {
     if (error->is_string()) {
@@ -365,7 +377,7 @@ std::vector<json> ElectrumClient::call_batch(
       std::promise<json>(std::allocator_arg, std::allocator<json>());
   pending_batch_bids_.push_back(bid);
   enqueue_message(req.dump());
-  json resp = batch_callback_[bid].get_future().get();
+  json resp = WaitForResponse(batch_callback_[bid].get_future());
   batch_callback_.erase(bid);
 
   // Whole-batch rejection (e.g. Fulcrum id=null "Batch limit exceeded").

@@ -43,7 +43,8 @@ enum class RawTxCheck { Ok, Invalid, Unavailable };
 // an invalid signature is not stored. Liquid transactions use a different
 // serialization and are left to the Liquid synchronizer.
 RawTxCheck CheckPendingRawTx(ElectrumClient* client, bool liquid,
-                             const std::string& raw_tx) {
+                             const std::string& raw_tx,
+                             std::map<std::string, std::string>& parents) {
   if (liquid) return RawTxCheck::Ok;
 
   CMutableTransaction mtx;
@@ -61,13 +62,35 @@ RawTxCheck CheckPendingRawTx(ElectrumClient* client, bool liquid,
   parent_ids.erase(std::unique(parent_ids.begin(), parent_ids.end()),
                    parent_ids.end());
 
-  std::map<std::string, std::string> parents;
+  // Reuse parents across transactions/addresses in this sync operation.
+  // Do not cache missing or malformed replies, so a later attempt can retry.
+  std::vector<std::string> missing;
+  for (const auto& txid : parent_ids) {
+    if (!parents.count(txid)) missing.push_back(txid);
+  }
+  auto cache_parent = [&](const std::string& txid, const std::string& raw) {
+    CMutableTransaction parent;
+    if (!DecodeHexTx(parent, raw, true, true) || parent.GetHash().GetHex() != txid) {
+      return false;
+    }
+    parents.emplace(txid, raw);
+    return true;
+  };
   try {
     if (client->support_batch_requests()) {
-      parents = client->get_multi_rawtx(parent_ids);
+      for (size_t start = 0; start < missing.size();
+           start += MAX_BATCH_SIZE_GETRAWTX) {
+        const auto end = std::min(start + MAX_BATCH_SIZE_GETRAWTX, missing.size());
+        auto batch = client->get_multi_rawtx(
+            {missing.begin() + start, missing.begin() + end});
+        for (const auto& [txid, raw] : batch) {
+          if (!raw.empty() && !cache_parent(txid, raw)) return RawTxCheck::Invalid;
+        }
+      }
     } else {
-      for (const auto& txid : parent_ids) {
-        parents[txid] = client->blockchain_transaction_get(txid);
+      for (const auto& txid : missing) {
+        const auto raw = client->blockchain_transaction_get(txid);
+        if (!raw.empty() && !cache_parent(txid, raw)) return RawTxCheck::Invalid;
       }
     }
   } catch (...) {
@@ -236,6 +259,7 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
   if (!history.is_array()) return false;
   bool isSynced = true;
   auto* client = client_.get();
+  std::map<std::string, std::string> parent_txs;
   if (client->support_batch_requests()) {
     std::vector<std::string> txs_hash{};
     std::vector<int> heights{};
@@ -257,6 +281,7 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
       if (height > 0) heights.push_back(height);
     }
     auto rawtx = client->get_multi_rawtx(txs_hash);
+    parent_txs = rawtx;
     auto rawheader = client->get_multi_rawheader(heights);
     for (auto item : history) {
       std::string tx_id = item["tx_hash"];
@@ -279,7 +304,7 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
       Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
       auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
       if (height <= 0) {
-        auto check = CheckPendingRawTx(client, liquid_, raw);
+        auto check = CheckPendingRawTx(client, liquid_, raw, parent_txs);
         if (check == RawTxCheck::Unavailable) isSynced = false;
         if (check == RawTxCheck::Invalid) {
           invalid_transaction_listener_(tx_id, wallet_id);
@@ -337,7 +362,7 @@ bool ElectrumSynchronizer::UpdateTransactions(Chain chain,
     Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
     auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
     if (height <= 0) {
-      auto check = CheckPendingRawTx(client, liquid_, raw);
+      auto check = CheckPendingRawTx(client, liquid_, raw, parent_txs);
       if (check == RawTxCheck::Unavailable) isSynced = false;
       if (check == RawTxCheck::Invalid) {
         invalid_transaction_listener_(tx_id, wallet_id);
@@ -377,7 +402,8 @@ bool ElectrumSynchronizer::UpdateTransactions(
     Chain chain, const std::string& wallet_id, const json& history,
     const std::map<std::string, std::string>& rawtx,
     const std::map<int, std::string>& rawheader,
-    const std::vector<Transaction>& pending_receive_txs) {
+    const std::vector<Transaction>& pending_receive_txs,
+    std::map<std::string, std::string>& parent_txs) {
   using TS = TransactionStatus;
   if (!history.is_array()) return false;
   bool isSynced = true;
@@ -419,7 +445,7 @@ bool ElectrumSynchronizer::UpdateTransactions(
       Amount fee = item["fee"] == nullptr ? 0 : Amount(item["fee"]);
       auto status = height <= 0 ? TS::PENDING_CONFIRMATION : TS::CONFIRMED;
       if (height <= 0) {
-        auto check = CheckPendingRawTx(client, liquid_, raw);
+        auto check = CheckPendingRawTx(client, liquid_, raw, parent_txs);
         if (check == RawTxCheck::Unavailable) isSynced = false;
         if (check == RawTxCheck::Invalid) {
           invalid_transaction_listener_(tx_id, wallet_id);
@@ -716,6 +742,7 @@ void ElectrumSynchronizer::UpdateScripthashesStatus(
     }
   }
   auto rawtx = client_->get_multi_rawtx(txs_hash);
+  auto parent_txs = rawtx;
   auto rawheader = client_->get_multi_rawheader(heights);
   auto pending_receive_txs = storage_->GetTransactions(
       chain, wallet_id, TransactionStatus::PENDING_CONFIRMATION, true);
@@ -726,7 +753,7 @@ void ElectrumSynchronizer::UpdateScripthashesStatus(
     std::string address = scripthash_to_wallet_address_.at(scripthash).second;
     json history = multihistory[scripthash];
     if (UpdateTransactions(chain, wallet_id, history, rawtx, rawheader,
-                           pending_receive_txs)) {
+                           pending_receive_txs, parent_txs)) {
       auto it = std::find(scripthashes.begin(), scripthashes.end(), scripthash);
       int i = it - scripthashes.begin();
       json utxo;  // client_->blockchain_scripthash_listunspent(scripthash);
