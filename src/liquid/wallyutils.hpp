@@ -171,8 +171,20 @@ class WallyUtils {
   static std::string GetAddressFromScriptPubkey(
       const std::vector<unsigned char>& spk) {
     char* address = nullptr;
-    CHECK_WALLY(wally_addr_segwit_from_bytes(spk.data(), spk.size(),
-                                             C().ADDRESS_FAMILY, 0, &address));
+    int ret = wally_addr_segwit_from_bytes(spk.data(), spk.size(),
+                                           C().ADDRESS_FAMILY, 0, &address);
+    // P2PKH and P2SH (including nested segwit) are base58 on Liquid.
+    // wally_scriptpubkey_to_address rejects every other script type.
+    if (ret != WALLY_OK) {
+      // Same chain mapping as C(): regtest and signet use the testnet family.
+      const uint32_t network =
+          nunchuk::Utils::GetChain() == nunchuk::Chain::MAIN
+              ? WALLY_NETWORK_LIQUID
+              : WALLY_NETWORK_LIQUID_TESTNET;
+      ret = wally_scriptpubkey_to_address(spk.data(), spk.size(), network,
+                                          &address);
+    }
+    CHECK_WALLY(ret);
     std::string rs = std::string(address);
     wally_free_string(address);
     return rs;

@@ -16,6 +16,7 @@
  */
 
 #include <backend/electrum/synchronizer.h>
+#include <backend/electrum/checkrawtx.hpp>
 #include <algorithm>
 #include <limits>
 #include <numeric>
@@ -34,14 +35,6 @@ static int RECONNECT_DELAY_SECOND = 3;
 static long long SUBCRIBE_DELAY_MS = 50;
 static int MAX_BATCH_SIZE_GETRAWTX = 100;
 
-namespace {
-
-enum class RawTxCheck { Ok, Invalid, Unavailable };
-
-// Pending transactions are not yet confirmed by a block, so verify every
-// input against the previous outputs. A missing previous output is retried;
-// an invalid signature is not stored. Liquid transactions use a different
-// serialization and are left to the Liquid synchronizer.
 RawTxCheck CheckPendingRawTx(ElectrumClient* client, bool liquid,
                              const std::string& raw_tx) {
   if (liquid) return RawTxCheck::Ok;
@@ -100,8 +93,6 @@ RawTxCheck CheckPendingRawTx(ElectrumClient* client, bool liquid,
   }
   return IsValidRawTx(raw_tx, utxos) ? RawTxCheck::Ok : RawTxCheck::Invalid;
 }
-
-}  // namespace
 
 ElectrumSynchronizer::ElectrumSynchronizer(const AppSettings& appsettings,
                                            const std::string& account,

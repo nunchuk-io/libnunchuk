@@ -14,6 +14,7 @@ set(files
     src/coreutils_test.cpp
     src/descriptor_test.cpp
     src/nunchukutils_test.cpp
+    src/softwaresigner_test.cpp
     src/utils/addressutils_test.cpp
     src/utils/attachment_test.cpp
     src/utils/bip32_test.cpp
@@ -33,3 +34,7 @@ foreach(file ${files})
         "${CMAKE_CURRENT_SOURCE_DIR}/../src")
     add_test(NAME ${testcase} COMMAND ${testcase})
 endforeach()
+
+target_include_directories(softwaresigner_test PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../contrib/bitcoin/src")
+set_property(TARGET softwaresigner_test PROPERTY CXX_STANDARD 20)
