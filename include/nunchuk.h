@@ -1423,6 +1423,7 @@ class NUNCHUK_EXPORT AppSettings {
   std::string get_corerpc_username() const;
   std::string get_corerpc_password() const;
   std::string get_group_server() const;
+  std::vector<uint8_t> get_internal_encrypt_key() const;
 
   void set_chain(Chain value);
   void set_backend_type(BackendType value);
@@ -1442,6 +1443,7 @@ class NUNCHUK_EXPORT AppSettings {
   void set_corerpc_username(const std::string& value);
   void set_corerpc_password(const std::string& value);
   void set_group_server(const std::string& value);
+  void set_internal_encrypt_key(const std::vector<uint8_t>& value);
 
  private:
   Chain chain_;
@@ -1462,6 +1464,7 @@ class NUNCHUK_EXPORT AppSettings {
   std::string corerpc_username_;
   std::string corerpc_password_;
   std::string group_server_;
+  std::vector<uint8_t> internal_encrypt_key_;
 };
 
 class NUNCHUK_EXPORT ScriptNode {
