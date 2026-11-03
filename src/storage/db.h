@@ -32,7 +32,7 @@ class NunchukDb {
  public:
   NunchukDb(Chain chain, const std::string &id, const std::string &file_name,
             const std::string &passphrase,
-            const std::string &encrypt_key = {});
+            const std::vector<uint8_t> &encrypt_key = {});
   ~NunchukDb() { close(); }
   std::string GetId() const;
 
@@ -51,7 +51,7 @@ class NunchukDb {
   bool AddToListStr(int key, const std::string &value);
   bool RemoveFromListStr(int key, const std::string &value);
   bool TableExists(const std::string &table_name) const;
-  void SetupBoxKey(const std::string &encrypt_key);
+  void SetupBoxKey(const std::vector<uint8_t> &encrypt_key);
   std::string db_file_name_;
   sqlite3 *db_;
   std::string id_;

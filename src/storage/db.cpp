@@ -34,13 +34,13 @@ std::map<std::string, std::map<int, std::string>> NunchukDb::vstr_cache_;
 std::map<std::string, std::map<int, int64_t>> NunchukDb::vint_cache_;
 std::shared_mutex NunchukDb::cache_access_;
 
-static const std::string INTERNAL_ENCRYPT_KEY = "internal-encrypt";
+static const std::string INTERNAL_KEY = "internal-encrypt";
 static const std::string ENCRYPTED_VALUE_PREFIX = "enc1:";
 
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
                      const std::string& passphrase,
-                     const std::string& encrypt_key)
+                     const std::vector<uint8_t>& encrypt_key)
     : id_(id), chain_(chain), db_file_name_(file_name) {
   SQLCHECK(sqlite3_open(db_file_name_.c_str(), &db_));
   if (!passphrase.empty()) {
@@ -49,21 +49,28 @@ NunchukDb::NunchukDb(Chain chain, const std::string& id,
   }
   if (sqlite3_exec(db_, "SELECT count(*) FROM sqlite_master;", NULL, NULL,
                    NULL) != SQLITE_OK) {
-    close();                    
+    close();
     throw NunchukException(NunchukException::INVALID_PASSPHRASE,
                            "Invalid passphrase");
   }
   if (!encrypt_key.empty()) {
-    SetupBoxKey(encrypt_key);
+    try {
+      SetupBoxKey(encrypt_key);
+    } catch (...) {
+      close();
+      throw;
+    }
   }
 }
 
-void NunchukDb::SetupBoxKey(const std::string& encrypt_key) {
-  std::vector<uint8_t> key(INTERNAL_ENCRYPT_KEY.begin(),
-                           INTERNAL_ENCRYPT_KEY.end());
-  std::vector<uint8_t> data(encrypt_key.begin(), encrypt_key.end());
+void NunchukDb::SetupBoxKey(const std::vector<uint8_t>& data) {
+  if (data.size() < 32) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "encrypt_key must be at least 32 bytes");
+  }
+  std::vector<uint8_t> key(INTERNAL_KEY.begin(), INTERNAL_KEY.end());
   uint8_t hmac[512 / 8];
-  hmac_sha512(&key[0], key.size(), &data[0], data.size(), hmac);
+  hmac_sha512(&key[0], key.size(), data.data(), data.size(), hmac);
   boxKey_ = std::vector<uint8_t>(hmac, hmac + 32);
 }
 
@@ -187,10 +194,12 @@ std::string NunchukDb::GetString(int key) const {
                              "Internal encrypt key is not setup");
     }
     try {
-      value = Secretbox(boxKey_).Open(value.substr(ENCRYPTED_VALUE_PREFIX.size()));
+      value =
+          Secretbox(boxKey_).Open(value.substr(ENCRYPTED_VALUE_PREFIX.size()));
     } catch (const std::exception& e) {
-      throw NunchukException(NunchukException::INVALID_STATE,
-                             "Invalid encrypted value: " + std::string(e.what()));
+      throw NunchukException(
+          NunchukException::INVALID_STATE,
+          "Invalid encrypted value: " + std::string(e.what()));
     }
   }
   if (found) vstr_cache_[db_file_name_][key] = value;
