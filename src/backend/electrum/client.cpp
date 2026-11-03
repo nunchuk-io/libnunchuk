@@ -33,6 +33,8 @@ using namespace boost::asio;
 namespace nunchuk {
 
 static const std::string DEFAULT_SERVER = "127.0.0.1:50001";
+// Allow slow nodes the same grace period for RPC replies and socket inactivity.
+static constexpr int ELECTRUM_TIMEOUT_SECONDS = 60;
 
 static const std::string NETWORK_REJECTED_PREFIX =
     "the transaction was rejected by network rules.";
@@ -210,7 +212,8 @@ void ElectrumClient::scripthash_add_listener(
 }
 
 json ElectrumClient::WaitForResponse(std::future<json> response) {
-  if (response.wait_for(std::chrono::seconds(30)) != std::future_status::ready) {
+  if (response.wait_for(std::chrono::seconds(ELECTRUM_TIMEOUT_SECONDS)) !=
+      std::future_status::ready) {
     // Pongs do not guarantee that a particular RPC will ever complete.
     // Keep disconnect cleanup on the I/O thread, like socket errors.
     io_service_.post([this]() {
@@ -583,7 +586,7 @@ void ElectrumClient::socket_write() {
 
 void ElectrumClient::ping(const boost::system::error_code& error) {
   time_t current = std::time(0);
-  if (current - last_read_ > 10) {
+  if (current - last_read_ > ELECTRUM_TIMEOUT_SECONDS) {
     return handle_error("handle_ping", "no pong");
   }
 
