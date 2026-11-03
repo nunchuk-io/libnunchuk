@@ -44,7 +44,7 @@ void NunchukSignerDb::InitSigner(const std::string& name, const Device& device,
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
-  if (!mnemonic.empty()) PutString(DbKeys::MNEMONIC, mnemonic);
+  if (!mnemonic.empty()) PutString(DbKeys::MNEMONIC, mnemonic, true);
   if (device.is_tapsigner()) {
     // Remove master xpriv key if exists
     PutString(DbKeys::MASTER_XPRV, {});
@@ -66,7 +66,7 @@ void NunchukSignerDb::InitSignerMasterXprv(const std::string& name,
                         NULL, 0, NULL));
   PutString(DbKeys::NAME, name);
   PutString(DbKeys::FINGERPRINT, device.get_master_fingerprint());
-  if (!master_xprv.empty()) PutString(DbKeys::MASTER_XPRV, master_xprv);
+  if (!master_xprv.empty()) PutString(DbKeys::MASTER_XPRV, master_xprv, true);
   PutString(DbKeys::SIGNER_DEVICE_TYPE, device.get_type());
   PutString(DbKeys::SIGNER_DEVICE_MODEL, device.get_model());
 }

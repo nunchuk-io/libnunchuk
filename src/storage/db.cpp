@@ -18,9 +18,15 @@
 #include "db.h"
 #include <sstream>
 #include <utils/loguru.hpp>
+#include <utils/secretbox.h>
 #include <utils/stringutils.hpp>
 #include <cstring>
 #include <mutex>
+#include <vector>
+
+extern "C" {
+#include <hmac.h>
+}
 
 namespace nunchuk {
 
@@ -28,9 +34,13 @@ std::map<std::string, std::map<int, std::string>> NunchukDb::vstr_cache_;
 std::map<std::string, std::map<int, int64_t>> NunchukDb::vint_cache_;
 std::shared_mutex NunchukDb::cache_access_;
 
+static const std::string INTERNAL_ENCRYPT_KEY = "internal-encrypt";
+static const std::string ENCRYPTED_VALUE_PREFIX = "enc1:";
+
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
-                     const std::string& passphrase)
+                     const std::string& passphrase,
+                     const std::string& encrypt_key)
     : id_(id), chain_(chain), db_file_name_(file_name) {
   SQLCHECK(sqlite3_open(db_file_name_.c_str(), &db_));
   if (!passphrase.empty()) {
@@ -43,6 +53,18 @@ NunchukDb::NunchukDb(Chain chain, const std::string& id,
     throw NunchukException(NunchukException::INVALID_PASSPHRASE,
                            "Invalid passphrase");
   }
+  if (!encrypt_key.empty()) {
+    SetupBoxKey(encrypt_key);
+  }
+}
+
+void NunchukDb::SetupBoxKey(const std::string& encrypt_key) {
+  std::vector<uint8_t> key(INTERNAL_ENCRYPT_KEY.begin(),
+                           INTERNAL_ENCRYPT_KEY.end());
+  std::vector<uint8_t> data(encrypt_key.begin(), encrypt_key.end());
+  uint8_t hmac[512 / 8];
+  hmac_sha512(&key[0], key.size(), &data[0], data.size(), hmac);
+  boxKey_ = std::vector<uint8_t>(hmac, hmac + 32);
 }
 
 void NunchukDb::close() { sqlite3_close(db_); }
@@ -102,7 +124,12 @@ void NunchukDb::DecryptDb(const std::string& new_file_name) {
   SQLCHECK(sqlite3_exec(db_, "DETACH DATABASE plaintext;", NULL, NULL, NULL));
 }
 
-bool NunchukDb::PutString(int key, const std::string& value) {
+bool NunchukDb::PutString(int key, const std::string& value, bool encrypted) {
+  std::string stored = value;
+  if (!value.empty() && encrypted && !boxKey_.empty()) {
+    stored = ENCRYPTED_VALUE_PREFIX + Secretbox(boxKey_).Box(value);
+  }
+
   std::unique_lock<std::shared_mutex> lock(cache_access_);
   sqlite3_stmt* stmt;
   std::string sql =
@@ -111,7 +138,7 @@ bool NunchukDb::PutString(int key, const std::string& value) {
       "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE;";
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_int(stmt, 1, key);
-  sqlite3_bind_text(stmt, 2, value.c_str(), value.size(), NULL);
+  sqlite3_bind_text(stmt, 2, stored.c_str(), stored.size(), NULL);
   sqlite3_step(stmt);
   bool updated = (sqlite3_changes(db_) == 1);
   SQLCHECK(sqlite3_finalize(stmt));
@@ -147,12 +174,27 @@ std::string NunchukDb::GetString(int key) const {
   sqlite3_bind_int(stmt, 1, key);
   sqlite3_step(stmt);
   std::string value;
+  bool found = false;
   if (sqlite3_column_text(stmt, 0)) {
     value = std::string((char*)sqlite3_column_text(stmt, 1));
-    vstr_cache_[db_file_name_][key] = value;
+    found = true;
   }
   SQLCHECK(sqlite3_finalize(stmt));
-  return value;
+  if (found && value.compare(0, ENCRYPTED_VALUE_PREFIX.size(),
+                             ENCRYPTED_VALUE_PREFIX) == 0) {
+    if (boxKey_.empty()) {
+      throw NunchukException(NunchukException::INVALID_STATE,
+                             "Internal encrypt key is not setup");
+    }
+    try {
+      value = Secretbox(boxKey_).Open(value.substr(ENCRYPTED_VALUE_PREFIX.size()));
+    } catch (const std::exception& e) {
+      throw NunchukException(NunchukException::INVALID_STATE,
+                             "Invalid encrypted value: " + std::string(e.what()));
+    }
+  }
+  if (found) vstr_cache_[db_file_name_][key] = value;
+  return found ? value : "";
 }
 
 int64_t NunchukDb::GetInt(int key) const {

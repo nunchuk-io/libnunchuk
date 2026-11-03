@@ -23,6 +23,7 @@
 #include <string>
 #include <map>
 #include <shared_mutex>
+#include <vector>
 
 namespace nunchuk {
 
@@ -30,7 +31,8 @@ class NunchukStorage;
 class NunchukDb {
  public:
   NunchukDb(Chain chain, const std::string &id, const std::string &file_name,
-            const std::string &passphrase);
+            const std::string &passphrase,
+            const std::string &encrypt_key = {});
   ~NunchukDb() { close(); }
   std::string GetId() const;
 
@@ -41,7 +43,7 @@ class NunchukDb {
   void EncryptDb(const std::string &new_file_name,
                  const std::string &new_passphrase);
   void DecryptDb(const std::string &new_file_name);
-  bool PutString(int key, const std::string &value);
+  bool PutString(int key, const std::string &value, bool encrypted = false);
   bool PutInt(int key, int64_t value);
   std::string GetString(int key) const;
   int64_t GetInt(int key) const;
@@ -49,10 +51,12 @@ class NunchukDb {
   bool AddToListStr(int key, const std::string &value);
   bool RemoveFromListStr(int key, const std::string &value);
   bool TableExists(const std::string &table_name) const;
+  void SetupBoxKey(const std::string &encrypt_key);
   std::string db_file_name_;
   sqlite3 *db_;
   std::string id_;
   Chain chain_;
+  std::vector<uint8_t> boxKey_;
 
  private:
   NunchukDb() = delete;
