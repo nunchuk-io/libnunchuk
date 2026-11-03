@@ -32,6 +32,7 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace nunchuk {
 
@@ -56,6 +57,7 @@ class NunchukStorage {
                                   ExportFormat format);
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
+  void SetInternalEncryptKey(const std::vector<uint8_t> &key);
   Wallet CreateWallet(Chain chain, const Wallet &wallet);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
@@ -439,6 +441,7 @@ class NunchukStorage {
   std::filesystem::path basedatadir_;
   std::filesystem::path datadir_;
   std::string passphrase_;
+  std::vector<uint8_t> internal_encrypt_key_;
   std::string account_;
   std::map<std::string, std::string> signer_passphrase_;
 };
