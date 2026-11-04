@@ -105,6 +105,7 @@ NunchukImpl::NunchukImpl(const AppSettings& appsettings,
       group_service_(app_settings_.get_group_server(),
                      app_settings_.get_certificate_file()) {
   CoreUtils::getInstance().SetChain(chain_);
+  storage_->SetInternalEncryptKey(app_settings_.get_internal_encrypt_key());
   storage_->Init(app_settings_.get_storage_path(), passphrase);
   storage_->MaybeMigrate(chain_);
   std::fill(estimate_fee_cached_time_,
