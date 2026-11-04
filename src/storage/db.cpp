@@ -20,12 +20,14 @@
 #include <utils/loguru.hpp>
 #include <utils/secretbox.h>
 #include <utils/stringutils.hpp>
+#include <util/strencodings.h>
 #include <cstring>
 #include <mutex>
 #include <vector>
 
 extern "C" {
 #include <hmac.h>
+#include <utils/tweetnacl.h>
 }
 
 namespace nunchuk {
@@ -36,6 +38,21 @@ std::shared_mutex NunchukDb::cache_access_;
 
 static const std::string INTERNAL_KEY = "internal-encrypt";
 static const std::string ENCRYPTED_VALUE_PREFIX = "enc1:";
+
+// Stored form is "enc1:" + Secretbox::Box, which is base64(nonce).base64(cipher).
+static bool IsEncryptedValue(const std::string& value) {
+  if (value.compare(0, ENCRYPTED_VALUE_PREFIX.size(), ENCRYPTED_VALUE_PREFIX) !=
+      0) {
+    return false;
+  }
+  auto part = split(value.substr(ENCRYPTED_VALUE_PREFIX.size()), '.');
+  if (part.size() != 2) return false;
+  auto nonce = DecodeBase64(part[0]);
+  if (!nonce || nonce->size() != crypto_secretbox_NONCEBYTES) return false;
+  auto cipher = DecodeBase64(part[1]);
+  return cipher && cipher->size() >= crypto_secretbox_ZEROBYTES -
+                                        crypto_secretbox_BOXZEROBYTES;
+}
 
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
@@ -187,8 +204,7 @@ std::string NunchukDb::GetString(int key) const {
     found = true;
   }
   SQLCHECK(sqlite3_finalize(stmt));
-  if (found && value.compare(0, ENCRYPTED_VALUE_PREFIX.size(),
-                             ENCRYPTED_VALUE_PREFIX) == 0) {
+  if (found && IsEncryptedValue(value)) {
     if (boxKey_.empty()) {
       throw NunchukException(NunchukException::INVALID_STATE,
                              "Internal encrypt key is not setup");
