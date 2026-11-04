@@ -70,6 +70,7 @@ NunchukDb::NunchukDb(Chain chain, const std::string& id,
     throw NunchukException(NunchukException::INVALID_PASSPHRASE,
                            "Invalid passphrase");
   }
+  SQLCHECK(sqlite3_exec(db_, "PRAGMA secure_delete = ON;", NULL, NULL, NULL));
   if (!encrypt_key.empty()) {
     try {
       SetupBoxKey(encrypt_key);
