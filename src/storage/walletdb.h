@@ -25,6 +25,8 @@
 #include <string>
 #include <optional>
 
+struct PartiallySignedTransaction;
+
 namespace nunchuk {
 
 struct AddressData {
@@ -147,6 +149,7 @@ class NunchukWalletDb : public NunchukDb {
   std::string GetMiniscript();
 
  private:
+  void ValidatePsbt(const PartiallySignedTransaction &psbtx);
   void CreateCoinControlTable();
   void CreateDummyTxTable();
   void ClearCoinControlData();
