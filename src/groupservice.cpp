@@ -16,8 +16,10 @@
  */
 
 #include "groupservice.h"
+#include <algorithm>
 #include <chrono>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -53,6 +55,46 @@ static const int VERSION = 1;
 static const std::string MIME_TYPE = "application/json";
 static const std::string SECRET_PATH = "m/83696968'/128169'/32'/0'";
 static const std::string KEYPAIR_PATH = "m/45'/0'/0'/1/0";
+
+static bool IndexInRange(int index, size_t size) {
+  return index >= 0 && static_cast<size_t>(index) < size;
+}
+
+static int SafeIndexCount(int n, size_t size) {
+  if (n <= 0 || size == 0) return 0;
+  if (size > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    size = static_cast<size_t>(std::numeric_limits<int>::max());
+  }
+  return std::min(n, static_cast<int>(size));
+}
+
+static bool MergeSignerSlots(json& signers, const json& incoming, int n) {
+  if (n <= 0) return false;
+  // Reject a short array before operator[] grows it with nulls.
+  signers.at(static_cast<size_t>(n - 1));
+  incoming.at(static_cast<size_t>(n - 1));
+  bool changed = false;
+  for (int i = 0; i < n; i++) {
+    if (signers[i].get<std::string>() == "[]" &&
+        incoming[i].get<std::string>() != "[]") {
+      signers[i] = incoming[i];
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+static json CollectAddedIndices(const json& signers, int n) {
+  json added = json::array();
+  if (n <= 0) return added;
+  signers.at(static_cast<size_t>(n - 1));
+  for (int i = 0; i < n; i++) {
+    if (signers[i].get<std::string>() != "[]") {
+      added.push_back(i);
+    }
+  }
+  return added;
+}
 
 static json TryParse(const std::string& resp) {
   try {
@@ -714,6 +756,7 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
 
     std::vector<int> added = config["added"].get<std::vector<int>>();
     for (auto&& i : added) {
+      if (!IndexInRange(i, signers.size())) continue;
       if (signers[i].get_master_fingerprint().empty()) {
         signers[i].set_name("ADDED");
       }
@@ -725,12 +768,8 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
   // merge modified signers
   for (auto& [key, value] : info["modified"].items()) {
     json msigners = GetModifiedSigners(value, rs.get_n());
-    for (int i = 0; i < rs.get_n(); i++) {
-      if (state["signers"][i].get<std::string>() == "[]" &&
-          msigners[i].get<std::string>() != "[]") {
-        state["signers"][i] = msigners[i];
-        need_broadcast = true;
-      }
+    if (MergeSignerSlots(state["signers"], msigners, rs.get_n())) {
+      need_broadcast = true;
     }
   }
 
@@ -763,12 +802,7 @@ GroupSandbox GroupService::ParseGroupData(const std::string& groupId,
                                    .Box(state.dump(), ephemeralKey);
     }
 
-    config["added"] = json::array();
-    for (int i = 0; i < rs.get_n(); i++) {
-      if (state["signers"][i].get<std::string>() != "[]") {
-        config["added"].push_back(i);
-      }
-    }
+    config["added"] = CollectAddedIndices(state["signers"], rs.get_n());
     json data = {
         {"version", VERSION},         {"stateId", rs.get_state_id() + 1},
         {"state", newstate},          {"pubstate", config},
@@ -830,8 +864,12 @@ std::string GroupService::GroupToEvent(const GroupSandbox& group) {
                               .Box(plaintext.dump(), ephemeralKey);
   }
   json added = json::array();
-  for (int i = 0; i < group.get_n(); i++) {
-    if (!group.get_signers()[i].get_master_fingerprint().empty()) {
+  const auto& group_signers = group.get_signers();
+  const int signer_count = SafeIndexCount(group.get_n(), group_signers.size());
+  for (int i = 0; i < signer_count; i++) {
+    if (!group_signers[static_cast<size_t>(i)]
+             .get_master_fingerprint()
+             .empty()) {
       added.push_back(i);
     }
   }
@@ -1080,8 +1118,9 @@ GroupSandbox GroupService::JoinGroup(const std::string& groupId,
   if (!signers.empty()) {
     int n = group["init"]["pubstate"]["n"];
     json jsigners = json::array();
-    for (int i = 0; i < n && i < signers.size(); i++) {
-      jsigners.push_back(signers[i].get_descriptor());
+    const int signer_count = SafeIndexCount(n, signers.size());
+    for (int i = 0; i < signer_count; i++) {
+      jsigners.push_back(signers[static_cast<size_t>(i)].get_descriptor());
     }
     json plaintext = {{"signers", jsigners}};
     json modified{};
@@ -1115,12 +1154,7 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
     // merge modified signers
     for (auto& [key, value] : group["init"]["modified"].items()) {
       json msigners = GetModifiedSigners(value, n);
-      for (int i = 0; i < n; i++) {
-        if (signers[i].get<std::string>() == "[]" &&
-            msigners[i].get<std::string>() != "[]") {
-          signers[i] = msigners[i];
-        }
-      }
+      MergeSignerSlots(signers, msigners, n);
     }
     group["init"]["modified"] = json::object();
 
@@ -1130,12 +1164,8 @@ GroupSandbox GroupService::SetSigner(const std::string& groupId,
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
     }
 
-    group["init"]["pubstate"]["added"] = json::array();
-    for (int i = 0; i < n; i++) {
-      if (plaintext["signers"][i].get<std::string>() != "[]") {
-        group["init"]["pubstate"]["added"].push_back(i);
-      }
-    }
+    group["init"]["pubstate"]["added"] =
+        CollectAddedIndices(plaintext["signers"], n);
   } else {
     json mymodified = group["init"]["modified"].contains(ephemeralPub_)
                           ? group["init"]["modified"][ephemeralPub_]
@@ -1216,12 +1246,7 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
     // merge modified signers
     for (auto& [key, value] : group["init"]["modified"].items()) {
       json msigners = GetModifiedSigners(value, n);
-      for (int i = 0; i < curN; i++) {
-        if (signers[i].get<std::string>() == "[]" &&
-            msigners[i].get<std::string>() != "[]") {
-          signers[i] = msigners[i];
-        }
-      }
+      MergeSignerSlots(signers, msigners, curN);
     }
     group["init"]["modified"] = json::object();
 
@@ -1235,12 +1260,8 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
     }
 
-    group["init"]["pubstate"]["added"] = json::array();
-    for (int i = 0; i < n; i++) {
-      if (plaintext["signers"][i].get<std::string>() != "[]") {
-        group["init"]["pubstate"]["added"].push_back(i);
-      }
-    }
+    group["init"]["pubstate"]["added"] =
+        CollectAddedIndices(plaintext["signers"], n);
   } else {
     json mymodified = group["init"]["modified"].contains(ephemeralPub_)
                           ? group["init"]["modified"][ephemeralPub_]
@@ -1255,12 +1276,8 @@ GroupSandbox GroupService::UpdateGroup(const std::string& groupId,
           Publicbox(ephemeralPub_, ephemeralPriv_).Box(plaintext.dump(), key);
     }
     group["init"]["modified"] = json::object();
-    group["init"]["pubstate"]["added"] = json::array();
-    for (int i = 0; i < n; i++) {
-      if (plaintext["signers"][i].get<std::string>() != "[]") {
-        group["init"]["pubstate"]["added"].push_back(i);
-      }
-    }
+    group["init"]["pubstate"]["added"] =
+        CollectAddedIndices(plaintext["signers"], n);
   }
 
   group["init"]["pubstate"]["m"] = m;
@@ -1887,11 +1904,16 @@ json GroupService::UpdateSignersJson(const json& jsigners, SingleSigner signer,
       signers.push_back(ParseSignerString(desc));
     }
   }
-  if (index >= 0) signers[index] = signer;
+  if (index >= 0 && !IndexInRange(index, signers.size()) && n > index) {
+    signers.resize(static_cast<size_t>(index) + 1);
+  }
+  if (index >= 0 && IndexInRange(index, signers.size())) {
+    signers[static_cast<size_t>(index)] = signer;
+  }
   signers.resize(n);
   json rs = json::array();
-  for (auto&& signer : signers) {
-    rs.push_back(signer.get_descriptor());
+  for (auto&& existing : signers) {
+    rs.push_back(existing.get_descriptor());
   }
   return rs;
 }
