@@ -26,6 +26,8 @@
 #include <optional>
 #include <memory>
 
+struct PartiallySignedTransaction;
+
 namespace nunchuk::wally {
 class WallySigner;
 }  // namespace nunchuk::wally
@@ -181,6 +183,7 @@ class NunchukWalletDb : public NunchukDb {
   bool IsWallySignerAvailable() const;
 
  private:
+  void ValidatePsbt(const PartiallySignedTransaction &psbtx);
   const char *TxTable() const;
   const char *AddressTable() const;
   void CreateCoinControlTable();

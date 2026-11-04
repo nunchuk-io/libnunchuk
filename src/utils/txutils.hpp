@@ -82,7 +82,41 @@ inline std::string EncodePsbt(const PartiallySignedTransaction& psbtx) {
 }
 
 inline std::string GetTxIdFromPsbt(const std::string& base64_psbt) {
-  return DecodePsbt(base64_psbt).tx.value().GetHash().GetHex();
+  using namespace nunchuk;
+  auto psbtx = DecodePsbt(base64_psbt);
+  if (!psbtx.tx.has_value() || psbtx.tx->vin.empty() || psbtx.inputs.empty()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "PSBT has no inputs");
+  }
+  return psbtx.tx->GetHash().GetHex();
+}
+
+inline void RequirePsbtInputs(const PartiallySignedTransaction& psbtx) {
+  using namespace nunchuk;
+  if (!psbtx.tx.has_value() || psbtx.tx->vin.empty() || psbtx.inputs.empty() ||
+      psbtx.inputs.size() < psbtx.tx->vin.size()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "PSBT has no inputs");
+  }
+  for (size_t i = 0; i < psbtx.tx->vin.size(); ++i) {
+    const auto& prevout = psbtx.tx->vin[i].prevout;
+    const auto& psbt_in = psbtx.inputs[i];
+    if (!psbt_in.non_witness_utxo) continue;
+    const CTransaction& prev = *psbt_in.non_witness_utxo;
+    if (prev.GetHash() != prevout.hash ||
+        static_cast<size_t>(prevout.n) >= prev.vout.size()) {
+      throw NunchukException(
+          NunchukException::INVALID_PSBT,
+          "PSBT input does not refer to an existing output");
+    }
+  }
+}
+
+inline const PSBTInput& PsbtInputAt(const PartiallySignedTransaction& psbtx,
+                                    size_t index) {
+  using namespace nunchuk;
+  if (index >= psbtx.inputs.size()) {
+    throw NunchukException(NunchukException::INVALID_PSBT, "PSBT has no inputs");
+  }
+  return psbtx.inputs[index];
 }
 
 inline CMutableTransaction DecodeRawTransaction(const std::string& hex_tx) {
@@ -173,6 +207,10 @@ inline std::vector<nunchuk::SingleSigner> GetRawTxSigners(
   using namespace nunchuk;
 
   auto mtx = DecodeRawTransaction(raw_tx);
+  if (mtx.vin.empty()) {
+    throw NunchukException(NunchukException::INVALID_RAW_TX,
+                           "Transaction has no inputs");
+  }
   auto input = mtx.vin[0];
   std::vector<CTxOut> ctxouts(mtx.vin.size());
   for (int i = 0; i < utxos.size(); i++) {
@@ -325,7 +363,8 @@ inline nunchuk::Transaction ParseCMutableTransaction(
     if (wallet.get_wallet_type() == WalletType::SINGLE_SIG) {
       tx.set_signer(signers[0].get_master_fingerprint(), true);
       signed_signers.push_back(signers[0]);
-    } else if (mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
+    } else if (mtx.vin.empty() ||
+               mtx.vin[0].scriptWitness.stack.size() < 2) {  // value keyset
       for (int i = 0; i < wallet.get_n(); i++) {
         tx.set_signer(signers[i].get_master_fingerprint(), i < wallet.get_m());
         if (i < wallet.get_m()) signed_signers.push_back(signers[i]);
@@ -385,10 +424,14 @@ inline nunchuk::Transaction ParseCMutableTransaction(
 inline std::vector<nunchuk::KeysetStatus> GetKeysetStatus(
     const PartiallySignedTransaction& psbtx, const nunchuk::Wallet& wallet) {
   using namespace nunchuk;
-  const PSBTInput& input = psbtx.inputs[0];
+  const PSBTInput& input = PsbtInputAt(psbtx, 0);
   auto getXfp = [&input](const CPubKey& pub) -> std::string {
-    auto leaf_origin = input.m_tap_bip32_paths.at(XOnlyPubKey(pub));
-    const auto& [leaf_hashes, origin] = leaf_origin;
+    auto it = input.m_tap_bip32_paths.find(XOnlyPubKey(pub));
+    if (it == input.m_tap_bip32_paths.end()) {
+      throw NunchukException(NunchukException::INVALID_PSBT,
+                             "Missing MuSig2 participant path");
+    }
+    const auto& origin = it->second.second;
     return strprintf("%08x", ReadBE32(origin.fingerprint));
   };
   auto getName = [](std::vector<std::string>& xfps) -> std::string {
@@ -498,7 +541,8 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
   }
 
   // Parse partial sigs
-  const PSBTInput& input = psbtx.inputs[0];
+  RequirePsbtInputs(psbtx);
+  const PSBTInput& input = PsbtInputAt(psbtx, 0);
   std::vector<SingleSigner> signed_signers{};
   auto addSigned = [&](const KeyOriginInfo& origin) {
     std::string xfp = strprintf("%08x", ReadBE32(origin.fingerprint));
@@ -568,12 +612,22 @@ inline nunchuk::Transaction GetTransactionFromPartiallySignedTransaction(
     auto psbt = DecodePsbt(EncodePsbt(psbtx));
 
     auto txCredit = psbt.tx.value();
-    auto input = psbt.inputs[0];
+    auto input = PsbtInputAt(psbt, 0);
     auto ctxout = input.witness_utxo;
     if (input.non_witness_utxo) {
+      if (txCredit.vin.empty()) {
+        throw NunchukException(NunchukException::INVALID_PSBT,
+                               "PSBT has no inputs");
+      }
       auto txIn = input.non_witness_utxo.get();
       auto txSpend = CMutableTransaction(*txIn);
-      ctxout = txSpend.vout[txCredit.vin[0].prevout.n];
+      const uint32_t prev_n = txCredit.vin[0].prevout.n;
+      if (static_cast<size_t>(prev_n) >= txSpend.vout.size()) {
+        throw NunchukException(
+            NunchukException::INVALID_PSBT,
+            "PSBT input does not refer to an existing output");
+      }
+      ctxout = txSpend.vout[prev_n];
     }
     txCredit.vin[0].scriptSig = input.final_script_sig;
     txCredit.vin[0].scriptWitness = input.final_script_witness;
@@ -691,7 +745,7 @@ inline std::string GetPartialSignature(const std::string& base64_psbt,
 
   auto psbt = DecodePsbt(base64_psbt);
   // Parse partial sigs
-  const PSBTInput& input = psbt.inputs[0];
+  const PSBTInput& input = PsbtInputAt(psbt, 0);
   std::map<std::string, std::string> signed_pubkey;
   if (!input.partial_sigs.empty()) {
     for (const auto& sig : input.partial_sigs) {
@@ -732,7 +786,7 @@ inline std::string GetPartialSignature(const std::string& base64_psbt,
 
   auto psbt = DecodePsbt(base64_psbt);
   // Parse partial sigs
-  const PSBTInput& input = psbt.inputs[0];
+  const PSBTInput& input = PsbtInputAt(psbt, 0);
   std::map<std::string, std::string> signed_pubkey;
   if (!input.partial_sigs.empty()) {
     for (const auto& sig : input.partial_sigs) {

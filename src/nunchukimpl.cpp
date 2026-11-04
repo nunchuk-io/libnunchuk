@@ -2107,7 +2107,13 @@ Amount NunchukImpl::GetTotalAmount(const std::string& wallet_id,
   Amount total = 0;
   for (auto&& input : inputs) {
     auto tx = GetTransaction(wallet_id, input.txid);
-    total += tx.get_outputs()[input.vout].amount;
+    const auto& outputs = tx.get_outputs();
+    if (static_cast<size_t>(input.vout) >= outputs.size()) {
+      throw NunchukException(
+          NunchukException::INVALID_PSBT,
+          "PSBT input does not refer to an existing output");
+    }
+    total += outputs[input.vout].amount;
   }
   return total;
 }

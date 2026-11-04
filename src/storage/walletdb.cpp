@@ -891,6 +891,31 @@ bool NunchukWalletDb::UpdateTransactionSchedule(const std::string& tx_id,
   return updated;
 }
 
+void NunchukWalletDb::ValidatePsbt(
+    const PartiallySignedTransaction& psbtx) {
+  RequirePsbtInputs(psbtx);
+  for (const auto& vin : psbtx.tx->vin) {
+    bool known = false;
+    Transaction prev;
+    try {
+      prev = GetTransaction(vin.prevout.hash.GetHex());
+      known = true;
+    } catch (const StorageException& se) {
+      if (se.code() != StorageException::TX_NOT_FOUND) throw;
+    } catch (const NunchukException& e) {
+      if (e.code() != NunchukException::INVALID_PSBT) throw;
+    }
+    if (known &&
+        static_cast<size_t>(vin.prevout.n) >= prev.get_outputs().size()) {
+      throw NunchukException(
+          NunchukException::INVALID_PSBT,
+          "PSBT input does not refer to an existing output");
+    }
+  }
+  // Reject shapes that later readers crash on, before the row is stored.
+  GetTransactionFromPartiallySignedTransaction(psbtx, GetWallet(true, true));
+}
+
 Transaction NunchukWalletDb::CreatePsbt(
     const std::string& psbt, Amount fee, const std::string& memo,
     int change_pos, const std::map<std::string, Amount>& outputs,
@@ -901,7 +926,8 @@ Transaction NunchukWalletDb::CreatePsbt(
                            "Liquid wallet is not supported psbt creation");
   }
   PartiallySignedTransaction psbtx = DecodePsbt(psbt);
-  std::string tx_id = psbtx.tx.value().GetHash().GetHex();
+  ValidatePsbt(psbtx);
+  std::string tx_id = psbtx.tx->GetHash().GetHex();
 
   json extra{};
   extra["outputs"] = outputs;
@@ -1398,11 +1424,12 @@ bool NunchukWalletDb::UpdatePsbt(const std::string& psbt) {
     throw NunchukException(NunchukException::INVALID_WALLET_TYPE,
                            "Liquid wallet is not supported psbt update");
   }
+  PartiallySignedTransaction psbtx = DecodePsbt(psbt);
+  ValidatePsbt(psbtx);
+  std::string tx_id = psbtx.tx->GetHash().GetHex();
   sqlite3_stmt* stmt;
   std::string sql = std::string("UPDATE ") + TxTable() +
                     " SET VALUE = ?1 WHERE ID = ?2 AND HEIGHT = -1;";
-  PartiallySignedTransaction psbtx = DecodePsbt(psbt);
-  std::string tx_id = psbtx.tx.value().GetHash().GetHex();
   sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, psbt.c_str(), psbt.size(), NULL);
   sqlite3_bind_text(stmt, 2, tx_id.c_str(), tx_id.size(), NULL);
@@ -1950,7 +1977,9 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
     TxOutput prev_out;
     try {
       auto prev_tx = GetTransaction(input.txid);
-      prev_out = prev_tx.get_outputs()[input.vout];
+      const auto& prev_outputs = prev_tx.get_outputs();
+      if (static_cast<size_t>(input.vout) >= prev_outputs.size()) continue;
+      prev_out = prev_outputs[input.vout];
       if (!extract_signers && tx.get_wallet_type() == WalletType::MULTI_SIG &&
           tx.get_address_type() != AddressType::TAPROOT &&
           !tx.get_raw().empty() && !prev_tx.get_raw().empty()) {
@@ -1959,22 +1988,27 @@ void NunchukWalletDb::FillSendReceiveData(Transaction& tx) {
             tx.set_signer(signer.first, false);
           }
           auto mtx = DecodeRawTransaction(tx.get_raw());
-          auto vout = DecodeRawTransaction(prev_tx.get_raw()).vout[input.vout];
-          auto extract = DataFromTransaction(mtx, i, vout);
-          for (auto&& sig : extract.signatures) {
-            KeyOriginInfo info;
-            if (SigningProviderCache::getInstance().GetKeyOrigin(sig.first,
-                                                                 info)) {
-              tx.set_signer(strprintf("%08x", ReadBE32(info.fingerprint)),
-                            true);
+          auto raw_prev = DecodeRawTransaction(prev_tx.get_raw());
+          if (static_cast<size_t>(input.vout) < raw_prev.vout.size()) {
+            auto vout = raw_prev.vout[input.vout];
+            auto extract = DataFromTransaction(mtx, i, vout);
+            for (auto&& sig : extract.signatures) {
+              KeyOriginInfo info;
+              if (SigningProviderCache::getInstance().GetKeyOrigin(sig.first,
+                                                                   info)) {
+                tx.set_signer(strprintf("%08x", ReadBE32(info.fingerprint)),
+                              true);
+              }
             }
+            extract_signers = true;
           }
-          extract_signers = true;
         } catch (...) {
         }
       }
-    } catch (StorageException& se) {
+    } catch (const StorageException& se) {
       if (se.code() != StorageException::TX_NOT_FOUND) throw;
+    } catch (const NunchukException& e) {
+      if (e.code() != NunchukException::INVALID_PSBT) throw;
     }
     if (isMyAddress(prev_out.address)) {
       total_amount += prev_out.amount;
@@ -2936,13 +2970,16 @@ std::map<std::string, UnspentOutput> NunchukWalletDb::GetCoinsFromTransactions(
     for (auto&& input : tx.get_inputs()) {
       if (tx_map.count(input.txid) == 0) continue;
       auto prev_tx = tx_map[input.txid];
-      auto address = prev_tx.get_outputs()[input.vout].address;
+      const auto& prev_outputs = prev_tx.get_outputs();
+      if (static_cast<size_t>(input.vout) >= prev_outputs.size()) continue;
+      const auto& prev_output = prev_outputs[input.vout];
+      auto address = prev_output.address;
       if (!isMyAddress(address)) continue;
       auto id = CoinId(input.txid, input.vout);
       coins[id].set_txid(input.txid);
       coins[id].set_vout(input.vout);
       coins[id].set_address(address);
-      coins[id].set_amount(prev_tx.get_outputs()[input.vout].amount);
+      coins[id].set_amount(prev_output.amount);
       coins[id].set_height(prev_tx.get_height());
       coins[id].set_blocktime(prev_tx.get_blocktime());
       if (tx.get_schedule_time() > coins[id].get_schedule_time()) {
@@ -3100,6 +3137,10 @@ RequestTokens NunchukWalletDb::SaveDummyTxRequestToken(
       // Verify token
       if (wallet.get_address_type() == AddressType::NATIVE_SEGWIT) {
         auto dummyPsbt = DecodePsbt(psbt);
+        if (dummyPsbt.inputs.empty()) {
+          throw NunchukException(NunchukException::INVALID_PSBT,
+                                 "PSBT has no inputs");
+        }
         PSBTInput& input = dummyPsbt.inputs[0];
         auto amountIn = input.witness_utxo.nValue;
         CScript scriptCode = input.witness_script;
