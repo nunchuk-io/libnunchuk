@@ -131,6 +131,7 @@ add_library(trezor-crypto STATIC
 target_include_directories(trezor-crypto PUBLIC
     "${PROJECT_SOURCE_DIR}/contrib/trezor-firmware/crypto"
 )
+target_compile_definitions(trezor-crypto PRIVATE USE_BIP39_CACHE=0)
 
 option(NUNCHUK_BUILD_TESTS "Build libnunchuk unit tests" OFF)
 
