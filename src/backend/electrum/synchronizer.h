@@ -75,7 +75,8 @@ class ElectrumSynchronizer : public Synchronizer {
       Chain chain, const std::string& wallet_id, const json& history,
       const std::map<std::string, std::string>& rawtx,
       const std::map<int, std::string>& rawheader,
-      const std::vector<Transaction>& pending_receive_txs = {});
+      const std::vector<Transaction>& pending_receive_txs,
+      std::map<std::string, std::string>& parent_txs);
   void UpdateScripthashStatus(Chain chain, const std::string& scripthash,
                               const std::string& status,
                               bool check_balance = true);

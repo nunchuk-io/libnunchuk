@@ -74,6 +74,7 @@ class ElectrumClient {
       const std::vector<std::string>& scripthashes);
 
  private:
+  json WaitForResponse(std::future<json> response);
   void start();
   void stop();
   void enqueue_message(const std::string& jsonrpc_request);
