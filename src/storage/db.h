@@ -32,7 +32,8 @@ class NunchukDb {
  public:
   NunchukDb(Chain chain, const std::string &id, const std::string &file_name,
             const std::string &passphrase,
-            const std::vector<uint8_t> &encrypt_key = {});
+            const std::vector<uint8_t> &encrypt_key = {},
+            bool recovery_mode = false);
   ~NunchukDb() { close(); }
   std::string GetId() const;
 
@@ -57,6 +58,7 @@ class NunchukDb {
   std::string id_;
   Chain chain_;
   std::vector<uint8_t> boxKey_;
+  bool recovery_mode_;
 
  private:
   NunchukDb() = delete;
