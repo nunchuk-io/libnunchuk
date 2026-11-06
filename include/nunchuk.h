@@ -1512,6 +1512,9 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual ~Nunchuk();
 
   virtual void SetPassphrase(const std::string& passphrase) = 0;
+  // Databases opened after this call erase an internal value that cannot be
+  // decrypted and return it as empty, instead of throwing.
+  virtual void RecoveryMode(bool value) = 0;
   virtual Wallet CreateWallet(
       const std::string& name, int m, int n,
       const std::vector<SingleSigner>& signers, AddressType address_type,

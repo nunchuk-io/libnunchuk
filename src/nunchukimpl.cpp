@@ -140,6 +140,10 @@ void NunchukImpl::SetPassphrase(const std::string& passphrase) {
   storage_->SetPassphrase(chain_, passphrase);
 }
 
+void NunchukImpl::RecoveryMode(bool value) {
+  storage_->SetRecoveryMode(value);
+}
+
 Wallet NunchukImpl::CreateWallet(const std::string& name, int m, int n,
                                  const std::vector<SingleSigner>& signers,
                                  AddressType address_type, bool is_escrow,

@@ -58,6 +58,7 @@ class NunchukStorage {
   std::string ImportWalletDb(Chain chain, const std::string &file_path);
   void SetPassphrase(Chain chain, const std::string &new_passphrase);
   void SetInternalEncryptKey(const std::vector<uint8_t> &key);
+  void SetRecoveryMode(bool value);
   Wallet CreateWallet(Chain chain, const Wallet &wallet);
   std::string CreateMasterSigner(Chain chain, const std::string &name,
                                  const Device &device,
@@ -442,6 +443,7 @@ class NunchukStorage {
   std::filesystem::path datadir_;
   std::string passphrase_;
   std::vector<uint8_t> internal_encrypt_key_;
+  bool recovery_mode_{false};
   std::string account_;
   std::map<std::string, std::string> signer_passphrase_;
 };

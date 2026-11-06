@@ -57,8 +57,12 @@ static bool IsEncryptedValue(const std::string& value) {
 NunchukDb::NunchukDb(Chain chain, const std::string& id,
                      const std::string& file_name,
                      const std::string& passphrase,
-                     const std::vector<uint8_t>& encrypt_key)
-    : id_(id), chain_(chain), db_file_name_(file_name) {
+                     const std::vector<uint8_t>& encrypt_key,
+                     bool recovery_mode)
+    : id_(id),
+      chain_(chain),
+      db_file_name_(file_name),
+      recovery_mode_(recovery_mode) {
   SQLCHECK(sqlite3_open(db_file_name_.c_str(), &db_));
   if (!passphrase.empty()) {
     const char* key = passphrase.c_str();
@@ -209,17 +213,31 @@ std::string NunchukDb::GetString(int key) const {
   }
   SQLCHECK(sqlite3_finalize(stmt));
   if (found && IsEncryptedValue(value)) {
+    std::string error;
     if (boxKey_.empty()) {
-      throw NunchukException(NunchukException::INVALID_STATE,
-                             "Internal encrypt key is not setup");
+      error = "Internal encrypt key is not setup";
+    } else {
+      try {
+        value = Secretbox(boxKey_).Open(
+            value.substr(ENCRYPTED_VALUE_PREFIX.size()));
+      } catch (const std::exception& e) {
+        error = "Invalid encrypted value: " + std::string(e.what());
+      }
     }
-    try {
-      value =
-          Secretbox(boxKey_).Open(value.substr(ENCRYPTED_VALUE_PREFIX.size()));
-    } catch (const std::exception& e) {
-      throw NunchukException(
-          NunchukException::INVALID_STATE,
-          "Invalid encrypted value: " + std::string(e.what()));
+    if (!error.empty()) {
+      if (!recovery_mode_) {
+        throw NunchukException(NunchukException::INVALID_STATE, error);
+      }
+      sqlite3_stmt* clear_stmt;
+      std::string clear_sql =
+          "INSERT INTO VSTR(ID, VALUE)"
+          "VALUES (?1, '')"
+          "ON CONFLICT(ID) DO UPDATE SET VALUE=excluded.VALUE;";
+      sqlite3_prepare_v2(db_, clear_sql.c_str(), -1, &clear_stmt, NULL);
+      sqlite3_bind_int(clear_stmt, 1, key);
+      sqlite3_step(clear_stmt);
+      SQLCHECK(sqlite3_finalize(clear_stmt));
+      value = "";
     }
   }
   if (found) vstr_cache_[db_file_name_][key] = value;

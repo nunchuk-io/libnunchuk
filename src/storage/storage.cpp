@@ -215,7 +215,8 @@ std::string NunchukStorage::GetWalletExportData(Chain chain,
 std::string NunchukStorage::ImportWalletDb(Chain chain,
                                            const std::string& file_path) {
   std::unique_lock<std::shared_mutex> lock(access_);
-  auto wallet_db = NunchukWalletDb{chain, "", file_path, ""};
+   // we don't have this db's encryption key, so we open it in recovery mode
+  auto wallet_db = NunchukWalletDb{chain, "", file_path, "", {}, true};
   Wallet wallet = wallet_db.GetWallet(true, true);
   if (wallet.get_id() != wallet_db.GetId()) {
     throw NunchukException(NunchukException::INVALID_FORMAT,
@@ -301,8 +302,12 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
       bfs::remove(new_file);
     }
     {
-      NunchukDb db{chain, id, old_file.string(), passphrase_,
-                   internal_encrypt_key_};
+      NunchukDb db{chain,
+                   id,
+                   old_file.string(),
+                   passphrase_,
+                   internal_encrypt_key_,
+                   recovery_mode_};
       if (value.empty()) {
         db.DecryptDb(new_file.string());
       } else if (passphrase_.empty()) {
@@ -343,6 +348,11 @@ void NunchukStorage::SetPassphrase(Chain chain, const std::string& value) {
 void NunchukStorage::SetInternalEncryptKey(const std::vector<uint8_t>& key) {
   std::unique_lock<std::shared_mutex> lock(access_);
   internal_encrypt_key_ = key;
+}
+
+void NunchukStorage::SetRecoveryMode(bool value) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  recovery_mode_ = value;
 }
 
 bfs::path NunchukStorage::ChainStr(Chain chain) const {
@@ -426,8 +436,9 @@ NunchukWalletDb NunchukStorage::GetWalletDb(Chain chain,
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            strprintf("Wallet doesn't exist! id = '%s'", id));
   }
-  NunchukWalletDb wallet_db{chain, id, db_file.string(), passphrase_,
-                            internal_encrypt_key_};
+  NunchukWalletDb wallet_db{
+      chain,         id, db_file.string(), passphrase_, internal_encrypt_key_,
+      recovery_mode_};
   // For Liquid wallets, eagerly inject the WallySigner so that every
   // walletdb-touching method (address derivation, transaction parsing, ...)
   // has access to it. Best-effort: skip silently if the signer DB isn't
@@ -460,8 +471,9 @@ NunchukWalletDb NunchukStorage::GetLiquidSupportedWalletDb(
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            strprintf("Wallet doesn't exist! id = '%s'", id));
   }
-  NunchukWalletDb wallet_db{chain, id, db_file.string(), passphrase_,
-                            internal_encrypt_key_};
+  NunchukWalletDb wallet_db{
+      chain,         id, db_file.string(), passphrase_, internal_encrypt_key_,
+      recovery_mode_};
   if (wallet_db.IsSupportLiquid()) {
     auto signers = wallet_db.GetSigners();
     if (!signers.empty()) {
@@ -485,15 +497,16 @@ NunchukSignerDb NunchukStorage::GetSignerDb(Chain chain,
     throw StorageException(StorageException::MASTERSIGNER_NOT_FOUND,
                            strprintf("Key doesn't exist! id = '%s'", id));
   }
-  return NunchukSignerDb{chain, id, db_file.string(), passphrase_,
-                         internal_encrypt_key_};
+  return NunchukSignerDb{
+      chain,         id, db_file.string(), passphrase_, internal_encrypt_key_,
+      recovery_mode_};
 }
 
 NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
   bfs::path db_file = GetAppStateDir(chain);
   bool is_new = !bfs::exists(db_file);
-  auto db =
-      NunchukAppStateDb{chain, "", db_file.string(), "", internal_encrypt_key_};
+  auto db = NunchukAppStateDb{
+      chain, "", db_file.string(), "", internal_encrypt_key_, recovery_mode_};
   if (is_new) db.Init();
   return db;
 }
@@ -501,8 +514,8 @@ NunchukAppStateDb NunchukStorage::GetAppStateDb(Chain chain) {
 NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
   bfs::path db_file = GetPrimaryDir(chain);
   bool is_new = !bfs::exists(db_file);
-  auto db =
-      NunchukPrimaryDb{chain, "", db_file.string(), "", internal_encrypt_key_};
+  auto db = NunchukPrimaryDb{
+      chain, "", db_file.string(), "", internal_encrypt_key_, recovery_mode_};
   db.Init();
   return db;
 }
@@ -510,8 +523,8 @@ NunchukPrimaryDb NunchukStorage::GetPrimaryDb(Chain chain) {
 NunchukLocalDb NunchukStorage::GetLocalDb(Chain chain) {
   bfs::path db_file = GetLocalDir(chain);
   bool is_new = !bfs::exists(db_file);
-  auto db =
-      NunchukLocalDb{chain, "", db_file.string(), "", internal_encrypt_key_};
+  auto db = NunchukLocalDb{
+      chain, "", db_file.string(), "", internal_encrypt_key_, recovery_mode_};
   db.Init();
   return db;
 }
@@ -519,8 +532,8 @@ NunchukLocalDb NunchukStorage::GetLocalDb(Chain chain) {
 NunchukGroupDb NunchukStorage::GetGroupDb(Chain chain) {
   bfs::path db_file = GetGroupDir(chain);
   bool is_new = !bfs::exists(db_file);
-  auto db =
-      NunchukGroupDb{chain, "", db_file.string(), "", internal_encrypt_key_};
+  auto db = NunchukGroupDb{
+      chain, "", db_file.string(), "", internal_encrypt_key_, recovery_mode_};
   db.Init();
   return db;
 }
@@ -529,8 +542,8 @@ NunchukTapprotocolDb NunchukStorage::GetTaprotocolDb(Chain chain,
                                                      const bfs::path& dir) {
   bfs::path db_file = GetTapprotocolDir(chain, dir);
   bool is_new = !bfs::exists(db_file);
-  auto db = NunchukTapprotocolDb{chain, "", db_file.string(), "",
-                                 internal_encrypt_key_};
+  auto db = NunchukTapprotocolDb{
+      chain, "", db_file.string(), "", internal_encrypt_key_, recovery_mode_};
   if (is_new) db.Init();
   return db;
 }
@@ -538,8 +551,9 @@ NunchukTapprotocolDb NunchukStorage::GetTaprotocolDb(Chain chain,
 NunchukRoomDb NunchukStorage::GetRoomDb(Chain chain) {
   bfs::path db_file = GetRoomDir(chain);
   bool is_new = !bfs::exists(db_file);
-  auto db = NunchukRoomDb{chain, "", db_file.string(), passphrase_,
-                          internal_encrypt_key_};
+  auto db = NunchukRoomDb{
+      chain,         "", db_file.string(), passphrase_, internal_encrypt_key_,
+      recovery_mode_};
   if (is_new) db.Init();
   return db;
 }
@@ -555,9 +569,12 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
 
   const auto save_true_signer = [&](SingleSigner signer) {
     const std::string master_id = signer.get_master_fingerprint();
-    NunchukSignerDb signer_db{chain, master_id,
+    NunchukSignerDb signer_db{chain,
+                              master_id,
                               GetSignerDir(chain, master_id).string(),
-                              passphrase_, internal_encrypt_key_};
+                              passphrase_,
+                              internal_encrypt_key_,
+                              recovery_mode_};
 
     if (signer_db.IsMaster() && !signer.get_xpub().empty()) {
       int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
@@ -606,8 +623,12 @@ Wallet NunchukStorage::CreateWallet0(Chain chain, const Wallet& wallet) {
   for (auto&& signer : wallet.get_signers()) {
     true_signers.emplace_back(save_true_signer(signer));
   }
-  NunchukWalletDb wallet_db{chain, id, wallet_file.string(), passphrase_,
-                            internal_encrypt_key_};
+  NunchukWalletDb wallet_db{chain,
+                            id,
+                            wallet_file.string(),
+                            passphrase_,
+                            internal_encrypt_key_,
+                            recovery_mode_};
   wallet_db.InitWallet(wallet);
   GetAppStateDb(chain).RemoveDeletedWallet(id);
 
@@ -620,9 +641,12 @@ SingleSigner NunchukStorage::GetTrueSigner0(Chain chain,
                                             const SingleSigner& signer,
                                             bool create_if_not_exist) const {
   const std::string master_id = signer.get_master_fingerprint();
-  NunchukSignerDb signer_db{chain, master_id,
+  NunchukSignerDb signer_db{chain,
+                            master_id,
                             GetSignerDir(chain, master_id).string(),
-                            passphrase_, internal_encrypt_key_};
+                            passphrase_,
+                            internal_encrypt_key_,
+                            recovery_mode_};
 
   if (signer_db.IsMaster()) {
     return SingleSigner(
@@ -659,8 +683,12 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
                                                const std::string& mnemonic) {
   std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = ba::to_lower_copy(device.get_master_fingerprint());
-  NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
-                            passphrase_, internal_encrypt_key_};
+  NunchukSignerDb signer_db{chain,
+                            id,
+                            GetSignerDir(chain, id).string(),
+                            passphrase_,
+                            internal_encrypt_key_,
+                            recovery_mode_};
   if (signer_db.IsMaster() &&
       signer_db.GetSignerType() == SignerType::SOFTWARE && mnemonic.empty()) {
     signer_db.DeleteSoftwareSigner();
@@ -676,8 +704,12 @@ std::string NunchukStorage::CreateMasterSignerFromMasterXprv(
     const std::string& master_xprv) {
   std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = ba::to_lower_copy(device.get_master_fingerprint());
-  NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
-                            passphrase_, internal_encrypt_key_};
+  NunchukSignerDb signer_db{chain,
+                            id,
+                            GetSignerDir(chain, id).string(),
+                            passphrase_,
+                            internal_encrypt_key_,
+                            recovery_mode_};
   signer_db.SetVisible(true);
   signer_db.InitSignerMasterXprv(name, device, master_xprv);
   GetAppStateDb(chain).RemoveDeletedSigner(id);
@@ -691,8 +723,12 @@ SingleSigner NunchukStorage::CreateSingleSigner(
     std::vector<SignerTag> tags, bool replace) {
   std::unique_lock<std::shared_mutex> lock(access_);
   std::string id = master_fingerprint;
-  NunchukSignerDb signer_db{chain, id, GetSignerDir(chain, id).string(),
-                            passphrase_, internal_encrypt_key_};
+  NunchukSignerDb signer_db{chain,
+                            id,
+                            GetSignerDir(chain, id).string(),
+                            passphrase_,
+                            internal_encrypt_key_,
+                            recovery_mode_};
   signer_db.SetVisible(true);
   if (signer_db.IsMaster()) {
     if (replace) {
@@ -734,8 +770,9 @@ bool NunchukStorage::HasSigner(Chain chain, const SingleSigner& signer) {
   std::string id = signer.get_master_fingerprint();
   bfs::path db_file = GetSignerDir(chain, id);
   if (!bfs::exists(db_file)) return false;
-  NunchukSignerDb signer_db{chain, id, db_file.string(), passphrase_,
-                            internal_encrypt_key_};
+  NunchukSignerDb signer_db{
+      chain,         id, db_file.string(), passphrase_, internal_encrypt_key_,
+      recovery_mode_};
   if (signer_db.IsMaster()) return true;
   try {
     auto remote = signer_db.GetRemoteSigner(signer.get_derivation_path());
@@ -1072,8 +1109,9 @@ Wallet NunchukStorage::GetWallet(Chain chain, const std::string& id,
     throw StorageException(StorageException::WALLET_NOT_FOUND,
                            strprintf("Wallet doesn't exist! id = '%s'", id));
   }
-  NunchukWalletDb wallet_db{chain, id, db_file.string(), passphrase_,
-                            internal_encrypt_key_};
+  NunchukWalletDb wallet_db{
+      chain,         id, db_file.string(), passphrase_, internal_encrypt_key_,
+      recovery_mode_};
   bool needs_passphrase = false;
   if (wallet_db.IsSupportLiquid()) {
     auto signers = wallet_db.GetSigners();
@@ -1270,8 +1308,12 @@ bool NunchukStorage::DeleteWallet(Chain chain, const std::string& id) {
       try {
         std::string master_id = signer.get_master_fingerprint();
         std::string db_dir = GetSignerDir(chain, master_id).string();
-        NunchukSignerDb signer_db{chain, master_id, db_dir, passphrase_,
-                                  internal_encrypt_key_};
+        NunchukSignerDb signer_db{chain,
+                                  master_id,
+                                  db_dir,
+                                  passphrase_,
+                                  internal_encrypt_key_,
+                                  recovery_mode_};
         if (signer_db.IsMaster()) signer_db.UseIndex(wt, at, index, false);
       } catch (...) {
       }
@@ -2009,8 +2051,12 @@ bool NunchukStorage::SyncWithBackup(const std::string& dataStr,
       if (id.empty()) continue;
       if (std::find(dsids.begin(), dsids.end(), id) != dsids.end()) continue;
       bfs::path db_file = GetSignerDir(chain, id);
-      NunchukSignerDb db{chain, id, db_file.string(), passphrase_,
-                         internal_encrypt_key_};
+      NunchukSignerDb db{chain,
+                         id,
+                         db_file.string(),
+                         passphrase_,
+                         internal_encrypt_key_,
+                         recovery_mode_};
       if (!signer["name"].get<std::string>().empty()) {
         db.InitSigner(signer["name"],
                       {signer["device_type"], signer["device_model"], id}, "");
@@ -2536,8 +2582,12 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
     bfs::path signer_file = GetSignerDir(chain, id);
     bfs::path decoy_file = GetSignerDir0(db_folder, chain, id);
 
-    NunchukSignerDb signer_db{chain, id, signer_file.string(), passphrase_,
-                              internal_encrypt_key_};
+    NunchukSignerDb signer_db{chain,
+                              id,
+                              signer_file.string(),
+                              passphrase_,
+                              internal_encrypt_key_,
+                              recovery_mode_};
     if (!bfs::exists(decoy_file) && signer_db.IsMaster()) {
       int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
       if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
@@ -2553,14 +2603,16 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
         bfs::copy_file(signer_file, decoy_file);
       } else {
         signer_db.DecryptDb(decoy_file.string());
-        NunchukSignerDb{chain, id, decoy_file.string(), "",
-                        internal_encrypt_key_}
+        NunchukSignerDb{
+            chain,         id, decoy_file.string(), "", internal_encrypt_key_,
+            recovery_mode_}
             .RemoveSecretMaterial();
       }
       return signer;
     }
-    NunchukSignerDb decoy_db{chain, id, decoy_file.string(), "",
-                             internal_encrypt_key_};
+    NunchukSignerDb decoy_db{
+        chain,         id, decoy_file.string(), "", internal_encrypt_key_,
+        recovery_mode_};
     if (decoy_db.IsMaster()) {
       int index = GetIndexFromPath(wt, at, signer.get_derivation_path());
       if (FormalizePath(GetBip32Path(chain, wt, at, index)) ==
@@ -2607,8 +2659,9 @@ Wallet NunchukStorage::CreateDecoyWallet(Chain chain, const Wallet& wallet,
       wallet_db.DecryptDb(wallet_file.string());
     }
   } else {
-    NunchukWalletDb wallet_db{chain, id, wallet_file.string(), "",
-                              internal_encrypt_key_};
+    NunchukWalletDb wallet_db{
+        chain,         id, wallet_file.string(), "", internal_encrypt_key_,
+        recovery_mode_};
     wallet_db.InitWallet(wallet);
   }
 
