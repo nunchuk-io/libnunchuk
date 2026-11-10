@@ -21,6 +21,7 @@
 #include <optional>
 #include <set>
 #include "utils/errorutils.hpp"
+#include "utils/satochip.hpp"
 #define NUNCHUK_EXPORT
 
 #include <functional>
@@ -204,6 +205,7 @@ enum class SignerType {
   SERVER,
   PORTAL_NFC,
   PLATFORM,
+  SATOCHIP_NFC,
 };
 
 enum class OrderBy {
@@ -1907,6 +1909,15 @@ class NUNCHUK_EXPORT Nunchuk {
       const std::vector<unsigned char>& data, const std::string& backup_key,
       const std::string& name, std::function<bool(int)> progress,
       bool is_primary = false) = 0;
+  virtual void VerifyKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& xfp = {}, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) = 0;
+  virtual MasterSigner ImportKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) = 0;
   virtual MasterSigner ImportBackupKey(const std::vector<unsigned char>& data,
                                        const std::string& backup_key,
                                        const std::string& name,
@@ -2308,6 +2319,34 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual void AddGroupWalletDashboardListener(
       std::function<void(const std::string& walletId)> listener) = 0;
 
+  // Satochip
+  virtual void AddSatochip(const std::string& xfp, const std::string& name) = 0;
+  // Keep the same unlocked card session throughout registration and caching.
+  virtual MasterSigner CreateSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& name, std::function<bool(int)> progress) = 0;
+  virtual void CacheSatochipMasterSignerXPub(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id,
+      std::function<bool(int)> progress) = 0;
+  virtual SingleSigner GetSignerFromSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id, const std::string& path) = 0;
+  virtual SingleSigner GetSignerFromSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id, const WalletType& wallet_type,
+      const AddressType& address_type, int index) = 0;
+  virtual std::string SignSatochipMessage(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const CardSignTransactionHashFn& cardSignTransactionHashFn,
+      const SingleSigner& signer, const std::string& message) = 0;
+  virtual std::string SignSatochipTransaction(
+      const SatochipSignPsbtParams& params, const Wallet& wallet,
+      const std::string& psbt) = 0;
+  virtual Transaction SignSatochipTransaction(
+      const SatochipSignPsbtParams& params, const std::string& wallet_id,
+      const std::string& tx_id) = 0;
+
  protected:
   Nunchuk() = default;
 };
@@ -2420,6 +2459,8 @@ class NUNCHUK_EXPORT Utils {
   static SingleSigner ParseSignerString(const std::string& signer_str);
   static std::vector<Wallet> ParseJSONWallets(
       const std::string& json_str, SignerType signer_type = SignerType::AIRGAP);
+  static std::vector<std::string> GetKruxBackupMnemonicIds(
+      const std::vector<unsigned char>& data);
   static std::vector<Wallet> ParseBBQRWallets(
       const std::vector<std::string>& qr_data);
   static std::vector<SingleSigner> ParsePassportSigners(

@@ -497,6 +497,15 @@ class NunchukImpl : public Nunchuk {
                                     const std::string& name,
                                     std::function<bool(int)> progress,
                                     bool is_primary = false) override;
+  void VerifyKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& xfp = {}, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) override;
+  MasterSigner ImportKruxBackup(
+      const std::vector<unsigned char>& data, const std::string& backup_key,
+      const std::string& name, std::function<bool(int)> progress,
+      bool is_primary = false, const std::string& mnemonic_id = {},
+      const std::string& passphrase = {}) override;
   MasterSigner ImportBackupKey(const std::vector<unsigned char>& data,
                                const std::string& backup_key,
                                const std::string& name,
@@ -799,6 +808,32 @@ class NunchukImpl : public Nunchuk {
           listener) override;
   void AddGroupWalletDashboardListener(
       std::function<void(const std::string& walletId)> listener) override;
+
+  void AddSatochip(const std::string& xfp, const std::string& name) override;
+  MasterSigner CreateSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& name, std::function<bool(int)> progress) override;
+  void CacheSatochipMasterSignerXPub(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id,
+      std::function<bool(int)> progress) override;
+  SingleSigner GetSignerFromSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id, const std::string& path) override;
+  SingleSigner GetSignerFromSatochipMasterSigner(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const std::string& master_signer_id, const WalletType& wallet_type,
+      const AddressType& address_type, int index) override;
+  std::string SignSatochipMessage(
+      const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+      const CardSignTransactionHashFn& cardSignTransactionHashFn,
+      const SingleSigner& signer, const std::string& message) override;
+  std::string SignSatochipTransaction(const SatochipSignPsbtParams& params,
+                                      const Wallet& wallet,
+                                      const std::string& psbt) override;
+  Transaction SignSatochipTransaction(const SatochipSignPsbtParams& params,
+                                      const std::string& wallet_id,
+                                      const std::string& tx_id) override;
 
  private:
   std::string CreatePsbt(const std::string& wallet_id,

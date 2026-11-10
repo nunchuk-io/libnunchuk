@@ -59,6 +59,7 @@
 #include <utils/silentpayment.hpp>
 #include <utils/coldcard.hpp>
 #include <utils/rfc2440.hpp>
+#include <utils/json.hpp>
 
 #include <random.h>
 #include <ctime>
@@ -665,6 +666,21 @@ std::vector<Wallet> Utils::ParseJSONWallets(const std::string& json_str,
     throw NunchukException(NunchukException::INVALID_FORMAT,
                            "Invalid data format");
   }
+}
+
+std::vector<std::string> Utils::GetKruxBackupMnemonicIds(
+    const std::vector<unsigned char>& data) {
+  const auto seeds = json::parse(data.begin(), data.end(), nullptr, false);
+  if (!seeds.is_object()) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid Krux seeds.json backup");
+  }
+  std::vector<std::string> ids;
+  ids.reserve(seeds.size());
+  for (auto entry = seeds.begin(); entry != seeds.end(); ++entry) {
+    ids.push_back(entry.key());
+  }
+  return ids;
 }
 
 std::vector<Wallet> Utils::ParseBBQRWallets(

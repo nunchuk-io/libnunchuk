@@ -46,6 +46,8 @@
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
 #include <utils/coldcard.hpp>
+#include <utils/krux.hpp>
+#include <utils/satochip.hpp>
 #include <ur.h>
 #include <ur-encoder.hpp>
 #include <ur-decoder.hpp>
@@ -1074,7 +1076,8 @@ HealthStatus NunchukImpl::HealthCheckMasterSigner(
     throw NunchukException(
         NunchukException::INVALID_SIGNER_TYPE,
         strprintf("Can not healthcheck foreign software id = '%s'", id));
-  } else if (signerType == SignerType::NFC) {
+  } else if (signerType == SignerType::NFC ||
+             signerType == SignerType::SATOCHIP_NFC) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            strprintf("Must be healthcheck with NFC "
                                      "id = '%s'",
@@ -1505,6 +1508,7 @@ Transaction NunchukImpl::SignTransaction(const std::string& wallet_id,
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
     case SignerType::PORTAL_NFC:
+    case SignerType::SATOCHIP_NFC:
       throw NunchukException(
           NunchukException::INVALID_SIGNER_TYPE,
           strprintf("Transaction must be sign with NFC "
@@ -1577,6 +1581,7 @@ Transaction NunchukImpl::SignTransaction(const Wallet& wallet,
                                        "mastersigner_id = '%s'",
                                        mastersigner_id));
     case SignerType::PORTAL_NFC:
+    case SignerType::SATOCHIP_NFC:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              strprintf("Transaction must be sign with NFC "
                                        "mastersigner_id = '%s'",
@@ -1621,6 +1626,7 @@ std::string NunchukImpl::SignMessage(const SingleSigner& signer,
           "Recover this software key on this device before signing a message.");
     case SignerType::NFC:
     case SignerType::PORTAL_NFC:
+    case SignerType::SATOCHIP_NFC:
       throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                              "Please use NFC to sign a message with this key.");
     case SignerType::SERVER:
@@ -2035,6 +2041,7 @@ void NunchukImpl::CacheMasterSignerXPub(const std::string& mastersigner_id,
     case SignerType::AIRGAP:
     case SignerType::COLDCARD_NFC:
     case SignerType::PORTAL_NFC:
+    case SignerType::SATOCHIP_NFC:
     case SignerType::UNKNOWN:
     case SignerType::SERVER:
     case SignerType::PLATFORM:
@@ -2505,6 +2512,30 @@ MasterSigner NunchukImpl::ImportColdcardBackup(
   return mastersigner;
 }
 
+void NunchukImpl::VerifyKruxBackup(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& xfp, const std::string& mnemonic_id,
+    const std::string& passphrase) {
+  SoftwareSigner signer{ExtractKruxBackup(data, backup_key, mnemonic_id),
+                        passphrase};
+  const std::string id = to_lower_copy(signer.GetMasterFingerprint());
+  if (!xfp.empty() && id != to_lower_copy(xfp)) {
+    throw NunchukException(TapProtocolException::INVALID_DEVICE,
+                           strprintf("Invalid device: key fingerprint "
+                                     "does not match. Expected '%s'",
+                                     xfp));
+  }
+}
+
+MasterSigner NunchukImpl::ImportKruxBackup(
+    const std::vector<unsigned char>& data, const std::string& backup_key,
+    const std::string& name, std::function<bool(int)> progress, bool is_primary,
+    const std::string& mnemonic_id, const std::string& passphrase) {
+  return CreateSoftwareSigner(name,
+                              ExtractKruxBackup(data, backup_key, mnemonic_id),
+                              passphrase, progress, is_primary);
+}
+
 MasterSigner NunchukImpl::ImportBackupKey(
     const std::vector<unsigned char>& data, const std::string& backup_key,
     const std::string& name, std::function<bool(int)> progress,
@@ -2518,10 +2549,14 @@ MasterSigner NunchukImpl::ImportBackupKey(
     return ImportColdcardBackup(data, backup_key, name, progress, is_primary);
   };
 
+  const auto import_krux = [&]() {
+    return ImportKruxBackup(data, backup_key, name, progress, is_primary);
+  };
+
   if (data.size() < 200) {
-    return RunThrowOne(import_tapsigner, import_coldcard);
+    return RunThrowOne(import_tapsigner, import_coldcard, import_krux);
   }
-  return RunThrowOne(import_coldcard, import_tapsigner);
+  return RunThrowOne(import_coldcard, import_tapsigner, import_krux);
 }
 
 void NunchukImpl::RescanBlockchain(int start_height, int stop_height) {
@@ -2826,7 +2861,8 @@ std::string NunchukImpl::SignHealthCheckMessage(const SingleSigner& signer,
         NunchukException::INVALID_SIGNER_TYPE,
         strprintf("Can not sign with foreign software id = '%s'", id));
   } else if (signerType == SignerType::NFC ||
-             signerType == SignerType::PORTAL_NFC) {
+             signerType == SignerType::PORTAL_NFC ||
+             signerType == SignerType::SATOCHIP_NFC) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            strprintf("Must be sign with NFC id = '%s'", id));
   } else if (signerType == SignerType::AIRGAP) {
@@ -2859,7 +2895,8 @@ std::string NunchukImpl::SignHealthCheckMessage(const Wallet& wallet,
         NunchukException::INVALID_SIGNER_TYPE,
         strprintf("Can not sign with foreign software id = '%s'", id));
   } else if (signerType == SignerType::NFC ||
-             signerType == SignerType::PORTAL_NFC) {
+             signerType == SignerType::PORTAL_NFC ||
+             signerType == SignerType::SATOCHIP_NFC) {
     throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
                            strprintf("Must be sign with NFC id = '%s'", id));
   } else if (signerType == SignerType::AIRGAP) {
@@ -3597,6 +3634,155 @@ Transaction NunchukImpl::SignLiquidTransaction(const std::string& wallet_id,
   // Liquid wallets are software-only; the SOFTWARE signer is already wired
   // via WallySigner inside the WalletDb, so `device` is unused.
   return storage_->SignLiquidTransaction(chain_, wallet_id, tx_id);
+}
+
+void NunchukImpl::AddSatochip(const std::string& xfp,
+                              const std::string& raw_name) {
+  if (!Utils::IsValidFingerPrint(xfp)) {
+    throw NunchukException(
+        NunchukException::INVALID_PARAMETER,
+        "Key fingerprint must be exactly 8 hexadecimal characters.");
+  }
+  const auto id = to_lower_copy(xfp);
+  const auto name = trim_copy(raw_name);
+  storage_->CreateSatochipMasterSigner(chain_, name.empty() ? id : name,
+                                       Device{"satochip", "satochip", id}, {},
+                                       {});
+  storage_listener_();
+}
+
+MasterSigner NunchukImpl::CreateSatochipMasterSigner(
+    const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+    const std::string& raw_name, std::function<bool(int)> progress) {
+  const auto id = SatochipGetMasterFingerprint(cardBip32GetExtendedKeyFn);
+  const auto name = trim_copy(raw_name);
+  storage_->CreateSatochipMasterSigner(
+      chain_, name.empty() ? id : name, Device{"satochip", "satochip", id},
+      [&](const std::string& path) {
+        return SatochipGetXpub(cardBip32GetExtendedKeyFn, path,
+                               chain_ != Chain::MAIN);
+      },
+      progress ? progress : [](int) { return true; });
+  storage_listener_();
+  return storage_->GetMasterSigner(chain_, id);
+}
+
+void NunchukImpl::CacheSatochipMasterSignerXPub(
+    const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+    const std::string& master_signer_id, std::function<bool(int)> progress) {
+  const auto id = to_lower_copy(master_signer_id);
+  if (storage_->GetMasterSigner(chain_, id).get_type() !=
+      SignerType::SATOCHIP_NFC) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "Expected a Satochip master signer.");
+  }
+  storage_->CacheMasterSignerXPub(
+      chain_, id,
+      [&](const std::string& path) {
+        return SatochipGetXpub(cardBip32GetExtendedKeyFn, path,
+                               chain_ != Chain::MAIN);
+      },
+      progress ? progress : [](int) { return true; }, false);
+  storage_listener_();
+}
+
+SingleSigner NunchukImpl::GetSignerFromSatochipMasterSigner(
+    const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+    const std::string& master_signer_id, const WalletType& wallet_type,
+    const AddressType& address_type, int index) {
+  return GetSignerFromSatochipMasterSigner(
+      cardBip32GetExtendedKeyFn, master_signer_id,
+      GetBip32Path(chain_, wallet_type, address_type, index));
+}
+
+SingleSigner NunchukImpl::GetSignerFromSatochipMasterSigner(
+    const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+    const std::string& master_signer_id, const std::string& path) {
+  if (!Utils::IsValidDerivationPath(path)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           strprintf("Invalid derivation path [%s].", path));
+  }
+  const auto id = to_lower_copy(master_signer_id);
+  if (storage_->GetMasterSigner(chain_, id).get_type() !=
+      SignerType::SATOCHIP_NFC) {
+    throw NunchukException(NunchukException::INVALID_SIGNER_TYPE,
+                           "Expected a Satochip master signer.");
+  }
+  try {
+    return storage_->GetSignerFromMasterSigner(chain_, id, path);
+  } catch (NunchukException& ex) {
+    if (ex.code() != NunchukException::RUN_OUT_OF_CACHED_XPUB) {
+      throw;
+    }
+  }
+  if (SatochipGetMasterFingerprint(cardBip32GetExtendedKeyFn) != id) {
+    throw NunchukException(
+        NunchukException::INVALID_PARAMETER,
+        "Wrong Satochip card. Use the card for the selected key.");
+  }
+  auto xpub =
+      SatochipGetXpub(cardBip32GetExtendedKeyFn, path, chain_ != Chain::MAIN);
+  auto signer = storage_->AddSignerToMasterSigner(
+      chain_, id,
+      Utils::SanitizeSingleSigner(
+          SingleSigner({}, xpub, {}, path, {0, 1}, id, std::time(nullptr))));
+  storage_listener_();
+  return signer;
+}
+
+std::string NunchukImpl::SignSatochipMessage(
+    const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
+    const CardSignTransactionHashFn& cardSignTransactionHashFn,
+    const SingleSigner& signer, const std::string& message) {
+  return SatochipSignMessage(cardBip32GetExtendedKeyFn,
+                             cardSignTransactionHashFn, signer, message);
+}
+
+std::string NunchukImpl::SignSatochipTransaction(
+    const SatochipSignPsbtParams& params, const Wallet& wallet,
+    const std::string& psbt) {
+  std::string master_fingerprint =
+      SatochipGetMasterFingerprint(params.cardBip32GetExtendedKeyFn);
+  if (std::none_of(wallet.get_signers().begin(), wallet.get_signers().end(),
+                   [&](const SingleSigner& signer) {
+                     return master_fingerprint ==
+                            signer.get_master_fingerprint();
+                   })) {
+    throw NunchukException(
+        NunchukException::INVALID_PARAMETER,
+        "Wrong Satochip card. Use a card associated with this wallet.");
+  }
+  auto local_db = storage_->GetLocalDb(chain_);
+  auto save_sec_nonce = [&](const std::string& session_id,
+                            const std::vector<unsigned char>& secnonce) {
+    local_db.SetMuSig2SecNonce(*uint256::FromHex(session_id), HexStr(secnonce));
+  };
+  auto consume_sec_nonce = [&](const std::string& session_id)
+      -> std::optional<std::vector<unsigned char>> {
+    try {
+      return ParseHex(
+          local_db.GetMuSig2SecNonce(*uint256::FromHex(session_id)));
+    } catch (StorageException& se) {
+      if (se.code() == StorageException::NONCE_NOT_FOUND) {
+        return std::nullopt;
+      }
+      throw;
+    }
+  };
+  return SatochipSignPsbt(params, master_fingerprint, psbt, save_sec_nonce,
+                          consume_sec_nonce, wallet);
+}
+
+Transaction NunchukImpl::SignSatochipTransaction(
+    const SatochipSignPsbtParams& params, const std::string& wallet_id,
+    const std::string& tx_id) {
+  std::string psbt = storage_->GetPsbt(chain_, wallet_id, tx_id);
+  if (psbt.empty()) {
+    throw StorageException(StorageException::TX_NOT_FOUND, "Tx not found!");
+  }
+  auto wallet = GetWallet(wallet_id);
+  std::string signed_psbt = SignSatochipTransaction(params, wallet, psbt);
+  return ImportPsbt(wallet_id, signed_psbt);
 }
 
 std::unique_ptr<Nunchuk> MakeNunchuk(const AppSettings& appsettings,
