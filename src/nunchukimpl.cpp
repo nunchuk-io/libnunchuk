@@ -841,30 +841,6 @@ int NunchukImpl::GetLastUsedSignerIndex(const std::string& xfp,
   return cur;
 }
 
-static SingleSigner DeriveSigner(const SingleSigner& signer,
-                                 const std::string& path,
-                                 std::string suffix) {
-  std::replace(suffix.begin(), suffix.end(), 'h', '\'');
-  std::vector<uint32_t> keypath;
-  if (!ParseHDKeypath("m" + suffix, keypath)) {
-    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                           strprintf("Invalid derivation path [%s].", path));
-  }
-  auto xpub = DecodeExtPubKey(signer.get_xpub());
-  for (auto index : keypath) {
-    if (!xpub.Derive(xpub, index)) {
-      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
-                             "Invalid derivation path");
-    }
-  }
-  return SingleSigner(
-      signer.get_name(), EncodeExtPubKey(xpub), signer.get_public_key(), path,
-      signer.get_external_internal_index(), signer.get_master_fingerprint(),
-      signer.get_last_health_check(), signer.get_master_signer_id(),
-      signer.is_used(), signer.get_type(), signer.get_tags(),
-      signer.is_visible());
-}
-
 SingleSigner NunchukImpl::GetSignerFromMasterSigner(
     const std::string& mastersigner_id, const std::string& path) {
   if (!Utils::IsValidDerivationPath(path)) {
@@ -884,7 +860,7 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
         suffix = path.substr(last_hardened + 1);
         try {
           auto signer = GetSignerFromMasterSigner(mastersigner_id, signer_path);
-          return DeriveSigner(signer, path, suffix);
+          return Utils::DeriveSigner(signer, path);
         } catch (NunchukException& signer_error) {
           if (signer_error.code() !=
               NunchukException::RUN_OUT_OF_CACHED_XPUB) {
@@ -900,7 +876,7 @@ SingleSigner NunchukImpl::GetSignerFromMasterSigner(
             master.get_name(), xpub, "", signer_path, {0, 1}, mastersigner_id,
             master.get_last_health_check(), mastersigner_id, false,
             master.get_type(), master.get_tags(), master.is_visible());
-        return suffix.empty() ? signer : DeriveSigner(signer, path, suffix);
+        return suffix.empty() ? signer : Utils::DeriveSigner(signer, path);
       }
     }
     throw;
@@ -1517,14 +1493,24 @@ std::string NunchukImpl::SignMessage(const SingleSigner& signer,
     case SignerType::AIRGAP:
     case SignerType::COLDCARD_NFC:
     case SignerType::HARDWARE: {
-      auto path = signer.get_derivation_path();
-      const auto& tags = signer.get_tags();
-      if (std::find(tags.begin(), tags.end(), SignerTag::TREZOR) != tags.end()) {
-        // Workaround: Trezor requires a child path for message signing.
-        path = Utils::TrezorGetSignMessagePath(signer);
-      }
       Device device{signer.get_master_fingerprint()};
-      return hwi_.SignMessage(device, message, path);
+      const auto& path = signer.get_derivation_path();
+      try {
+        return hwi_.SignMessage(device, message, path);
+      } catch (const HWIException& error) {
+        // Newer Trezor firmware can sign account paths directly; older firmware
+        // needs /0/0 after a fully hardened path. Retry only on path rejection.
+        const auto& tags = signer.get_tags();
+        if (std::find(tags.begin(), tags.end(), SignerTag::TREZOR) == tags.end() ||
+            std::string(error.what()).find("Forbidden key path") == std::string::npos) {
+          throw;
+        }
+        const auto fallback_path = Utils::TrezorGetSignMessagePath(signer);
+        auto original_path = path;
+        std::replace(original_path.begin(), original_path.end(), 'h', '\'');
+        if (fallback_path == original_path) throw;
+        return hwi_.SignMessage(device, message, fallback_path);
+      }
     }
     case SignerType::FOREIGN_SOFTWARE:
       throw NunchukException(
