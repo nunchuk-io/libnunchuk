@@ -53,6 +53,28 @@ namespace nunchuk {
 static const unsigned char MAINNET_PREFIX[4] = {0x04, 0x88, 0xB2, 0x1E};
 static const unsigned char TESTNET_PREFIX[4] = {0x04, 0x35, 0x87, 0xCF};
 
+void SatochipCheckXpubPath(const std::string &path, bool supports_taproot,
+                         bool supports_taproot_multisig) {
+  auto normalized = path;
+  std::replace(normalized.begin(), normalized.end(), 'h', '\'');
+  std::vector<uint32_t> keypath;
+  if (!ParseHDKeypath(normalized, keypath)) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           "Invalid key derivation path.");
+  }
+  if (keypath.empty()) return;
+  if (keypath.front() == (0x80000000U | 86) && !supports_taproot) {
+    throw NunchukException(
+        NunchukException::VERSION_NOT_SUPPORTED,
+        "This Satochip card does not support Taproot.");
+  }
+  if (keypath.front() == (0x80000000U | 87) && !supports_taproot_multisig) {
+    throw NunchukException(
+        NunchukException::VERSION_NOT_SUPPORTED,
+        "This Satochip card does not support Taproot multisig.");
+  }
+}
+
 void SatochipImportSeedFromMnemonic(
     const CardBip32ImportSeedFn &cardBip32ImportSeedFn,
     const std::string &mnemonic, const std::string &passphrase) {
@@ -508,7 +530,9 @@ static CExtPubKey SatochipGetExtPubKey(
 
 std::string SatochipGetXpub(
     const CardBip32GetExtendedKeyFn &cardBip32GetExtendedKeyFn,
-    const std::string &path, bool is_testnet) {
+    const std::string &path, bool is_testnet, bool supports_taproot,
+    bool supports_taproot_multisig) {
+  SatochipCheckXpubPath(path, supports_taproot, supports_taproot_multisig);
   auto extkey =
       SatochipGetExtPubKey(cardBip32GetExtendedKeyFn, path, is_testnet);
   std::vector<unsigned char> encoded(BIP32_EXTKEY_WITH_VERSION_SIZE);
