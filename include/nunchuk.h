@@ -330,6 +330,7 @@ class NUNCHUK_EXPORT HWIException : public BaseException {
   static const int NEED_TO_BE_ROOT = -4016;
   static const int HELP_TEXT = -4017;
   static const int DEVICE_NOT_INITIALIZED = -4018;
+  static const int PAIRING_REQUIRED = -4020;
   // Nunchuk-defined error codes
   static const int RUN_ERROR = -4099;
   static const int INVALID_RESULT = -4098;
@@ -417,9 +418,11 @@ class NUNCHUK_EXPORT Device {
   bool connected() const;
   bool needs_pass_phrase_sent() const;
   bool needs_pin_sent() const;
+  bool needs_pairing() const;
   bool initialized() const;
   bool is_tapsigner() const;
   void set_needs_pass_phrase_sent(const bool value);
+  void set_needs_pairing(bool value);
 
  private:
   std::string type_;
@@ -430,6 +433,40 @@ class NUNCHUK_EXPORT Device {
   bool needs_pass_phrase_sent_;
   bool needs_pin_sent_;
   bool initialized_;
+  bool needs_pairing_ = false;
+};
+
+enum class DevicePairingMethod { ENTER_CODE, CONFIRM_CODE };
+
+struct DevicePairingRequest {
+  DevicePairingMethod method;
+  std::string code;  // Displayed for CONFIRM_CODE; empty for ENTER_CODE.
+};
+
+struct DevicePairingResponse {
+  bool accept = false;
+  std::string code;  // Six digits for ENTER_CODE; empty for CONFIRM_CODE.
+};
+
+/** Use the same HWI path quoting as AppSettings. Start/Confirm must run
+ *  sequentially off the UI thread; Cancel may run from another thread.
+ *  Keep the session alive and the device exclusive until calls return.
+ */
+class NUNCHUK_EXPORT DevicePairingSession {
+ public:
+  DevicePairingSession(const std::string& hwi_path, const Device& device);
+  ~DevicePairingSession();
+  DevicePairingSession(const DevicePairingSession&) = delete;
+  DevicePairingSession& operator=(const DevicePairingSession&) = delete;
+
+  // nullopt means the device was already paired and the child completed.
+  std::optional<DevicePairingRequest> Start();
+  void Confirm(const DevicePairingResponse& response);
+  void Cancel() noexcept;
+
+ private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class NUNCHUK_EXPORT SingleSigner {
