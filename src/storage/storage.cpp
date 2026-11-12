@@ -704,7 +704,8 @@ std::string NunchukStorage::CreateMasterSigner(Chain chain,
 std::string NunchukStorage::CreateSatochipMasterSigner(
     Chain chain, const std::string& name, const Device& device,
     std::function<std::string(std::string)> getxpub,
-    std::function<bool(int)> progress) {
+    std::function<bool(int)> progress,
+    bool supports_taproot, bool supports_taproot_multisig) {
   std::unique_lock<std::shared_mutex> lock(access_);
   const std::string id = ba::to_lower_copy(device.get_master_fingerprint());
   const auto file = GetSignerDir(chain, id);
@@ -781,7 +782,8 @@ std::string NunchukStorage::CreateSatochipMasterSigner(
             "(SELECT REPLACE(PATH, '''', 'h') FROM REMOTE WHERE USED = 1);");
       }
       if (getxpub)
-        CacheMasterSignerXPub0(chain, signer_db, getxpub, progress, true);
+        CacheMasterSignerXPub0(chain, signer_db, getxpub, progress, true,
+                              supports_taproot, supports_taproot_multisig);
       signer_db.SetVisible(true);
       exec_sql("COMMIT;");
     } catch (...) {
@@ -974,16 +976,20 @@ std::vector<SingleSigner> NunchukStorage::GetSignersFromMasterSigner(
 void NunchukStorage::CacheMasterSignerXPub(
     Chain chain, const std::string& id,
     std::function<std::string(std::string)> getxpub,
-    std::function<bool(int)> progress, bool first) {
+    std::function<bool(int)> progress, bool first,
+    bool satochip_supports_taproot, bool satochip_supports_taproot_multisig) {
   std::unique_lock<std::shared_mutex> lock(access_);
   auto signer_db = GetSignerDb(chain, id);
-  CacheMasterSignerXPub0(chain, signer_db, getxpub, progress, first);
+  CacheMasterSignerXPub0(chain, signer_db, getxpub, progress, first,
+                        satochip_supports_taproot,
+                        satochip_supports_taproot_multisig);
 }
 
 void NunchukStorage::CacheMasterSignerXPub0(
     Chain chain, NunchukSignerDb& signer_db,
     std::function<std::string(std::string)> getxpub,
-    std::function<bool(int)> progress, bool first) {
+    std::function<bool(int)> progress, bool first,
+    bool satochip_supports_taproot, bool satochip_supports_taproot_multisig) {
   auto signer_type = signer_db.GetSignerType();
   if (signer_type == SignerType::SATOCHIP_NFC && !first) {
     const auto root = getxpub("m");
@@ -1078,6 +1084,11 @@ void NunchukStorage::CacheMasterSignerXPub0(
     return 0;
   };
   auto cacheIndex = [&](WalletType w, AddressType a) {
+    if (signer_type == SignerType::SATOCHIP_NFC && a == AddressType::TAPROOT &&
+        (w == WalletType::SINGLE_SIG ? !satochip_supports_taproot
+                                     : !satochip_supports_taproot_multisig)) {
+      return;
+    }
     int n = cacheNumber(w, a);
     int index = signer_db.GetCachedIndex(w, a);
     // cache 0 index multisig for old key

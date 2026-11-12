@@ -3653,23 +3653,27 @@ void NunchukImpl::AddSatochip(const std::string& xfp,
 
 MasterSigner NunchukImpl::CreateSatochipMasterSigner(
     const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-    const std::string& raw_name, std::function<bool(int)> progress) {
+    const std::string& raw_name, std::function<bool(int)> progress,
+    bool supports_taproot, bool supports_taproot_multisig) {
   const auto id = SatochipGetMasterFingerprint(cardBip32GetExtendedKeyFn);
   const auto name = trim_copy(raw_name);
   storage_->CreateSatochipMasterSigner(
       chain_, name.empty() ? id : name, Device{"satochip", "satochip", id},
       [&](const std::string& path) {
         return SatochipGetXpub(cardBip32GetExtendedKeyFn, path,
-                               chain_ != Chain::MAIN);
+                               chain_ != Chain::MAIN, supports_taproot,
+                               supports_taproot_multisig);
       },
-      progress ? progress : [](int) { return true; });
+      progress ? progress : [](int) { return true; },
+      supports_taproot, supports_taproot_multisig);
   storage_listener_();
   return storage_->GetMasterSigner(chain_, id);
 }
 
 void NunchukImpl::CacheSatochipMasterSignerXPub(
     const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-    const std::string& master_signer_id, std::function<bool(int)> progress) {
+    const std::string& master_signer_id, std::function<bool(int)> progress,
+    bool supports_taproot, bool supports_taproot_multisig) {
   const auto id = to_lower_copy(master_signer_id);
   if (storage_->GetMasterSigner(chain_, id).get_type() !=
       SignerType::SATOCHIP_NFC) {
@@ -3680,28 +3684,34 @@ void NunchukImpl::CacheSatochipMasterSignerXPub(
       chain_, id,
       [&](const std::string& path) {
         return SatochipGetXpub(cardBip32GetExtendedKeyFn, path,
-                               chain_ != Chain::MAIN);
+                               chain_ != Chain::MAIN, supports_taproot,
+                               supports_taproot_multisig);
       },
-      progress ? progress : [](int) { return true; }, false);
+      progress ? progress : [](int) { return true; }, false,
+      supports_taproot, supports_taproot_multisig);
   storage_listener_();
 }
 
 SingleSigner NunchukImpl::GetSignerFromSatochipMasterSigner(
     const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
     const std::string& master_signer_id, const WalletType& wallet_type,
-    const AddressType& address_type, int index) {
+    const AddressType& address_type, int index,
+    bool supports_taproot, bool supports_taproot_multisig) {
   return GetSignerFromSatochipMasterSigner(
       cardBip32GetExtendedKeyFn, master_signer_id,
-      GetBip32Path(chain_, wallet_type, address_type, index));
+      GetBip32Path(chain_, wallet_type, address_type, index), supports_taproot,
+      supports_taproot_multisig);
 }
 
 SingleSigner NunchukImpl::GetSignerFromSatochipMasterSigner(
     const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-    const std::string& master_signer_id, const std::string& path) {
+    const std::string& master_signer_id, const std::string& path,
+    bool supports_taproot, bool supports_taproot_multisig) {
   if (!Utils::IsValidDerivationPath(path)) {
     throw NunchukException(NunchukException::INVALID_BIP32_PATH,
                            strprintf("Invalid derivation path [%s].", path));
   }
+  SatochipCheckXpubPath(path, supports_taproot, supports_taproot_multisig);
   const auto id = to_lower_copy(master_signer_id);
   if (storage_->GetMasterSigner(chain_, id).get_type() !=
       SignerType::SATOCHIP_NFC) {
@@ -3720,8 +3730,9 @@ SingleSigner NunchukImpl::GetSignerFromSatochipMasterSigner(
         NunchukException::INVALID_PARAMETER,
         "Wrong Satochip card. Use the card for the selected key.");
   }
-  auto xpub =
-      SatochipGetXpub(cardBip32GetExtendedKeyFn, path, chain_ != Chain::MAIN);
+  auto xpub = SatochipGetXpub(cardBip32GetExtendedKeyFn, path,
+                              chain_ != Chain::MAIN, supports_taproot,
+                              supports_taproot_multisig);
   auto signer = storage_->AddSignerToMasterSigner(
       chain_, id,
       Utils::SanitizeSingleSigner(

@@ -812,18 +812,26 @@ class NunchukImpl : public Nunchuk {
   void AddSatochip(const std::string& xfp, const std::string& name) override;
   MasterSigner CreateSatochipMasterSigner(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-      const std::string& name, std::function<bool(int)> progress) override;
+      const std::string& name, std::function<bool(int)> progress,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) override;
   void CacheSatochipMasterSignerXPub(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
       const std::string& master_signer_id,
-      std::function<bool(int)> progress) override;
+      std::function<bool(int)> progress,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) override;
   SingleSigner GetSignerFromSatochipMasterSigner(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-      const std::string& master_signer_id, const std::string& path) override;
+      const std::string& master_signer_id, const std::string& path,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) override;
   SingleSigner GetSignerFromSatochipMasterSigner(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
       const std::string& master_signer_id, const WalletType& wallet_type,
-      const AddressType& address_type, int index) override;
+      const AddressType& address_type, int index,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) override;
   std::string SignSatochipMessage(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
       const CardSignTransactionHashFn& cardSignTransactionHashFn,

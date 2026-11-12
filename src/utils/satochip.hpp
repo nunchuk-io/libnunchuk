@@ -28,6 +28,10 @@ namespace nunchuk {
 class SingleSigner;
 class Wallet;
 
+// Reject unsupported BIP86/BIP87 paths.
+void SatochipCheckXpubPath(const std::string &path, bool supports_taproot,
+                         bool supports_taproot_multisig);
+
 // Consume synchronously, clear copies, and throw on card errors.
 using CardBip32ImportSeedFn =
     std::function<void(const std::vector<unsigned char> &seed)>;
@@ -80,7 +84,8 @@ using CardMusig2ConsumeSecNonceFn =
 
 std::string SatochipGetXpub(
     const CardBip32GetExtendedKeyFn &cardBip32GetExtendedKeyFn,
-    const std::string &path, bool is_testnet = false);
+    const std::string &path, bool is_testnet = false,
+    bool supports_taproot = false, bool supports_taproot_multisig = false);
 
 // Serialize the entire operation on one authenticated card session.
 struct SatochipSignPsbtParams {

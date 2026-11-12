@@ -2322,20 +2322,29 @@ class NUNCHUK_EXPORT Nunchuk {
   // Satochip
   virtual void AddSatochip(const std::string& xfp, const std::string& name) = 0;
   // Keep the same unlocked card session throughout registration and caching.
+  // The app supplies capabilities from the card's firmware and feature policies.
   virtual MasterSigner CreateSatochipMasterSigner(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-      const std::string& name, std::function<bool(int)> progress) = 0;
+      const std::string& name, std::function<bool(int)> progress,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) = 0;
   virtual void CacheSatochipMasterSignerXPub(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
       const std::string& master_signer_id,
-      std::function<bool(int)> progress) = 0;
+      std::function<bool(int)> progress,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) = 0;
   virtual SingleSigner GetSignerFromSatochipMasterSigner(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
-      const std::string& master_signer_id, const std::string& path) = 0;
+      const std::string& master_signer_id, const std::string& path,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) = 0;
   virtual SingleSigner GetSignerFromSatochipMasterSigner(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
       const std::string& master_signer_id, const WalletType& wallet_type,
-      const AddressType& address_type, int index) = 0;
+      const AddressType& address_type, int index,
+      bool supports_taproot = false,
+      bool supports_taproot_multisig = false) = 0;
   virtual std::string SignSatochipMessage(
       const CardBip32GetExtendedKeyFn& cardBip32GetExtendedKeyFn,
       const CardSignTransactionHashFn& cardSignTransactionHashFn,

@@ -66,7 +66,8 @@ class NunchukStorage {
   std::string CreateSatochipMasterSigner(
       Chain chain, const std::string &name, const Device &device,
       std::function<std::string(std::string)> getxpub,
-      std::function<bool(int)> progress);
+      std::function<bool(int)> progress,
+      bool supports_taproot = false, bool supports_taproot_multisig = false);
   std::string CreateMasterSignerFromMasterXprv(
       Chain chain, const std::string &name, const Device &device,
       const std::string &master_xprv = {});
@@ -131,7 +132,9 @@ class NunchukStorage {
       Chain chain, const std::string &mastersigner_id);
   void CacheMasterSignerXPub(Chain chain, const std::string &mastersigner_id,
                              std::function<std::string(std::string)> getxpub,
-                             std::function<bool(int)> progress, bool first);
+                             std::function<bool(int)> progress, bool first,
+                             bool satochip_supports_taproot = false,
+                             bool satochip_supports_taproot_multisig = false);
   bool CacheDefaultMasterSignerXpub(
       Chain chain, const std::string &mastersigner_id,
       std::function<std::string(std::string)> getxpub,
@@ -415,7 +418,9 @@ class NunchukStorage {
   NunchukSignerDb GetSignerDb(Chain chain, const std::string &id);
   void CacheMasterSignerXPub0(Chain chain, NunchukSignerDb &signer_db,
                               std::function<std::string(std::string)> getxpub,
-                              std::function<bool(int)> progress, bool first);
+                              std::function<bool(int)> progress, bool first,
+                              bool satochip_supports_taproot = false,
+                              bool satochip_supports_taproot_multisig = false);
   NunchukAppStateDb GetAppStateDb(Chain chain);
   NunchukPrimaryDb GetPrimaryDb(Chain chain);
   NunchukGroupDb GetGroupDb(Chain chain);
