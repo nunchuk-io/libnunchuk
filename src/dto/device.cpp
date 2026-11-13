@@ -58,6 +58,8 @@ std::string Device::get_master_fingerprint() const {
 bool Device::connected() const { return connected_; }
 bool Device::needs_pass_phrase_sent() const { return needs_pass_phrase_sent_; }
 bool Device::needs_pin_sent() const { return needs_pin_sent_; }
+bool Device::needs_pairing() const { return needs_pairing_; }
+void Device::set_needs_pairing(bool value) { needs_pairing_ = value; }
 bool Device::initialized() const { return initialized_; }
 bool Device::is_tapsigner() const { return model_ == "tapsigner"; }
 void Device::set_needs_pass_phrase_sent(const bool value) {

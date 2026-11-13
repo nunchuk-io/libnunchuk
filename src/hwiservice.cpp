@@ -20,29 +20,101 @@
 #include <base58.h>
 
 #include <boost/algorithm/string/trim.hpp>
+#if __has_include(<boost/process/v1.hpp>)
+#include <boost/process/v1.hpp>
+#ifdef _WIN32
+#include <boost/process/v1/windows.hpp>
+#endif
+namespace bp = boost::process::v1;
+#else
 #include <boost/process.hpp>
-#include <charconv>
-#include <regex>
-#include "utils/quote.hpp"
 #ifdef _WIN32
 #include <boost/process/windows.hpp>
 #endif
+namespace bp = boost::process;
+#endif
+#include <charconv>
+#include <regex>
+#include "utils/quote.hpp"
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
+
+#ifndef _WIN32
+#include <pthread.h>
+#include <signal.h>
+#endif
 
 #include <utils/json.hpp>
 #include <utils/loguru.hpp>
 #include <utils/errorutils.hpp>
 
 using json = nlohmann::json;
-namespace bp = boost::process;
 
 namespace nunchuk {
+namespace {
+std::string HwiCommand(const std::string& hwi,
+                       const std::vector<std::string>& args) {
+  std::stringstream command;
+  command << hwi;
+  for (const auto& arg : args) command << " " << arg;
+  return command.str();
+}
+
+template <typename... Redirects>
+bp::child LaunchHwi(const std::string& command, Redirects&&... redirects) {
+#ifdef _WIN32
+  return bp::child(command.c_str(), std::forward<Redirects>(redirects)...,
+                   bp::windows::hide);
+#else
+  return bp::child(command.c_str(), std::forward<Redirects>(redirects)...);
+#endif
+}
+
+// Prevent a disconnected child from delivering SIGPIPE to the host process.
+// The underlying pipe is closed before its stream buffer is destroyed.
+class PipeWriteGuard {
+ public:
+  PipeWriteGuard() {
+#ifndef _WIN32
+    sigemptyset(&set_);
+    sigaddset(&set_, SIGPIPE);
+    sigset_t pending;
+    sigpending(&pending);
+    pending_ = sigismember(&pending, SIGPIPE);
+    blocked_ = pthread_sigmask(SIG_BLOCK, &set_, &previous_) == 0;
+#endif
+  }
+  ~PipeWriteGuard() {
+#ifndef _WIN32
+    if (blocked_) {
+      sigset_t pending;
+      sigpending(&pending);
+      if (!pending_ && sigismember(&pending, SIGPIPE)) {
+        int signal;
+        sigwait(&set_, &signal);
+      }
+      pthread_sigmask(SIG_SETMASK, &previous_, nullptr);
+    }
+#endif
+  }
+
+ private:
+#ifndef _WIN32
+  sigset_t set_, previous_;
+  bool pending_ = false, blocked_ = false;
+#endif
+};
+
+}  // namespace
 
 struct HWIService::HwiChildHandle {
   bp::child proc;
@@ -146,17 +218,9 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
       args.insert(args.begin(), "--chain signet");
   }
 
-  // build command string
-  std::stringstream cmd;
-  cmd << hwi_;
-  const int v_size = args.size();
-  for (size_t i = 0; i < v_size; ++i) {
-    cmd << " " << args[i];
-  }
-
   int exitcode = -1;
   std::string result;
-  const std::string cmd_str = cmd.str();
+  const std::string cmd_str = HwiCommand(hwi_, args);
   HwiChildHandle* child = nullptr;
   auto release_child = [&]() {
     if (!child) return;
@@ -173,10 +237,9 @@ std::string HWIService::RunCmd(const std::vector<std::string> &cmd_args) const {
     bp::ipstream out;
 #ifdef _WIN32
     bp::ipstream err;
-    bp::child c(cmd_str.c_str(), bp::std_out > out, bp::std_err > err,
-                bp::windows::hide);
+    auto c = LaunchHwi(cmd_str, bp::std_out > out, bp::std_err > err);
 #else
-    bp::child c(cmd_str.c_str(), bp::std_out > out);
+    auto c = LaunchHwi(cmd_str, bp::std_out > out);
 #endif
     {
       std::lock_guard<std::mutex> lock(hwi_child_mutex_);
@@ -230,7 +293,8 @@ std::vector<Device> HWIService::Enumerate() const {
   for (auto &el : enumerate.items()) {
     if (el.value()["error"] != nullptr &&
         el.value()["code"] != -18 &&  // device not initialized
-        el.value()["code"] != -12     // device not ready
+        el.value()["code"] != -12 &&  // device not ready
+        el.value()["code"] != -20     // pairing required
     ) {
       continue;
     }
@@ -242,6 +306,8 @@ std::vector<Device> HWIService::Enumerate() const {
                   el.value()["needs_passphrase_sent"],
                   el.value()["needs_pin_sent"],
                   el.value()["code"] != -18};
+    device.set_needs_pairing(el.value()["code"] == -20 ||
+                            el.value().value("needs_pairing", false));
     rs.push_back(device);
   }
   return rs;
@@ -351,4 +417,183 @@ void HWIService::SendPassphrase(const Device &device,
   ParseResponse(RunCmd(cmd_args));
 }
 
+struct DevicePairingSession::Impl {
+  enum class Phase { NEW, WAITING, FINISHED };
+  std::string hwi;
+  Device device;
+  bp::opstream input;
+  bp::ipstream output;
+  bp::child child;
+  std::mutex child_mutex;
+  std::atomic_bool canceled{false};
+  Phase phase = Phase::NEW;
+  DevicePairingMethod method = DevicePairingMethod::ENTER_CODE;
+
+  Impl(const std::string& path, const Device& dev)
+      : hwi(path), device(dev) {}
+  ~Impl() { Close(); }
+
+  void CheckCanceled() const {
+    if (canceled)
+      throw HWIException(HWIException::ACTION_CANCELED, "Pairing canceled");
+  }
+
+  void Cancel() noexcept {
+    canceled = true;
+    std::lock_guard lock(child_mutex);
+    std::error_code ec;
+    if (child.valid() && child.running(ec)) child.terminate(ec);
+  }
+
+  void Close() noexcept {
+    // Closing the pipe directly prevents retrying buffered data after failure.
+    input.pipe().close();
+    std::lock_guard lock(child_mutex);
+    std::error_code ec;
+    if (child.valid()) {
+      if (child.running(ec)) child.terminate(ec);
+      child.wait(ec);
+    }
+    phase = Phase::FINISHED;
+  }
+
+  json Read() {
+    std::string line;
+    if (!std::getline(output, line)) {
+      CheckCanceled();
+      throw HWIException(HWIException::DEVICE_CONN_ERROR,
+                         "Pairing process closed without a result");
+    }
+    CheckCanceled();
+    auto message = json::parse(line);
+    if (!message.is_object())
+      throw HWIException(HWIException::INVALID_RESULT,
+                         "Invalid pairing result");
+    if (message.contains("error")) {
+      throw HWIException(
+          message.at("code").get<int>() - 4000,
+          NormalizeErrorMessage(message.at("error").get<std::string>()));
+    }
+    return message;
+  }
+
+  void Finish(const json& result) {
+    if (result.contains("event") || !result.value("success", false)) {
+      throw HWIException(HWIException::INVALID_RESULT,
+                         "Invalid pairing result");
+    }
+    // Poll on the calling thread without holding the mutex during the wait,
+    // so Cancel can terminate a child even after its final JSON.
+    for (;;) {
+      CheckCanceled();
+      {
+        std::lock_guard lock(child_mutex);
+        if (!child.running()) {
+          child.wait();
+          CheckCanceled();
+          if (child.exit_code() != 0)
+            throw HWIException(HWIException::RUN_ERROR,
+                               "Pairing process failed");
+          break;
+        }
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    CheckCanceled();
+    Close();
+  }
+};
+
+DevicePairingSession::DevicePairingSession(const std::string& hwi_path,
+                                           const Device& device)
+    : impl_(std::make_unique<Impl>(hwi_path, device)) {}
+DevicePairingSession::~DevicePairingSession() = default;
+
+std::optional<DevicePairingRequest> DevicePairingSession::Start() {
+  auto& session = *impl_;
+  if (session.phase != Impl::Phase::NEW)
+    throw HWIException(HWIException::BAD_ARGUMENT,
+                       "Pairing has already started");
+  try {
+    {
+      std::lock_guard lock(session.child_mutex);
+      session.CheckCanceled();
+      if (session.device.get_type().empty() ||
+          session.device.get_path().empty()) {
+        throw HWIException(HWIException::MISSING_ARGUMENTS,
+                           "Pairing requires a device type and path");
+      }
+      // Preserve Windows HID backslashes while keeping a spaced device path
+      // together, using the same command-line convention as RunCmd.
+      const auto command = HwiCommand(
+          session.hwi, {"-t", session.device.get_type(), "-d",
+                        "\"" + session.device.get_path() + "\"", "pair"});
+      session.child = LaunchHwi(command, bp::std_in < session.input,
+                                bp::std_out > session.output,
+                                bp::std_err > bp::null);
+    }
+    auto message = session.Read();
+    if (!message.contains("event")) {
+      session.Finish(message);
+      return std::nullopt;
+    }
+    DevicePairingRequest request;
+    if (message.value("event", "") != "pairing_required") {
+      throw HWIException(HWIException::INVALID_RESULT,
+                         "Unsupported pairing event");
+    }
+    const auto method = message.value("method", "");
+    if (method == "enter_code") {
+      request.method = DevicePairingMethod::ENTER_CODE;
+    } else if (method == "confirm_code" && message.contains("code") &&
+               message["code"].is_string()) {
+      request.method = DevicePairingMethod::CONFIRM_CODE;
+      request.code = message["code"].get<std::string>();
+    } else {
+      throw HWIException(HWIException::INVALID_RESULT,
+                         "Unsupported pairing request");
+    }
+    session.method = request.method;
+    session.phase = Impl::Phase::WAITING;
+    return request;
+  } catch (const HWIException&) {
+    session.Close();
+    throw;
+  } catch (const std::exception& e) {
+    session.Close();
+    throw HWIException(HWIException::RUN_ERROR,
+                       NormalizeErrorMessage(e.what()));
+  }
+}
+
+void DevicePairingSession::Confirm(const DevicePairingResponse& response) {
+  auto& session = *impl_;
+  if (session.phase != Impl::Phase::WAITING)
+    throw HWIException(HWIException::BAD_ARGUMENT,
+                       "No pairing response is pending");
+  try {
+    session.CheckCanceled();
+    json reply{{"accept", response.accept}, {"code", nullptr}};
+    if (session.method == DevicePairingMethod::ENTER_CODE && response.accept)
+      reply["code"] = response.code;
+    {
+      PipeWriteGuard guard;
+      session.input << reply.dump() << std::endl;
+      session.input.pipe().close();
+    }
+    if (!session.input)
+      throw HWIException(HWIException::DEVICE_CONN_ERROR,
+                         "Pairing connection closed");
+    session.Finish(session.Read());
+  } catch (const HWIException&) {
+    session.Close();
+    throw;
+  } catch (const std::exception& e) {
+    session.Close();
+    throw HWIException(HWIException::RUN_ERROR,
+                       NormalizeErrorMessage(e.what()));
+  }
+}
+
+void DevicePairingSession::Cancel() noexcept { impl_->Cancel(); }
 }  // namespace nunchuk
