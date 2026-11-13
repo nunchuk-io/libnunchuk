@@ -33,6 +33,7 @@
 #include <hwiservice.h>
 
 #include <base58.h>
+#include <common/signmessage.h>
 #include <consensus/amount.h>
 #include <stdlib.h>
 #include <util/bip32.h>
@@ -951,6 +952,47 @@ std::string Utils::ExtractColdcardMessageSignature(
 
 std::string Utils::ExtractColdcardMessageSignature(const std::string& value) {
   return ExtractMessageSignature(value);
+}
+
+bool Utils::VerifyMessage(const std::string& address,
+                         const std::string& signature,
+                         const std::string& message) {
+  CoreUtils::getInstance();
+  return MessageVerify(address, signature, message) ==
+         MessageVerificationResult::OK;
+}
+
+SingleSigner Utils::DeriveSigner(const SingleSigner& signer,
+                                 const std::string& path) {
+  CoreUtils::getInstance();
+  std::vector<uint32_t> parent_path, keypath;
+  if (!IsValidDerivationPath(path) ||
+      !ParseHDKeypath("m" + FormalizePath(signer.get_derivation_path()), parent_path) ||
+      !ParseHDKeypath("m" + FormalizePath(path), keypath) ||
+      keypath.size() < parent_path.size() ||
+      !std::equal(parent_path.begin(), parent_path.end(), keypath.begin())) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           "Path is not a child of the selected signer");
+  }
+  if (keypath.size() == parent_path.size()) return signer;
+  if (signer.get_xpub().empty()) {
+    throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                           "An extended public key is required to derive a child signer");
+  }
+  auto xpub = DecodeExtPubKey(signer.get_xpub());
+  for (size_t i = parent_path.size(); i < keypath.size(); ++i) {
+    if (!xpub.pubkey.IsFullyValid() || (keypath[i] >> 31) != 0 ||
+        !xpub.Derive(xpub, keypath[i])) {
+      throw NunchukException(NunchukException::INVALID_BIP32_PATH,
+                             "Invalid derivation path");
+    }
+  }
+  return SingleSigner(
+      signer.get_name(), EncodeExtPubKey(xpub), "", path,
+      signer.get_external_internal_index(), signer.get_master_fingerprint(),
+      signer.get_last_health_check(), signer.get_master_signer_id(),
+      signer.is_used(), signer.get_type(), signer.get_tags(),
+      signer.is_visible());
 }
 
 std::string Utils::TrezorGetSignMessagePath(const SingleSigner& signer) {
