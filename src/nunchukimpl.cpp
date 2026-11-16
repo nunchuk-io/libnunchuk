@@ -46,6 +46,7 @@
 #include <utils/bcr2.hpp>
 #include <utils/passport.hpp>
 #include <utils/coldcard.hpp>
+#include <utils/onekey/qr.hpp>
 #include <ur.h>
 #include <ur-encoder.hpp>
 #include <ur-decoder.hpp>
@@ -2221,10 +2222,18 @@ Wallet NunchukImpl::ImportCoboWallet(const std::vector<std::string>& qr_data,
 
 SingleSigner NunchukImpl::ParseKeystoneSigner(const std::string& qr_data) {
   auto decoded = ur::URDecoder::decode(qr_data);
+  if (decoded.type() != "crypto-account") {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
   auto i = decoded.cbor().begin();
   auto end = decoded.cbor().end();
   CryptoAccount account{};
   decodeCryptoAccount(i, end, account);
+  if (account.outputDescriptors.empty()) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
   CryptoHDKey key = account.outputDescriptors[0];
 
   auto signer = SingleSigner("Keystone", key.get_xpub(), {}, key.get_path(),
@@ -2316,6 +2325,10 @@ std::vector<SingleSigner> NunchukImpl::ParseSeedSigners(
     throw JadeException(JadeException::QR_PIN_UNLOCK,
                         "Please unlock the device first.");
   }
+  if (type != "crypto-account") {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Invalid data format");
+  }
   auto i = cbor.begin();
   auto end = cbor.end();
   CryptoAccount account{};
@@ -2364,6 +2377,7 @@ std::vector<SingleSigner> NunchukImpl::ParseQRSigners(
 
   auto ret = RunThrowOne(
       parse_signer_string, parse_keystone_signer, parse_coldcard_q_signer,
+      std::bind(onekey::ParseSigners, qr_data),
       std::bind(&Nunchuk::ParseSeedSigners, this, qr_data),
       std::bind(&Nunchuk::ParsePassportSigners, this, qr_data));
   for (SingleSigner& signer : ret) {

@@ -19,11 +19,16 @@
 #define NUNCHUK_BCR2_H
 
 #include <vector>
+#include <algorithm>
+#include <iterator>
+#include <iomanip>
+#include <sstream>
 
 #include <nunchuk.h>
 #include <cbor-lite.hpp>
 
 #include <util/bip32.h>
+#include <util/strencodings.h>
 #include <uint256.h>
 #include <pubkey.h>
 #include <key_io.h>
@@ -31,6 +36,33 @@
 namespace nunchuk {
 namespace bcr2 {
 using namespace CborLite;
+
+template <typename InputIterator>
+size_t skipCborValue(InputIterator& pos, InputIterator end,
+                     Flags flags = Flag::none, unsigned depth = 0) {
+  if (depth > 32) throw Exception("CBOR nesting is too deep");
+  auto start = pos;
+  Tag tag;
+  uint64_t value;
+  decodeTagAndValue(pos, end, tag, value, flags);
+  auto remaining = static_cast<uint64_t>(std::distance(pos, end));
+  if (tag == Major::byteString || tag == Major::textString) {
+    if (value > remaining) throw Exception("not enough input");
+    std::advance(pos, value);
+  } else if (tag == Major::array || tag == Major::map) {
+    if (tag == Major::map) {
+      if (value > remaining / 2) throw Exception("not enough input");
+      value *= 2;
+    }
+    if (value > remaining) throw Exception("not enough input");
+    for (uint64_t i = 0; i < value; i++) {
+      skipCborValue(pos, end, flags, depth + 1);
+    }
+  } else if (tag == Major::semantic) {
+    skipCborValue(pos, end, flags, depth + 1);
+  }
+  return std::distance(start, pos);
+}
 
 struct CryptoInfo {
   uint32_t type;
@@ -49,6 +81,8 @@ size_t decodeCryptoInfo(InputIterator& pos, InputIterator end, CryptoInfo& m,
       len += decodeUnsigned(pos, end, m.type, flags);
     } else if (key == 2) {
       len += decodeUnsigned(pos, end, m.network, flags);
+    } else {
+      len += skipCborValue(pos, end, flags);
     }
   }
   return len;
@@ -102,6 +136,8 @@ size_t decodeCryptoKeyPath(InputIterator& pos, InputIterator end,
       len += decodeUnsigned(pos, end, m.sourceFingerprint, flags);
     } else if (key == 3) {
       len += decodeUnsigned(pos, end, m.depth, flags);
+    } else {
+      len += skipCborValue(pos, end, flags);
     }
   }
   return len;
@@ -226,6 +262,11 @@ size_t decodeCryptoHDKey(InputIterator& pos, InputIterator end, CryptoHDKey& m,
       len += decodeUnsigned(pos, end, m.parentFingerprint, flags);
     } else if (key == 9) {
       len += decodeText(pos, end, m.name, flags);
+    } else if (key == 10) {
+      std::string note;
+      len += decodeText(pos, end, note, flags);
+    } else {
+      len += skipCborValue(pos, end, flags);
     }
   }
   return len;
