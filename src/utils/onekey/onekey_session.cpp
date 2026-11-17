@@ -467,12 +467,13 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
       return std::find(supported.begin(), supported.end(), id) !=
              supported.end();
     };
-    if (!has(proto::GET_PUBLIC_KEY) || !has(proto::V2_DEVICE_STATUS_GET) ||
-        !has(proto::V2_SESSION_GET) || !has(proto::V2_SESSION_ASK_PIN) ||
-        !has(proto::V2_SESSION_ASK_PASSPHRASE))
+    // Legacy firmware can omit capabilities. Confirm it with the read-only
+    // status request; wallet commands are checked through their live responses.
+    if (!response.at("legacy").get<bool>() &&
+        !has(proto::V2_DEVICE_STATUS_GET))
       return fail(OneKeyErrorCode::UNSUPPORTED_FIRMWARE,
-                  "OneKey Pro 2 firmware lacks the required Bitcoin "
-                  "wallet-session commands");
+                  "OneKey Pro 2 firmware does not advertise DeviceStatusGet "
+                  "(60602)");
     device_info_.supports_raw_psbt = has(proto::SIGN_PSBT);
     v2_phase_ = V2Phase::STATUS;
     return send(proto::V2_DEVICE_STATUS_GET);

@@ -102,6 +102,9 @@ PB_BIND(nunchuk_onekey_V2ProtocolInfoRequest, nunchuk_onekey_V2ProtocolInfoReque
 PB_BIND(nunchuk_onekey_V2ProtocolInfo, nunchuk_onekey_V2ProtocolInfo, 4)
 
 
+PB_BIND(nunchuk_onekey_LegacyV2ProtocolInfo, nunchuk_onekey_LegacyV2ProtocolInfo, 4)
+
+
 PB_BIND(nunchuk_onekey_V2DeviceInfoTargets, nunchuk_onekey_V2DeviceInfoTargets, 2)
 
 

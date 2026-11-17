@@ -143,8 +143,14 @@ message V2Failure {
 message V2ProtocolInfoRequest { optional bool eventless_wallet_session = 1; }
 message V2ProtocolInfo {
   required uint32 version = 1;
-  optional string build_fingerprint = 2;
+  required string build_fingerprint = 2;
   repeated uint32 supported_messages = 3;
+}
+// Older V2 firmware reports capabilities in field 2 and may omit them entirely.
+// The unused protobuf_definition string in field 3 is skipped on decode.
+message LegacyV2ProtocolInfo {
+  required uint32 version = 1;
+  repeated uint32 supported_messages = 2;
 }
 message V2DeviceInfoTargets { optional bool hw = 100; optional bool main_mcu = 200; }
 message V2DeviceInfoTypes { optional bool version = 10; optional bool specific = 40; }

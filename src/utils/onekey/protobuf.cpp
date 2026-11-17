@@ -55,6 +55,26 @@ void SetString(char (&field)[N], const std::string& value) {
   std::copy(value.begin(), value.end(), field);
 }
 
+bool IsLegacyV2ProtocolInfo(std::span<const unsigned char> data) {
+  auto stream = pb_istream_from_buffer(data.data(), data.size());
+  bool has_version = false;
+  while (stream.bytes_left) {
+    pb_wire_type_t wire_type;
+    uint32_t tag;
+    bool eof;
+    if (!pb_decode_tag(&stream, &wire_type, &tag, &eof)) return false;
+    // Distinguish the two layouts by wire types, never by a decode failure.
+    if (tag == 1 || tag == 2) {
+      if (wire_type != PB_WT_VARINT) return false;
+      if (tag == 1) has_version = true;
+    } else if (tag != 3 || wire_type != PB_WT_STRING) {
+      return false;
+    }
+    if (!pb_skip_field(&stream, wire_type)) return false;
+  }
+  return has_version;
+}
+
 template <typename T>
 void SetBytes(T& field, const std::string& hex) {
   if ((!hex.empty() && !IsHex(hex)) || hex.size() / 2 > sizeof(field.bytes)) {
@@ -384,9 +404,20 @@ json Decode(uint16_t type, std::span<const unsigned char> data) {
       return {{"code", m.code}, {"subcode", m.subcode}, {"message", m.message}};
     }
     case V2_PROTOCOL_INFO: {
+      if (IsLegacyV2ProtocolInfo(data)) {
+        const auto m = DecodeMessage<nunchuk_onekey_LegacyV2ProtocolInfo>(
+            data, nunchuk_onekey_LegacyV2ProtocolInfo_fields);
+        return {{"version", m.version},
+                {"legacy", true},
+                {"supported_messages",
+                 std::vector<uint32_t>(
+                     m.supported_messages,
+                     m.supported_messages + m.supported_messages_count)}};
+      }
       const auto m = DecodeMessage<nunchuk_onekey_V2ProtocolInfo>(
           data, nunchuk_onekey_V2ProtocolInfo_fields);
       return {{"version", m.version},
+              {"legacy", false},
               {"supported_messages",
                std::vector<uint32_t>(
                    m.supported_messages,

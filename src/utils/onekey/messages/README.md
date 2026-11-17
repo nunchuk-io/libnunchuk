@@ -13,6 +13,14 @@ fields. Pro 2 is identified by a live V2 Ping response and DeviceInfo hardware
 model, then ProtocolInfo capabilities and DeviceStatus are checked before use.
 V2 frames are limited to 4200 bytes, including framing and the message type.
 
+Older V2 `ProtocolInfo` responses use capabilities in field 2 and an unused
+protobuf definition in field 3; some return only the version. This layout is
+recognized by field wire types, following the SDK's compatibility decoder in
+`packages/hd-transport/src/protocols/index.ts`. Initialization confirms these
+devices with `DeviceStatusGet` instead of requiring an advertised command list.
+Current responses still require the build fingerprint and status capability.
+Raw PSBT support is enabled only when advertised.
+
 Unused fields are omitted and skipped on decode. The package and message names
 are local C symbol names; they do not change the wire format. Numeric script
 and request types retain the original enum values. The transaction acknowledgments

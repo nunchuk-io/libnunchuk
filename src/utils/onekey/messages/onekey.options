@@ -24,6 +24,7 @@ nunchuk.onekey.V2Success.message max_size:256
 nunchuk.onekey.V2Failure.message max_size:256
 nunchuk.onekey.V2ProtocolInfo.build_fingerprint max_size:256
 nunchuk.onekey.V2ProtocolInfo.supported_messages max_count:1024
+nunchuk.onekey.LegacyV2ProtocolInfo.supported_messages max_count:1024
 nunchuk.onekey.V2DeviceHardwareInfo.serial_no max_size:128
 nunchuk.onekey.V2FirmwareImageInfo.version max_size:128
 nunchuk.onekey.V2DeviceStatus.device_id max_size:128
