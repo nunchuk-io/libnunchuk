@@ -16,6 +16,7 @@
 namespace nunchuk::onekey {
 
 enum class OneKeyTransport { USB, BLE };
+enum class OneKeyProtocol { V1, V2 };
 enum class OneKeyStepType { WRITE, READ_MORE, AWAITING_USER, COMPLETE, FAILED };
 enum class UserInteraction {
   NONE,
@@ -27,7 +28,7 @@ enum class UserInteraction {
   SIGN_MESSAGE,
   SIGN_TRANSACTION,
 };
-enum class OneKeyModel { UNKNOWN, CLASSIC, CLASSIC1S, PRO };
+enum class OneKeyModel { UNKNOWN, CLASSIC, CLASSIC1S, PRO, PRO2 };
 enum class OneKeyErrorCode {
   INVALID_STATE,
   INVALID_ARGUMENT,

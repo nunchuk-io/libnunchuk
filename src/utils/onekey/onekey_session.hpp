@@ -15,7 +15,11 @@ namespace nunchuk::onekey {
 
 class OneKeySession {
  public:
-  OneKeySession(Chain chain, OneKeyTransport transport);
+  OneKeySession(
+      Chain chain, OneKeyTransport transport,
+      OneKeyProtocol protocol = OneKeyProtocol::V1,
+      std::shared_ptr<uint8_t> sequence = std::make_shared<uint8_t>(0));
+  ~OneKeySession();
   OneKeyStep initialize();
   OneKeyStep onData(std::span<const unsigned char> data);
   OneKeyStep providePin(const std::string& pin);
@@ -67,6 +71,21 @@ class OneKeySession {
     CANCEL
   };
   enum class Prompt { NONE, PIN, PASSPHRASE };
+  enum class V2Phase {
+    NONE,
+    PROBE,
+    INFO,
+    PROTOCOL,
+    STATUS,
+    WALLET_STATUS,
+    UNLOCK,
+    SELECT,
+    SESSION
+  };
+
+  OneKeyStep handleV2Response(uint16_t type, const nlohmann::json& response);
+  OneKeyStep resumeV2Wallet();
+  void clearV2Wallet();
 
   void requireAvailable(bool require_initialized = true) const;
   void begin(Command command);
@@ -84,6 +103,16 @@ class OneKeySession {
   mutable std::mutex mutex_;
   Chain chain_;
   WireFramer framer_;
+  OneKeyProtocol protocol_;
+  V2Framer v2_framer_;
+  V2Phase v2_phase_ = V2Phase::NONE;
+  bool v2_wallet_ready_ = false;
+  bool v2_unlock_attempted_ = false;
+  uint16_t v2_pending_type_ = 0;
+  nlohmann::json v2_pending_data_;
+  UserInteraction v2_pending_interaction_ = UserInteraction::NONE;
+  std::string v2_session_id_;
+  std::string v2_wallet_address_;
   bool initialized_ = false;
   bool reset_required_ = false;
   bool on_device_entry_ = false;

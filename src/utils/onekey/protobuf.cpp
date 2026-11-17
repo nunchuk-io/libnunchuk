@@ -235,6 +235,7 @@ Bytes Encode(uint16_t type, const json& data) {
     case CANCEL:
     case BUTTON_ACK:
     case PIN_ON_DEVICE:
+    case V2_DEVICE_STATUS_GET:
       return {};
     case PIN_MATRIX_ACK: {
       nunchuk_onekey_PinMatrixAck message{};
@@ -255,6 +256,63 @@ Bytes Encode(uint16_t type, const json& data) {
       }
       auto result =
           EncodeMessage(nunchuk_onekey_PassphraseAck_fields, &message);
+      memory_cleanse(&message, sizeof(message));
+      return result;
+    }
+    case V2_PING: {
+      nunchuk_onekey_V2Ping message{};
+      message.has_message = true;
+      SetString(message.message, data.at("message"));
+      return EncodeMessage(nunchuk_onekey_V2Ping_fields, &message);
+    }
+    case V2_PROTOCOL_INFO_REQUEST: {
+      nunchuk_onekey_V2ProtocolInfoRequest message{};
+      message.has_eventless_wallet_session = message.eventless_wallet_session =
+          true;
+      return EncodeMessage(nunchuk_onekey_V2ProtocolInfoRequest_fields,
+                           &message);
+    }
+    case V2_DEVICE_INFO_GET: {
+      nunchuk_onekey_V2DeviceInfoGet message{};
+      message.has_targets = message.has_types = true;
+      message.targets.has_hw = message.targets.hw = true;
+      message.targets.has_main_mcu = message.targets.main_mcu = true;
+      message.types.has_version = message.types.version = true;
+      message.types.has_specific = message.types.specific = true;
+      return EncodeMessage(nunchuk_onekey_V2DeviceInfoGet_fields, &message);
+    }
+    case V2_SESSION_GET: {
+      nunchuk_onekey_V2SessionGet message{};
+      if (data.contains("session_id")) {
+        message.has_session_id = message.has_btc_test_address = true;
+        SetBytes(message.session_id, data.at("session_id"));
+        SetString(message.btc_test_address, data.at("btc_test_address"));
+      }
+      auto result = EncodeMessage(nunchuk_onekey_V2SessionGet_fields, &message);
+      memory_cleanse(&message, sizeof(message));
+      return result;
+    }
+    case V2_SESSION_ASK_PIN: {
+      nunchuk_onekey_V2SessionAskPin message{};
+      message.has_type = true;
+      message.type = data.at("type");
+      return EncodeMessage(nunchuk_onekey_V2SessionAskPin_fields, &message);
+    }
+    case V2_SESSION_ASK_PASSPHRASE: {
+      nunchuk_onekey_V2SessionAskPassphrase message{};
+      message.on_device = data.at("on_device");
+      if (data.contains("passphrase")) {
+        message.has_passphrase = true;
+        SetString(message.passphrase, data.at("passphrase"));
+      }
+      // Standard Bitcoin seed domain, unpacked as specified by the V2 schema.
+      message.seed_domains.funcs.encode =
+          [](pb_ostream_t* stream, const pb_field_t* field, void* const*) {
+            return pb_encode_tag_for_field(stream, field) &&
+                   pb_encode_varint(stream, 1);
+          };
+      auto result =
+          EncodeMessage(nunchuk_onekey_V2SessionAskPassphrase_fields, &message);
       memory_cleanse(&message, sizeof(message));
       return result;
     }
@@ -315,6 +373,62 @@ Bytes Encode(uint16_t type, const json& data) {
 
 json Decode(uint16_t type, std::span<const unsigned char> data) {
   switch (type) {
+    case V2_SUCCESS: {
+      const auto m = DecodeMessage<nunchuk_onekey_V2Success>(
+          data, nunchuk_onekey_V2Success_fields);
+      return {{"message", m.message}};
+    }
+    case V2_FAILURE: {
+      const auto m = DecodeMessage<nunchuk_onekey_V2Failure>(
+          data, nunchuk_onekey_V2Failure_fields);
+      return {{"code", m.code}, {"subcode", m.subcode}, {"message", m.message}};
+    }
+    case V2_PROTOCOL_INFO: {
+      const auto m = DecodeMessage<nunchuk_onekey_V2ProtocolInfo>(
+          data, nunchuk_onekey_V2ProtocolInfo_fields);
+      return {{"version", m.version},
+              {"supported_messages",
+               std::vector<uint32_t>(
+                   m.supported_messages,
+                   m.supported_messages + m.supported_messages_count)}};
+    }
+    case V2_DEVICE_INFO: {
+      const auto m = DecodeMessage<nunchuk_onekey_V2DeviceInfo>(
+          data, nunchuk_onekey_V2DeviceInfo_fields);
+      if (!m.has_hw || !m.hw.has_device_type || !m.has_main_mcu ||
+          !m.main_mcu.has_application || !m.main_mcu.application.has_version)
+        throw std::runtime_error(
+            "Incomplete OneKey Protocol V2 device information");
+      return {{"device_type", m.hw.device_type},
+              {"device_id", m.hw.serial_no},
+              {"firmware_version", m.main_mcu.application.version}};
+    }
+    case V2_DEVICE_STATUS: {
+      const auto m = DecodeMessage<nunchuk_onekey_V2DeviceStatus>(
+          data, nunchuk_onekey_V2DeviceStatus_fields);
+      if (!m.has_unlocked || !m.has_init_states || !m.has_passphrase_enabled)
+        throw std::runtime_error("Incomplete OneKey Protocol V2 wallet status");
+      return {{"device_id", m.device_id},
+              {"unlocked", m.unlocked},
+              {"initialized", m.init_states},
+              {"passphrase_protection", m.passphrase_enabled},
+              {"attach_pin_available", m.attach_to_pin_enabled},
+              {"unlocked_by_attach_pin", m.unlocked_by_attach_to_pin}};
+    }
+    case V2_SESSION: {
+      auto m = DecodeMessage<nunchuk_onekey_V2Session>(
+          data, nunchuk_onekey_V2Session_fields);
+      if (!m.session_id.size || !m.btc_test_address[0]) {
+        memory_cleanse(&m, sizeof(m));
+        throw std::runtime_error(
+            "Incomplete OneKey Protocol V2 wallet session");
+      }
+      json result{{"session_id", GetBytes(m.session_id)},
+                  {"btc_test_address", m.btc_test_address}};
+      memory_cleanse(&m, sizeof(m));
+      return result;
+    }
+
     case FEATURES: {
       const auto m = DecodeMessage<nunchuk_onekey_Features>(
           data, nunchuk_onekey_Features_fields);

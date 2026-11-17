@@ -1,4 +1,4 @@
-// Bitcoin-only, wire-compatible subset of OneKey Protocol V1.
+// Bitcoin-only, wire-compatible subset of OneKey Protocol V1/V2.
 // Source revisions and regeneration instructions are in README.md.
 syntax = "proto2";
 package nunchuk.onekey;
@@ -131,3 +131,58 @@ message TxOutput {
 }
 message SignPsbt { required bytes psbt = 1; optional string coin_name = 2; }
 message SignedPsbt { required bytes psbt = 1; }
+
+// Protocol V2 system messages. Bitcoin messages above retain their wire layout.
+message V2Ping { optional string message = 1; }
+message V2Success { optional string message = 1; }
+message V2Failure {
+  required uint32 code = 1;
+  optional uint32 subcode = 2;
+  optional string message = 3;
+}
+message V2ProtocolInfoRequest { optional bool eventless_wallet_session = 1; }
+message V2ProtocolInfo {
+  required uint32 version = 1;
+  optional string build_fingerprint = 2;
+  repeated uint32 supported_messages = 3;
+}
+message V2DeviceInfoTargets { optional bool hw = 100; optional bool main_mcu = 200; }
+message V2DeviceInfoTypes { optional bool version = 10; optional bool specific = 40; }
+message V2DeviceInfoGet {
+  optional V2DeviceInfoTargets targets = 1;
+  optional V2DeviceInfoTypes types = 2;
+}
+message V2DeviceHardwareInfo {
+  optional uint32 device_type = 10;
+  optional string serial_no = 20;
+}
+message V2FirmwareImageInfo { optional string version = 10; }
+message V2DeviceMainMcuInfo { optional V2FirmwareImageInfo application = 30; }
+message V2DeviceInfo {
+  required uint32 protocol_version = 1;
+  optional V2DeviceHardwareInfo hw = 100;
+  optional V2DeviceMainMcuInfo main_mcu = 200;
+}
+message V2DeviceStatus {
+  optional string device_id = 1;
+  optional bool unlocked = 2;
+  optional bool init_states = 3;
+  optional bool passphrase_enabled = 10;
+  optional bool attach_to_pin_enabled = 11;
+  optional bool unlocked_by_attach_to_pin = 12;
+}
+message V2SessionGet {
+  optional bytes session_id = 1;
+  optional string btc_test_address = 2;
+}
+message V2Session {
+  optional bytes session_id = 1;
+  optional string btc_test_address = 2;
+  repeated uint32 seed_domains = 3;
+}
+message V2SessionAskPin { optional uint32 type = 1; }
+message V2SessionAskPassphrase {
+  optional string passphrase = 1;
+  required bool on_device = 2;
+  repeated uint32 seed_domains = 3;
+}

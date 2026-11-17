@@ -17,8 +17,22 @@
 namespace nunchuk::onekey {
 using json = nlohmann::json;
 
-OneKeySession::OneKeySession(Chain chain, OneKeyTransport transport)
-    : chain_(chain), framer_(transport) {}
+OneKeySession::OneKeySession(Chain chain, OneKeyTransport transport,
+                             OneKeyProtocol protocol,
+                             std::shared_ptr<uint8_t> sequence)
+    : chain_(chain),
+      framer_(transport),
+      protocol_(protocol),
+      v2_framer_(transport, std::move(sequence)) {}
+
+OneKeySession::~OneKeySession() { clearV2Wallet(); }
+
+void OneKeySession::clearV2Wallet() {
+  if (!v2_session_id_.empty())
+    memory_cleanse(v2_session_id_.data(), v2_session_id_.size());
+  v2_session_id_.clear();
+  v2_wallet_address_.clear();
+}
 
 void OneKeySession::requireAvailable(bool require_initialized) const {
   if (command_ != Command::NONE)
@@ -50,6 +64,12 @@ void OneKeySession::resetCommand() {
   expected_address_.clear();
   psbt_.clear();
   framer_.reset();
+  v2_phase_ = V2Phase::NONE;
+  v2_wallet_ready_ = false;
+  v2_unlock_attempted_ = false;
+  v2_pending_type_ = 0;
+  v2_pending_data_ = nullptr;
+  v2_pending_interaction_ = UserInteraction::NONE;
 }
 
 void OneKeySession::begin(Command command) {
@@ -59,11 +79,23 @@ void OneKeySession::begin(Command command) {
 }
 
 OneKeyStep OneKeySession::send(uint16_t type, const json& data) {
+  // All wallet operations start with a public key request. Bind the selected
+  // wallet before sending it, then keep that binding for the whole operation.
+  if (protocol_ == OneKeyProtocol::V2 && type == proto::GET_PUBLIC_KEY &&
+      !v2_wallet_ready_) {
+    v2_pending_type_ = type;
+    v2_pending_data_ = data;
+    v2_pending_interaction_ = interaction_;
+    v2_phase_ = V2Phase::WALLET_STATUS;
+    return send(proto::V2_DEVICE_STATUS_GET);
+  }
   auto bytes = proto::Encode(type, data);
   OneKeyStep step;
   step.type = OneKeyStepType::WRITE;
   step.interaction = interaction_;
-  step.writes = WireFramer::encode(type, bytes);
+  step.writes = protocol_ == OneKeyProtocol::V2
+                    ? v2_framer_.encode(type, bytes)
+                    : WireFramer::encode(type, bytes);
   if (!bytes.empty()) memory_cleanse(bytes.data(), bytes.size());
   return step;
 }
@@ -82,6 +114,10 @@ OneKeyStep OneKeySession::initialize() {
   requireAvailable(false);
   begin(Command::INITIALIZE);
   initialized_ = false;
+  if (protocol_ == OneKeyProtocol::V2) {
+    v2_phase_ = V2Phase::PROBE;
+    return send(proto::V2_PING, {{"message", "protocol-v2-probe"}});
+  }
   phase_ = Phase::FEATURES;
   return send(proto::INITIALIZE);
 }
@@ -176,7 +212,10 @@ OneKeyStep OneKeySession::providePassphrase(const std::string& passphrase) {
   if (passphrase.size() > 50 || passphrase.find('\0') != std::string::npos) {
     throw std::invalid_argument("OneKey passphrase must be at most 50 bytes");
   }
-  auto step = send(proto::PASSPHRASE_ACK, {{"passphrase", passphrase}});
+  auto step = protocol_ == OneKeyProtocol::V2
+                  ? send(proto::V2_SESSION_ASK_PASSPHRASE,
+                         {{"passphrase", passphrase}, {"on_device", false}})
+                  : send(proto::PASSPHRASE_ACK, {{"passphrase", passphrase}});
   prompt_ = Prompt::NONE;
   return step;
 }
@@ -193,6 +232,13 @@ OneKeyStep OneKeySession::enterPassphraseOnDevice(bool attach_to_pin) {
   }
   prompt_ = Prompt::NONE;
   on_device_entry_ = true;
+  if (protocol_ == OneKeyProtocol::V2) {
+    interaction_ = attach_to_pin ? UserInteraction::UNLOCK_DEVICE
+                                 : UserInteraction::ENTER_PASSPHRASE;
+    return attach_to_pin
+               ? send(proto::V2_SESSION_ASK_PIN, {{"type", 3}})
+               : send(proto::V2_SESSION_ASK_PASSPHRASE, {{"on_device", true}});
+  }
   return send(proto::PASSPHRASE_ACK, attach_to_pin
                                          ? json{{"on_device_attach_pin", true}}
                                          : json{{"on_device", true}});
@@ -207,7 +253,9 @@ OneKeyStep OneKeySession::cancel() {
   result_.reset();
   framer_.reset();
   reset_required_ = true;
-  return send(on_device_entry_ ? proto::INITIALIZE : proto::CANCEL);
+  return send(protocol_ == OneKeyProtocol::V1 && on_device_entry_
+                  ? proto::INITIALIZE
+                  : proto::CANCEL);
 }
 
 OneKeyStep OneKeySession::onDisconnected() {
@@ -226,7 +274,8 @@ OneKeyStep OneKeySession::onData(std::span<const unsigned char> data) {
                 "OneKey session network changed");
   }
   try {
-    auto message = framer_.receive(data);
+    auto message = protocol_ == OneKeyProtocol::V2 ? v2_framer_.receive(data)
+                                                   : framer_.receive(data);
     if (!message) {
       OneKeyStep step;
       step.interaction = interaction_;
@@ -243,6 +292,10 @@ OneKeyStep OneKeySession::onData(std::span<const unsigned char> data) {
 }
 
 OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
+  if (type == proto::V2_FAILURE) {
+    return fail(OneKeyErrorCode::DEVICE, response.at("message"),
+                response.at("subcode"));
+  }
   if (type == proto::FAILURE) {
     int code = response.at("code");
     return fail(code == 4 || code == 6 ? OneKeyErrorCode::USER_CANCELLED
@@ -261,7 +314,12 @@ OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
       step.interaction = UserInteraction::UNLOCK_DEVICE;
     return step;
   }
+  if (protocol_ == OneKeyProtocol::V2 && v2_phase_ != V2Phase::NONE)
+    return handleV2Response(type, response);
   if (type == proto::PIN_MATRIX_REQUEST || type == proto::PASSPHRASE_REQUEST) {
+    if (protocol_ == OneKeyProtocol::V2)
+      return fail(OneKeyErrorCode::SESSION_LOST,
+                  "OneKey Pro 2 wallet session changed during the operation");
     if (type == proto::PASSPHRASE_REQUEST &&
         (phase_ == Phase::ACCOUNT_KEY || phase_ == Phase::ADDRESS ||
          phase_ == Phase::TX || phase_ == Phase::RAW_PSBT ||
@@ -374,6 +432,123 @@ OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
               "Unexpected OneKey response for the pending command");
 }
 
+OneKeyStep OneKeySession::resumeV2Wallet() {
+  v2_phase_ = V2Phase::SESSION;
+  if (v2_session_id_.empty()) return send(proto::V2_SESSION_GET);
+  return send(proto::V2_SESSION_GET,
+              {{"session_id", v2_session_id_},
+               {"btc_test_address", v2_wallet_address_}});
+}
+
+OneKeyStep OneKeySession::handleV2Response(uint16_t type,
+                                           const json& response) {
+  if (v2_phase_ == V2Phase::PROBE && type == proto::V2_SUCCESS) {
+    if (response.at("message") != "protocol-v2-probe")
+      return fail(OneKeyErrorCode::INVALID_RESPONSE,
+                  "Unexpected OneKey Protocol V2 probe response");
+    v2_phase_ = V2Phase::INFO;
+    return send(proto::V2_DEVICE_INFO_GET);
+  }
+  if (v2_phase_ == V2Phase::INFO && type == proto::V2_DEVICE_INFO) {
+    if (response.at("device_type") != 7)
+      return fail(OneKeyErrorCode::UNSUPPORTED_DEVICE,
+                  "Unsupported OneKey Protocol V2 model");
+    device_info_.model = OneKeyModel::PRO2;
+    device_info_.firmware_version = response.at("firmware_version");
+    device_info_.device_id = response.at("device_id");
+    device_info_.passphrase_on_device = true;
+    v2_phase_ = V2Phase::PROTOCOL;
+    return send(proto::V2_PROTOCOL_INFO_REQUEST);
+  }
+  if (v2_phase_ == V2Phase::PROTOCOL && type == proto::V2_PROTOCOL_INFO) {
+    const auto supported =
+        response.at("supported_messages").get<std::vector<uint32_t>>();
+    const auto has = [&](uint16_t id) {
+      return std::find(supported.begin(), supported.end(), id) !=
+             supported.end();
+    };
+    if (!has(proto::GET_PUBLIC_KEY) || !has(proto::V2_DEVICE_STATUS_GET) ||
+        !has(proto::V2_SESSION_GET) || !has(proto::V2_SESSION_ASK_PIN) ||
+        !has(proto::V2_SESSION_ASK_PASSPHRASE))
+      return fail(OneKeyErrorCode::UNSUPPORTED_FIRMWARE,
+                  "OneKey Pro 2 firmware lacks the required Bitcoin "
+                  "wallet-session commands");
+    device_info_.supports_raw_psbt = has(proto::SIGN_PSBT);
+    v2_phase_ = V2Phase::STATUS;
+    return send(proto::V2_DEVICE_STATUS_GET);
+  }
+  if ((v2_phase_ == V2Phase::STATUS || v2_phase_ == V2Phase::WALLET_STATUS) &&
+      type == proto::V2_DEVICE_STATUS) {
+    device_info_.initialized = response.at("initialized");
+    device_info_.unlocked = response.at("unlocked");
+    device_info_.passphrase_protection = response.at("passphrase_protection");
+    attach_pin_available_ = response.at("attach_pin_available");
+    if (v2_phase_ == V2Phase::STATUS) {
+      initialized_ = true;
+      return finish(InitializeResult{device_info_});
+    }
+    if (!device_info_.initialized)
+      return fail(OneKeyErrorCode::INVALID_STATE,
+                  "Set up the wallet on OneKey Pro 2 first");
+    // Empty host passphrase must select the standard wallet, even if the
+    // device was previously unlocked with an attached PIN by another client.
+    const bool needs_main_pin =
+        v2_session_id_.empty() &&
+        response.at("unlocked_by_attach_pin").get<bool>();
+    if (!device_info_.unlocked || needs_main_pin) {
+      if (v2_unlock_attempted_)
+        return fail(OneKeyErrorCode::SESSION_LOST,
+                    "OneKey Pro 2 did not enter the main PIN context");
+      v2_unlock_attempted_ = true;
+      v2_phase_ = V2Phase::UNLOCK;
+      interaction_ = UserInteraction::UNLOCK_DEVICE;
+      return send(proto::V2_SESSION_ASK_PIN, {{"type", 2}});
+    }
+    if (!v2_session_id_.empty()) return resumeV2Wallet();
+    if (device_info_.passphrase_protection) {
+      v2_phase_ = V2Phase::SELECT;
+      prompt_ = Prompt::PASSPHRASE;
+      OneKeyStep step;
+      step.type = OneKeyStepType::AWAITING_USER;
+      step.interaction = UserInteraction::ENTER_PASSPHRASE;
+      step.on_device_available = true;
+      step.attach_pin_available = attach_pin_available_;
+      return step;
+    }
+    if (response.at("unlocked_by_attach_pin").get<bool>())
+      return fail(OneKeyErrorCode::SESSION_LOST,
+                  "Unexpected OneKey Pro 2 attached-PIN wallet state");
+    return resumeV2Wallet();
+  }
+  if (v2_phase_ == V2Phase::UNLOCK &&
+      (type == proto::V2_SUCCESS || type == proto::V2_SESSION)) {
+    v2_phase_ = V2Phase::WALLET_STATUS;
+    return send(proto::V2_DEVICE_STATUS_GET);
+  }
+  if (v2_phase_ == V2Phase::SELECT && type == proto::V2_SUCCESS)
+    return resumeV2Wallet();
+  if ((v2_phase_ == V2Phase::SESSION || v2_phase_ == V2Phase::SELECT) &&
+      type == proto::V2_SESSION) {
+    const auto id = response.at("session_id").get<std::string>();
+    const auto address = response.at("btc_test_address").get<std::string>();
+    if (!v2_session_id_.empty() &&
+        (id != v2_session_id_ || address != v2_wallet_address_))
+      return fail(OneKeyErrorCode::SESSION_LOST,
+                  "OneKey Pro 2 returned a different wallet session");
+    v2_session_id_ = id;
+    v2_wallet_address_ = address;
+    v2_wallet_ready_ = true;
+    v2_phase_ = V2Phase::NONE;
+    interaction_ = v2_pending_interaction_;
+    const auto request_type = v2_pending_type_;
+    auto request = std::move(v2_pending_data_);
+    v2_pending_type_ = 0;
+    return send(request_type, request);
+  }
+  return fail(OneKeyErrorCode::INVALID_RESPONSE,
+              "Unexpected OneKey Protocol V2 response for the pending command");
+}
+
 OneKeyStep OneKeySession::continueWallet() {
   if (command_ == Command::ADDRESS) {
     auto request =
@@ -417,6 +592,8 @@ OneKeyStep OneKeySession::fail(OneKeyErrorCode code, const std::string& message,
   result_.reset();
   initialized_ = false;
   reset_required_ = true;
+  clearV2Wallet();
+  v2_framer_.reset();
   OneKeyStep step;
   step.type = OneKeyStepType::FAILED;
   step.error = OneKeyError{code, message, device_code};

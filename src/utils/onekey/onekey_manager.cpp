@@ -11,9 +11,13 @@ OneKeyManager::OneKeyManager(Nunchuk& nunchuk)
     : chain_(nunchuk.GetAppSettings().get_chain()) {}
 
 OneKeySession& OneKeyManager::forSession(const std::string& id,
-                                         OneKeyTransport transport) {
+                                         OneKeyTransport transport,
+                                         OneKeyProtocol protocol) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto session = std::make_unique<OneKeySession>(chain_, transport);
+  auto& sequence = sequences_[id];
+  if (!sequence) sequence = std::make_shared<uint8_t>(0);
+  auto session =
+      std::make_unique<OneKeySession>(chain_, transport, protocol, sequence);
   auto& result = *session;
   sessions_[id] = std::move(session);
   return result;
