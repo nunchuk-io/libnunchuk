@@ -1640,6 +1640,11 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual AppSettings GetAppSettings() = 0;
   virtual AppSettings UpdateAppSettings(const AppSettings& appSettings) = 0;
 
+  virtual std::string HandleJadePinQR(
+      const std::vector<std::string>& qr_data) = 0;
+  virtual std::vector<std::string> ExportJadePinQR(const std::string& pin,
+                                                   int fragment_len = 200) = 0;
+
   virtual std::vector<std::string> GetAddresses(const std::string& wallet_id,
                                                 bool used = false,
                                                 bool internal = false) = 0;
@@ -2573,10 +2578,6 @@ class NUNCHUK_EXPORT Utils {
                                       const std::string& address,
                                       const std::string& path);
   static std::string TrezorParseGetAddress(const std::string& response);
-
-  static std::string HandleJadePinQR(const std::vector<std::string>& qr_data);
-  static std::vector<std::string> ExportJadePinQR(const std::string& pin,
-                                                  int fragment_len = 200);
 
  private:
   Utils() {}

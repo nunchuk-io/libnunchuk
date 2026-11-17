@@ -30,6 +30,7 @@
 #include "bbqr/bbqr.hpp"
 #include "descriptor.h"
 #include "utils/chain.hpp"
+#include "utils/jade/jade.hpp"
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <utils/httplib.h>
 #include <utils/bip32.hpp>
@@ -1778,6 +1779,16 @@ AppSettings NunchukImpl::UpdateAppSettings(const AppSettings& settings) {
     liquid_synchronizer_->Run();
   }
   return settings;
+}
+
+std::string NunchukImpl::HandleJadePinQR(
+    const std::vector<std::string>& qr_data) {
+  return jade::HandlePinQr(qr_data, app_settings_.get_certificate_file());
+}
+
+std::vector<std::string> NunchukImpl::ExportJadePinQR(const std::string& pin,
+                                                      int fragment_len) {
+  return jade::ExportPinQr(pin, fragment_len);
 }
 
 Transaction NunchukImpl::DraftTransaction(

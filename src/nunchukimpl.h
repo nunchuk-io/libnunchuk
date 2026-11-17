@@ -199,6 +199,10 @@ class NunchukImpl : public Nunchuk {
                                 ExportFormat format) override;
   AppSettings GetAppSettings() override;
   AppSettings UpdateAppSettings(const AppSettings& app_settings) override;
+  std::string HandleJadePinQR(
+      const std::vector<std::string>& qr_data) override;
+  std::vector<std::string> ExportJadePinQR(const std::string& pin,
+                                           int fragment_len = 200) override;
 
   std::vector<std::string> GetAddresses(const std::string& wallet_id,
                                         bool used = false,

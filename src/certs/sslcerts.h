@@ -19,6 +19,7 @@
 #define NUNCHUK_SSLCERTS_H
 
 #include <string>
+#include <vector>
 
 typedef struct x509_store_st X509_STORE;
 typedef struct x509_store_ctx_st X509_STORE_CTX;
@@ -38,6 +39,13 @@ X509_STORE* CreateEmbeddedCaCertStore();
 // Returns false and sets the verification error on rejection or parsing failure.
 // Call before any fallback that accepts otherwise untrusted certificates.
 bool CheckCertificateChainForCompromisedKeys(X509_STORE_CTX* ctx);
+
+// Build an X509_STORE containing the embedded CA bundle plus an optional PEM
+// file and additional in-memory PEM certificate bundles. Ownership is
+// transferred to the caller as described above.
+X509_STORE* CreateCaCertStore(
+    const std::string& ca_cert_file,
+    const std::vector<std::string>& additional_ca_certificates);
 
 // Configure an httplib TLS client for server certificate verification.
 // If ca_cert_file is non-empty, that PEM is used; otherwise the embedded
