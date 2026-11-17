@@ -208,10 +208,8 @@ static void append_taproot_sighash(std::vector<unsigned char> &sig,
 static std::vector<unsigned char> sign_satochip_schnorr_hash(
     const SatochipSignPsbtParams &params, const XOnlyPubKey &verify_key,
     const uint256 &hash, int sighash_type, bool tweak_key) {
-  // Zero selects the no-tree tweak; bypass preserves the BIP32 key.
-  // Reprepare each time: signing overwrites the applet's key slot.
-  params.cardTaprootTweakPrivateKeyFn(0xff, std::vector<unsigned char>(32, 0),
-                                      !tweak_key);
+  // Reprepare each time: older firmware overwrites the applet's key slot.
+  params.cardTaprootTweakPrivateKeyFn(0xff, {}, !tweak_key);
   auto signature = params.cardSignSchnorrHashFn({hash.begin(), hash.end()});
   check_schnorr_signature(verify_key, hash, signature);
   append_taproot_sighash(signature, sighash_type);
