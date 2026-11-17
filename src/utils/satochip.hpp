@@ -52,9 +52,8 @@ using CardBip32GetExtendedKeyFn =
 using CardSignTransactionHashFn = std::function<std::vector<unsigned char>(
     unsigned char keynbr, const std::vector<unsigned char> &txhash)>;
 
-// `tweak` is the raw 32-byte APDU parameter, not a TapTweak scalar or Merkle
-// root. Returns a 33/65-byte pubkey. Bypass requires the applet's Nostr
-// feature.
+// Empty tweak means no script tree; the SDK handles firmware-specific encoding.
+// Returns a 33/65-byte pubkey. Bypass requires the applet's Nostr feature.
 using CardTaprootTweakPrivateKeyFn = std::function<std::vector<unsigned char>(
     int keynbr, const std::vector<unsigned char> &tweak, bool bypass_flag)>;
 
