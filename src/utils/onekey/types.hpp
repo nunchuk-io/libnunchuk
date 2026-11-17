@@ -40,6 +40,7 @@ enum class OneKeyErrorCode {
   SESSION_LOST,
   USER_CANCELLED,
   DEVICE,
+  BLE_UNAVAILABLE_WHILE_USB_CONNECTED,
 };
 
 struct OneKeyError {

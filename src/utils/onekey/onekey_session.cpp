@@ -296,13 +296,16 @@ OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
   if (type == proto::V2_FAILURE || type == proto::FAILURE) {
     const int code = response.at("code");
     auto message = response.at("message").get<std::string>();
+    auto error = type == proto::FAILURE && (code == 4 || code == 6)
+                     ? OneKeyErrorCode::USER_CANCELLED
+                     : OneKeyErrorCode::DEVICE;
     if (protocol_ == OneKeyProtocol::V2 && code == 5 &&
         ToLower(util::TrimStringView(message)) == "link disabled") {
-      message = "Bluetooth is unavailable while USB is connected. Unplug USB";
+      error = OneKeyErrorCode::BLE_UNAVAILABLE_WHILE_USB_CONNECTED;
+      message = "Your OneKey is connected by USB, which disables Bluetooth. "
+                "Unplug the USB cable from your OneKey, then reconnect using "
+                "Bluetooth.";
     }
-    const auto error = type == proto::FAILURE && (code == 4 || code == 6)
-                           ? OneKeyErrorCode::USER_CANCELLED
-                           : OneKeyErrorCode::DEVICE;
     const int device_code = type == proto::V2_FAILURE
                                 ? response.at("subcode").get<int>()
                                 : code;
