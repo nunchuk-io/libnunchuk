@@ -11,6 +11,7 @@
 #include <key_io.h>
 #include <support/cleanse.h>
 #include <util/strencodings.h>
+#include <util/string.h>
 #include "utils/onekey/bitcoin.hpp"
 #include "utils/onekey/protobuf.hpp"
 
@@ -292,15 +293,20 @@ OneKeyStep OneKeySession::onData(std::span<const unsigned char> data) {
 }
 
 OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
-  if (type == proto::V2_FAILURE) {
-    return fail(OneKeyErrorCode::DEVICE, response.at("message"),
-                response.at("subcode"));
-  }
-  if (type == proto::FAILURE) {
-    int code = response.at("code");
-    return fail(code == 4 || code == 6 ? OneKeyErrorCode::USER_CANCELLED
-                                       : OneKeyErrorCode::DEVICE,
-                response.at("message"), code);
+  if (type == proto::V2_FAILURE || type == proto::FAILURE) {
+    const int code = response.at("code");
+    auto message = response.at("message").get<std::string>();
+    if (protocol_ == OneKeyProtocol::V2 && code == 5 &&
+        ToLower(util::TrimStringView(message)) == "link disabled") {
+      message = "Bluetooth is unavailable while USB is connected. Unplug USB";
+    }
+    const auto error = type == proto::FAILURE && (code == 4 || code == 6)
+                           ? OneKeyErrorCode::USER_CANCELLED
+                           : OneKeyErrorCode::DEVICE;
+    const int device_code = type == proto::V2_FAILURE
+                                ? response.at("subcode").get<int>()
+                                : code;
+    return fail(error, message, device_code);
   }
   if (prompt_ != Prompt::NONE)
     return fail(OneKeyErrorCode::INVALID_RESPONSE,
@@ -319,7 +325,7 @@ OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
   if (type == proto::PIN_MATRIX_REQUEST || type == proto::PASSPHRASE_REQUEST) {
     if (protocol_ == OneKeyProtocol::V2)
       return fail(OneKeyErrorCode::SESSION_LOST,
-                  "OneKey Pro 2 wallet session changed during the operation");
+                  "OneKey wallet session changed during the operation");
     if (type == proto::PASSPHRASE_REQUEST &&
         (phase_ == Phase::ACCOUNT_KEY || phase_ == Phase::ADDRESS ||
          phase_ == Phase::TX || phase_ == Phase::RAW_PSBT ||
@@ -450,10 +456,17 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
     return send(proto::V2_DEVICE_INFO_GET);
   }
   if (v2_phase_ == V2Phase::INFO && type == proto::V2_DEVICE_INFO) {
-    if (response.at("device_type") != 7)
-      return fail(OneKeyErrorCode::UNSUPPORTED_DEVICE,
-                  "Unsupported OneKey Protocol V2 model");
-    device_info_.model = OneKeyModel::PRO2;
+    switch (response.at("device_type").get<uint32_t>()) {
+      case 7:
+        device_info_.model = OneKeyModel::PRO2;
+        break;
+      case 8:
+        device_info_.model = OneKeyModel::NEO;
+        break;
+      default:
+        return fail(OneKeyErrorCode::UNSUPPORTED_DEVICE,
+                    "Unsupported OneKey Protocol V2 model");
+    }
     device_info_.firmware_version = response.at("firmware_version");
     device_info_.device_id = response.at("device_id");
     device_info_.passphrase_on_device = true;
@@ -472,7 +485,7 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
     if (!response.at("legacy").get<bool>() &&
         !has(proto::V2_DEVICE_STATUS_GET))
       return fail(OneKeyErrorCode::UNSUPPORTED_FIRMWARE,
-                  "OneKey Pro 2 firmware does not advertise DeviceStatusGet "
+                  "OneKey firmware does not advertise DeviceStatusGet "
                   "(60602)");
     device_info_.supports_raw_psbt = has(proto::SIGN_PSBT);
     v2_phase_ = V2Phase::STATUS;
@@ -490,7 +503,7 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
     }
     if (!device_info_.initialized)
       return fail(OneKeyErrorCode::INVALID_STATE,
-                  "Set up the wallet on OneKey Pro 2 first");
+                  "Set up the wallet on OneKey first");
     // Empty host passphrase must select the standard wallet, even if the
     // device was previously unlocked with an attached PIN by another client.
     const bool needs_main_pin =
@@ -499,7 +512,7 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
     if (!device_info_.unlocked || needs_main_pin) {
       if (v2_unlock_attempted_)
         return fail(OneKeyErrorCode::SESSION_LOST,
-                    "OneKey Pro 2 did not enter the main PIN context");
+                    "OneKey did not enter the main PIN context");
       v2_unlock_attempted_ = true;
       v2_phase_ = V2Phase::UNLOCK;
       interaction_ = UserInteraction::UNLOCK_DEVICE;
@@ -518,7 +531,7 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
     }
     if (response.at("unlocked_by_attach_pin").get<bool>())
       return fail(OneKeyErrorCode::SESSION_LOST,
-                  "Unexpected OneKey Pro 2 attached-PIN wallet state");
+                  "Unexpected OneKey attached-PIN wallet state");
     return resumeV2Wallet();
   }
   if (v2_phase_ == V2Phase::UNLOCK &&
@@ -535,7 +548,7 @@ OneKeyStep OneKeySession::handleV2Response(uint16_t type,
     if (!v2_session_id_.empty() &&
         (id != v2_session_id_ || address != v2_wallet_address_))
       return fail(OneKeyErrorCode::SESSION_LOST,
-                  "OneKey Pro 2 returned a different wallet session");
+                  "OneKey returned a different wallet session");
     v2_session_id_ = id;
     v2_wallet_address_ = address;
     v2_wallet_ready_ = true;

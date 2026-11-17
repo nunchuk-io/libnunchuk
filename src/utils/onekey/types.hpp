@@ -28,7 +28,7 @@ enum class UserInteraction {
   SIGN_MESSAGE,
   SIGN_TRANSACTION,
 };
-enum class OneKeyModel { UNKNOWN, CLASSIC, CLASSIC1S, PRO, PRO2 };
+enum class OneKeyModel { UNKNOWN, CLASSIC, CLASSIC1S, PRO, PRO2, NEO };
 enum class OneKeyErrorCode {
   INVALID_STATE,
   INVALID_ARGUMENT,
