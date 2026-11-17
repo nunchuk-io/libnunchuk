@@ -239,8 +239,11 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/onekey/protobuf.cpp
     src/utils/onekey/psbt.cpp
     src/utils/onekey/wire_framer.cpp
+    src/utils/krux.cpp
     src/utils/trezor.hpp
     src/utils/trezor.cpp
+    src/utils/satochip.hpp
+    src/utils/satochip.cpp
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/certs/sslcerts.cpp
@@ -354,6 +357,7 @@ if(ANDROID)
 else()
     target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol bbqr-cpp libwally)
 endif()
+target_link_libraries("${PROJECT_NAME}" PRIVATE zlibstatic)
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
     "${PROJECT_SOURCE_DIR}/src"

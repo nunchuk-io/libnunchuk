@@ -21,6 +21,8 @@
 #include <set>
 #include <random>
 #include <mutex>
+#include <exception>
+#include <cctype>
 
 #include <utils/enumconverter.hpp>
 #include <utils/json.hpp>
@@ -257,12 +259,20 @@ NunchukMatrixEvent NunchukMatrixImpl::DeleteWallet(
   return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
-NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
-    const std::unique_ptr<Nunchuk>& /* nu */, const std::string& room_id) {
-  std::unique_lock<std::shared_mutex> lock(access_);
-  auto db = storage_->GetRoomDb(chain_);
-  auto wallet = db.GetActiveWallet(room_id);
+struct SharedWalletDraft {
+  std::vector<std::string> join_event_ids;
+  std::vector<SingleSigner> own_signers;
+  std::string name;
+  std::string description;
+  std::string descriptor;
+  std::string first_address;
+};
 
+// Descriptor a shared wallet must have, built from the init event and join
+// events that have not been left. own_signers are joins sent by this account.
+static SharedWalletDraft BuildSharedWalletDraft(NunchukRoomDb& db,
+                                               const RoomWallet& wallet,
+                                               const std::string& sender) {
   std::set<std::string> leave_ids;
   for (auto&& leave_event_id : wallet.get_leave_event_ids()) {
     auto leave_event = db.GetEvent(leave_event_id);
@@ -271,40 +281,133 @@ NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
     leave_ids.insert(join_id);
   }
 
-  std::vector<std::string> join_event_ids;
-  std::vector<SingleSigner> signers = {};
+  SharedWalletDraft draft;
+  std::vector<SingleSigner> signers;
   for (auto&& join_event_id : wallet.get_join_event_ids()) {
     if (leave_ids.count(join_event_id)) continue;
     auto join_event = db.GetEvent(join_event_id);
     auto join_body = json::parse(join_event.get_content())["body"];
-    join_event_ids.push_back(join_event_id);
     std::string key = join_body["key"];
-    signers.push_back(ParseSignerString(key));
+    draft.join_event_ids.push_back(join_event_id);
+    auto signer = ParseSignerString(key);
+    signers.push_back(signer);
+    if (!sender.empty() && join_event.get_sender() == sender) {
+      draft.own_signers.push_back(signer);
+    }
   }
 
   auto init_event = db.GetEvent(wallet.get_init_event_id());
   json init_body = json::parse(init_event.get_content())["body"];
-  std::string name = init_body["name"];
+  draft.name = init_body["name"];
   int m = init_body["m"];
   int n = init_body["n"];
-  std::string description = init_body["description"];
+  draft.description = init_body["description"];
   bool is_escrow = init_body["is_escrow"];
   auto a = AddressTypeFromStr(init_body["address_type"]);
 
-  Wallet w("", name, m, n, signers, a, is_escrow? WalletType::ESCROW : WalletType::MULTI_SIG, 0);
+  Wallet w("", draft.name, m, n, signers, a,
+           is_escrow ? WalletType::ESCROW : WalletType::MULTI_SIG, 0);
   // shared wallet always use default external internal <0;1> so it safe to use child path /** here
-  std::string descriptor = w.get_descriptor(DescriptorPath::TEMPLATE);
-  std::string first_address = CoreUtils::getInstance().DeriveAddress(
+  draft.descriptor = w.get_descriptor(DescriptorPath::TEMPLATE);
+  draft.first_address = CoreUtils::getInstance().DeriveAddress(
       w.get_descriptor(DescriptorPath::EXTERNAL_ALL), is_escrow ? -1 : 0);
+  return draft;
+}
+
+static bool TryBuildSharedWalletDraft(NunchukRoomDb& db, const RoomWallet& wallet,
+                                      const std::string& sender,
+                                      SharedWalletDraft& out) {
+  try {
+    out = BuildSharedWalletDraft(db, wallet, sender);
+    return true;
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
+static bool SameText(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (std::tolower(static_cast<unsigned char>(a[i])) !=
+        std::tolower(static_cast<unsigned char>(b[i]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// A joined key belongs to this device when its fingerprint is a master signer
+// here, or the same xpub/pubkey is already stored.
+static bool DeviceHoldsSigner(const std::unique_ptr<Nunchuk>& nu,
+                              const SingleSigner& signer) {
+  if (!nu) return false;
+  try {
+    if (nu->HasSigner(signer)) return true;
+    for (const auto& master : nu->GetMasterSigners()) {
+      if (SameText(master.get_id(), signer.get_master_fingerprint()) ||
+          SameText(master.get_device().get_master_fingerprint(),
+                   signer.get_master_fingerprint())) {
+        return true;
+      }
+    }
+    for (const auto& remote : nu->GetRemoteSigners()) {
+      if (!SameText(remote.get_master_fingerprint(),
+                    signer.get_master_fingerprint())) {
+        continue;
+      }
+      if (!signer.get_xpub().empty() &&
+          remote.get_xpub() == signer.get_xpub()) {
+        return true;
+      }
+      if (!signer.get_public_key().empty() &&
+          remote.get_public_key() == signer.get_public_key()) {
+        return true;
+      }
+    }
+  } catch (const std::exception&) {
+    return false;
+  }
+  return false;
+}
+
+// The create event must carry the descriptor this device would produce, the
+// same first address, and a key joined by this account.
+static bool SharedWalletCreateMatches(const std::unique_ptr<Nunchuk>& nu,
+                                      const json& body,
+                                      const SharedWalletDraft& agreed) {
+  if (!body.contains("descriptor") || !body["descriptor"].is_string() ||
+      !body.contains("first_address") || !body["first_address"].is_string()) {
+    return false;
+  }
+  const std::string descriptor = body["descriptor"].get<std::string>();
+  const std::string first_address = body["first_address"].get<std::string>();
+  if (descriptor != agreed.descriptor ||
+      first_address != agreed.first_address) {
+    return false;
+  }
+  for (const auto& signer : agreed.own_signers) {
+    if (descriptor.find(signer.get_descriptor()) == std::string::npos) continue;
+    if (DeviceHoldsSigner(nu, signer)) return true;
+  }
+  return false;
+}
+
+NunchukMatrixEvent NunchukMatrixImpl::CreateWallet(
+    const std::unique_ptr<Nunchuk>& /* nu */, const std::string& room_id) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  auto db = storage_->GetRoomDb(chain_);
+  auto wallet = db.GetActiveWallet(room_id);
+  auto agreed = BuildSharedWalletDraft(db, wallet, sender_);
+  auto init_event = db.GetEvent(wallet.get_init_event_id());
 
   json content = {{"msgtype", "io.nunchuk.wallet.create"},
                   {"body",
-                   {{"descriptor", descriptor},
+                   {{"descriptor", agreed.descriptor},
                     {"path_restriction", "/0/*,/1/*"},
-                    {"first_address", first_address},
+                    {"first_address", agreed.first_address},
                     {"io.nunchuk.relates_to",
                      {{"init_event", EventToJson(init_event)},
-                      {"join_event_ids", join_event_ids}}}}}};
+                      {"join_event_ids", agreed.join_event_ids}}}}}};
   return NewEvent(room_id, "io.nunchuk.wallet", content);
 }
 
@@ -635,9 +738,15 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   if (event.get_event_id().rfind("$local", 0) == 0) return;
 
   auto db = storage_->GetRoomDb(chain_);
-  if (db.HasEvent(event.get_event_id())) return;
   json content = json::parse(event.get_content());
   if (content["v"] == nullptr) return;
+  std::string msgtype = content["msgtype"];
+  if (db.HasEvent(event.get_event_id())) {
+    // A relates_to copy of init must not shadow the real wallet.init event.
+    if (msgtype != "io.nunchuk.wallet.init") return;
+    auto stored = json::parse(db.GetEvent(event.get_event_id()).get_content());
+    if (stored == content) return;
+  }
 
   json body;
   if (content["body"] != nullptr) {
@@ -652,13 +761,33 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
   std::string init_event_id = "";
   if (body["io.nunchuk.relates_to"] != nullptr) {
     auto init_event = JsonToEvent(body["io.nunchuk.relates_to"]["init_event"]);
-    if (!db.HasEvent(init_event.get_event_id())) db.SetEvent(init_event);
     init_event_id = init_event.get_event_id();
+    const bool init_known =
+        !init_event_id.empty() && db.HasEvent(init_event_id);
+    // wallet.create is checked against the init already stored on this device.
+    if (msgtype == "io.nunchuk.wallet.create") {
+      if (!init_known) return;
+    } else if (!init_known) {
+      // Mark copies carried inside another event so they cannot be used as
+      // the agreed init until the real wallet.init event arrives.
+      json init_content = json::parse(init_event.get_content());
+      init_content["io.nunchuk.embedded_init"] = true;
+      init_event.set_content(init_content.dump());
+      db.SetEvent(init_event);
+    }
     json init_body = GetInitBody(body);
+    if (msgtype == "io.nunchuk.wallet.create") {
+      auto stored_init =
+          json::parse(db.GetEvent(init_event_id).get_content());
+      if (stored_init.contains("io.nunchuk.embedded_init") &&
+          stored_init["io.nunchuk.embedded_init"] == true) {
+        return;
+      }
+      init_body = stored_init["body"];
+    }
     if (ChainFromStr(init_body["chain"]) != chain_) return;
   }
 
-  std::string msgtype = content["msgtype"];
   if (msgtype == "io.nunchuk.wallet.init") {
     auto wallet = db.GetWallet(event.get_event_id(), false);
     wallet.set_room_id(event.get_room_id());
@@ -686,18 +815,22 @@ void NunchukMatrixImpl::ConsumeEvent(const std::unique_ptr<Nunchuk>& nu,
     wallet.set_delete_event_id(event.get_event_id());
     db.SetWallet(wallet);
   } else if (msgtype == "io.nunchuk.wallet.create") {
+    if (init_event_id.empty() || !db.HasEvent(init_event_id)) return;
     auto wallet = db.GetWallet(init_event_id, false);
+    SharedWalletDraft agreed;
+    if (!TryBuildSharedWalletDraft(db, wallet, sender_, agreed) ||
+        !SharedWalletCreateMatches(nu, body, agreed)) {
+      return;
+    }
+
+    Wallet w = Utils::ParseWalletDescriptor(agreed.descriptor);
+    w.set_name(agreed.name);
+    w.set_description(agreed.description);
+
     wallet.set_room_id(event.get_room_id());
     wallet.set_finalize_event_id(event.get_event_id());
     if (wallet.get_wallet_id().empty() &&
         wallet.get_delete_event_id().empty()) {
-      std::string desc = body["descriptor"];
-      Wallet w = Utils::ParseWalletDescriptor(desc);
-
-      auto init_body = GetInitBody(body);
-      w.set_name(init_body["name"]);
-      w.set_description(init_body["description"]);
-
       wallet.set_wallet_id(w.get_id());
       wallet2room_[w.get_id()] = event.get_room_id();
 
