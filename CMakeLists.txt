@@ -232,6 +232,13 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/rfc2440.hpp
     src/utils/coldcard.cpp
     src/utils/onekey/qr.cpp
+    src/utils/onekey/messages/onekey.pb.c
+    src/utils/onekey/bitcoin.cpp
+    src/utils/onekey/onekey_manager.cpp
+    src/utils/onekey/onekey_session.cpp
+    src/utils/onekey/protobuf.cpp
+    src/utils/onekey/psbt.cpp
+    src/utils/onekey/wire_framer.cpp
     src/utils/trezor.hpp
     src/utils/trezor.cpp
     src/utils/bip85.cpp

@@ -1,0 +1,133 @@
+// Bitcoin-only, wire-compatible subset of OneKey Protocol V1.
+// Source revisions and regeneration instructions are in README.md.
+syntax = "proto2";
+package nunchuk.onekey;
+
+message Features {
+  optional string vendor = 1;
+  required uint32 major_version = 2;
+  required uint32 minor_version = 3;
+  required uint32 patch_version = 4;
+  optional bool bootloader_mode = 5;
+  optional string device_id = 6;
+  optional bool pin_protection = 7;
+  optional bool passphrase_protection = 8;
+  optional string label = 10;
+  optional bool initialized = 12;
+  optional bool unlocked = 16;
+  optional string model = 21;
+  repeated uint32 capabilities = 30;
+  optional bool passphrase_always_on_device = 36;
+  optional string onekey_version = 508;
+  optional string onekey_serial = 509;
+  optional string serial_no = 511;
+  optional uint32 onekey_device_type = 600;
+  optional string onekey_firmware_version = 609;
+  optional string onekey_serial_no = 612;
+}
+message Failure { optional uint32 code = 1; optional string message = 2; }
+message ButtonRequest { optional uint32 code = 1; }
+message PinMatrixRequest { optional uint32 type = 1; }
+message PinMatrixAck { required string pin = 1; }
+message PassphraseRequest {
+  optional bool on_device = 1;
+  optional bool exists_attach_pin_user = 8000;
+}
+message PassphraseAck {
+  optional string passphrase = 1;
+  optional bool on_device = 3;
+  optional bool on_device_attach_pin = 8000;
+}
+message HDNode {
+  required uint32 depth = 1;
+  required uint32 fingerprint = 2;
+  required uint32 child_num = 3;
+  required bytes chain_code = 4;
+  required bytes public_key = 6;
+}
+message HDNodePath { required HDNode node = 1; repeated uint32 address_n = 2; }
+message Multisig {
+  repeated HDNodePath pubkeys = 1;
+  required uint32 m = 3;
+}
+message GetPublicKey {
+  repeated uint32 address_n = 1;
+  optional bool show_display = 3;
+  optional string coin_name = 4;
+  optional uint32 script_type = 5;
+  optional bool ignore_xpub_magic = 6;
+}
+message PublicKey {
+  required HDNode node = 1;
+  required string xpub = 2;
+  optional uint32 root_fingerprint = 3;
+}
+message GetAddress {
+  repeated uint32 address_n = 1;
+  optional string coin_name = 2;
+  optional bool show_display = 3;
+  optional Multisig multisig = 4;
+  optional uint32 script_type = 5;
+}
+message Address { required string address = 1; }
+message SignMessage {
+  repeated uint32 address_n = 1;
+  required bytes message = 2;
+  optional string coin_name = 3;
+  optional uint32 script_type = 4;
+  optional bool no_script_type = 5;
+}
+message MessageSignature { required string address = 1; required bytes signature = 2; }
+message SignTx {
+  required uint32 outputs_count = 1;
+  required uint32 inputs_count = 2;
+  optional string coin_name = 3;
+  optional uint32 version = 4;
+  optional uint32 lock_time = 5;
+  optional bool serialize = 13;
+}
+message TxRequest {
+  optional uint32 request_type = 1;
+  optional TxRequestDetails details = 2;
+  optional TxRequestSerialized serialized = 3;
+}
+message TxRequestDetails {
+  optional uint32 request_index = 1;
+  optional bytes tx_hash = 2;
+}
+message TxRequestSerialized {
+  optional uint32 signature_index = 1;
+  optional bytes signature = 2;
+}
+// Legacy TxAck is also wire-compatible with the specialized TxAck messages.
+message TxAck { optional Transaction tx = 1; }
+message Transaction {
+  optional uint32 version = 1;
+  repeated TxInput inputs = 2;
+  repeated TxOutputBin bin_outputs = 3;
+  optional uint32 lock_time = 4;
+  repeated TxOutput outputs = 5;
+  optional uint32 inputs_cnt = 6;
+  optional uint32 outputs_cnt = 7;
+}
+message TxInput {
+  repeated uint32 address_n = 1;
+  required bytes prev_hash = 2;
+  required uint32 prev_index = 3;
+  optional bytes script_sig = 4;
+  optional uint32 sequence = 5;
+  optional uint32 script_type = 6;
+  optional Multisig multisig = 7;
+  optional uint64 amount = 8;
+}
+message TxOutputBin { required uint64 amount = 1; required bytes script_pubkey = 2; }
+message TxOutput {
+  optional string address = 1;
+  repeated uint32 address_n = 2;
+  required uint64 amount = 3;
+  optional uint32 script_type = 4;
+  optional Multisig multisig = 5;
+  optional bytes op_return_data = 6;
+}
+message SignPsbt { required bytes psbt = 1; optional string coin_name = 2; }
+message SignedPsbt { required bytes psbt = 1; }

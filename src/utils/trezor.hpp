@@ -19,8 +19,17 @@
 #define NUNCHUK_TREZOR_H
 
 #include "nunchuk.h"
+#include "utils/json.hpp"
 
 namespace nunchuk {
+std::string TrezorMergeSignatures(const std::string& psbt,
+                                  const std::string& xfp,
+                                  const std::vector<std::string>& signatures);
+
+// Transaction data shared by the Trezor deeplink and OneKey wire protocol.
+std::pair<std::string, nlohmann::json> TrezorSignParams(
+    const Wallet& wallet, const std::string& psbt, const std::string& xfp);
+
 std::string TrezorGetPublicKey(WalletType wallet_type, AddressType address_type,
                                int index);
 

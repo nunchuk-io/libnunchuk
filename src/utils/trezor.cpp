@@ -23,6 +23,7 @@
 #include "utils/httplib.h"
 #include "descriptor.h"
 #include "txutils.hpp"
+#include "trezor.hpp"
 
 namespace nunchuk {
 static const std::string_view TREZOR_DEEPLINK =
@@ -140,7 +141,7 @@ SingleSigner TrezorParsePublicKeyResponse(const std::string &response) {
                          "[Trezor] Unsupport trezor model.");
 }
 
-static std::pair<std::string, json> TrezorSignParams(
+std::pair<std::string, json> TrezorSignParams(
     const Wallet &wallet, const std::string &base64_psbt,
     const std::string &xfp) {
   PartiallySignedTransaction psbt;
@@ -238,28 +239,26 @@ static std::pair<std::string, json> TrezorSignParams(
     int version{};
     std::vector<unsigned char> program;
     bool is_witness = script.IsWitnessProgram(version, program);
-    if (is_witness) {
-      if (script.IsPayToWitnessScriptHash()) {
-        std::vector<std::vector<unsigned char>> solns;
-        TxoutType type{Solver(input.witness_script, solns)};
-
-        if (type == TxoutType::MULTISIG) {
-          const int m = int(solns.at(0).at(0));
-          const int n = int(solns.back().at(0));
-          if (wallet.get_wallet_type() != WalletType::MULTI_SIG ||
-              m != wallet.get_m() || n != wallet.get_n()) {
-            throw NunchukException(
-                NunchukException::INVALID_PSBT,
-                "[Trezor] Multisig policy does not match the wallet");
-          }
-          jin["multisig"] = {
-              {"m", m},
-              {"pubkeys", get_multisig_pubkeys(input.hd_keypaths, solns)},
-              {"signatures", std::vector<std::string>(n)},
-              {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
-          };
-        }
+    const CScript &multisig_script =
+        is_witness ? input.witness_script : script;
+    std::vector<std::vector<unsigned char>> solns;
+    if ((!is_witness || script.IsPayToWitnessScriptHash()) &&
+        Solver(multisig_script, solns) == TxoutType::MULTISIG) {
+      const int m = int(solns.at(0).at(0));
+      const int n = int(solns.back().at(0));
+      if (wallet.get_wallet_type() != WalletType::MULTI_SIG ||
+          m != wallet.get_m() || n != wallet.get_n()) {
+        throw NunchukException(
+            NunchukException::INVALID_PSBT,
+            "[Trezor] Multisig policy does not match the wallet");
       }
+      if (!is_witness) jin["script_type"] = "SPENDMULTISIG";
+      jin["multisig"] = {
+          {"m", m},
+          {"pubkeys", get_multisig_pubkeys(input.hd_keypaths, solns)},
+          {"signatures", std::vector<std::string>(n)},
+          {"pubkeys_order", TREZOR_MULTISIG_LEXICOGRAPHIC},
+      };
     }
 
     for (auto &&[pubkey, key_origin] : input.hd_keypaths) {
@@ -338,7 +337,10 @@ static std::pair<std::string, json> TrezorSignParams(
       }
     }
     std::vector<std::vector<unsigned char>> solns;
-    TxoutType type{Solver(psbt_out.witness_script, solns)};
+    const CScript &multisig_script = psbt_out.witness_script.empty()
+                                        ? psbt_out.redeem_script
+                                        : psbt_out.witness_script;
+    TxoutType type{Solver(multisig_script, solns)};
     if (type == TxoutType::MULTISIG && jout.contains("address_n")) {
       const int m = int(solns.at(0).at(0));
       const int n = int(solns.back().at(0));
@@ -348,6 +350,7 @@ static std::pair<std::string, json> TrezorSignParams(
             NunchukException::INVALID_PSBT,
             "[Trezor] Multisig change does not match the wallet");
       }
+      if (psbt_out.witness_script.empty()) jout["script_type"] = "PAYTOMULTISIG";
       jout["multisig"] = {
           {"m", m},
           {"pubkeys", get_multisig_pubkeys(psbt_out.hd_keypaths, solns)},
@@ -444,8 +447,13 @@ std::string TrezorParseSignTransactionResponse(const Wallet &wallet,
                                                const std::string &xfp,
                                                const std::string &response) {
   auto payload = TrezorGetPayload(response);
-  const std::vector<std::string> signatures = payload.at("signatures");
+  return TrezorMergeSignatures(
+      base64_psbt, xfp, payload.at("signatures").get<std::vector<std::string>>());
+}
 
+std::string TrezorMergeSignatures(const std::string &base64_psbt,
+                                  const std::string &xfp,
+                                  const std::vector<std::string> &signatures) {
   PartiallySignedTransaction psbt;
   if (std::string error; !DecodeBase64PSBT(psbt, base64_psbt, error)) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, error);
