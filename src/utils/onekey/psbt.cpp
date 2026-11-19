@@ -194,6 +194,9 @@ PreparedPsbt PreparePsbt(const Wallet& wallet, const std::string& base64_psbt,
       TrezorSignParams(wallet, result.signing_psbt, fingerprint).second;
   result.transaction["coin_name"] = CoinName(chain);
   if (taproot) {
+    // Classic rejects global XPUBs in raw PSBTs; the input/output key origins
+    // already identify this singlesig wallet. Keep XPUBs in signing_psbt.
+    psbt.m_xpubs.clear();
     for (size_t i = 0; i < psbt.inputs.size(); ++i) {
       CTxOut utxo;
       if (!psbt.GetInputUTXO(utxo, i))
