@@ -360,7 +360,10 @@ Bytes Encode(uint16_t type, const json& data) {
       nunchuk_onekey_SignMessage message{};
       SetPath(message, data);
       SetCallback(message.message, data, "message");
-      message.has_coin_name = message.has_no_script_type = true;
+      message.has_coin_name = message.has_no_script_type =
+          message.has_script_type = true;
+      message.script_type = ScriptType(data);
+      // Keep compact ECDSA signatures while matching the address/path type.
       message.no_script_type = true;
       SetString(message.coin_name, data.at("coin_name"));
       return EncodeMessage(nunchuk_onekey_SignMessage_fields, &message);

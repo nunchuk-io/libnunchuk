@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <common/signmessage.h>
 #include <key_io.h>
+#include <script/signingprovider.h>
 #include <support/cleanse.h>
 #include <util/strencodings.h>
 #include <util/string.h>
@@ -387,12 +388,32 @@ OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
       }
       return continueWallet();
     }
-    message_public_key_ = HexStr(DecodeExtPubKey(xpub).pubkey);
+    const auto pubkey = DecodeExtPubKey(xpub).pubkey;
+    message_public_key_ = HexStr(pubkey);
+    const char* script_type = "SPENDADDRESS";
+    CTxDestination destination = PKHash(pubkey);
+    switch (path_.front()) {
+      case 0x80000000 | 49:
+        script_type = "SPENDP2SHWITNESS";
+        destination =
+            ScriptHash(GetScriptForDestination(WitnessV0KeyHash(pubkey)));
+        break;
+      case 0x80000000 | 84:
+        script_type = "SPENDWITNESS";
+        destination = WitnessV0KeyHash(pubkey);
+        break;
+      case 0x80000000 | 86:
+        script_type = "SPENDTAPROOT";
+        destination = TaprootBuilder().Finalize(XOnlyPubKey(pubkey)).GetOutput();
+        break;
+    }
+    expected_address_ = EncodeDestination(destination);
     interaction_ = UserInteraction::SIGN_MESSAGE;
     phase_ = Phase::MESSAGE;
     return send(
         proto::SIGN_MESSAGE,
         {{"address_n", path_},
+         {"script_type", script_type},
          {"coin_name", CoinName(chain_)},
          {"message", HexStr(std::span(reinterpret_cast<const unsigned char*>(
                                           message_.data()),
@@ -411,8 +432,7 @@ OneKeyStep OneKeySession::handleResponse(uint16_t type, const json& response) {
     if (signature.size() != 65 ||
         !recovered.RecoverCompact(MessageHash(message_), signature) ||
         HexStr(recovered) != message_public_key_ ||
-        response.at("address") !=
-            EncodeDestination(PKHash(recovered.GetID()))) {
+        response.at("address") != expected_address_) {
       return fail(OneKeyErrorCode::INVALID_RESPONSE,
                   "Invalid OneKey message signature");
     }
