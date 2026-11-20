@@ -41,6 +41,7 @@ class NunchukImpl : public Nunchuk {
   ~NunchukImpl() override;
 
   void SetPassphrase(const std::string& passphrase) override;
+  void MigrateGuestToAccount(const std::string& account, bool keep) override;
   void RecoveryMode(bool value) override;
   Wallet CreateWallet(
       const std::string& name, int m, int n,

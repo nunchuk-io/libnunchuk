@@ -46,6 +46,9 @@
 
 #ifdef _WIN32
 #include <shlobj.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
 #endif
 
 using json = nlohmann::json;
@@ -234,31 +237,478 @@ std::string NunchukStorage::ImportWalletDb(Chain chain,
 
 NunchukStorage::NunchukStorage(const std::string& acc) : account_(acc) {}
 
+static const char* kMigrateJournalName = "migrate.json";
+static const char* kMigrateMarkerName = "guest-migrated.json";
+static const char* kMigrateStagingSuffix = ".migrating";
+static const char* kGuestChains[] = {"mainnet", "testnet", "signet", "regtest"};
+static const char* kGuestEntries[] = {"wallets", "signers", "state",
+                                      "room",    "group",   "tap-protocol"};
+static const char* kDbSidecars[] = {"-journal", "-wal", "-shm"};
+
+static std::string Sha256Hex(const std::string& value) {
+  CSHA256 hasher;
+  if (!value.empty()) {
+    hasher.Write(reinterpret_cast<const unsigned char*>(value.data()),
+                 value.size());
+  }
+  uint256 hash;
+  hasher.Finalize(hash.begin());
+  return hash.GetHex();
+}
+
+static bool SameAccount(const std::string& lhs, const std::string& rhs) {
+  return ba::to_lower_copy(lhs) == ba::to_lower_copy(rhs);
+}
+
+static void ThrowFs(const std::string& action, const bfs::path& path,
+                    const std::error_code& ec) {
+  throw NunchukException(NunchukException::INVALID_STATE,
+                         action + " " + path.string() + ": " + ec.message());
+}
+
+static void FsyncPath(const bfs::path& path, bool directory) {
+#ifdef _WIN32
+  const DWORD flags = directory ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
+  HANDLE handle = ::CreateFileW(
+      path.wstring().c_str(), GENERIC_READ | GENERIC_WRITE,
+      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+      OPEN_EXISTING, flags, nullptr);
+  if (handle == INVALID_HANDLE_VALUE || ::FlushFileBuffers(handle) == 0) {
+    if (handle != INVALID_HANDLE_VALUE) ::CloseHandle(handle);
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Failed to flush " + path.string());
+  }
+  ::CloseHandle(handle);
+#else
+  const int flags = directory ? (O_RDONLY | O_DIRECTORY) : O_RDONLY;
+  const int fd = ::open(path.string().c_str(), flags);
+  if (fd < 0) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Failed to open " + path.string());
+  }
+  const int rc = ::fsync(fd);
+  ::close(fd);
+  if (rc != 0) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Failed to fsync " + path.string());
+  }
+#endif
+}
+
+static void WriteAtomicJson(const bfs::path& dir, const char* name,
+                            const json& value) {
+  const bfs::path final_path = dir / name;
+  const bfs::path tmp_path = dir / (std::string(name) + ".tmp");
+  {
+    std::ofstream out(tmp_path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+      throw NunchukException(NunchukException::INVALID_STATE,
+                             "Can not write " + tmp_path.string());
+    }
+    out << value.dump();
+    out.flush();
+    if (!out) {
+      throw NunchukException(NunchukException::INVALID_STATE,
+                             "Can not write " + tmp_path.string());
+    }
+  }
+  FsyncPath(tmp_path, false);
+  std::error_code ec;
+  bfs::rename(tmp_path, final_path, ec);
+  if (ec) ThrowFs("rename", final_path, ec);
+  FsyncPath(dir, true);
+}
+
+static json ReadJsonFile(const bfs::path& path) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Can not open " + path.string());
+  }
+  try {
+    json value;
+    in >> value;
+    return value;
+  } catch (const json::exception& e) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           std::string("Invalid migration record: ") + e.what());
+  }
+}
+
+struct GuestMigrationRecord {
+  std::string account;
+  std::string hash;
+  bool keep{false};
+};
+
+static GuestMigrationRecord ReadMigrationRecord(const bfs::path& path) {
+  const json value = ReadJsonFile(path);
+  if (!value.is_object() || !value.contains("account") ||
+      !value.contains("hash") || !value["account"].is_string() ||
+      !value["hash"].is_string() ||
+      (value.contains("keep") && !value["keep"].is_boolean())) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Migration record is invalid: " + path.string());
+  }
+  GuestMigrationRecord record;
+  record.account = value["account"].get<std::string>();
+  record.hash = value["hash"].get<std::string>();
+  record.keep = value.value("keep", false);
+  if (record.account.empty() || record.hash.empty()) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Migration record is invalid: " + path.string());
+  }
+  return record;
+}
+
+static std::vector<bfs::path> GuestMigrationEntries() {
+  std::vector<bfs::path> entries;
+  for (const char* chain : kGuestChains) {
+    for (const char* name : kGuestEntries) {
+      entries.emplace_back(bfs::path(chain) / name);
+      for (const char* suffix : kDbSidecars) {
+        entries.emplace_back(bfs::path(chain) / (std::string(name) + suffix));
+      }
+    }
+  }
+  return entries;
+}
+
+static bool HasUserData(const bfs::path& path) {
+  std::error_code ec;
+  if (!bfs::exists(path, ec)) {
+    if (ec) ThrowFs("stat", path, ec);
+    return false;
+  }
+  if (!bfs::is_directory(path, ec)) {
+    if (ec) ThrowFs("stat", path, ec);
+    return true;
+  }
+  bfs::recursive_directory_iterator it(
+      path, bfs::directory_options::skip_permission_denied, ec);
+  if (ec) ThrowFs("read", path, ec);
+  const bfs::recursive_directory_iterator end;
+  for (; it != end; it.increment(ec)) {
+    if (ec) ThrowFs("read", path, ec);
+    if (!it->is_directory(ec)) {
+      if (ec) ThrowFs("stat", it->path(), ec);
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool GuestHasData(const bfs::path& root,
+                         const std::vector<bfs::path>& entries) {
+  for (const auto& rel : entries) {
+    if (HasUserData(root / rel)) return true;
+  }
+  return false;
+}
+
+// A new account can already contain an empty scaffold and a state database
+// created the first time it is opened. Wallets and signers are the data we
+// refuse to overwrite.
+static bool HasWalletOrSignerData(const bfs::path& root) {
+  for (const char* chain : kGuestChains) {
+    if (HasUserData(root / chain / "wallets")) return true;
+    if (HasUserData(root / chain / "signers")) return true;
+  }
+  return false;
+}
+
+static void ThrowMigrationConflict(const bfs::path& path) {
+  throw NunchukException(NunchukException::INVALID_STATE,
+                         "Migration conflict at " + path.string());
+}
+
+// `keep` copies the entry and leaves `src` in place. Otherwise the entry is
+// renamed. A copied file appears only after its temp file is renamed, so a
+// crash resumes from a complete file. A directory rename stays one syscall.
+static void TransferStorageEntry(const bfs::path& src, const bfs::path& dst,
+                                 bool keep) {
+  std::error_code ec;
+  const bool src_exists = bfs::exists(src, ec);
+  if (ec) ThrowFs("stat", src, ec);
+  const bool dst_exists = bfs::exists(dst, ec);
+  if (ec) ThrowFs("stat", dst, ec);
+  if (!src_exists) return;
+
+  const bool src_dir = bfs::is_directory(src, ec);
+  if (ec) ThrowFs("stat", src, ec);
+  if (src_dir && bfs::is_empty(src, ec)) {
+    if (ec) ThrowFs("read", src, ec);
+    if (!keep) {
+      bfs::remove(src, ec);
+      if (ec) ThrowFs("remove", src, ec);
+      FsyncPath(src.parent_path(), true);
+      return;
+    }
+    bfs::create_directories(dst, ec);
+    if (ec) ThrowFs("create", dst, ec);
+    FsyncPath(dst, true);
+    return;
+  }
+  if (ec) ThrowFs("read", src, ec);
+
+  if (src_dir && keep) {
+    if (dst_exists && !bfs::is_directory(dst, ec)) {
+      if (ec) ThrowFs("stat", dst, ec);
+      ThrowMigrationConflict(dst);
+    }
+    if (ec) ThrowFs("stat", dst, ec);
+    bfs::create_directories(dst, ec);
+    if (ec) ThrowFs("create", dst, ec);
+    bfs::directory_iterator it(src, ec);
+    if (ec) ThrowFs("read", src, ec);
+    const bfs::directory_iterator end;
+    for (; it != end; it.increment(ec)) {
+      if (ec) ThrowFs("read", src, ec);
+      TransferStorageEntry(it->path(), dst / it->path().filename(), true);
+    }
+    if (ec) ThrowFs("read", src, ec);
+    FsyncPath(dst, true);
+    return;
+  }
+
+  if (dst_exists) {
+    const bool dst_dir = bfs::is_directory(dst, ec);
+    if (ec) ThrowFs("stat", dst, ec);
+    if (keep && !dst_dir) return;
+    ThrowMigrationConflict(dst);
+  }
+
+  bfs::create_directories(dst.parent_path(), ec);
+  if (ec) ThrowFs("create", dst.parent_path(), ec);
+  if (!keep) {
+    bfs::rename(src, dst, ec);
+    if (ec) ThrowFs("rename", src, ec);
+    FsyncPath(dst.parent_path(), true);
+    if (src.parent_path() != dst.parent_path()) {
+      FsyncPath(src.parent_path(), true);
+    }
+    return;
+  }
+
+  bfs::path tmp = dst;
+  tmp += ".copy.tmp";
+  if (bfs::exists(tmp, ec)) {
+    bfs::remove(tmp, ec);
+    if (ec) ThrowFs("remove", tmp, ec);
+  } else if (ec) {
+    ThrowFs("stat", tmp, ec);
+  }
+  if (!bfs::copy_file(src, tmp, bfs::copy_options::overwrite_existing)) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Failed to copy " + src.string());
+  }
+  FsyncPath(tmp, false);
+  bfs::rename(tmp, dst, ec);
+  if (ec) ThrowFs("rename", tmp, ec);
+  FsyncPath(dst.parent_path(), true);
+}
+
 void NunchukStorage::Init(const std::string& datadir,
                           const std::string& passphrase) {
-  passphrase_ = passphrase;
+  bfs::path root;
   if (!datadir.empty()) {
-    datadir_ = bfs::absolute(datadir);
-    if (!bfs::is_directory(datadir_)) {
+    root = bfs::absolute(datadir);
+    if (!bfs::is_directory(root)) {
       throw StorageException(StorageException::INVALID_DATADIR,
                              "Datadir is not directory!");
     }
   } else {
-    datadir_ = GetDefaultDataDir();
+    root = GetDefaultDataDir();
   }
 
-  basedatadir_ = datadir_;
+  std::unique_lock<std::shared_mutex> lock(access_);
+  passphrase_ = passphrase;
+  basedatadir_ = root;
+  datadir_ = root;
   if (!account_.empty()) {
-    std::string aid = ba::to_lower_copy(account_);
-    CSHA256 hasher;
-    std::vector<unsigned char> stream(aid.begin(), aid.end());
-    hasher.Write((unsigned char*)&(*stream.begin()),
-                 stream.end() - stream.begin());
-    uint256 hash;
-    hasher.Finalize(hash.begin());
-    datadir_ = datadir_ / hash.GetHex();
+    datadir_ = basedatadir_ / Sha256Hex(ba::to_lower_copy(account_));
   }
+  ResumeGuestMigration();
   InitDataDir(datadir_);
+}
+
+void NunchukStorage::MigrateGuestToAccount(const std::string& account,
+                                           bool keep) {
+  std::unique_lock<std::shared_mutex> lock(access_);
+  if (!account_.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Only guest storage can be migrated");
+  }
+  if (basedatadir_.empty() || !bfs::is_directory(basedatadir_)) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Storage is not initialized");
+  }
+  if (account.empty()) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Account is empty");
+  }
+
+  const bfs::path journal = basedatadir_ / kMigrateJournalName;
+  std::error_code ec;
+  if (bfs::exists(journal, ec)) {
+    if (ec) ThrowFs("stat", journal, ec);
+    const GuestMigrationRecord pending = ReadMigrationRecord(journal);
+    RunGuestMigration(pending.account, pending.hash, pending.keep);
+    if (!SameAccount(pending.account, account)) {
+      throw NunchukException(
+          NunchukException::INVALID_STATE,
+          "An interrupted migration to another account was completed");
+    }
+    if (pending.keep != keep) {
+      throw NunchukException(
+          NunchukException::INVALID_STATE,
+          "An interrupted migration was completed in a different mode");
+    }
+    return;
+  }
+  if (ec) ThrowFs("stat", journal, ec);
+
+  const auto entries = GuestMigrationEntries();
+  const bool guest_has_data = GuestHasData(basedatadir_, entries);
+  const bfs::path marker = basedatadir_ / kMigrateMarkerName;
+  if (bfs::exists(marker, ec)) {
+    if (ec) ThrowFs("stat", marker, ec);
+    const GuestMigrationRecord migrated = ReadMigrationRecord(marker);
+    if (SameAccount(migrated.account, account) &&
+        (!guest_has_data || (migrated.keep && keep))) {
+      return;
+    }
+    if (!guest_has_data) {
+      throw NunchukException(
+          NunchukException::INVALID_STATE,
+          "Guest data was already migrated to another account");
+    }
+  } else if (ec) {
+    ThrowFs("stat", marker, ec);
+  }
+
+  const std::string hash = Sha256Hex(ba::to_lower_copy(account));
+  const bfs::path dest = basedatadir_ / hash;
+  const bfs::path staging = basedatadir_ / (hash + kMigrateStagingSuffix);
+  if (bfs::exists(dest / "decoy", ec)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Refusing to migrate into a decoy directory");
+  }
+  if (ec) ThrowFs("stat", dest / "decoy", ec);
+  if (HasWalletOrSignerData(dest) || HasUserData(staging)) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Account storage already has data");
+  }
+
+  json record;
+  record["account"] = account;
+  record["hash"] = hash;
+  record["keep"] = keep;
+  WriteAtomicJson(basedatadir_, kMigrateJournalName, record);
+  RunGuestMigration(account, hash, keep);
+}
+
+void NunchukStorage::ResumeGuestMigration() {
+  const bfs::path journal = basedatadir_ / kMigrateJournalName;
+  std::error_code ec;
+  if (basedatadir_.empty() || !bfs::exists(journal, ec)) {
+    if (ec) ThrowFs("stat", journal, ec);
+    return;
+  }
+  const GuestMigrationRecord pending = ReadMigrationRecord(journal);
+  DLOG_F(INFO, "Resuming guest migration to %s", pending.hash.c_str());
+  RunGuestMigration(pending.account, pending.hash, pending.keep);
+}
+
+void NunchukStorage::RunGuestMigration(const std::string& account,
+                                       const std::string& hash, bool keep) {
+  const std::string expect = Sha256Hex(ba::to_lower_copy(account));
+  if (expect != hash) {
+    throw NunchukException(NunchukException::INVALID_FORMAT,
+                           "Migration journal does not match the account");
+  }
+
+  const auto entries = GuestMigrationEntries();
+  const bfs::path dest = basedatadir_ / expect;
+  const bfs::path staging = basedatadir_ / (expect + kMigrateStagingSuffix);
+  const bfs::path journal = basedatadir_ / kMigrateJournalName;
+  std::error_code ec;
+
+  if (bfs::exists(dest / "decoy", ec)) {
+    throw NunchukException(NunchukException::INVALID_PARAMETER,
+                           "Refusing to migrate into a decoy directory");
+  }
+  if (ec) ThrowFs("stat", dest / "decoy", ec);
+
+  const bool staging_exists = bfs::exists(staging, ec);
+  if (ec) ThrowFs("stat", staging, ec);
+  const bool dest_exists = bfs::exists(dest, ec);
+  if (ec) ThrowFs("stat", dest, ec);
+  const bool guest_has_data = GuestHasData(basedatadir_, entries);
+  const bool dest_has_wallets = HasWalletOrSignerData(dest);
+
+  auto finish = [&]() {
+    if (!keep) {
+      for (const char* chain : kGuestChains) {
+        const bfs::path chain_dir = basedatadir_ / chain;
+        ec.clear();
+        if (!bfs::is_directory(chain_dir, ec)) continue;
+        bfs::create_directories(chain_dir / "wallets", ec);
+        if (ec) ThrowFs("create", chain_dir / "wallets", ec);
+        bfs::create_directories(chain_dir / "signers", ec);
+        if (ec) ThrowFs("create", chain_dir / "signers", ec);
+      }
+    }
+    json record;
+    record["account"] = account;
+    record["hash"] = expect;
+    record["keep"] = keep;
+    WriteAtomicJson(basedatadir_, kMigrateMarkerName, record);
+    ec.clear();
+    if (bfs::exists(journal, ec)) {
+      bfs::remove(journal, ec);
+      if (ec) ThrowFs("remove", journal, ec);
+    } else if (ec) {
+      ThrowFs("stat", journal, ec);
+    }
+    FsyncPath(basedatadir_, true);
+    NunchukDb::ClearCache();
+  };
+
+  // Commit already renamed staging onto the account directory. A copy
+  // leaves the guest tree in place, so guest data still being present is
+  // the committed state for keep=true.
+  if (!staging_exists && dest_exists && (dest_has_wallets || !guest_has_data) &&
+      (keep || !guest_has_data)) {
+    finish();
+    return;
+  }
+  if (dest_has_wallets) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Account storage already has data");
+  }
+  if (dest_exists) {
+    bfs::remove_all(dest, ec);
+    if (ec) ThrowFs("remove", dest, ec);
+    FsyncPath(basedatadir_, true);
+  }
+
+  bfs::create_directories(staging, ec);
+  if (ec) ThrowFs("create", staging, ec);
+  for (const auto& rel : entries) {
+    TransferStorageEntry(basedatadir_ / rel, staging / rel, keep);
+  }
+
+  if (bfs::exists(dest, ec)) {
+    throw NunchukException(NunchukException::INVALID_STATE,
+                           "Account directory appeared during migration");
+  }
+  if (ec) ThrowFs("stat", dest, ec);
+  bfs::rename(staging, dest, ec);
+  if (ec) ThrowFs("rename", staging, ec);
+  FsyncPath(basedatadir_, true);
+  DLOG_F(INFO, "Migrated guest storage to %s", expect.c_str());
+  finish();
 }
 
 static bfs::path rename_file_with_retry(const bfs::path& path) {
@@ -1078,6 +1528,8 @@ std::vector<std::string> NunchukStorage::ListRecentlyUsedWallets(Chain chain,
 std::vector<std::string> NunchukStorage::ListWallets0(Chain chain) {
   bfs::path directory = (datadir_ / ChainStr(chain) / "wallets");
   std::vector<std::string> ids;
+  std::error_code ec;
+  if (!bfs::is_directory(directory, ec)) return ids;
   for (auto&& f : bfs::directory_iterator(directory)) {
     auto id = f.path().filename().string();
     if (id.size() == 8) ids.push_back(id);
@@ -1093,6 +1545,8 @@ std::vector<std::string> NunchukStorage::ListMasterSigners(Chain chain) {
 std::vector<std::string> NunchukStorage::ListMasterSigners0(Chain chain) {
   bfs::path directory = (datadir_ / ChainStr(chain) / "signers");
   std::vector<std::string> ids;
+  std::error_code ec;
+  if (!bfs::is_directory(directory, ec)) return ids;
   for (auto&& f : bfs::directory_iterator(directory)) {
     auto id = f.path().filename().string();
     if (id.size() == 8) ids.push_back(id);
@@ -2490,17 +2944,9 @@ bool NunchukStorage::SetLiquidWalletId(int value) {
 }
 
 void NunchukStorage::InitDataDir(const bfs::path& dir) {
-  if (bfs::create_directories(dir / "testnet")) {
-    bfs::create_directories(dir / "testnet" / "wallets");
-    bfs::create_directories(dir / "testnet" / "signers");
-  }
-  if (bfs::create_directories(dir / "mainnet")) {
-    bfs::create_directories(dir / "mainnet" / "wallets");
-    bfs::create_directories(dir / "mainnet" / "signers");
-  }
-  if (bfs::create_directories(dir / "signet")) {
-    bfs::create_directories(dir / "signet" / "wallets");
-    bfs::create_directories(dir / "signet" / "signers");
+  for (const char* chain : {"testnet", "mainnet", "signet"}) {
+    bfs::create_directories(dir / chain / "wallets");
+    bfs::create_directories(dir / chain / "signers");
   }
   bfs::create_directories(dir / "tmp");
 }
@@ -2509,14 +2955,7 @@ bfs::path NunchukStorage::GetDecoyPath(const std::string& pin) const {
   if (pin.empty()) {
     throw NunchukException(NunchukException::INVALID_PARAMETER, "Pin is empty");
   }
-  std::string aid = "decoy-" + pin;
-  CSHA256 hasher;
-  std::vector<unsigned char> stream(aid.begin(), aid.end());
-  hasher.Write((unsigned char*)&(*stream.begin()),
-               stream.end() - stream.begin());
-  uint256 hash;
-  hasher.Finalize(hash.begin());
-  return basedatadir_ / hash.GetHex();
+  return basedatadir_ / Sha256Hex("decoy-" + pin);
 }
 
 bool NunchukStorage::NewDecoyPin(const std::string& pin) {

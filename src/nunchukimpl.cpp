@@ -140,6 +140,10 @@ void NunchukImpl::SetPassphrase(const std::string& passphrase) {
   storage_->SetPassphrase(chain_, passphrase);
 }
 
+void NunchukImpl::MigrateGuestToAccount(const std::string& account, bool keep) {
+  storage_->MigrateGuestToAccount(account, keep);
+}
+
 void NunchukImpl::RecoveryMode(bool value) {
   storage_->SetRecoveryMode(value);
 }
