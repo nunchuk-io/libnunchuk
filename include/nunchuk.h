@@ -1532,6 +1532,8 @@ class NUNCHUK_EXPORT Nunchuk {
   virtual ~Nunchuk();
 
   virtual void SetPassphrase(const std::string& passphrase) = 0;
+  virtual void MigrateGuestToAccount(const std::string& account,
+                                     bool keep = false) = 0;
   // Databases opened after this call erase an internal value that cannot be
   // decrypted and return it as empty, instead of throwing.
   virtual void RecoveryMode(bool value) = 0;
@@ -2364,6 +2366,10 @@ class NUNCHUK_EXPORT Utils {
                             const std::string& account, Chain chain,
                             const std::string& old_passphrase,
                             const std::string& new_passphrase);
+  static void MigrateGuestToAccount(const std::string& storage_path,
+                                    const std::string& account,
+                                    const std::string& passphrase = "",
+                                    bool keep = false);
   static std::vector<PrimaryKey> GetPrimaryKeys(const std::string& storage_path,
                                                 Chain chain);
   static std::string GetPrimaryKeyAddress(const std::string& mnemonic,

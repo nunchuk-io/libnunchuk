@@ -260,6 +260,14 @@ void Utils::SetPassPhrase(const std::string& storage_path,
   storage->SetPassphrase(chain, new_passphrase);
 }
 
+void Utils::MigrateGuestToAccount(const std::string& storage_path,
+                                  const std::string& account,
+                                  const std::string& passphrase, bool keep) {
+  NunchukStorage storage{""};
+  storage.Init(storage_path, passphrase);
+  storage.MigrateGuestToAccount(account, keep);
+}
+
 std::vector<PrimaryKey> Utils::GetPrimaryKeys(const std::string& storage_path,
                                               Chain chain) {
   NunchukStorage storage{""};

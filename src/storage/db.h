@@ -36,6 +36,7 @@ class NunchukDb {
             bool recovery_mode = false);
   ~NunchukDb() { close(); }
   std::string GetId() const;
+  static void ClearCache();
 
  protected:
   void CreateTable();

@@ -98,6 +98,12 @@ void NunchukDb::SetupBoxKey(const std::vector<uint8_t>& data) {
 
 void NunchukDb::close() { sqlite3_close(db_); }
 
+void NunchukDb::ClearCache() {
+  std::unique_lock<std::shared_mutex> lock(cache_access_);
+  vstr_cache_.clear();
+  vint_cache_.clear();
+}
+
 void NunchukDb::CreateTable() {
   SQLCHECK(sqlite3_exec(db_,
                         "CREATE TABLE IF NOT EXISTS VSTR("

@@ -42,6 +42,12 @@ class NunchukStorage {
 
   NunchukStorage(const std::string &account);
   void Init(const std::string &datadir, const std::string &passphrase = "");
+  // Move guest wallets, signers, and chain databases into `account`.
+  // primary and local stay in the base directory. An account with no
+  // wallet or signer yet is replaced. `keep` copies the files and leaves
+  // the guest copies in place. A journal resumes an interrupted migration
+  // on the next Init or call, in the mode it started with.
+  void MigrateGuestToAccount(const std::string &account, bool keep = false);
   void MaybeMigrate(Chain chain);
   bool WriteFile(const std::string &file_path, const std::string &value);
   std::string LoadFile(const std::string &file_path);
@@ -388,6 +394,10 @@ class NunchukStorage {
                                        const std::string &wallet_id,
                                        bool include_spent = false);
   void InitDataDir(const std::filesystem::path &dir);
+  // Caller holds the unique storage lock.
+  void ResumeGuestMigration();
+  void RunGuestMigration(const std::string &account, const std::string &hash,
+                         bool keep);
   std::filesystem::path GetDecoyPath(const std::string &pin) const;
   std::filesystem::path GetWalletDir0(const std::filesystem::path &dir,
                                       Chain chain, std::string id) const;
