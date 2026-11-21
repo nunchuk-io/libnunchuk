@@ -1873,6 +1873,13 @@ Transaction NunchukImpl::DraftTransaction(
   }
   for (auto& out : tx.mutable_outputs()) {
     auto it = m_outputs.find(out.address);
+    if (it == m_outputs.end()) {
+      const auto dest = DecodeDestination(out.address);
+      it = std::find_if(m_outputs.begin(), m_outputs.end(),
+                        [&](const auto& entry) {
+                          return DecodeDestination(entry.first) == dest;
+                        });
+    }
     if (it != m_outputs.end()) out.userAmount = it->second;
   }
 
