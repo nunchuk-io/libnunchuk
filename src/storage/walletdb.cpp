@@ -18,6 +18,7 @@
 #include "walletdb.h"
 
 #include <descriptor.h>
+#include <key_io.h>
 #include <utils/bip32.hpp>
 #include <utils/txutils.hpp>
 #include <utils/json.hpp>
@@ -1865,46 +1866,53 @@ std::string NunchukWalletDb::FillPsbt(const std::string& base64_psbt) {
 
 void NunchukWalletDb::FillExtra(const std::string& extra,
                                 Transaction& tx) const {
-  if (!extra.empty()) {
-    json extra_json = json::parse(extra);
-    if (extra_json["signers"] != nullptr &&
-        (tx.get_height() >= 0 || !tx.get_raw().empty())) {
-      for (auto&& signer : tx.get_signers()) {
-        if (!signer.second)
-          tx.set_signer(signer.first, extra_json["signers"][signer.first]);
+  if (extra.empty()) return;
+
+  json extra_json = json::parse(extra);
+  if (extra_json["signers"] != nullptr &&
+      (tx.get_height() >= 0 || !tx.get_raw().empty())) {
+    for (auto&& signer : tx.get_signers()) {
+      if (!signer.second)
+        tx.set_signer(signer.first, extra_json["signers"][signer.first]);
+    }
+  }
+  if (const auto& outputs = extra_json["outputs"]; outputs.is_object()) {
+    auto amounts = outputs;
+    for (const auto& [address, amount] : outputs.items()) {
+      const auto dest = DecodeDestination(address);
+      if (IsValidDestination(dest)) {
+        amounts.emplace(EncodeDestination(dest), amount);
       }
     }
-    if (extra_json["outputs"] != nullptr) {
-      for (auto& output : tx.mutable_outputs()) {
-        auto amount = extra_json["outputs"][output.address];
-        if (amount != nullptr) {
-          output.userAmount = Amount(amount);
-        }
+    for (auto& output : tx.mutable_outputs()) {
+      const auto& amount = amounts[output.address];
+      if (amount != nullptr) {
+        output.userAmount = Amount(amount);
       }
     }
-    if (extra_json["fee_rate"] != nullptr) {
-      tx.set_fee_rate(extra_json["fee_rate"]);
-    }
-    if (extra_json["vsize"] != nullptr) {
-      tx.set_vsize(extra_json["vsize"]);
-    }
-    if (extra_json["subtract"] != nullptr) {
-      tx.set_subtract_fee_from_amount(extra_json["subtract"]);
-    }
-    if (extra_json["replace_txid"] != nullptr) {
-      tx.set_replace_txid(extra_json["replace_txid"]);
-    }
-    if (extra_json["schedule_time"] != nullptr) {
-      tx.set_schedule_time(extra_json["schedule_time"]);
-    }
-    if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION &&
-        extra_json["replaced_by_txid"] != nullptr) {
-      tx.set_status(TransactionStatus::REPLACED);
-      tx.set_replaced_by_txid(extra_json["replaced_by_txid"]);
-    } else if (tx.get_status() == TransactionStatus::NETWORK_REJECTED &&
-               extra_json["reject_msg"] != nullptr) {
-      tx.set_reject_msg(extra_json["reject_msg"]);
-    }
+  }
+  if (extra_json["fee_rate"] != nullptr) {
+    tx.set_fee_rate(extra_json["fee_rate"]);
+  }
+  if (extra_json["vsize"] != nullptr) {
+    tx.set_vsize(extra_json["vsize"]);
+  }
+  if (extra_json["subtract"] != nullptr) {
+    tx.set_subtract_fee_from_amount(extra_json["subtract"]);
+  }
+  if (extra_json["replace_txid"] != nullptr) {
+    tx.set_replace_txid(extra_json["replace_txid"]);
+  }
+  if (extra_json["schedule_time"] != nullptr) {
+    tx.set_schedule_time(extra_json["schedule_time"]);
+  }
+  if (tx.get_status() == TransactionStatus::PENDING_CONFIRMATION &&
+      extra_json["replaced_by_txid"] != nullptr) {
+    tx.set_status(TransactionStatus::REPLACED);
+    tx.set_replaced_by_txid(extra_json["replaced_by_txid"]);
+  } else if (tx.get_status() == TransactionStatus::NETWORK_REJECTED &&
+             extra_json["reject_msg"] != nullptr) {
+    tx.set_reject_msg(extra_json["reject_msg"]);
   }
 }
 
