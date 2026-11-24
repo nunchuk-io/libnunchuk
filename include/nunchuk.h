@@ -2380,6 +2380,9 @@ class NUNCHUK_EXPORT Utils {
                                     const std::string& account,
                                     const std::string& passphrase = "",
                                     bool keep = false);
+  static std::pair<int /* wallets */, int /* signers */>
+  GetGuestWalletSignerCount(const std::string& storage_path,
+                            const std::string& passphrase = "");
   static std::vector<PrimaryKey> GetPrimaryKeys(const std::string& storage_path,
                                                 Chain chain);
   static std::string GetPrimaryKeyAddress(const std::string& mnemonic,

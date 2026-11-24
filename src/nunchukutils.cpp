@@ -297,6 +297,20 @@ void Utils::MigrateGuestToAccount(const std::string& storage_path,
   storage.MigrateGuestToAccount(account, keep);
 }
 
+std::pair<int, int> Utils::GetGuestWalletSignerCount(
+    const std::string& storage_path, const std::string& passphrase) {
+  NunchukStorage storage{""};
+  storage.Init(storage_path, passphrase);
+  int wallets = 0;
+  int signers = 0;
+  for (Chain chain :
+       {Chain::MAIN, Chain::TESTNET, Chain::SIGNET, Chain::REGTEST}) {
+    wallets += static_cast<int>(storage.ListWallets(chain).size());
+    signers += static_cast<int>(storage.ListMasterSigners(chain).size());
+  }
+  return {wallets, signers};
+}
+
 std::vector<PrimaryKey> Utils::GetPrimaryKeys(const std::string& storage_path,
                                               Chain chain) {
   NunchukStorage storage{""};
