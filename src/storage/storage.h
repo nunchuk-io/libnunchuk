@@ -396,8 +396,7 @@ class NunchukStorage {
   void InitDataDir(const std::filesystem::path &dir);
   // Caller holds the unique storage lock.
   void ResumeGuestMigration();
-  void RunGuestMigration(const std::string &account, const std::string &hash,
-                         bool keep);
+  void RunGuestMigration(const std::string &hash, bool keep);
   std::filesystem::path GetDecoyPath(const std::string &pin) const;
   std::filesystem::path GetWalletDir0(const std::filesystem::path &dir,
                                       Chain chain, std::string id) const;

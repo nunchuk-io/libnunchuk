@@ -36,6 +36,7 @@
 #include <sstream>
 #include <cstring>
 #include <algorithm>
+#include <cctype>
 
 #include <univalue.h>
 #include <rpc/util.h>
@@ -256,8 +257,11 @@ static std::string Sha256Hex(const std::string& value) {
   return hash.GetHex();
 }
 
-static bool SameAccount(const std::string& lhs, const std::string& rhs) {
-  return ba::to_lower_copy(lhs) == ba::to_lower_copy(rhs);
+static bool IsAccountHash(const std::string& hash) {
+  return hash.size() == 64 &&
+         std::all_of(hash.begin(), hash.end(), [](unsigned char c) {
+           return std::isxdigit(c) != 0;
+         });
 }
 
 static void ThrowFs(const std::string& action, const bfs::path& path,
@@ -336,27 +340,35 @@ static json ReadJsonFile(const bfs::path& path) {
 }
 
 struct GuestMigrationRecord {
-  std::string account;
   std::string hash;
   bool keep{false};
 };
 
 static GuestMigrationRecord ReadMigrationRecord(const bfs::path& path) {
   const json value = ReadJsonFile(path);
-  if (!value.is_object() || !value.contains("account") ||
-      !value.contains("hash") || !value["account"].is_string() ||
+  if (!value.is_object() || !value.contains("hash") ||
       !value["hash"].is_string() ||
+      (value.contains("account") && !value["account"].is_string()) ||
       (value.contains("keep") && !value["keep"].is_boolean())) {
     throw NunchukException(NunchukException::INVALID_FORMAT,
                            "Migration record is invalid: " + path.string());
   }
   GuestMigrationRecord record;
-  record.account = value["account"].get<std::string>();
   record.hash = value["hash"].get<std::string>();
   record.keep = value.value("keep", false);
-  if (record.account.empty() || record.hash.empty()) {
+  if (!IsAccountHash(record.hash)) {
     throw NunchukException(NunchukException::INVALID_FORMAT,
                            "Migration record is invalid: " + path.string());
+  }
+  // Older records stored the account id. Check it matches the hash, then
+  // drop it. New records store only the hash.
+  if (value.contains("account")) {
+    const std::string account = value["account"].get<std::string>();
+    if (!account.empty() &&
+        Sha256Hex(ba::to_lower_copy(account)) != record.hash) {
+      throw NunchukException(NunchukException::INVALID_FORMAT,
+                             "Migration journal does not match the account");
+    }
   }
   return record;
 }
@@ -553,8 +565,9 @@ void NunchukStorage::MigrateGuestToAccount(const std::string& account,
   if (bfs::exists(journal, ec)) {
     if (ec) ThrowFs("stat", journal, ec);
     const GuestMigrationRecord pending = ReadMigrationRecord(journal);
-    RunGuestMigration(pending.account, pending.hash, pending.keep);
-    if (!SameAccount(pending.account, account)) {
+    const std::string requested = Sha256Hex(ba::to_lower_copy(account));
+    RunGuestMigration(pending.hash, pending.keep);
+    if (pending.hash != requested) {
       throw NunchukException(
           NunchukException::INVALID_STATE,
           "An interrupted migration to another account was completed");
@@ -574,7 +587,8 @@ void NunchukStorage::MigrateGuestToAccount(const std::string& account,
   if (bfs::exists(marker, ec)) {
     if (ec) ThrowFs("stat", marker, ec);
     const GuestMigrationRecord migrated = ReadMigrationRecord(marker);
-    if (SameAccount(migrated.account, account) &&
+    const std::string requested = Sha256Hex(ba::to_lower_copy(account));
+    if (migrated.hash == requested &&
         (!guest_has_data || (migrated.keep && keep))) {
       return;
     }
@@ -601,11 +615,10 @@ void NunchukStorage::MigrateGuestToAccount(const std::string& account,
   }
 
   json record;
-  record["account"] = account;
   record["hash"] = hash;
   record["keep"] = keep;
   WriteAtomicJson(basedatadir_, kMigrateJournalName, record);
-  RunGuestMigration(account, hash, keep);
+  RunGuestMigration(hash, keep);
 }
 
 void NunchukStorage::ResumeGuestMigration() {
@@ -617,20 +630,18 @@ void NunchukStorage::ResumeGuestMigration() {
   }
   const GuestMigrationRecord pending = ReadMigrationRecord(journal);
   DLOG_F(INFO, "Resuming guest migration to %s", pending.hash.c_str());
-  RunGuestMigration(pending.account, pending.hash, pending.keep);
+  RunGuestMigration(pending.hash, pending.keep);
 }
 
-void NunchukStorage::RunGuestMigration(const std::string& account,
-                                       const std::string& hash, bool keep) {
-  const std::string expect = Sha256Hex(ba::to_lower_copy(account));
-  if (expect != hash) {
+void NunchukStorage::RunGuestMigration(const std::string& hash, bool keep) {
+  if (!IsAccountHash(hash)) {
     throw NunchukException(NunchukException::INVALID_FORMAT,
                            "Migration journal does not match the account");
   }
 
   const auto entries = GuestMigrationEntries();
-  const bfs::path dest = basedatadir_ / expect;
-  const bfs::path staging = basedatadir_ / (expect + kMigrateStagingSuffix);
+  const bfs::path dest = basedatadir_ / hash;
+  const bfs::path staging = basedatadir_ / (hash + kMigrateStagingSuffix);
   const bfs::path journal = basedatadir_ / kMigrateJournalName;
   std::error_code ec;
 
@@ -660,8 +671,7 @@ void NunchukStorage::RunGuestMigration(const std::string& account,
       }
     }
     json record;
-    record["account"] = account;
-    record["hash"] = expect;
+    record["hash"] = hash;
     record["keep"] = keep;
     WriteAtomicJson(basedatadir_, kMigrateMarkerName, record);
     ec.clear();
@@ -707,7 +717,7 @@ void NunchukStorage::RunGuestMigration(const std::string& account,
   bfs::rename(staging, dest, ec);
   if (ec) ThrowFs("rename", staging, ec);
   FsyncPath(basedatadir_, true);
-  DLOG_F(INFO, "Migrated guest storage to %s", expect.c_str());
+  DLOG_F(INFO, "Migrated guest storage to %s", hash.c_str());
   finish();
 }
 
