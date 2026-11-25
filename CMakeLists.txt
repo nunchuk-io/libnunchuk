@@ -231,8 +231,11 @@ add_library("${PROJECT_NAME}" STATIC
     src/utils/enumconverter.hpp
     src/utils/rfc2440.hpp
     src/utils/coldcard.cpp
+    src/utils/krux.cpp
     src/utils/trezor.hpp
     src/utils/trezor.cpp
+    src/utils/satochip.hpp
+    src/utils/satochip.cpp
     src/utils/bip85.cpp
     src/utils/secretbox.cpp
     src/certs/sslcerts.cpp
@@ -335,6 +338,7 @@ if(ANDROID)
 else()
     target_link_libraries("${PROJECT_NAME}" PUBLIC embedded ${PROJECT_LIBRARIES} trezor-crypto tap-protocol bbqr-cpp libwally)
 endif()
+target_link_libraries("${PROJECT_NAME}" PRIVATE zlibstatic)
 
 target_include_directories("${PROJECT_NAME}" PUBLIC 
     "${PROJECT_SOURCE_DIR}/src"
